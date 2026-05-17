@@ -367,6 +367,327 @@ impl ::buffa::Enumeration for AudioFormat {
         ]
     }
 }
+/// Method used to obtain the body height estimate in BodyPose3DDetection.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
+#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
+#[repr(i32)]
+pub enum BodyPose3DHeightEstimation {
+    BODY_POSE_3D_HEIGHT_ESTIMATION_UNSPECIFIED = 0i32,
+    BODY_POSE_3D_HEIGHT_ESTIMATION_REFERENCE = 1i32,
+    BODY_POSE_3D_HEIGHT_ESTIMATION_MEASURED = 2i32,
+}
+impl ::core::default::Default for BodyPose3DHeightEstimation {
+    fn default() -> Self {
+        Self::BODY_POSE_3D_HEIGHT_ESTIMATION_UNSPECIFIED
+    }
+}
+#[cfg(feature = "json")]
+const _: () = {
+    impl ::serde::Serialize for BodyPose3DHeightEstimation {
+        fn serialize<S: ::serde::Serializer>(
+            &self,
+            s: S,
+        ) -> ::core::result::Result<S::Ok, S::Error> {
+            s.serialize_str(::buffa::Enumeration::proto_name(self))
+        }
+    }
+    impl<'de> ::serde::Deserialize<'de> for BodyPose3DHeightEstimation {
+        fn deserialize<D: ::serde::Deserializer<'de>>(
+            d: D,
+        ) -> ::core::result::Result<Self, D::Error> {
+            struct _V;
+            impl ::serde::de::Visitor<'_> for _V {
+                type Value = BodyPose3DHeightEstimation;
+                fn expecting(
+                    &self,
+                    f: &mut ::core::fmt::Formatter<'_>,
+                ) -> ::core::fmt::Result {
+                    f.write_str(
+                        concat!(
+                            "a string, integer, or null for ",
+                            stringify!(BodyPose3DHeightEstimation)
+                        ),
+                    )
+                }
+                fn visit_str<E: ::serde::de::Error>(
+                    self,
+                    v: &str,
+                ) -> ::core::result::Result<BodyPose3DHeightEstimation, E> {
+                    <BodyPose3DHeightEstimation as ::buffa::Enumeration>::from_proto_name(
+                            v,
+                        )
+                        .ok_or_else(|| { ::serde::de::Error::unknown_variant(v, &[]) })
+                }
+                fn visit_i64<E: ::serde::de::Error>(
+                    self,
+                    v: i64,
+                ) -> ::core::result::Result<BodyPose3DHeightEstimation, E> {
+                    let v32 = i32::try_from(v)
+                        .map_err(|_| {
+                            ::serde::de::Error::custom(
+                                ::buffa::alloc::format!("enum value {v} out of i32 range"),
+                            )
+                        })?;
+                    <BodyPose3DHeightEstimation as ::buffa::Enumeration>::from_i32(v32)
+                        .ok_or_else(|| {
+                            ::serde::de::Error::custom(
+                                ::buffa::alloc::format!("unknown enum value {v32}"),
+                            )
+                        })
+                }
+                fn visit_u64<E: ::serde::de::Error>(
+                    self,
+                    v: u64,
+                ) -> ::core::result::Result<BodyPose3DHeightEstimation, E> {
+                    let v32 = i32::try_from(v)
+                        .map_err(|_| {
+                            ::serde::de::Error::custom(
+                                ::buffa::alloc::format!("enum value {v} out of i32 range"),
+                            )
+                        })?;
+                    <BodyPose3DHeightEstimation as ::buffa::Enumeration>::from_i32(v32)
+                        .ok_or_else(|| {
+                            ::serde::de::Error::custom(
+                                ::buffa::alloc::format!("unknown enum value {v32}"),
+                            )
+                        })
+                }
+                fn visit_unit<E: ::serde::de::Error>(
+                    self,
+                ) -> ::core::result::Result<BodyPose3DHeightEstimation, E> {
+                    ::core::result::Result::Ok(::core::default::Default::default())
+                }
+            }
+            d.deserialize_any(_V)
+        }
+    }
+    impl ::buffa::json_helpers::ProtoElemJson for BodyPose3DHeightEstimation {
+        fn serialize_proto_json<S: ::serde::Serializer>(
+            v: &Self,
+            s: S,
+        ) -> ::core::result::Result<S::Ok, S::Error> {
+            ::serde::Serialize::serialize(v, s)
+        }
+        fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+            d: D,
+        ) -> ::core::result::Result<Self, D::Error> {
+            <Self as ::serde::Deserialize>::deserialize(d)
+        }
+    }
+};
+impl ::buffa::Enumeration for BodyPose3DHeightEstimation {
+    fn from_i32(value: i32) -> ::core::option::Option<Self> {
+        match value {
+            0i32 => {
+                ::core::option::Option::Some(
+                    Self::BODY_POSE_3D_HEIGHT_ESTIMATION_UNSPECIFIED,
+                )
+            }
+            1i32 => {
+                ::core::option::Option::Some(
+                    Self::BODY_POSE_3D_HEIGHT_ESTIMATION_REFERENCE,
+                )
+            }
+            2i32 => {
+                ::core::option::Option::Some(
+                    Self::BODY_POSE_3D_HEIGHT_ESTIMATION_MEASURED,
+                )
+            }
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn to_i32(&self) -> i32 {
+        *self as i32
+    }
+    fn proto_name(&self) -> &'static str {
+        match self {
+            Self::BODY_POSE_3D_HEIGHT_ESTIMATION_UNSPECIFIED => {
+                "BODY_POSE_3D_HEIGHT_ESTIMATION_UNSPECIFIED"
+            }
+            Self::BODY_POSE_3D_HEIGHT_ESTIMATION_REFERENCE => {
+                "BODY_POSE_3D_HEIGHT_ESTIMATION_REFERENCE"
+            }
+            Self::BODY_POSE_3D_HEIGHT_ESTIMATION_MEASURED => {
+                "BODY_POSE_3D_HEIGHT_ESTIMATION_MEASURED"
+            }
+        }
+    }
+    fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
+        match name {
+            "BODY_POSE_3D_HEIGHT_ESTIMATION_UNSPECIFIED" => {
+                ::core::option::Option::Some(
+                    Self::BODY_POSE_3D_HEIGHT_ESTIMATION_UNSPECIFIED,
+                )
+            }
+            "BODY_POSE_3D_HEIGHT_ESTIMATION_REFERENCE" => {
+                ::core::option::Option::Some(
+                    Self::BODY_POSE_3D_HEIGHT_ESTIMATION_REFERENCE,
+                )
+            }
+            "BODY_POSE_3D_HEIGHT_ESTIMATION_MEASURED" => {
+                ::core::option::Option::Some(
+                    Self::BODY_POSE_3D_HEIGHT_ESTIMATION_MEASURED,
+                )
+            }
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn values() -> &'static [Self] {
+        &[
+            Self::BODY_POSE_3D_HEIGHT_ESTIMATION_UNSPECIFIED,
+            Self::BODY_POSE_3D_HEIGHT_ESTIMATION_REFERENCE,
+            Self::BODY_POSE_3D_HEIGHT_ESTIMATION_MEASURED,
+        ]
+    }
+}
+/// Chirality (handedness) of a detected hand.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
+#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
+#[repr(i32)]
+pub enum HandChirality {
+    HAND_CHIRALITY_UNSPECIFIED = 0i32,
+    HAND_CHIRALITY_LEFT = 1i32,
+    HAND_CHIRALITY_RIGHT = 2i32,
+}
+impl ::core::default::Default for HandChirality {
+    fn default() -> Self {
+        Self::HAND_CHIRALITY_UNSPECIFIED
+    }
+}
+#[cfg(feature = "json")]
+const _: () = {
+    impl ::serde::Serialize for HandChirality {
+        fn serialize<S: ::serde::Serializer>(
+            &self,
+            s: S,
+        ) -> ::core::result::Result<S::Ok, S::Error> {
+            s.serialize_str(::buffa::Enumeration::proto_name(self))
+        }
+    }
+    impl<'de> ::serde::Deserialize<'de> for HandChirality {
+        fn deserialize<D: ::serde::Deserializer<'de>>(
+            d: D,
+        ) -> ::core::result::Result<Self, D::Error> {
+            struct _V;
+            impl ::serde::de::Visitor<'_> for _V {
+                type Value = HandChirality;
+                fn expecting(
+                    &self,
+                    f: &mut ::core::fmt::Formatter<'_>,
+                ) -> ::core::fmt::Result {
+                    f.write_str(
+                        concat!(
+                            "a string, integer, or null for ", stringify!(HandChirality)
+                        ),
+                    )
+                }
+                fn visit_str<E: ::serde::de::Error>(
+                    self,
+                    v: &str,
+                ) -> ::core::result::Result<HandChirality, E> {
+                    <HandChirality as ::buffa::Enumeration>::from_proto_name(v)
+                        .ok_or_else(|| { ::serde::de::Error::unknown_variant(v, &[]) })
+                }
+                fn visit_i64<E: ::serde::de::Error>(
+                    self,
+                    v: i64,
+                ) -> ::core::result::Result<HandChirality, E> {
+                    let v32 = i32::try_from(v)
+                        .map_err(|_| {
+                            ::serde::de::Error::custom(
+                                ::buffa::alloc::format!("enum value {v} out of i32 range"),
+                            )
+                        })?;
+                    <HandChirality as ::buffa::Enumeration>::from_i32(v32)
+                        .ok_or_else(|| {
+                            ::serde::de::Error::custom(
+                                ::buffa::alloc::format!("unknown enum value {v32}"),
+                            )
+                        })
+                }
+                fn visit_u64<E: ::serde::de::Error>(
+                    self,
+                    v: u64,
+                ) -> ::core::result::Result<HandChirality, E> {
+                    let v32 = i32::try_from(v)
+                        .map_err(|_| {
+                            ::serde::de::Error::custom(
+                                ::buffa::alloc::format!("enum value {v} out of i32 range"),
+                            )
+                        })?;
+                    <HandChirality as ::buffa::Enumeration>::from_i32(v32)
+                        .ok_or_else(|| {
+                            ::serde::de::Error::custom(
+                                ::buffa::alloc::format!("unknown enum value {v32}"),
+                            )
+                        })
+                }
+                fn visit_unit<E: ::serde::de::Error>(
+                    self,
+                ) -> ::core::result::Result<HandChirality, E> {
+                    ::core::result::Result::Ok(::core::default::Default::default())
+                }
+            }
+            d.deserialize_any(_V)
+        }
+    }
+    impl ::buffa::json_helpers::ProtoElemJson for HandChirality {
+        fn serialize_proto_json<S: ::serde::Serializer>(
+            v: &Self,
+            s: S,
+        ) -> ::core::result::Result<S::Ok, S::Error> {
+            ::serde::Serialize::serialize(v, s)
+        }
+        fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+            d: D,
+        ) -> ::core::result::Result<Self, D::Error> {
+            <Self as ::serde::Deserialize>::deserialize(d)
+        }
+    }
+};
+impl ::buffa::Enumeration for HandChirality {
+    fn from_i32(value: i32) -> ::core::option::Option<Self> {
+        match value {
+            0i32 => ::core::option::Option::Some(Self::HAND_CHIRALITY_UNSPECIFIED),
+            1i32 => ::core::option::Option::Some(Self::HAND_CHIRALITY_LEFT),
+            2i32 => ::core::option::Option::Some(Self::HAND_CHIRALITY_RIGHT),
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn to_i32(&self) -> i32 {
+        *self as i32
+    }
+    fn proto_name(&self) -> &'static str {
+        match self {
+            Self::HAND_CHIRALITY_UNSPECIFIED => "HAND_CHIRALITY_UNSPECIFIED",
+            Self::HAND_CHIRALITY_LEFT => "HAND_CHIRALITY_LEFT",
+            Self::HAND_CHIRALITY_RIGHT => "HAND_CHIRALITY_RIGHT",
+        }
+    }
+    fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
+        match name {
+            "HAND_CHIRALITY_UNSPECIFIED" => {
+                ::core::option::Option::Some(Self::HAND_CHIRALITY_UNSPECIFIED)
+            }
+            "HAND_CHIRALITY_LEFT" => {
+                ::core::option::Option::Some(Self::HAND_CHIRALITY_LEFT)
+            }
+            "HAND_CHIRALITY_RIGHT" => {
+                ::core::option::Option::Some(Self::HAND_CHIRALITY_RIGHT)
+            }
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn values() -> &'static [Self] {
+        &[
+            Self::HAND_CHIRALITY_UNSPECIFIED,
+            Self::HAND_CHIRALITY_LEFT,
+            Self::HAND_CHIRALITY_RIGHT,
+        ]
+    }
+}
 /// Classification result: a label and its confidence score.
 #[derive(Clone, PartialEq, Default)]
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
@@ -7284,5 +7605,2379 @@ pub const __SALIENCY_REGION_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::b
     type_url: "type.googleapis.com/media.v1.SaliencyRegion",
     to_json: ::buffa::type_registry::any_to_json::<SaliencyRegion>,
     from_json: ::buffa::type_registry::any_from_json::<SaliencyRegion>,
+    is_wkt: false,
+};
+/// A single 2D landmark point on a face.
+#[derive(Clone, PartialEq, Default)]
+#[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
+#[cfg_attr(feature = "json", serde(default))]
+#[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
+#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
+pub struct FaceLandmarkPoint {
+    /// Field 1: `x`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "x",
+            with = "::buffa::json_helpers::float",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_f32"
+        )
+    )]
+    pub x: f32,
+    /// Field 2: `y`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "y",
+            with = "::buffa::json_helpers::float",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_f32"
+        )
+    )]
+    pub y: f32,
+    #[cfg_attr(feature = "json", serde(skip))]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for FaceLandmarkPoint {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("FaceLandmarkPoint")
+            .field("x", &self.x)
+            .field("y", &self.y)
+            .finish()
+    }
+}
+impl FaceLandmarkPoint {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/media.v1.FaceLandmarkPoint";
+}
+impl ::buffa::DefaultInstance for FaceLandmarkPoint {
+    fn default_instance() -> &'static Self {
+        static VALUE: ::buffa::__private::OnceBox<FaceLandmarkPoint> = ::buffa::__private::OnceBox::new();
+        VALUE.get_or_init(|| ::buffa::alloc::boxed::Box::new(Self::default()))
+    }
+}
+impl ::buffa::MessageName for FaceLandmarkPoint {
+    const PACKAGE: &'static str = "media.v1";
+    const NAME: &'static str = "FaceLandmarkPoint";
+    const FULL_NAME: &'static str = "media.v1.FaceLandmarkPoint";
+    const TYPE_URL: &'static str = "type.googleapis.com/media.v1.FaceLandmarkPoint";
+}
+impl ::buffa::Message for FaceLandmarkPoint {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// The result is a `u32`; the protobuf specification requires all
+    /// messages to fit within 2 GiB (2,147,483,647 bytes), so a
+    /// compliant message will never overflow this type.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u32;
+        if self.x.to_bits() != 0u32 {
+            size += 1u32 + ::buffa::types::FIXED32_ENCODED_LEN as u32;
+        }
+        if self.y.to_bits() != 0u32 {
+            size += 1u32 + ::buffa::types::FIXED32_ENCODED_LEN as u32;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u32;
+        size
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::bytes::BufMut,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.x.to_bits() != 0u32 {
+            ::buffa::encoding::Tag::new(1u32, ::buffa::encoding::WireType::Fixed32)
+                .encode(buf);
+            ::buffa::types::encode_float(self.x, buf);
+        }
+        if self.y.to_bits() != 0u32 {
+            ::buffa::encoding::Tag::new(2u32, ::buffa::encoding::WireType::Fixed32)
+                .encode(buf);
+            ::buffa::types::encode_float(self.y, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        depth: u32,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::Fixed32 {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 1u32,
+                        expected: 5u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.x = ::buffa::types::decode_float(buf)?;
+            }
+            2u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::Fixed32 {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 2u32,
+                        expected: 5u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.y = ::buffa::types::decode_float(buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, depth)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.x = 0f32;
+        self.y = 0f32;
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for FaceLandmarkPoint {
+    const PROTO_FQN: &'static str = "media.v1.FaceLandmarkPoint";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+#[cfg(feature = "json")]
+impl ::buffa::json_helpers::ProtoElemJson for FaceLandmarkPoint {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[cfg(feature = "json")]
+#[doc(hidden)]
+pub const __FACE_LANDMARK_POINT_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/media.v1.FaceLandmarkPoint",
+    to_json: ::buffa::type_registry::any_to_json::<FaceLandmarkPoint>,
+    from_json: ::buffa::type_registry::any_from_json::<FaceLandmarkPoint>,
+    is_wkt: false,
+};
+/// A named region of face landmarks (e.g. "left_eye", "nose").
+#[derive(Clone, PartialEq, Default)]
+#[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
+#[cfg_attr(feature = "json", serde(default))]
+#[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
+#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
+pub struct FaceLandmarkRegion {
+    /// Field 1: `name`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "name",
+            with = "::buffa::json_helpers::proto_string",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+        )
+    )]
+    pub name: ::buffa::alloc::string::String,
+    /// Field 2: `points`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "points",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+            deserialize_with = "::buffa::json_helpers::null_as_default"
+        )
+    )]
+    pub points: ::buffa::alloc::vec::Vec<FaceLandmarkPoint>,
+    #[cfg_attr(feature = "json", serde(skip))]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for FaceLandmarkRegion {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("FaceLandmarkRegion")
+            .field("name", &self.name)
+            .field("points", &self.points)
+            .finish()
+    }
+}
+impl FaceLandmarkRegion {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/media.v1.FaceLandmarkRegion";
+}
+impl ::buffa::DefaultInstance for FaceLandmarkRegion {
+    fn default_instance() -> &'static Self {
+        static VALUE: ::buffa::__private::OnceBox<FaceLandmarkRegion> = ::buffa::__private::OnceBox::new();
+        VALUE.get_or_init(|| ::buffa::alloc::boxed::Box::new(Self::default()))
+    }
+}
+impl ::buffa::MessageName for FaceLandmarkRegion {
+    const PACKAGE: &'static str = "media.v1";
+    const NAME: &'static str = "FaceLandmarkRegion";
+    const FULL_NAME: &'static str = "media.v1.FaceLandmarkRegion";
+    const TYPE_URL: &'static str = "type.googleapis.com/media.v1.FaceLandmarkRegion";
+}
+impl ::buffa::Message for FaceLandmarkRegion {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// The result is a `u32`; the protobuf specification requires all
+    /// messages to fit within 2 GiB (2,147,483,647 bytes), so a
+    /// compliant message will never overflow this type.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u32;
+        if !self.name.is_empty() {
+            size += 1u32 + ::buffa::types::string_encoded_len(&self.name) as u32;
+        }
+        for v in &self.points {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u32 + ::buffa::encoding::varint_len(inner_size as u64) as u32
+                    + inner_size;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u32;
+        size
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::bytes::BufMut,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.name.is_empty() {
+            ::buffa::encoding::Tag::new(
+                    1u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::types::encode_string(&self.name, buf);
+        }
+        for v in &self.points {
+            ::buffa::encoding::Tag::new(
+                    2u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::encoding::encode_varint(__cache.consume_next() as u64, buf);
+            v.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        depth: u32,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 1u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                ::buffa::types::merge_string(&mut self.name, buf)?;
+            }
+            2u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 2u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                let mut elem = ::core::default::Default::default();
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, depth)?;
+                self.points.push(elem);
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, depth)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.name.clear();
+        self.points.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for FaceLandmarkRegion {
+    const PROTO_FQN: &'static str = "media.v1.FaceLandmarkRegion";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+#[cfg(feature = "json")]
+impl ::buffa::json_helpers::ProtoElemJson for FaceLandmarkRegion {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[cfg(feature = "json")]
+#[doc(hidden)]
+pub const __FACE_LANDMARK_REGION_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/media.v1.FaceLandmarkRegion",
+    to_json: ::buffa::type_registry::any_to_json::<FaceLandmarkRegion>,
+    from_json: ::buffa::type_registry::any_from_json::<FaceLandmarkRegion>,
+    is_wkt: false,
+};
+/// Face landmark detection result: bbox + confidence + named regions.
+#[derive(Clone, PartialEq, Default)]
+#[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
+#[cfg_attr(feature = "json", serde(default))]
+#[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
+#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
+pub struct FaceLandmarksDetection {
+    /// Field 1: `bbox`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "bbox",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+        )
+    )]
+    pub bbox: ::buffa::MessageField<BoundingBox>,
+    /// Field 2: `confidence`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "confidence",
+            with = "::buffa::json_helpers::float",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_f32"
+        )
+    )]
+    pub confidence: f32,
+    /// Field 3: `regions`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "regions",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+            deserialize_with = "::buffa::json_helpers::null_as_default"
+        )
+    )]
+    pub regions: ::buffa::alloc::vec::Vec<FaceLandmarkRegion>,
+    #[cfg_attr(feature = "json", serde(skip))]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for FaceLandmarksDetection {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("FaceLandmarksDetection")
+            .field("bbox", &self.bbox)
+            .field("confidence", &self.confidence)
+            .field("regions", &self.regions)
+            .finish()
+    }
+}
+impl FaceLandmarksDetection {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/media.v1.FaceLandmarksDetection";
+}
+impl ::buffa::DefaultInstance for FaceLandmarksDetection {
+    fn default_instance() -> &'static Self {
+        static VALUE: ::buffa::__private::OnceBox<FaceLandmarksDetection> = ::buffa::__private::OnceBox::new();
+        VALUE.get_or_init(|| ::buffa::alloc::boxed::Box::new(Self::default()))
+    }
+}
+impl ::buffa::MessageName for FaceLandmarksDetection {
+    const PACKAGE: &'static str = "media.v1";
+    const NAME: &'static str = "FaceLandmarksDetection";
+    const FULL_NAME: &'static str = "media.v1.FaceLandmarksDetection";
+    const TYPE_URL: &'static str = "type.googleapis.com/media.v1.FaceLandmarksDetection";
+}
+impl ::buffa::Message for FaceLandmarksDetection {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// The result is a `u32`; the protobuf specification requires all
+    /// messages to fit within 2 GiB (2,147,483,647 bytes), so a
+    /// compliant message will never overflow this type.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u32;
+        if self.bbox.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.bbox.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u32 + ::buffa::encoding::varint_len(inner_size as u64) as u32
+                    + inner_size;
+        }
+        if self.confidence.to_bits() != 0u32 {
+            size += 1u32 + ::buffa::types::FIXED32_ENCODED_LEN as u32;
+        }
+        for v in &self.regions {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u32 + ::buffa::encoding::varint_len(inner_size as u64) as u32
+                    + inner_size;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u32;
+        size
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::bytes::BufMut,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.bbox.is_set() {
+            ::buffa::encoding::Tag::new(
+                    1u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::encoding::encode_varint(__cache.consume_next() as u64, buf);
+            self.bbox.write_to(__cache, buf);
+        }
+        if self.confidence.to_bits() != 0u32 {
+            ::buffa::encoding::Tag::new(2u32, ::buffa::encoding::WireType::Fixed32)
+                .encode(buf);
+            ::buffa::types::encode_float(self.confidence, buf);
+        }
+        for v in &self.regions {
+            ::buffa::encoding::Tag::new(
+                    3u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::encoding::encode_varint(__cache.consume_next() as u64, buf);
+            v.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        depth: u32,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 1u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                ::buffa::Message::merge_length_delimited(
+                    self.bbox.get_or_insert_default(),
+                    buf,
+                    depth,
+                )?;
+            }
+            2u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::Fixed32 {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 2u32,
+                        expected: 5u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.confidence = ::buffa::types::decode_float(buf)?;
+            }
+            3u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 3u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                let mut elem = ::core::default::Default::default();
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, depth)?;
+                self.regions.push(elem);
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, depth)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.bbox = ::buffa::MessageField::none();
+        self.confidence = 0f32;
+        self.regions.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for FaceLandmarksDetection {
+    const PROTO_FQN: &'static str = "media.v1.FaceLandmarksDetection";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+#[cfg(feature = "json")]
+impl ::buffa::json_helpers::ProtoElemJson for FaceLandmarksDetection {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[cfg(feature = "json")]
+#[doc(hidden)]
+pub const __FACE_LANDMARKS_DETECTION_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/media.v1.FaceLandmarksDetection",
+    to_json: ::buffa::type_registry::any_to_json::<FaceLandmarksDetection>,
+    from_json: ::buffa::type_registry::any_from_json::<FaceLandmarksDetection>,
+    is_wkt: false,
+};
+/// A single body-pose joint with 2D position and confidence.
+#[derive(Clone, PartialEq, Default)]
+#[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
+#[cfg_attr(feature = "json", serde(default))]
+#[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
+#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
+pub struct BodyPoseJoint {
+    /// Field 1: `name`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "name",
+            with = "::buffa::json_helpers::proto_string",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+        )
+    )]
+    pub name: ::buffa::alloc::string::String,
+    /// Field 2: `x`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "x",
+            with = "::buffa::json_helpers::float",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_f32"
+        )
+    )]
+    pub x: f32,
+    /// Field 3: `y`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "y",
+            with = "::buffa::json_helpers::float",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_f32"
+        )
+    )]
+    pub y: f32,
+    /// Field 4: `confidence`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "confidence",
+            with = "::buffa::json_helpers::float",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_f32"
+        )
+    )]
+    pub confidence: f32,
+    #[cfg_attr(feature = "json", serde(skip))]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for BodyPoseJoint {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("BodyPoseJoint")
+            .field("name", &self.name)
+            .field("x", &self.x)
+            .field("y", &self.y)
+            .field("confidence", &self.confidence)
+            .finish()
+    }
+}
+impl BodyPoseJoint {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/media.v1.BodyPoseJoint";
+}
+impl ::buffa::DefaultInstance for BodyPoseJoint {
+    fn default_instance() -> &'static Self {
+        static VALUE: ::buffa::__private::OnceBox<BodyPoseJoint> = ::buffa::__private::OnceBox::new();
+        VALUE.get_or_init(|| ::buffa::alloc::boxed::Box::new(Self::default()))
+    }
+}
+impl ::buffa::MessageName for BodyPoseJoint {
+    const PACKAGE: &'static str = "media.v1";
+    const NAME: &'static str = "BodyPoseJoint";
+    const FULL_NAME: &'static str = "media.v1.BodyPoseJoint";
+    const TYPE_URL: &'static str = "type.googleapis.com/media.v1.BodyPoseJoint";
+}
+impl ::buffa::Message for BodyPoseJoint {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// The result is a `u32`; the protobuf specification requires all
+    /// messages to fit within 2 GiB (2,147,483,647 bytes), so a
+    /// compliant message will never overflow this type.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u32;
+        if !self.name.is_empty() {
+            size += 1u32 + ::buffa::types::string_encoded_len(&self.name) as u32;
+        }
+        if self.x.to_bits() != 0u32 {
+            size += 1u32 + ::buffa::types::FIXED32_ENCODED_LEN as u32;
+        }
+        if self.y.to_bits() != 0u32 {
+            size += 1u32 + ::buffa::types::FIXED32_ENCODED_LEN as u32;
+        }
+        if self.confidence.to_bits() != 0u32 {
+            size += 1u32 + ::buffa::types::FIXED32_ENCODED_LEN as u32;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u32;
+        size
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::bytes::BufMut,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.name.is_empty() {
+            ::buffa::encoding::Tag::new(
+                    1u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::types::encode_string(&self.name, buf);
+        }
+        if self.x.to_bits() != 0u32 {
+            ::buffa::encoding::Tag::new(2u32, ::buffa::encoding::WireType::Fixed32)
+                .encode(buf);
+            ::buffa::types::encode_float(self.x, buf);
+        }
+        if self.y.to_bits() != 0u32 {
+            ::buffa::encoding::Tag::new(3u32, ::buffa::encoding::WireType::Fixed32)
+                .encode(buf);
+            ::buffa::types::encode_float(self.y, buf);
+        }
+        if self.confidence.to_bits() != 0u32 {
+            ::buffa::encoding::Tag::new(4u32, ::buffa::encoding::WireType::Fixed32)
+                .encode(buf);
+            ::buffa::types::encode_float(self.confidence, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        depth: u32,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 1u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                ::buffa::types::merge_string(&mut self.name, buf)?;
+            }
+            2u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::Fixed32 {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 2u32,
+                        expected: 5u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.x = ::buffa::types::decode_float(buf)?;
+            }
+            3u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::Fixed32 {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 3u32,
+                        expected: 5u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.y = ::buffa::types::decode_float(buf)?;
+            }
+            4u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::Fixed32 {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 4u32,
+                        expected: 5u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.confidence = ::buffa::types::decode_float(buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, depth)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.name.clear();
+        self.x = 0f32;
+        self.y = 0f32;
+        self.confidence = 0f32;
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for BodyPoseJoint {
+    const PROTO_FQN: &'static str = "media.v1.BodyPoseJoint";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+#[cfg(feature = "json")]
+impl ::buffa::json_helpers::ProtoElemJson for BodyPoseJoint {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[cfg(feature = "json")]
+#[doc(hidden)]
+pub const __BODY_POSE_JOINT_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/media.v1.BodyPoseJoint",
+    to_json: ::buffa::type_registry::any_to_json::<BodyPoseJoint>,
+    from_json: ::buffa::type_registry::any_from_json::<BodyPoseJoint>,
+    is_wkt: false,
+};
+/// Body pose detection result: bbox + confidence + joint list.
+#[derive(Clone, PartialEq, Default)]
+#[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
+#[cfg_attr(feature = "json", serde(default))]
+#[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
+#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
+pub struct BodyPoseDetection {
+    /// Field 1: `bbox`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "bbox",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+        )
+    )]
+    pub bbox: ::buffa::MessageField<BoundingBox>,
+    /// Field 2: `confidence`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "confidence",
+            with = "::buffa::json_helpers::float",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_f32"
+        )
+    )]
+    pub confidence: f32,
+    /// Field 3: `joints`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "joints",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+            deserialize_with = "::buffa::json_helpers::null_as_default"
+        )
+    )]
+    pub joints: ::buffa::alloc::vec::Vec<BodyPoseJoint>,
+    #[cfg_attr(feature = "json", serde(skip))]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for BodyPoseDetection {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("BodyPoseDetection")
+            .field("bbox", &self.bbox)
+            .field("confidence", &self.confidence)
+            .field("joints", &self.joints)
+            .finish()
+    }
+}
+impl BodyPoseDetection {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/media.v1.BodyPoseDetection";
+}
+impl ::buffa::DefaultInstance for BodyPoseDetection {
+    fn default_instance() -> &'static Self {
+        static VALUE: ::buffa::__private::OnceBox<BodyPoseDetection> = ::buffa::__private::OnceBox::new();
+        VALUE.get_or_init(|| ::buffa::alloc::boxed::Box::new(Self::default()))
+    }
+}
+impl ::buffa::MessageName for BodyPoseDetection {
+    const PACKAGE: &'static str = "media.v1";
+    const NAME: &'static str = "BodyPoseDetection";
+    const FULL_NAME: &'static str = "media.v1.BodyPoseDetection";
+    const TYPE_URL: &'static str = "type.googleapis.com/media.v1.BodyPoseDetection";
+}
+impl ::buffa::Message for BodyPoseDetection {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// The result is a `u32`; the protobuf specification requires all
+    /// messages to fit within 2 GiB (2,147,483,647 bytes), so a
+    /// compliant message will never overflow this type.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u32;
+        if self.bbox.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.bbox.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u32 + ::buffa::encoding::varint_len(inner_size as u64) as u32
+                    + inner_size;
+        }
+        if self.confidence.to_bits() != 0u32 {
+            size += 1u32 + ::buffa::types::FIXED32_ENCODED_LEN as u32;
+        }
+        for v in &self.joints {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u32 + ::buffa::encoding::varint_len(inner_size as u64) as u32
+                    + inner_size;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u32;
+        size
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::bytes::BufMut,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.bbox.is_set() {
+            ::buffa::encoding::Tag::new(
+                    1u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::encoding::encode_varint(__cache.consume_next() as u64, buf);
+            self.bbox.write_to(__cache, buf);
+        }
+        if self.confidence.to_bits() != 0u32 {
+            ::buffa::encoding::Tag::new(2u32, ::buffa::encoding::WireType::Fixed32)
+                .encode(buf);
+            ::buffa::types::encode_float(self.confidence, buf);
+        }
+        for v in &self.joints {
+            ::buffa::encoding::Tag::new(
+                    3u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::encoding::encode_varint(__cache.consume_next() as u64, buf);
+            v.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        depth: u32,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 1u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                ::buffa::Message::merge_length_delimited(
+                    self.bbox.get_or_insert_default(),
+                    buf,
+                    depth,
+                )?;
+            }
+            2u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::Fixed32 {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 2u32,
+                        expected: 5u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.confidence = ::buffa::types::decode_float(buf)?;
+            }
+            3u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 3u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                let mut elem = ::core::default::Default::default();
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, depth)?;
+                self.joints.push(elem);
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, depth)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.bbox = ::buffa::MessageField::none();
+        self.confidence = 0f32;
+        self.joints.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for BodyPoseDetection {
+    const PROTO_FQN: &'static str = "media.v1.BodyPoseDetection";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+#[cfg(feature = "json")]
+impl ::buffa::json_helpers::ProtoElemJson for BodyPoseDetection {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[cfg(feature = "json")]
+#[doc(hidden)]
+pub const __BODY_POSE_DETECTION_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/media.v1.BodyPoseDetection",
+    to_json: ::buffa::type_registry::any_to_json::<BodyPoseDetection>,
+    from_json: ::buffa::type_registry::any_from_json::<BodyPoseDetection>,
+    is_wkt: false,
+};
+/// A single 3D body-pose joint with x/y/z position and confidence.
+#[derive(Clone, PartialEq, Default)]
+#[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
+#[cfg_attr(feature = "json", serde(default))]
+#[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
+#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
+pub struct BodyPose3DJoint {
+    /// Field 1: `name`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "name",
+            with = "::buffa::json_helpers::proto_string",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+        )
+    )]
+    pub name: ::buffa::alloc::string::String,
+    /// Field 2: `x`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "x",
+            with = "::buffa::json_helpers::float",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_f32"
+        )
+    )]
+    pub x: f32,
+    /// Field 3: `y`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "y",
+            with = "::buffa::json_helpers::float",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_f32"
+        )
+    )]
+    pub y: f32,
+    /// Field 4: `z`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "z",
+            with = "::buffa::json_helpers::float",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_f32"
+        )
+    )]
+    pub z: f32,
+    /// Field 5: `confidence`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "confidence",
+            with = "::buffa::json_helpers::float",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_f32"
+        )
+    )]
+    pub confidence: f32,
+    #[cfg_attr(feature = "json", serde(skip))]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for BodyPose3DJoint {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("BodyPose3DJoint")
+            .field("name", &self.name)
+            .field("x", &self.x)
+            .field("y", &self.y)
+            .field("z", &self.z)
+            .field("confidence", &self.confidence)
+            .finish()
+    }
+}
+impl BodyPose3DJoint {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/media.v1.BodyPose3DJoint";
+}
+impl ::buffa::DefaultInstance for BodyPose3DJoint {
+    fn default_instance() -> &'static Self {
+        static VALUE: ::buffa::__private::OnceBox<BodyPose3DJoint> = ::buffa::__private::OnceBox::new();
+        VALUE.get_or_init(|| ::buffa::alloc::boxed::Box::new(Self::default()))
+    }
+}
+impl ::buffa::MessageName for BodyPose3DJoint {
+    const PACKAGE: &'static str = "media.v1";
+    const NAME: &'static str = "BodyPose3DJoint";
+    const FULL_NAME: &'static str = "media.v1.BodyPose3DJoint";
+    const TYPE_URL: &'static str = "type.googleapis.com/media.v1.BodyPose3DJoint";
+}
+impl ::buffa::Message for BodyPose3DJoint {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// The result is a `u32`; the protobuf specification requires all
+    /// messages to fit within 2 GiB (2,147,483,647 bytes), so a
+    /// compliant message will never overflow this type.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u32;
+        if !self.name.is_empty() {
+            size += 1u32 + ::buffa::types::string_encoded_len(&self.name) as u32;
+        }
+        if self.x.to_bits() != 0u32 {
+            size += 1u32 + ::buffa::types::FIXED32_ENCODED_LEN as u32;
+        }
+        if self.y.to_bits() != 0u32 {
+            size += 1u32 + ::buffa::types::FIXED32_ENCODED_LEN as u32;
+        }
+        if self.z.to_bits() != 0u32 {
+            size += 1u32 + ::buffa::types::FIXED32_ENCODED_LEN as u32;
+        }
+        if self.confidence.to_bits() != 0u32 {
+            size += 1u32 + ::buffa::types::FIXED32_ENCODED_LEN as u32;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u32;
+        size
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::bytes::BufMut,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.name.is_empty() {
+            ::buffa::encoding::Tag::new(
+                    1u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::types::encode_string(&self.name, buf);
+        }
+        if self.x.to_bits() != 0u32 {
+            ::buffa::encoding::Tag::new(2u32, ::buffa::encoding::WireType::Fixed32)
+                .encode(buf);
+            ::buffa::types::encode_float(self.x, buf);
+        }
+        if self.y.to_bits() != 0u32 {
+            ::buffa::encoding::Tag::new(3u32, ::buffa::encoding::WireType::Fixed32)
+                .encode(buf);
+            ::buffa::types::encode_float(self.y, buf);
+        }
+        if self.z.to_bits() != 0u32 {
+            ::buffa::encoding::Tag::new(4u32, ::buffa::encoding::WireType::Fixed32)
+                .encode(buf);
+            ::buffa::types::encode_float(self.z, buf);
+        }
+        if self.confidence.to_bits() != 0u32 {
+            ::buffa::encoding::Tag::new(5u32, ::buffa::encoding::WireType::Fixed32)
+                .encode(buf);
+            ::buffa::types::encode_float(self.confidence, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        depth: u32,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 1u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                ::buffa::types::merge_string(&mut self.name, buf)?;
+            }
+            2u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::Fixed32 {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 2u32,
+                        expected: 5u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.x = ::buffa::types::decode_float(buf)?;
+            }
+            3u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::Fixed32 {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 3u32,
+                        expected: 5u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.y = ::buffa::types::decode_float(buf)?;
+            }
+            4u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::Fixed32 {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 4u32,
+                        expected: 5u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.z = ::buffa::types::decode_float(buf)?;
+            }
+            5u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::Fixed32 {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 5u32,
+                        expected: 5u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.confidence = ::buffa::types::decode_float(buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, depth)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.name.clear();
+        self.x = 0f32;
+        self.y = 0f32;
+        self.z = 0f32;
+        self.confidence = 0f32;
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for BodyPose3DJoint {
+    const PROTO_FQN: &'static str = "media.v1.BodyPose3DJoint";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+#[cfg(feature = "json")]
+impl ::buffa::json_helpers::ProtoElemJson for BodyPose3DJoint {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[cfg(feature = "json")]
+#[doc(hidden)]
+pub const __BODY_POSE3D_JOINT_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/media.v1.BodyPose3DJoint",
+    to_json: ::buffa::type_registry::any_to_json::<BodyPose3DJoint>,
+    from_json: ::buffa::type_registry::any_from_json::<BodyPose3DJoint>,
+    is_wkt: false,
+};
+/// 3D body pose detection: confidence + height + estimation method + joint list.
+#[derive(Clone, PartialEq, Default)]
+#[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
+#[cfg_attr(feature = "json", serde(default))]
+#[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
+#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
+pub struct BodyPose3DDetection {
+    /// Field 1: `confidence`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "confidence",
+            with = "::buffa::json_helpers::float",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_f32"
+        )
+    )]
+    pub confidence: f32,
+    /// Field 2: `body_height`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "bodyHeight",
+            alias = "body_height",
+            with = "::buffa::json_helpers::float",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_f32"
+        )
+    )]
+    pub body_height: f32,
+    /// Field 3: `height_estimation`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "heightEstimation",
+            alias = "height_estimation",
+            with = "::buffa::json_helpers::proto_enum",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
+        )
+    )]
+    pub height_estimation: ::buffa::EnumValue<BodyPose3DHeightEstimation>,
+    /// Field 4: `joints`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "joints",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+            deserialize_with = "::buffa::json_helpers::null_as_default"
+        )
+    )]
+    pub joints: ::buffa::alloc::vec::Vec<BodyPose3DJoint>,
+    #[cfg_attr(feature = "json", serde(skip))]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for BodyPose3DDetection {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("BodyPose3DDetection")
+            .field("confidence", &self.confidence)
+            .field("body_height", &self.body_height)
+            .field("height_estimation", &self.height_estimation)
+            .field("joints", &self.joints)
+            .finish()
+    }
+}
+impl BodyPose3DDetection {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/media.v1.BodyPose3DDetection";
+}
+impl ::buffa::DefaultInstance for BodyPose3DDetection {
+    fn default_instance() -> &'static Self {
+        static VALUE: ::buffa::__private::OnceBox<BodyPose3DDetection> = ::buffa::__private::OnceBox::new();
+        VALUE.get_or_init(|| ::buffa::alloc::boxed::Box::new(Self::default()))
+    }
+}
+impl ::buffa::MessageName for BodyPose3DDetection {
+    const PACKAGE: &'static str = "media.v1";
+    const NAME: &'static str = "BodyPose3DDetection";
+    const FULL_NAME: &'static str = "media.v1.BodyPose3DDetection";
+    const TYPE_URL: &'static str = "type.googleapis.com/media.v1.BodyPose3DDetection";
+}
+impl ::buffa::Message for BodyPose3DDetection {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// The result is a `u32`; the protobuf specification requires all
+    /// messages to fit within 2 GiB (2,147,483,647 bytes), so a
+    /// compliant message will never overflow this type.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u32;
+        if self.confidence.to_bits() != 0u32 {
+            size += 1u32 + ::buffa::types::FIXED32_ENCODED_LEN as u32;
+        }
+        if self.body_height.to_bits() != 0u32 {
+            size += 1u32 + ::buffa::types::FIXED32_ENCODED_LEN as u32;
+        }
+        {
+            let val = self.height_estimation.to_i32();
+            if val != 0 {
+                size += 1u32 + ::buffa::types::int32_encoded_len(val) as u32;
+            }
+        }
+        for v in &self.joints {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u32 + ::buffa::encoding::varint_len(inner_size as u64) as u32
+                    + inner_size;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u32;
+        size
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::bytes::BufMut,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.confidence.to_bits() != 0u32 {
+            ::buffa::encoding::Tag::new(1u32, ::buffa::encoding::WireType::Fixed32)
+                .encode(buf);
+            ::buffa::types::encode_float(self.confidence, buf);
+        }
+        if self.body_height.to_bits() != 0u32 {
+            ::buffa::encoding::Tag::new(2u32, ::buffa::encoding::WireType::Fixed32)
+                .encode(buf);
+            ::buffa::types::encode_float(self.body_height, buf);
+        }
+        {
+            let val = self.height_estimation.to_i32();
+            if val != 0 {
+                ::buffa::encoding::Tag::new(3u32, ::buffa::encoding::WireType::Varint)
+                    .encode(buf);
+                ::buffa::types::encode_int32(val, buf);
+            }
+        }
+        for v in &self.joints {
+            ::buffa::encoding::Tag::new(
+                    4u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::encoding::encode_varint(__cache.consume_next() as u64, buf);
+            v.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        depth: u32,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::Fixed32 {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 1u32,
+                        expected: 5u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.confidence = ::buffa::types::decode_float(buf)?;
+            }
+            2u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::Fixed32 {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 2u32,
+                        expected: 5u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.body_height = ::buffa::types::decode_float(buf)?;
+            }
+            3u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::Varint {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 3u32,
+                        expected: 0u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.height_estimation = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(buf)?,
+                );
+            }
+            4u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 4u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                let mut elem = ::core::default::Default::default();
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, depth)?;
+                self.joints.push(elem);
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, depth)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.confidence = 0f32;
+        self.body_height = 0f32;
+        self.height_estimation = ::buffa::EnumValue::from(0);
+        self.joints.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for BodyPose3DDetection {
+    const PROTO_FQN: &'static str = "media.v1.BodyPose3DDetection";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+#[cfg(feature = "json")]
+impl ::buffa::json_helpers::ProtoElemJson for BodyPose3DDetection {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[cfg(feature = "json")]
+#[doc(hidden)]
+pub const __BODY_POSE3D_DETECTION_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/media.v1.BodyPose3DDetection",
+    to_json: ::buffa::type_registry::any_to_json::<BodyPose3DDetection>,
+    from_json: ::buffa::type_registry::any_from_json::<BodyPose3DDetection>,
+    is_wkt: false,
+};
+/// Hand pose detection result: bbox + confidence + chirality + joint list.
+#[derive(Clone, PartialEq, Default)]
+#[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
+#[cfg_attr(feature = "json", serde(default))]
+#[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
+#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
+pub struct HandPoseDetection {
+    /// Field 1: `bbox`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "bbox",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+        )
+    )]
+    pub bbox: ::buffa::MessageField<BoundingBox>,
+    /// Field 2: `confidence`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "confidence",
+            with = "::buffa::json_helpers::float",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_f32"
+        )
+    )]
+    pub confidence: f32,
+    /// Field 3: `chirality`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "chirality",
+            with = "::buffa::json_helpers::proto_enum",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
+        )
+    )]
+    pub chirality: ::buffa::EnumValue<HandChirality>,
+    /// Field 4: `joints`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "joints",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+            deserialize_with = "::buffa::json_helpers::null_as_default"
+        )
+    )]
+    pub joints: ::buffa::alloc::vec::Vec<BodyPoseJoint>,
+    #[cfg_attr(feature = "json", serde(skip))]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for HandPoseDetection {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("HandPoseDetection")
+            .field("bbox", &self.bbox)
+            .field("confidence", &self.confidence)
+            .field("chirality", &self.chirality)
+            .field("joints", &self.joints)
+            .finish()
+    }
+}
+impl HandPoseDetection {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/media.v1.HandPoseDetection";
+}
+impl ::buffa::DefaultInstance for HandPoseDetection {
+    fn default_instance() -> &'static Self {
+        static VALUE: ::buffa::__private::OnceBox<HandPoseDetection> = ::buffa::__private::OnceBox::new();
+        VALUE.get_or_init(|| ::buffa::alloc::boxed::Box::new(Self::default()))
+    }
+}
+impl ::buffa::MessageName for HandPoseDetection {
+    const PACKAGE: &'static str = "media.v1";
+    const NAME: &'static str = "HandPoseDetection";
+    const FULL_NAME: &'static str = "media.v1.HandPoseDetection";
+    const TYPE_URL: &'static str = "type.googleapis.com/media.v1.HandPoseDetection";
+}
+impl ::buffa::Message for HandPoseDetection {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// The result is a `u32`; the protobuf specification requires all
+    /// messages to fit within 2 GiB (2,147,483,647 bytes), so a
+    /// compliant message will never overflow this type.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u32;
+        if self.bbox.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.bbox.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u32 + ::buffa::encoding::varint_len(inner_size as u64) as u32
+                    + inner_size;
+        }
+        if self.confidence.to_bits() != 0u32 {
+            size += 1u32 + ::buffa::types::FIXED32_ENCODED_LEN as u32;
+        }
+        {
+            let val = self.chirality.to_i32();
+            if val != 0 {
+                size += 1u32 + ::buffa::types::int32_encoded_len(val) as u32;
+            }
+        }
+        for v in &self.joints {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u32 + ::buffa::encoding::varint_len(inner_size as u64) as u32
+                    + inner_size;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u32;
+        size
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::bytes::BufMut,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.bbox.is_set() {
+            ::buffa::encoding::Tag::new(
+                    1u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::encoding::encode_varint(__cache.consume_next() as u64, buf);
+            self.bbox.write_to(__cache, buf);
+        }
+        if self.confidence.to_bits() != 0u32 {
+            ::buffa::encoding::Tag::new(2u32, ::buffa::encoding::WireType::Fixed32)
+                .encode(buf);
+            ::buffa::types::encode_float(self.confidence, buf);
+        }
+        {
+            let val = self.chirality.to_i32();
+            if val != 0 {
+                ::buffa::encoding::Tag::new(3u32, ::buffa::encoding::WireType::Varint)
+                    .encode(buf);
+                ::buffa::types::encode_int32(val, buf);
+            }
+        }
+        for v in &self.joints {
+            ::buffa::encoding::Tag::new(
+                    4u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::encoding::encode_varint(__cache.consume_next() as u64, buf);
+            v.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        depth: u32,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 1u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                ::buffa::Message::merge_length_delimited(
+                    self.bbox.get_or_insert_default(),
+                    buf,
+                    depth,
+                )?;
+            }
+            2u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::Fixed32 {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 2u32,
+                        expected: 5u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.confidence = ::buffa::types::decode_float(buf)?;
+            }
+            3u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::Varint {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 3u32,
+                        expected: 0u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.chirality = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(buf)?,
+                );
+            }
+            4u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 4u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                let mut elem = ::core::default::Default::default();
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, depth)?;
+                self.joints.push(elem);
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, depth)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.bbox = ::buffa::MessageField::none();
+        self.confidence = 0f32;
+        self.chirality = ::buffa::EnumValue::from(0);
+        self.joints.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for HandPoseDetection {
+    const PROTO_FQN: &'static str = "media.v1.HandPoseDetection";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+#[cfg(feature = "json")]
+impl ::buffa::json_helpers::ProtoElemJson for HandPoseDetection {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[cfg(feature = "json")]
+#[doc(hidden)]
+pub const __HAND_POSE_DETECTION_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/media.v1.HandPoseDetection",
+    to_json: ::buffa::type_registry::any_to_json::<HandPoseDetection>,
+    from_json: ::buffa::type_registry::any_from_json::<HandPoseDetection>,
+    is_wkt: false,
+};
+/// Person segmentation mask: bbox + confidence + pixel dimensions + mask bytes.
+#[derive(Clone, PartialEq, Default)]
+#[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
+#[cfg_attr(feature = "json", serde(default))]
+#[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
+#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
+pub struct PersonSegmentationMask {
+    /// Field 1: `bbox`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "bbox",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+        )
+    )]
+    pub bbox: ::buffa::MessageField<BoundingBox>,
+    /// Field 2: `confidence`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "confidence",
+            with = "::buffa::json_helpers::float",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_f32"
+        )
+    )]
+    pub confidence: f32,
+    /// Field 3: `dimensions`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "dimensions",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+        )
+    )]
+    pub dimensions: ::buffa::MessageField<Dimensions>,
+    /// Field 4: `data`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "data",
+            with = "::buffa::json_helpers::bytes",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
+        )
+    )]
+    pub data: ::buffa::alloc::vec::Vec<u8>,
+    #[cfg_attr(feature = "json", serde(skip))]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for PersonSegmentationMask {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("PersonSegmentationMask")
+            .field("bbox", &self.bbox)
+            .field("confidence", &self.confidence)
+            .field("dimensions", &self.dimensions)
+            .field("data", &self.data)
+            .finish()
+    }
+}
+impl PersonSegmentationMask {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/media.v1.PersonSegmentationMask";
+}
+impl ::buffa::DefaultInstance for PersonSegmentationMask {
+    fn default_instance() -> &'static Self {
+        static VALUE: ::buffa::__private::OnceBox<PersonSegmentationMask> = ::buffa::__private::OnceBox::new();
+        VALUE.get_or_init(|| ::buffa::alloc::boxed::Box::new(Self::default()))
+    }
+}
+impl ::buffa::MessageName for PersonSegmentationMask {
+    const PACKAGE: &'static str = "media.v1";
+    const NAME: &'static str = "PersonSegmentationMask";
+    const FULL_NAME: &'static str = "media.v1.PersonSegmentationMask";
+    const TYPE_URL: &'static str = "type.googleapis.com/media.v1.PersonSegmentationMask";
+}
+impl ::buffa::Message for PersonSegmentationMask {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// The result is a `u32`; the protobuf specification requires all
+    /// messages to fit within 2 GiB (2,147,483,647 bytes), so a
+    /// compliant message will never overflow this type.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u32;
+        if self.bbox.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.bbox.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u32 + ::buffa::encoding::varint_len(inner_size as u64) as u32
+                    + inner_size;
+        }
+        if self.confidence.to_bits() != 0u32 {
+            size += 1u32 + ::buffa::types::FIXED32_ENCODED_LEN as u32;
+        }
+        if self.dimensions.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.dimensions.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u32 + ::buffa::encoding::varint_len(inner_size as u64) as u32
+                    + inner_size;
+        }
+        if !self.data.is_empty() {
+            size += 1u32 + ::buffa::types::bytes_encoded_len(&self.data) as u32;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u32;
+        size
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::bytes::BufMut,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.bbox.is_set() {
+            ::buffa::encoding::Tag::new(
+                    1u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::encoding::encode_varint(__cache.consume_next() as u64, buf);
+            self.bbox.write_to(__cache, buf);
+        }
+        if self.confidence.to_bits() != 0u32 {
+            ::buffa::encoding::Tag::new(2u32, ::buffa::encoding::WireType::Fixed32)
+                .encode(buf);
+            ::buffa::types::encode_float(self.confidence, buf);
+        }
+        if self.dimensions.is_set() {
+            ::buffa::encoding::Tag::new(
+                    3u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::encoding::encode_varint(__cache.consume_next() as u64, buf);
+            self.dimensions.write_to(__cache, buf);
+        }
+        if !self.data.is_empty() {
+            ::buffa::encoding::Tag::new(
+                    4u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::types::encode_bytes(&self.data, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        depth: u32,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 1u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                ::buffa::Message::merge_length_delimited(
+                    self.bbox.get_or_insert_default(),
+                    buf,
+                    depth,
+                )?;
+            }
+            2u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::Fixed32 {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 2u32,
+                        expected: 5u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.confidence = ::buffa::types::decode_float(buf)?;
+            }
+            3u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 3u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                ::buffa::Message::merge_length_delimited(
+                    self.dimensions.get_or_insert_default(),
+                    buf,
+                    depth,
+                )?;
+            }
+            4u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 4u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                ::buffa::types::merge_bytes(&mut self.data, buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, depth)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.bbox = ::buffa::MessageField::none();
+        self.confidence = 0f32;
+        self.dimensions = ::buffa::MessageField::none();
+        self.data.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for PersonSegmentationMask {
+    const PROTO_FQN: &'static str = "media.v1.PersonSegmentationMask";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+#[cfg(feature = "json")]
+impl ::buffa::json_helpers::ProtoElemJson for PersonSegmentationMask {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[cfg(feature = "json")]
+#[doc(hidden)]
+pub const __PERSON_SEGMENTATION_MASK_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/media.v1.PersonSegmentationMask",
+    to_json: ::buffa::type_registry::any_to_json::<PersonSegmentationMask>,
+    from_json: ::buffa::type_registry::any_from_json::<PersonSegmentationMask>,
+    is_wkt: false,
+};
+/// Per-instance person mask: bbox + confidence + instance index + dimensions + mask bytes.
+#[derive(Clone, PartialEq, Default)]
+#[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
+#[cfg_attr(feature = "json", serde(default))]
+#[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
+#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
+pub struct PersonInstanceMaskDetection {
+    /// Field 1: `bbox`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "bbox",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+        )
+    )]
+    pub bbox: ::buffa::MessageField<BoundingBox>,
+    /// Field 2: `confidence`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "confidence",
+            with = "::buffa::json_helpers::float",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_f32"
+        )
+    )]
+    pub confidence: f32,
+    /// Field 3: `instance_index`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "instanceIndex",
+            alias = "instance_index",
+            with = "::buffa::json_helpers::uint32",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
+        )
+    )]
+    pub instance_index: u32,
+    /// Field 4: `dimensions`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "dimensions",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+        )
+    )]
+    pub dimensions: ::buffa::MessageField<Dimensions>,
+    /// Field 5: `data`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "data",
+            with = "::buffa::json_helpers::bytes",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
+        )
+    )]
+    pub data: ::buffa::alloc::vec::Vec<u8>,
+    #[cfg_attr(feature = "json", serde(skip))]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for PersonInstanceMaskDetection {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("PersonInstanceMaskDetection")
+            .field("bbox", &self.bbox)
+            .field("confidence", &self.confidence)
+            .field("instance_index", &self.instance_index)
+            .field("dimensions", &self.dimensions)
+            .field("data", &self.data)
+            .finish()
+    }
+}
+impl PersonInstanceMaskDetection {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/media.v1.PersonInstanceMaskDetection";
+}
+impl ::buffa::DefaultInstance for PersonInstanceMaskDetection {
+    fn default_instance() -> &'static Self {
+        static VALUE: ::buffa::__private::OnceBox<PersonInstanceMaskDetection> = ::buffa::__private::OnceBox::new();
+        VALUE.get_or_init(|| ::buffa::alloc::boxed::Box::new(Self::default()))
+    }
+}
+impl ::buffa::MessageName for PersonInstanceMaskDetection {
+    const PACKAGE: &'static str = "media.v1";
+    const NAME: &'static str = "PersonInstanceMaskDetection";
+    const FULL_NAME: &'static str = "media.v1.PersonInstanceMaskDetection";
+    const TYPE_URL: &'static str = "type.googleapis.com/media.v1.PersonInstanceMaskDetection";
+}
+impl ::buffa::Message for PersonInstanceMaskDetection {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// The result is a `u32`; the protobuf specification requires all
+    /// messages to fit within 2 GiB (2,147,483,647 bytes), so a
+    /// compliant message will never overflow this type.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u32;
+        if self.bbox.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.bbox.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u32 + ::buffa::encoding::varint_len(inner_size as u64) as u32
+                    + inner_size;
+        }
+        if self.confidence.to_bits() != 0u32 {
+            size += 1u32 + ::buffa::types::FIXED32_ENCODED_LEN as u32;
+        }
+        if self.instance_index != 0u32 {
+            size
+                += 1u32 + ::buffa::types::uint32_encoded_len(self.instance_index) as u32;
+        }
+        if self.dimensions.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.dimensions.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u32 + ::buffa::encoding::varint_len(inner_size as u64) as u32
+                    + inner_size;
+        }
+        if !self.data.is_empty() {
+            size += 1u32 + ::buffa::types::bytes_encoded_len(&self.data) as u32;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u32;
+        size
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::bytes::BufMut,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.bbox.is_set() {
+            ::buffa::encoding::Tag::new(
+                    1u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::encoding::encode_varint(__cache.consume_next() as u64, buf);
+            self.bbox.write_to(__cache, buf);
+        }
+        if self.confidence.to_bits() != 0u32 {
+            ::buffa::encoding::Tag::new(2u32, ::buffa::encoding::WireType::Fixed32)
+                .encode(buf);
+            ::buffa::types::encode_float(self.confidence, buf);
+        }
+        if self.instance_index != 0u32 {
+            ::buffa::encoding::Tag::new(3u32, ::buffa::encoding::WireType::Varint)
+                .encode(buf);
+            ::buffa::types::encode_uint32(self.instance_index, buf);
+        }
+        if self.dimensions.is_set() {
+            ::buffa::encoding::Tag::new(
+                    4u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::encoding::encode_varint(__cache.consume_next() as u64, buf);
+            self.dimensions.write_to(__cache, buf);
+        }
+        if !self.data.is_empty() {
+            ::buffa::encoding::Tag::new(
+                    5u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::types::encode_bytes(&self.data, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        depth: u32,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 1u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                ::buffa::Message::merge_length_delimited(
+                    self.bbox.get_or_insert_default(),
+                    buf,
+                    depth,
+                )?;
+            }
+            2u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::Fixed32 {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 2u32,
+                        expected: 5u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.confidence = ::buffa::types::decode_float(buf)?;
+            }
+            3u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::Varint {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 3u32,
+                        expected: 0u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.instance_index = ::buffa::types::decode_uint32(buf)?;
+            }
+            4u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 4u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                ::buffa::Message::merge_length_delimited(
+                    self.dimensions.get_or_insert_default(),
+                    buf,
+                    depth,
+                )?;
+            }
+            5u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 5u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                ::buffa::types::merge_bytes(&mut self.data, buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, depth)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.bbox = ::buffa::MessageField::none();
+        self.confidence = 0f32;
+        self.instance_index = 0u32;
+        self.dimensions = ::buffa::MessageField::none();
+        self.data.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for PersonInstanceMaskDetection {
+    const PROTO_FQN: &'static str = "media.v1.PersonInstanceMaskDetection";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+#[cfg(feature = "json")]
+impl ::buffa::json_helpers::ProtoElemJson for PersonInstanceMaskDetection {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[cfg(feature = "json")]
+#[doc(hidden)]
+pub const __PERSON_INSTANCE_MASK_DETECTION_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/media.v1.PersonInstanceMaskDetection",
+    to_json: ::buffa::type_registry::any_to_json::<PersonInstanceMaskDetection>,
+    from_json: ::buffa::type_registry::any_from_json::<PersonInstanceMaskDetection>,
     is_wkt: false,
 };

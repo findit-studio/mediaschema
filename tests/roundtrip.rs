@@ -1,12 +1,15 @@
 use buffa::Message;
 use core::num::NonZeroU32;
 use mediaschema::{
-    ActionDetection, Aesthetics, AppPathBuf, AudioFormat, BarcodeDetection, BoundingBox,
-    ClassificationDetection, CodecId, ColorDetection, Detection, Dimensions, DocumentSegment,
-    EmotionDetection, ErrorInfo, FaceDetection, FeaturePrint, FileChecksum, HorizonInfo, Id,
-    LightingDetection, Local, Location, LocationKind, LocationTarget, LocationTargetKind,
-    MediaKind, MediaKindKind, MoodDetection, ObjectDetection, Point2D, SaliencyRegion,
-    SubjectDetection, Tag, TextDetection, TimedDetection, VideoFormat, VolumeMeta, WatchedLocation,
+    ActionDetection, Aesthetics, AppPathBuf, AudioFormat, BarcodeDetection,
+    BodyPose3DDetection, BodyPose3DHeightEstimation, BodyPose3DJoint, BodyPoseDetection,
+    BodyPoseJoint, BoundingBox, ClassificationDetection, CodecId, ColorDetection, Detection,
+    Dimensions, DocumentSegment, EmotionDetection, ErrorInfo, FaceDetection, FaceLandmarkPoint,
+    FaceLandmarkRegion, FaceLandmarksDetection, FeaturePrint, FileChecksum, HandChirality,
+    HandPoseDetection, HorizonInfo, Id, LightingDetection, Local, Location, LocationKind,
+    LocationTarget, LocationTargetKind, MediaKind, MediaKindKind, MoodDetection, ObjectDetection,
+    PersonInstanceMaskDetection, PersonSegmentationMask, Point2D, SaliencyRegion, SubjectDetection,
+    Tag, TextDetection, TimedDetection, VideoFormat, VolumeMeta, WatchedLocation,
 };
 use mediatime::{Timebase, TimeRange};
 
@@ -517,4 +520,185 @@ fn barcode_detection_json_roundtrip() {
     let json = serde_json::to_string(&barcode).expect("to_json");
     let back: BarcodeDetection = serde_json::from_str(&json).expect("from_json");
     assert_eq!(barcode, back);
+}
+
+// ── SP1 Batch 5 ──────────────────────────────────────────────────────────────
+
+#[test]
+fn batch5_roundtrip() {
+    // ── FaceLandmarkPoint ─────────────────────────────────────────────────────
+    let flp = FaceLandmarkPoint { x: 0.3, y: 0.7, ..Default::default() };
+    rt(&flp);
+    rt(&FaceLandmarkPoint::default());
+
+    // ── FaceLandmarkRegion — name + ≥2 points ────────────────────────────────
+    let flr = FaceLandmarkRegion {
+        name: "left_eye".into(),
+        points: vec![
+            FaceLandmarkPoint { x: 0.25, y: 0.35, ..Default::default() },
+            FaceLandmarkPoint { x: 0.30, y: 0.36, ..Default::default() },
+            FaceLandmarkPoint { x: 0.35, y: 0.35, ..Default::default() },
+        ],
+        ..Default::default()
+    };
+    rt(&flr);
+    rt(&FaceLandmarkRegion::default());
+
+    // ── FaceLandmarksDetection — bbox + confidence + ≥1 non-empty region ─────
+    let fld = FaceLandmarksDetection {
+        bbox: make_bbox(0.1, 0.1, 0.4, 0.5),
+        confidence: 0.92,
+        regions: vec![
+            FaceLandmarkRegion {
+                name: "nose_tip".into(),
+                points: vec![
+                    FaceLandmarkPoint { x: 0.5, y: 0.55, ..Default::default() },
+                    FaceLandmarkPoint { x: 0.52, y: 0.57, ..Default::default() },
+                ],
+                ..Default::default()
+            },
+        ],
+        ..Default::default()
+    };
+    rt(&fld);
+    rt(&FaceLandmarksDetection::default());
+
+    // ── BodyPoseJoint — name + 3 floats, ≥1 negative coord ───────────────────
+    let bpj = BodyPoseJoint {
+        name: "left_shoulder".into(),
+        x: -0.15,
+        y: 0.45,
+        confidence: 0.88,
+        ..Default::default()
+    };
+    rt(&bpj);
+    rt(&BodyPoseJoint::default());
+
+    // ── BodyPoseDetection — bbox + ≥2 joints ─────────────────────────────────
+    let bpd = BodyPoseDetection {
+        bbox: make_bbox(0.05, 0.1, 0.5, 0.8),
+        confidence: 0.87,
+        joints: vec![
+            BodyPoseJoint { name: "left_hip".into(), x: 0.3, y: 0.6, confidence: 0.9, ..Default::default() },
+            BodyPoseJoint { name: "right_hip".into(), x: -0.1, y: 0.61, confidence: 0.85, ..Default::default() },
+        ],
+        ..Default::default()
+    };
+    rt(&bpd);
+    rt(&BodyPoseDetection::default());
+
+    // ── BodyPose3DJoint — name + 4 floats incl. z, ≥1 negative ──────────────
+    let bp3j = BodyPose3DJoint {
+        name: "left_knee".into(),
+        x: 0.2,
+        y: 0.7,
+        z: -0.05,
+        confidence: 0.83,
+        ..Default::default()
+    };
+    rt(&bp3j);
+    rt(&BodyPose3DJoint::default());
+
+    // ── BodyPose3DDetection — REFERENCE, MEASURED, UNSPECIFIED variants ──────
+    let bp3d_reference = BodyPose3DDetection {
+        confidence: 0.91,
+        body_height: 1.75,
+        height_estimation: buffa::EnumValue::from(BodyPose3DHeightEstimation::BODY_POSE_3D_HEIGHT_ESTIMATION_REFERENCE),
+        joints: vec![
+            BodyPose3DJoint { name: "spine".into(), x: 0.0, y: 0.5, z: 0.02, confidence: 0.95, ..Default::default() },
+            BodyPose3DJoint { name: "neck".into(), x: 0.0, y: 0.8, z: -0.01, confidence: 0.93, ..Default::default() },
+        ],
+        ..Default::default()
+    };
+    rt(&bp3d_reference);
+
+    let bp3d_measured = BodyPose3DDetection {
+        confidence: 0.88,
+        body_height: 1.80,
+        height_estimation: buffa::EnumValue::from(BodyPose3DHeightEstimation::BODY_POSE_3D_HEIGHT_ESTIMATION_MEASURED),
+        joints: vec![
+            BodyPose3DJoint { name: "left_ankle".into(), x: -0.2, y: 0.05, z: 0.0, confidence: 0.79, ..Default::default() },
+        ],
+        ..Default::default()
+    };
+    rt(&bp3d_measured);
+
+    let bp3d_unspecified = BodyPose3DDetection {
+        confidence: 0.75,
+        body_height: 1.70,
+        height_estimation: buffa::EnumValue::from(BodyPose3DHeightEstimation::BODY_POSE_3D_HEIGHT_ESTIMATION_UNSPECIFIED),
+        joints: vec![
+            BodyPose3DJoint { name: "right_wrist".into(), x: 0.4, y: 0.55, z: -0.03, confidence: 0.80, ..Default::default() },
+        ],
+        ..Default::default()
+    };
+    rt(&bp3d_unspecified);
+    rt(&BodyPose3DDetection::default());
+
+    // ── HandPoseDetection — LEFT and RIGHT chirality variants ─────────────────
+    let hpd_left = HandPoseDetection {
+        bbox: make_bbox(0.1, 0.2, 0.2, 0.3),
+        confidence: 0.94,
+        chirality: buffa::EnumValue::from(HandChirality::HAND_CHIRALITY_LEFT),
+        joints: vec![
+            BodyPoseJoint { name: "thumb_tip".into(), x: 0.15, y: 0.22, confidence: 0.91, ..Default::default() },
+            BodyPoseJoint { name: "index_tip".into(), x: 0.18, y: 0.25, confidence: 0.89, ..Default::default() },
+        ],
+        ..Default::default()
+    };
+    rt(&hpd_left);
+
+    let hpd_right = HandPoseDetection {
+        bbox: make_bbox(0.6, 0.2, 0.2, 0.3),
+        confidence: 0.90,
+        chirality: buffa::EnumValue::from(HandChirality::HAND_CHIRALITY_RIGHT),
+        joints: vec![
+            BodyPoseJoint { name: "thumb_tip".into(), x: 0.65, y: 0.22, confidence: 0.88, ..Default::default() },
+        ],
+        ..Default::default()
+    };
+    rt(&hpd_right);
+    rt(&HandPoseDetection::default());
+
+    // ── PersonSegmentationMask — bbox + Dimensions + non-empty data ───────────
+    let psm = PersonSegmentationMask {
+        bbox: make_bbox(0.0, 0.0, 1.0, 1.0),
+        confidence: 0.97,
+        dimensions: buffa::MessageField::some(Dimensions { width: 64, height: 64, ..Default::default() }),
+        data: vec![0xAAu8; 64 * 64],
+        ..Default::default()
+    };
+    rt(&psm);
+    rt(&PersonSegmentationMask::default());
+
+    // ── PersonInstanceMaskDetection — bbox + Dimensions + instance_index + data
+    let pimd = PersonInstanceMaskDetection {
+        bbox: make_bbox(0.1, 0.05, 0.35, 0.7),
+        confidence: 0.89,
+        instance_index: 2,
+        dimensions: buffa::MessageField::some(Dimensions { width: 32, height: 32, ..Default::default() }),
+        data: vec![0xBBu8; 32 * 32],
+        ..Default::default()
+    };
+    rt(&pimd);
+    rt(&PersonInstanceMaskDetection::default());
+}
+
+#[test]
+#[cfg(feature = "json")]
+fn body_pose_3d_detection_json_roundtrip() {
+    let bp3d = BodyPose3DDetection {
+        confidence: 0.93,
+        body_height: 1.78,
+        height_estimation: buffa::EnumValue::from(BodyPose3DHeightEstimation::BODY_POSE_3D_HEIGHT_ESTIMATION_MEASURED),
+        joints: vec![
+            BodyPose3DJoint { name: "left_shoulder".into(), x: -0.1, y: 0.75, z: 0.02, confidence: 0.94, ..Default::default() },
+            BodyPose3DJoint { name: "right_shoulder".into(), x: 0.1, y: 0.75, z: 0.02, confidence: 0.92, ..Default::default() },
+            BodyPose3DJoint { name: "left_hip".into(), x: -0.08, y: 0.45, z: 0.01, confidence: 0.90, ..Default::default() },
+        ],
+        ..Default::default()
+    };
+    let json = serde_json::to_string(&bp3d).expect("to_json");
+    let back: BodyPose3DDetection = serde_json::from_str(&json).expect("from_json");
+    assert_eq!(bp3d, back);
 }

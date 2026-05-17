@@ -70,6 +70,26 @@ pub mod __buffa {
         #[cfg(feature = "json")] reg.register_json_any(super::__FACE_DETECTION_JSON_ANY);
         #[cfg(feature = "json")]
         reg.register_json_any(super::__SALIENCY_REGION_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__FACE_LANDMARK_POINT_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__FACE_LANDMARK_REGION_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__FACE_LANDMARKS_DETECTION_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__BODY_POSE_JOINT_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__BODY_POSE_DETECTION_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__BODY_POSE3D_JOINT_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__BODY_POSE3D_DETECTION_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__HAND_POSE_DETECTION_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__PERSON_SEGMENTATION_MASK_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__PERSON_INSTANCE_MASK_DETECTION_JSON_ANY);
     }
 }
 #[cfg(feature = "json")]
