@@ -2,9 +2,8 @@ use buffa::Message;
 use core::num::NonZeroU32;
 use mediaschema::{
     Aesthetics, AudioFormat, BoundingBox, CodecId, Detection, Dimensions, DocumentSegment,
-    FeaturePrint, HorizonInfo, MediaKind, Point2D, TimedDetection, VideoFormat,
+    FeaturePrint, HorizonInfo, MediaKind, MediaKindKind, Point2D, TimedDetection, VideoFormat,
 };
-use mediaschema::media_kind::Kind as MediaKindKind;
 use mediatime::{Timebase, TimeRange};
 
 fn rt<M: Message + PartialEq + std::fmt::Debug>(m: &M) {
@@ -168,7 +167,6 @@ fn dimensions_quickcheck_roundtrip() {
         // domain to discard). Mirror SP0's style with discard as a safety
         // valve — use it to filter any pathological zero-zero case if needed;
         // here we simply admit all values.
-        let _ = (width, height); // prevent unused-variable lint
         let d = Dimensions { width, height, ..Default::default() };
         let bytes = d.encode_to_vec();
         let ok = Dimensions::decode_from_slice(&bytes).map(|b| b == d).unwrap_or(false);

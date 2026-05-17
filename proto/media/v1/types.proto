@@ -33,18 +33,25 @@ message TimedDetection {
   mediatime.v1.Timebase timebase = 3;
 }
 
+// Normalized 2D point (x, y).
 message Point2D { float x = 1; float y = 2; }
 
+// Pixel dimensions (split from findit-proto's packed u16|u16 — clean redesign).
 message Dimensions { uint32 width = 1; uint32 height = 2; }
 
+// Image aesthetics score (VNCalculateImageAestheticsScoresRequest).
 message Aesthetics { float overall_score = 1; bool is_utility = 2; }
 
+// Detected horizon line (VNDetectHorizonRequest): signed angle + confidence.
 message HorizonInfo { float angle = 1; float confidence = 2; }
 
+// Opaque FFmpeg AVCodecID codec identifier.
 message CodecId { int64 value = 1; }
 
+// Perceptual feature vector (VNGenerateImageFeaturePrintRequest).
 message FeaturePrint { bytes data = 1; uint32 element_type = 2; }
 
+// Container/video file format.
 enum VideoFormat {
   VIDEO_FORMAT_UNSPECIFIED = 0;
   VIDEO_FORMAT_AVI = 1; VIDEO_FORMAT_FLV = 2; VIDEO_FORMAT_MP4 = 3;
@@ -53,6 +60,7 @@ enum VideoFormat {
   VIDEO_FORMAT_WMV = 10; VIDEO_FORMAT_WEBM = 11;
 }
 
+// Audio file format.
 enum AudioFormat {
   AUDIO_FORMAT_UNSPECIFIED = 0;
   AUDIO_FORMAT_MP3 = 1; AUDIO_FORMAT_AAC = 2; AUDIO_FORMAT_FLAC = 3;
@@ -60,10 +68,12 @@ enum AudioFormat {
   AUDIO_FORMAT_M4A = 7; AUDIO_FORMAT_OPUS = 8; AUDIO_FORMAT_AIFF = 9;
 }
 
+// Either a video or an audio format.
 message MediaKind {
   oneof kind { VideoFormat video = 1; AudioFormat audio = 2; }
 }
 
+// Detected document region as a quadrilateral (4 corners) + confidence.
 message DocumentSegment {
   Point2D top_left = 1; Point2D top_right = 2;
   Point2D bottom_left = 3; Point2D bottom_right = 4;

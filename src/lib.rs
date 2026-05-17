@@ -17,7 +17,5 @@ pub use generated::media::v1::{
     Aesthetics, AudioFormat, BoundingBox, CodecId, Detection, Dimensions, DocumentSegment,
     FeaturePrint, HorizonInfo, MediaKind, Point2D, TimedDetection, VideoFormat,
 };
-/// Oneof variant types for [`MediaKind`].
-pub mod media_kind {
-    pub use super::generated::media::v1::media_kind::Kind;
-}
+/// Oneof variant for [`MediaKind`]: `Kind::Video(…)` or `Kind::Audio(…)`.
+pub use generated::media::v1::media_kind::Kind as MediaKindKind;
