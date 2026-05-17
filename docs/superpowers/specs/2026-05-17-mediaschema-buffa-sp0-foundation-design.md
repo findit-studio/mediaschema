@@ -235,3 +235,7 @@ bridge is exercised by a property test.
   findit's repo, not a `mediaschema` sub-project.
 - SP1 type volume (only the SP0 vertical slice is migrated here).
 - Upstreaming a native `quickcheck` codegen mode into buffa (revisitable later).
+- CI lint gates (`cargo fmt --check`, `cargo clippy -D warnings`) and SHA-pinning
+  the GitHub Actions — deferred to SP1; SP0's CI is the minimal codegen-drift +
+  feature-matrix gate only. NOTE: CI protoc is pinned to the local authoring
+  version (34.0) — the drift gate is only deterministic if these match.
