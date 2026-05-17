@@ -1,4 +1,12 @@
-# mediaschema — Product-Agnostic Media Schema via buffa — Context & SP0 (Foundation) Design
+# mediaschema — Media Schema via buffa — Context & SP0 (Foundation) Design
+
+> ⚠️ **SCOPE REVERSED (rev. 5, 2026-05-17).** The user reversed the
+> product-agnostic boundary: mediaschema is now the **full findit-proto
+> replacement** — SP1 (`common`) **+ SP2 (`database`) + SP3 (`network`)**.
+> The "product-agnostic" invariant is **dropped**; §2 (decisions 3/9), §3
+> (decomposition), and §7 (database/network out of scope) of THIS doc are
+> **superseded** by `2026-05-17-mediaschema-full-migration-design.md`. This
+> SP0 doc remains the accurate record of the SP0 foundation only.
 
 - **Date:** 2026-05-17 (rev. 4 — mediatime SP0 merged & published; mediaschema now on crates.io `mediatime 0.1.6`)
 - **Status:** SP0 complete; mediatime path dep cut over to crates.io
