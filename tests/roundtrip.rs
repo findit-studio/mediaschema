@@ -4,7 +4,7 @@ use mediaschema::{
     Aesthetics, AppPathBuf, AudioFormat, BoundingBox, CodecId, Detection, Dimensions,
     DocumentSegment, ErrorInfo, FeaturePrint, FileChecksum, HorizonInfo, Id, Local, Location,
     LocationKind, LocationTarget, LocationTargetKind, MediaKind, MediaKindKind, Point2D, Tag,
-    TimedDetection, VideoFormat,
+    TimedDetection, VideoFormat, VolumeMeta, WatchedLocation,
 };
 use mediatime::{Timebase, TimeRange};
 
@@ -282,4 +282,112 @@ fn app_path_buf_json_roundtrip() {
     let json = serde_json::to_string(&apb).expect("to_json");
     let back: AppPathBuf = serde_json::from_str(&json).expect("from_json");
     assert_eq!(apb, back);
+}
+
+// ── SP1 Batch 3 ──────────────────────────────────────────────────────────────
+
+fn make_local_location() -> Location {
+    Location {
+        kind: Some(LocationKind::Local(Box::new(Local {
+            volume: buffa::MessageField::some(Id {
+                value: (1u8..=16).collect(),
+                ..Default::default()
+            }),
+            components: vec!["media".into(), "videos".into()],
+            ..Default::default()
+        }))),
+        ..Default::default()
+    }
+}
+
+#[test]
+fn batch3_roundtrip() {
+    // ── WatchedLocation — fully populated (deleted_at: Some) ─────────────────
+    let wl_full = WatchedLocation {
+        id: buffa::MessageField::some(Id { value: (1u8..=16).collect(), ..Default::default() }),
+        location: buffa::MessageField::some(make_local_location()),
+        name: "My Videos".into(),
+        status: 3,
+        created_at: 1_700_000_000,
+        deleted_at: Some(1_800_000_000),
+        total_files: 1000,
+        indexed_files: 950,
+        total_videos: 800,
+        indexed_videos: 780,
+        total_scenes: 5000,
+        total_audios: 200,
+        indexed_audios: 195,
+        total_failed_files: 50,
+        failed_videos: 20,
+        failed_audios: 5,
+        ..Default::default()
+    };
+    rt(&wl_full);
+
+    // ── WatchedLocation — deleted_at: None ───────────────────────────────────
+    let wl_no_deleted = WatchedLocation {
+        id: buffa::MessageField::some(Id { value: (1u8..=16).collect(), ..Default::default() }),
+        location: buffa::MessageField::some(make_local_location()),
+        name: "Active Location".into(),
+        status: 1,
+        created_at: 1_700_000_000,
+        deleted_at: None,
+        total_files: 42,
+        indexed_files: 42,
+        total_videos: 10,
+        indexed_videos: 10,
+        total_scenes: 100,
+        total_audios: 32,
+        indexed_audios: 32,
+        total_failed_files: 0,
+        failed_videos: 0,
+        failed_audios: 0,
+        ..Default::default()
+    };
+    rt(&wl_no_deleted);
+
+    // ── WatchedLocation — default ─────────────────────────────────────────────
+    rt(&WatchedLocation::default());
+
+    // ── VolumeMeta — fully populated ──────────────────────────────────────────
+    let vm_full = VolumeMeta {
+        id: buffa::MessageField::some(Id { value: (1u8..=16).collect(), ..Default::default() }),
+        location: buffa::MessageField::some(make_local_location()),
+        name: "Seagate 4TB".into(),
+        total_size: 4_000_000_000_000,
+        used_size: 2_500_000_000_000,
+        status: 3,
+        ..Default::default()
+    };
+    rt(&vm_full);
+
+    // ── VolumeMeta — default ──────────────────────────────────────────────────
+    rt(&VolumeMeta::default());
+}
+
+#[test]
+#[cfg(feature = "json")]
+fn watched_location_json_roundtrip() {
+    let wl = WatchedLocation {
+        id: buffa::MessageField::some(Id { value: (1u8..=16).collect(), ..Default::default() }),
+        location: buffa::MessageField::some(make_local_location()),
+        name: "JSON Test Location".into(),
+        status: 3,
+        created_at: 1_700_000_000,
+        deleted_at: Some(1_800_000_000),
+        total_files: 1000,
+        indexed_files: 950,
+        total_videos: 800,
+        indexed_videos: 780,
+        total_scenes: 5000,
+        total_audios: 200,
+        indexed_audios: 195,
+        total_failed_files: 50,
+        failed_videos: 20,
+        failed_audios: 5,
+        ..Default::default()
+    };
+    let json = serde_json::to_string(&wl).expect("to_json");
+    let back: WatchedLocation = serde_json::from_str(&json).expect("from_json");
+    assert_eq!(wl, back);
 }

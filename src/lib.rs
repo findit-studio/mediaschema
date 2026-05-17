@@ -16,7 +16,8 @@ mod generated {
 pub use generated::media::v1::{
     Aesthetics, AppPathBuf, AudioFormat, BoundingBox, CodecId, Detection, Dimensions,
     DocumentSegment, ErrorInfo, FeaturePrint, FileChecksum, HorizonInfo, Id, Local, Location,
-    LocationTarget, MediaKind, Point2D, Tag, TimedDetection, VideoFormat,
+    LocationTarget, MediaKind, Point2D, Tag, TimedDetection, VideoFormat, VolumeMeta,
+    WatchedLocation,
 };
 /// Oneof variant for [`MediaKind`]: `Kind::Video(…)` or `Kind::Audio(…)`.
 pub use generated::media::v1::media_kind::Kind as MediaKindKind;

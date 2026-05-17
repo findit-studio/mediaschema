@@ -113,3 +113,33 @@ message Tag { string name = 1; fixed32 color = 2; }
 
 // A structured error: numeric code + message.
 message ErrorInfo { uint32 code = 1; string message = 2; }
+
+// A watched media location with indexing progress counters.
+message WatchedLocation {
+  Id id = 1;
+  Location location = 2;
+  string name = 3;
+  uint32 status = 4;            // LocationStatus bitflags (ACTIVE=1, TOMBSTONED=2)
+  int64 created_at = 5;
+  optional int64 deleted_at = 6;
+  uint64 total_files = 7;
+  uint64 indexed_files = 8;
+  uint64 total_videos = 9;
+  uint64 indexed_videos = 10;
+  uint64 total_scenes = 11;
+  uint64 total_audios = 12;
+  uint64 indexed_audios = 13;
+  uint64 total_failed_files = 14;
+  uint64 failed_videos = 15;
+  uint64 failed_audios = 16;
+}
+
+// Metadata for a storage volume.
+message VolumeMeta {
+  Id id = 1;
+  Location location = 2;
+  string name = 3;
+  uint64 total_size = 4;
+  uint64 used_size = 5;
+  uint32 status = 6;            // VolumeStatus bitflags (EJECTABLE=1, ACTIVE=2)
+}

@@ -46,6 +46,9 @@ pub mod __buffa {
         #[cfg(feature = "json")] reg.register_json_any(super::__APP_PATH_BUF_JSON_ANY);
         #[cfg(feature = "json")] reg.register_json_any(super::__TAG_JSON_ANY);
         #[cfg(feature = "json")] reg.register_json_any(super::__ERROR_INFO_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__WATCHED_LOCATION_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__VOLUME_META_JSON_ANY);
     }
 }
 #[cfg(feature = "json")]
