@@ -1,8 +1,8 @@
 # mediaschema — Product-Agnostic Media Schema via buffa — Context & SP0 (Foundation) Design
 
-- **Date:** 2026-05-17 (rev. 3 — buffa consumed from crates.io `"0.6"`)
-- **Status:** Approved (brainstorming) — in execution
-- **Repos in scope:** `mediaschema` (primary), `mediatime` (local sibling, co-modified). **`buffa`/`buffa-types`/`buffa-build` are crates.io deps pinned `"0.6"`** (latest published; no local path dep, no buffa changes in SP0)
+- **Date:** 2026-05-17 (rev. 4 — mediatime SP0 merged & published; mediaschema now on crates.io `mediatime 0.1.6`)
+- **Status:** SP0 complete; mediatime path dep cut over to crates.io
+- **Repos in scope:** `mediaschema` (primary). All deps are crates.io: **`buffa`/`buffa-types`/`buffa-build` pinned `"0.6"`**, **`mediatime` pinned `"0.1.6"`** (its SP0 `buffa` feature was merged via mediatime#4 and published). No local path deps remain.
 - **Provenance (reference only, not a dependency):** type shapes are read from `findit-studio/indexer/findit-proto`'s hand-written Rust
 
 ---
