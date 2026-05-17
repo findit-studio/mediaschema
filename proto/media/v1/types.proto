@@ -2,6 +2,10 @@ syntax = "proto3";
 
 package media.v1;
 
+// Shapes are authored from findit-proto's Rust structs but are a clean
+// redesign: wire compatibility with findit-proto's hand-rolled encoding is a
+// deliberate NON-goal (correctness / round-trip only).
+
 import "mediatime/v1/mediatime.proto";
 
 // Classification result. Shape from findit-proto Detection { label, confidence }.
@@ -18,7 +22,11 @@ message BoundingBox {
   float height = 4;
 }
 
-// Exercises the mediatime extern integration end-to-end.
+// SP0 integration fixture (NOT a domain message): deliberately exercises BOTH
+// extern code paths — `range` is an extern message that itself nests an extern
+// `Timebase`, and `timebase` is a direct singular extern message field. The two
+// timebases are independent by design (no authoritative-source semantics); this
+// type exists only to prove the buffa <-> mediatime extern pipeline round-trips.
 message TimedDetection {
   Detection detection = 1;
   mediatime.v1.TimeRange range = 2;
