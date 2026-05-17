@@ -90,6 +90,10 @@ pub mod __buffa {
         reg.register_json_any(super::__PERSON_SEGMENTATION_MASK_JSON_ANY);
         #[cfg(feature = "json")]
         reg.register_json_any(super::__PERSON_INSTANCE_MASK_DETECTION_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__TRACK_TIME_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__ANIMAL_ANALYSIS_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__HUMAN_ANALYSIS_JSON_ANY);
     }
 }
 #[cfg(feature = "json")]

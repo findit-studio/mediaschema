@@ -263,3 +263,33 @@ message PersonInstanceMaskDetection {
   Dimensions dimensions = 4;
   bytes data = 5;
 }
+// Source of timing information for a media track.
+enum TrackTimeSource {
+  TRACK_TIME_SOURCE_UNSPECIFIED = 0;
+  TRACK_TIME_SOURCE_DECLARED = 1;
+  TRACK_TIME_SOURCE_PACKET_OBSERVED = 2;
+  TRACK_TIME_SOURCE_DECODED_OBSERVED = 3;
+}
+// Timing ranges for a media track: declared, packet-observed, and decoded-observed.
+message TrackTime {
+  optional mediatime.v1.TimeRange declared = 1;
+  optional mediatime.v1.TimeRange packet_observed = 2;
+  optional mediatime.v1.TimeRange decoded_observed = 3;
+}
+// Animal analysis aggregate: subject detections + body poses.
+message AnimalAnalysis {
+  repeated SubjectDetection subjects = 1;
+  repeated BodyPoseDetection body_poses = 2;
+}
+// Human analysis aggregate: subjects, faces, body/hand poses, 3D poses, masks, landmarks, and segmentation.
+message HumanAnalysis {
+  repeated SubjectDetection subjects = 1;
+  repeated FaceDetection faces = 2;
+  repeated BodyPoseDetection body_poses = 3;
+  repeated HandPoseDetection hand_poses = 4;
+  repeated BodyPose3DDetection body_poses_3d = 5;
+  repeated PersonInstanceMaskDetection instance_masks = 6;
+  repeated FaceDetection face_rectangles = 7;
+  repeated FaceLandmarksDetection face_landmarks = 8;
+  repeated PersonSegmentationMask segmentation_masks = 9;
+}

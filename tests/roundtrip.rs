@@ -1,15 +1,16 @@
 use buffa::Message;
 use core::num::NonZeroU32;
 use mediaschema::{
-    ActionDetection, Aesthetics, AppPathBuf, AudioFormat, BarcodeDetection,
+    ActionDetection, Aesthetics, AnimalAnalysis, AppPathBuf, AudioFormat, BarcodeDetection,
     BodyPose3DDetection, BodyPose3DHeightEstimation, BodyPose3DJoint, BodyPoseDetection,
     BodyPoseJoint, BoundingBox, ClassificationDetection, CodecId, ColorDetection, Detection,
     Dimensions, DocumentSegment, EmotionDetection, ErrorInfo, FaceDetection, FaceLandmarkPoint,
     FaceLandmarkRegion, FaceLandmarksDetection, FeaturePrint, FileChecksum, HandChirality,
-    HandPoseDetection, HorizonInfo, Id, LightingDetection, Local, Location, LocationKind,
-    LocationTarget, LocationTargetKind, MediaKind, MediaKindKind, MoodDetection, ObjectDetection,
-    PersonInstanceMaskDetection, PersonSegmentationMask, Point2D, SaliencyRegion, SubjectDetection,
-    Tag, TextDetection, TimedDetection, VideoFormat, VolumeMeta, WatchedLocation,
+    HandPoseDetection, HorizonInfo, HumanAnalysis, Id, LightingDetection, Local, Location,
+    LocationKind, LocationTarget, LocationTargetKind, MediaKind, MediaKindKind, MoodDetection,
+    ObjectDetection, PersonInstanceMaskDetection, PersonSegmentationMask, Point2D, SaliencyRegion,
+    SubjectDetection, Tag, TextDetection, TimedDetection, TrackTime, VideoFormat,
+    VolumeMeta, WatchedLocation,
 };
 use mediatime::{Timebase, TimeRange};
 
@@ -701,4 +702,221 @@ fn body_pose_3d_detection_json_roundtrip() {
     let json = serde_json::to_string(&bp3d).expect("to_json");
     let back: BodyPose3DDetection = serde_json::from_str(&json).expect("from_json");
     assert_eq!(bp3d, back);
+}
+
+// ── SP1 Batch 6 ──────────────────────────────────────────────────────────────
+
+fn make_subject(label: &str, confidence: f32) -> SubjectDetection {
+    SubjectDetection {
+        detection: make_detection(label, confidence),
+        bbox: make_bbox(0.05, 0.1, 0.4, 0.8),
+        ..Default::default()
+    }
+}
+
+fn make_body_pose() -> BodyPoseDetection {
+    BodyPoseDetection {
+        bbox: make_bbox(0.05, 0.1, 0.5, 0.8),
+        confidence: 0.87,
+        joints: vec![
+            BodyPoseJoint {
+                name: "left_hip".into(),
+                x: 0.3,
+                y: 0.6,
+                confidence: 0.9,
+                ..Default::default()
+            },
+            BodyPoseJoint {
+                name: "right_hip".into(),
+                x: -0.1,
+                y: 0.61,
+                confidence: 0.85,
+                ..Default::default()
+            },
+        ],
+        ..Default::default()
+    }
+}
+
+fn make_time_range(start: i64, end: i64) -> ::buffa::MessageField<::mediatime::TimeRange> {
+    buffa::MessageField::some(TimeRange::new(
+        start,
+        end,
+        Timebase::new(30000, NonZeroU32::new(1001).unwrap()),
+    ))
+}
+
+#[test]
+fn batch6_roundtrip() {
+    // ── TrackTime: one field set (declared only) ──────────────────────────────
+    let tt_declared_only = TrackTime {
+        declared: make_time_range(10, 20),
+        packet_observed: buffa::MessageField::none(),
+        decoded_observed: buffa::MessageField::none(),
+        ..Default::default()
+    };
+    rt(&tt_declared_only);
+
+    // ── TrackTime: all three fields set with distinct ranges ──────────────────
+    let tt_all_set = TrackTime {
+        declared: make_time_range(0, 100),
+        packet_observed: make_time_range(1, 99),
+        decoded_observed: make_time_range(2, 98),
+        ..Default::default()
+    };
+    rt(&tt_all_set);
+
+    // ── TrackTime: default (all unset) ────────────────────────────────────────
+    rt(&TrackTime::default());
+
+    // ── AnimalAnalysis: ≥1 subject + ≥1 body pose ─────────────────────────────
+    let animal = AnimalAnalysis {
+        subjects: vec![make_subject("dog", 0.91)],
+        body_poses: vec![make_body_pose()],
+        ..Default::default()
+    };
+    rt(&animal);
+    rt(&AnimalAnalysis::default());
+
+    // ── HumanAnalysis: at least subjects, faces, body_poses, body_poses_3d, ──
+    // ── face_landmarks, segmentation_masks populated ──────────────────────────
+    let human = HumanAnalysis {
+        subjects: vec![make_subject("Human", 0.95)],
+        faces: vec![FaceDetection {
+            bbox: make_bbox(0.3, 0.1, 0.2, 0.3),
+            confidence: 0.88,
+            capture_quality: 0.75,
+            roll: -0.5,
+            yaw: 0.1,
+            pitch: 0.2,
+            ..Default::default()
+        }],
+        body_poses: vec![make_body_pose()],
+        hand_poses: vec![],
+        body_poses_3d: vec![BodyPose3DDetection {
+            confidence: 0.91,
+            body_height: 1.75,
+            height_estimation: buffa::EnumValue::from(
+                BodyPose3DHeightEstimation::BODY_POSE_3D_HEIGHT_ESTIMATION_REFERENCE,
+            ),
+            joints: vec![BodyPose3DJoint {
+                name: "spine".into(),
+                x: 0.0,
+                y: 0.5,
+                z: 0.02,
+                confidence: 0.95,
+                ..Default::default()
+            }],
+            ..Default::default()
+        }],
+        instance_masks: vec![],
+        face_rectangles: vec![],
+        face_landmarks: vec![FaceLandmarksDetection {
+            bbox: make_bbox(0.1, 0.1, 0.4, 0.5),
+            confidence: 0.92,
+            regions: vec![FaceLandmarkRegion {
+                name: "nose_tip".into(),
+                points: vec![
+                    FaceLandmarkPoint { x: 0.5, y: 0.55, ..Default::default() },
+                    FaceLandmarkPoint { x: 0.52, y: 0.57, ..Default::default() },
+                ],
+                ..Default::default()
+            }],
+            ..Default::default()
+        }],
+        segmentation_masks: vec![PersonSegmentationMask {
+            bbox: make_bbox(0.0, 0.0, 1.0, 1.0),
+            confidence: 0.97,
+            dimensions: buffa::MessageField::some(Dimensions {
+                width: 32,
+                height: 32,
+                ..Default::default()
+            }),
+            data: vec![0xAAu8; 32 * 32],
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    rt(&human);
+    rt(&HumanAnalysis::default());
+}
+
+#[test]
+#[cfg(feature = "json")]
+fn track_time_json_roundtrip() {
+    // TrackTime with declared set — exercises extern mediatime under serde.
+    let tt = TrackTime {
+        declared: make_time_range(10, 900),
+        packet_observed: make_time_range(11, 898),
+        decoded_observed: buffa::MessageField::none(),
+        ..Default::default()
+    };
+    let json = serde_json::to_string(&tt).expect("to_json");
+    let back: TrackTime = serde_json::from_str(&json).expect("from_json");
+    assert_eq!(tt, back);
+}
+
+#[test]
+#[cfg(feature = "json")]
+fn human_analysis_json_roundtrip() {
+    let human = HumanAnalysis {
+        subjects: vec![make_subject("Human", 0.95)],
+        faces: vec![FaceDetection {
+            bbox: make_bbox(0.3, 0.1, 0.2, 0.3),
+            confidence: 0.88,
+            capture_quality: 0.75,
+            roll: -0.5,
+            yaw: 0.1,
+            pitch: 0.2,
+            ..Default::default()
+        }],
+        body_poses: vec![make_body_pose()],
+        hand_poses: vec![],
+        body_poses_3d: vec![BodyPose3DDetection {
+            confidence: 0.88,
+            body_height: 1.80,
+            height_estimation: buffa::EnumValue::from(
+                BodyPose3DHeightEstimation::BODY_POSE_3D_HEIGHT_ESTIMATION_MEASURED,
+            ),
+            joints: vec![BodyPose3DJoint {
+                name: "left_ankle".into(),
+                x: -0.2,
+                y: 0.05,
+                z: 0.0,
+                confidence: 0.79,
+                ..Default::default()
+            }],
+            ..Default::default()
+        }],
+        instance_masks: vec![],
+        face_rectangles: vec![],
+        face_landmarks: vec![FaceLandmarksDetection {
+            bbox: make_bbox(0.15, 0.15, 0.35, 0.45),
+            confidence: 0.89,
+            regions: vec![FaceLandmarkRegion {
+                name: "left_eye".into(),
+                points: vec![
+                    FaceLandmarkPoint { x: 0.25, y: 0.35, ..Default::default() },
+                    FaceLandmarkPoint { x: 0.30, y: 0.36, ..Default::default() },
+                ],
+                ..Default::default()
+            }],
+            ..Default::default()
+        }],
+        segmentation_masks: vec![PersonSegmentationMask {
+            bbox: make_bbox(0.0, 0.0, 1.0, 1.0),
+            confidence: 0.96,
+            dimensions: buffa::MessageField::some(Dimensions {
+                width: 16,
+                height: 16,
+                ..Default::default()
+            }),
+            data: vec![0xBBu8; 16 * 16],
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    let json = serde_json::to_string(&human).expect("to_json");
+    let back: HumanAnalysis = serde_json::from_str(&json).expect("from_json");
+    assert_eq!(human, back);
 }
