@@ -5,10 +5,12 @@
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
+#[allow(warnings, clippy::all)]
 mod generated {
     include!("generated/mod.rs");
 }
 
 // Flatten the product-neutral `media.v1` package to the crate root so
-// consumers write `mediaschema::Detection`, not `mediaschema::media::v1::…`.
-pub use generated::media::v1::*;
+// consumers write `mediaschema::Detection`. Named (not glob) so buffa
+// internals (`__buffa`, `__*_JSON_ANY`) stay out of the public surface.
+pub use generated::media::v1::{BoundingBox, Detection, TimedDetection};
