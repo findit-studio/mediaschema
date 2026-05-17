@@ -1,0 +1,24 @@
+name: codegen
+on: [push, pull_request]
+jobs:
+  gen-is-committed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+      - name: Regenerate
+        run: cargo run -p xtask -- gen
+      - name: Fail if generated code is stale
+        run: git diff --exit-code -- src/generated
+  test-matrix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+      - run: cargo test --no-default-features
+      - run: cargo test
+      - run: cargo test --all-features
