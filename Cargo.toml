@@ -1,4 +1,5 @@
 [workspace]
+resolver = "2"
 members = ["mediaschema-derive", "xtask"]
 
 [package]
@@ -12,9 +13,9 @@ rust-version = "1.85"
 
 [features]
 default = ["std"]
-std = ["buffa/std"]
-serde = ["dep:serde", "dep:serde_json", "buffa/json", "buffa-types/json"]
-arbitrary = ["dep:arbitrary", "buffa/arbitrary"]
+std = ["buffa/std", "buffa-types/std"]
+serde = ["dep:serde", "dep:serde_json", "buffa/json", "buffa-types/json", "mediatime/serde"]
+arbitrary = ["dep:arbitrary", "buffa/arbitrary", "buffa-types/arbitrary", "mediatime/arbitrary"]
 quickcheck = ["arbitrary", "dep:quickcheck", "dep:mediaschema-derive"]
 
 [dependencies]
