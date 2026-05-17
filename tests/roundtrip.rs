@@ -38,6 +38,12 @@ fn timed_detection_extern_roundtrip() {
     td.timebase =
         buffa::MessageField::some(Timebase::new(1, NonZeroU32::new(48000).unwrap()));
     rt(&td);
+
+    // num == 0 timebase: independently guards mediatime's unconditional-encode
+    // contract end-to-end through the mediaschema extern wire path.
+    let mut td0 = TimedDetection::default();
+    td0.timebase = buffa::MessageField::some(Timebase::new(0, NonZeroU32::new(1).unwrap()));
+    rt(&td0);
 }
 
 #[test]
@@ -52,10 +58,17 @@ fn json_roundtrip() {
 #[test]
 #[cfg(feature = "quickcheck")]
 fn detection_quickcheck_roundtrip() {
-    fn prop(label: String, confidence: f32) -> bool {
+    fn prop(label: String, confidence: f32) -> quickcheck::TestResult {
+        // `Detection` derives PartialEq over the raw f32; NaN != NaN makes an
+        // equality property ill-defined for non-finite confidence (the codec
+        // itself round-trips the bits faithfully). Scope to the finite domain.
+        if !confidence.is_finite() {
+            return quickcheck::TestResult::discard();
+        }
         let d = Detection { label, confidence, ..Default::default() };
         let bytes = d.encode_to_vec();
-        Detection::decode_from_slice(&bytes).map(|b| b == d).unwrap_or(false)
+        let ok = Detection::decode_from_slice(&bytes).map(|b| b == d).unwrap_or(false);
+        quickcheck::TestResult::from_bool(ok)
     }
-    quickcheck::quickcheck(prop as fn(String, f32) -> bool);
+    quickcheck::quickcheck(prop as fn(String, f32) -> quickcheck::TestResult);
 }
