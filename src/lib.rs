@@ -14,6 +14,7 @@ mod generated {
 // consumers write `mediaschema::Detection`. Named (not glob) so buffa
 // internals (`__buffa`, `__*_JSON_ANY`) stay out of the public surface.
 // SP2 database-domain types (same media.v1 package since mono-consolidation).
+// SP3 network-domain types (same media.v1 package since mono-consolidation).
 pub use generated::media::v1::{
     ActionDetection, Aesthetics, AnimalAnalysis, AppPathBuf, Audio, AudioAnalysis,
     AudioChannelLayout, AudioChannelOrderKind, AudioChannelSpec, AudioClipKind, AudioCodec,
@@ -21,18 +22,29 @@ pub use generated::media::v1::{
     AudioPrefilterClass, AudioSampleFormat, AudioStreamMeta, AudioSummary, AudioTrack,
     AudioTrackMeta, AudioTrackRole, AudioTranscriptSegment, BarcodeDetection, BodyPose3DDetection,
     BodyPose3DHeightEstimation, BodyPose3DJoint, BodyPoseDetection, BodyPoseJoint, BoundingBox,
-    Ced, CedDetection, ChannelLayoutKind, Chromaprint, Clap, ClassificationDetection, CodecId,
-    ColorDetection, DbMediaKind, Detection, Dimensions, DocumentSegment, Ebur128, EmotionDetection,
-    ErrorInfo, FaceDetection, FaceLandmarkPoint, FaceLandmarkRegion, FaceLandmarksDetection,
-    FailedFile, FeaturePrint, FileChecksum, HandChirality, HandPoseDetection, HorizonInfo,
-    HumanAnalysis, Id, Keyframe, LightingDetection, Local, Location, LocationTarget, Media,
-    MediaKind, MediaMeta, MoodDetection, ObjectDetection, PersonInstanceMaskDetection,
-    PersonSegmentationMask, Point2D, SaliencyRegion, Scene, SceneMeta, SceneVlmResult,
-    SoundSource, Sp2CodegenSmoke, SpeakerSegment, SubjectDetection, Subtitle, SubtitleCue,
-    SubtitleMeta, SubtitleTrack, SubtitleTrackFormat, SubtitleTrackMeta, SubtitleTrackOrigin,
-    SubtitleTrackRole, Tag, TagConfidence, TextDetection, Timecode, TimedDetection,
-    TrackClassificationType, TrackRecord, TrackTag, TrackTime, TrackTimeSource, Video, VideoFormat,
-    VideoMeta, VideoStreamMeta, VideoTrack, VideoTrackMeta, VolumeMeta, WatchedLocation,
+    BrowseItem, BrowseRequest, BrowseResponse, Ced, CedDetection, ChannelLayoutKind, Chromaprint,
+    Clap, ClassificationDetection, CodecId, ColorDetection, DbMediaKind, Detection, Dimensions,
+    DocumentSegment, Ebur128, EjectVolumeRequest, EjectVolumeResponse, EmotionDetection, ErrorInfo,
+    Event, FaceDetection, FaceLandmarkPoint, FaceLandmarkRegion, FaceLandmarksDetection, FailedFile,
+    FailedFilesResponse, FeaturePrint, FileChecksum, FolderUpdatedEvent, GetDaemonInfoRequest,
+    GetDaemonInfoResponse, GetFileIndexingStatsRequest, GetFileIndexingStatsResponse,
+    GetIndexedFileRequest, GetIndexedFileResponse, GetLocationStatsRequest, GetLocationStatsResponse,
+    GetModelStatusRequest, GetModelStatusResponse, HandChirality, HandPoseDetection,
+    HeartbeatRequest, HeartbeatResponse, HorizonInfo, HumanAnalysis, Id, IndexLocationRequest,
+    IndexLocationResponse, IndexingFile, IndexingProgressResponse, Keyframe, LightingDetection,
+    ListLocationsRequest, ListLocationsResponse, Local, Location, LocationTarget, Media, MediaKind,
+    MediaMeta, ModelDownloadProgress, ModelDownloadProgressEvent, ModelDownloadProgressResponse,
+    ModelInfo, MoodDetection, NetFailedFile, ObjectDetection, Pagination,
+    PersonInstanceMaskDetection, PersonSegmentationMask, Point2D, RemoveLocationRequest,
+    RemoveLocationResponse, Request, RequestEnvelope, Response, ResponseEnvelope, RetryFailedRequest,
+    RetryFailedResponse, SaliencyRegion, Scene, SceneMeta, SceneVlmResult, SearchFilter, SearchHit,
+    SearchRequest, SearchResponse, SoundSource, Sp2CodegenSmoke, Sp3CodegenSmoke, SpeakerSegment,
+    SubjectDetection, Subtitle, SubtitleCue, SubtitleMeta, SubtitleTrack, SubtitleTrackFormat,
+    SubtitleTrackMeta, SubtitleTrackOrigin, SubtitleTrackRole, Tag, TagConfidence, TextDetection,
+    Timecode, TimedDetection, TrackClassificationType, TrackRecord, TrackTag, TrackTime,
+    TrackTimeSource, UpdateAnnotationRequest, UpdateAnnotationResponse, Video, VideoFormat,
+    VideoMeta, VideoStreamMeta, VideoTrack, VideoTrackMeta, Volume, VolumeMeta,
+    VolumeStateChangedEvent, WatchedLocation,
 };
 /// Oneof variant for [`MediaKind`]: `Kind::Video(…)` or `Kind::Audio(…)`.
 pub use generated::media::v1::media_kind::Kind as MediaKindKind;
@@ -42,3 +54,9 @@ pub use generated::media::v1::location::Kind as LocationKind;
 pub use generated::media::v1::location_target::Kind as LocationTargetKind;
 /// Oneof variant for [`SubtitleTrackOrigin`]: `Source::SourceAudioTrackId(…)` or `Source::SourceSubtitleTrackId(…)`.
 pub use generated::media::v1::subtitle_track_origin::Source as SubtitleTrackOriginSource;
+/// Oneof variant for [`Request`]: the `kind` discriminant arm.
+pub use generated::media::v1::request::Kind as RequestKind;
+/// Oneof variant for [`Response`]: the `kind` discriminant arm.
+pub use generated::media::v1::response::Kind as ResponseKind;
+/// Oneof variant for [`Event`]: the `kind` discriminant arm.
+pub use generated::media::v1::event::Kind as EventKind;

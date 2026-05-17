@@ -7,20 +7,38 @@ use mediaschema::{
     AudioPrefilterClass, AudioSampleFormat, AudioStreamMeta, AudioSummary, AudioTrack, AudioTrackMeta,
     AudioTrackRole,
     AudioTranscriptSegment, BarcodeDetection, BodyPose3DDetection, BodyPose3DHeightEstimation,
-    BodyPose3DJoint, BodyPoseDetection, BodyPoseJoint, BoundingBox, Ced, CedDetection,
+    BodyPose3DJoint, BodyPoseDetection, BodyPoseJoint, BoundingBox, BrowseItem, BrowseRequest,
+    BrowseResponse, Ced, CedDetection,
     ChannelLayoutKind, Chromaprint, Clap, ClassificationDetection, CodecId, ColorDetection,
-    DbMediaKind, Detection, Dimensions, DocumentSegment, Ebur128, EmotionDetection, ErrorInfo,
+    DbMediaKind, Detection, Dimensions, DocumentSegment, Ebur128, EjectVolumeRequest,
+    EjectVolumeResponse, EmotionDetection, ErrorInfo,
+    Event, EventKind,
     FaceDetection, FaceLandmarkPoint, FaceLandmarkRegion, FaceLandmarksDetection, FailedFile,
-    FeaturePrint, FileChecksum, HandChirality, HandPoseDetection, HorizonInfo, HumanAnalysis, Id,
-    Keyframe, LightingDetection, Local, Location, LocationKind, LocationTarget, LocationTargetKind,
-    Media, MediaKind, MediaKindKind, MediaMeta, MoodDetection, ObjectDetection,
-    PersonInstanceMaskDetection, PersonSegmentationMask, Point2D, SaliencyRegion, Scene, SceneMeta,
-    SceneVlmResult, SoundSource, Sp2CodegenSmoke, SpeakerSegment, SubjectDetection, Subtitle,
+    FailedFilesResponse, FeaturePrint, FileChecksum, FolderUpdatedEvent, GetDaemonInfoRequest,
+    GetDaemonInfoResponse,
+    GetFileIndexingStatsRequest, GetFileIndexingStatsResponse, GetIndexedFileRequest,
+    GetIndexedFileResponse, GetLocationStatsRequest, GetLocationStatsResponse,
+    GetModelStatusRequest, GetModelStatusResponse, HandChirality, HandPoseDetection,
+    HeartbeatRequest, HeartbeatResponse,
+    HorizonInfo, HumanAnalysis, Id, IndexLocationRequest, IndexLocationResponse, IndexingFile,
+    IndexingProgressResponse, Keyframe, LightingDetection, ListLocationsRequest,
+    ListLocationsResponse, Local, Location, LocationKind,
+    LocationTarget, LocationTargetKind,
+    Media, MediaKind, MediaKindKind, MediaMeta, ModelDownloadProgress, ModelDownloadProgressEvent,
+    ModelDownloadProgressResponse, ModelInfo, MoodDetection,
+    NetFailedFile, ObjectDetection, Pagination,
+    PersonInstanceMaskDetection, PersonSegmentationMask, Point2D, RemoveLocationRequest,
+    RemoveLocationResponse, Request, RequestEnvelope, RequestKind, Response, ResponseEnvelope, ResponseKind, RetryFailedRequest, RetryFailedResponse, SaliencyRegion, Scene,
+    SceneMeta,
+    SceneVlmResult, SearchFilter, SearchHit, SearchRequest, SearchResponse, SoundSource,
+    Sp2CodegenSmoke,
+    Sp3CodegenSmoke, SpeakerSegment, SubjectDetection, Subtitle,
     SubtitleCue, SubtitleMeta, SubtitleTrack, SubtitleTrackFormat, SubtitleTrackMeta,
     SubtitleTrackOrigin, SubtitleTrackOriginSource, SubtitleTrackRole, Tag, TagConfidence,
     TextDetection, Timecode, TimedDetection, TrackClassificationType, TrackRecord, TrackTag,
-    TrackTime, Video, VideoFormat, VideoMeta, VideoStreamMeta, VideoTrack, VideoTrackMeta,
-    VolumeMeta, WatchedLocation,
+    TrackTime, UpdateAnnotationRequest, UpdateAnnotationResponse, Video, VideoFormat, VideoMeta,
+    VideoStreamMeta, VideoTrack, VideoTrackMeta,
+    Volume, VolumeMeta, VolumeStateChangedEvent, WatchedLocation,
 };
 use mediatime::{Timebase, TimeRange};
 
@@ -2515,4 +2533,1185 @@ fn batch10_sp2_json_roundtrip() {
     let json = serde_json::to_string(&afr).expect("to_json");
     let back: AudioFileRecord = serde_json::from_str(&json).expect("from_json");
     assert_eq!(afr, back);
+}
+
+// ── SP3 Task 0: three-way cross-package + extern codegen smoke ──────────────
+
+#[test]
+fn sp3_codegen_smoke_roundtrip() {
+    let s = Sp3CodegenSmoke {
+        id: vec![0x01, 0x02, 0x03, 0x04],
+        error: make_error_info(),
+        video_meta: make_video_meta(),
+        range: buffa::MessageField::some(mediatime::TimeRange::new(
+            10,
+            20,
+            mediatime::Timebase::new(30000, core::num::NonZeroU32::new(1001).unwrap()),
+        )),
+        ..Default::default()
+    };
+    rt(&s);
+    rt(&Sp3CodegenSmoke::default());
+}
+
+#[test]
+#[cfg(feature = "json")]
+fn sp3_codegen_smoke_json_roundtrip() {
+    let s = Sp3CodegenSmoke {
+        id: vec![0xAA, 0xBB],
+        error: make_error_info(),
+        video_meta: make_video_meta(),
+        range: buffa::MessageField::some(mediatime::TimeRange::new(
+            0,
+            5,
+            mediatime::Timebase::new(1, core::num::NonZeroU32::new(48000).unwrap()),
+        )),
+        ..Default::default()
+    };
+    let json = serde_json::to_string(&s).expect("to_json");
+    let back: Sp3CodegenSmoke = serde_json::from_str(&json).expect("from_json");
+    assert_eq!(s, back);
+}
+
+// ── SP3 Batch 1: scalar leaves ──────────────────────────────────────────────
+
+#[test]
+fn batch1_sp3_roundtrip() {
+    rt(&Pagination { limit: 25, offset: 100, ..Default::default() });
+    rt(&Pagination::default()); // proto Default = limit/offset 0 (zero-values omitted on wire); client treats absent limit as 50 (§7.8 #9)
+    rt(&SearchFilter { key: "scene".into(), value: "beach".into(), weight: 0.5, ..Default::default() });
+    rt(&SearchFilter::default()); // proto Default = weight 0.0 (zero-value omitted on wire); client treats absent weight as 1.0 (§7.8 #9)
+    rt(&HeartbeatRequest { timestamp: 1_700_000_000_123, ..Default::default() });
+    rt(&HeartbeatRequest::default());
+    rt(&HeartbeatResponse { timestamp: 1_700_000_000_456, ..Default::default() });
+    rt(&HeartbeatResponse::default());
+}
+
+#[test]
+#[cfg(feature = "json")]
+fn batch1_sp3_json_roundtrip() {
+    let f = SearchFilter { key: "tag".into(), value: "sunset".into(), weight: 2.5, ..Default::default() };
+    let json = serde_json::to_string(&f).expect("to_json");
+    let back: SearchFilter = serde_json::from_str(&json).expect("from_json");
+    assert_eq!(f, back);
+}
+
+// ── SP3 Batch 2: reuse-only leaves ──────────────────────────────────────────
+
+#[test]
+fn batch2_sp3_roundtrip() {
+    // ── SearchHit: fully populated ───────────────────────────────────────────
+    rt(&SearchHit {
+        scene_id: vec![0x01, 0x02, 0x03],
+        video_id: vec![0x04, 0x05, 0x06],
+        video_name: "clip.mp4".into(),
+        location: buffa::MessageField::some(make_local_location()),
+        description: "sunset on the beach".into(),
+        score: 0.87,
+        range: buffa::MessageField::some(mediatime::TimeRange::new(
+            10,
+            20,
+            mediatime::Timebase::new(30000, core::num::NonZeroU32::new(1001).unwrap()),
+        )),
+        thumbnail: vec![0xFF, 0xD8, 0xFF],
+        dimensions: buffa::MessageField::some(Dimensions { width: 1920, height: 1080, ..Default::default() }),
+        ..Default::default()
+    });
+    // SearchHit: optional fields absent, empty bytes/strings
+    rt(&SearchHit {
+        scene_id: vec![],
+        video_id: vec![],
+        video_name: "".into(),
+        location: buffa::MessageField::none(),
+        description: "".into(),
+        score: 0.0,
+        range: buffa::MessageField::none(),
+        thumbnail: vec![],
+        dimensions: buffa::MessageField::none(),
+        ..Default::default()
+    });
+    rt(&SearchHit::default());
+
+    // ── BrowseItem: fully populated ──────────────────────────────────────────
+    rt(&BrowseItem {
+        meta: make_video_meta(),
+        location: buffa::MessageField::some(make_local_location()),
+        scene_count: 42,
+        thumbnail: vec![0xAB, 0xCD],
+        ..Default::default()
+    });
+    // BrowseItem: meta/location absent, empty thumbnail
+    rt(&BrowseItem {
+        meta: buffa::MessageField::none(),
+        location: buffa::MessageField::none(),
+        scene_count: 0,
+        thumbnail: vec![],
+        ..Default::default()
+    });
+    rt(&BrowseItem::default());
+
+    // ── ModelInfo: known status values ───────────────────────────────────────
+    rt(&ModelInfo { name: "qwen".into(), status: 2, size_bytes: 1_000_000, ..Default::default() });
+    // ModelInfo: status=99 — out-of-table value proving plain-uint32 §7.3 round-trips exactly
+    rt(&ModelInfo { name: "qwen".into(), status: 99, size_bytes: 0, ..Default::default() });
+    rt(&ModelInfo::default());
+
+    // ── ModelDownloadProgress: known status ──────────────────────────────────
+    rt(&ModelDownloadProgress {
+        name: "siglip".into(),
+        progress: 0.73,
+        downloaded_bytes: 500,
+        total_bytes: 1000,
+        status: 4,
+        error_msg: "".into(),
+        ..Default::default()
+    });
+    // ModelDownloadProgress: status=250 — out-of-table value proving §7.3
+    rt(&ModelDownloadProgress {
+        name: "siglip".into(),
+        progress: 0.0,
+        downloaded_bytes: 0,
+        total_bytes: 0,
+        status: 250,
+        error_msg: "".into(),
+        ..Default::default()
+    });
+    rt(&ModelDownloadProgress::default());
+
+    // ── NetFailedFile: fully populated ───────────────────────────────────────
+    rt(&NetFailedFile {
+        kind: 1,
+        location: buffa::MessageField::some(make_local_location()),
+        error: make_error_info(),
+        error_status: 0x01 | 0x02,
+        index_status: 0x01 | 0x80,
+        ..Default::default()
+    });
+    // NetFailedFile: kind=7 — out-of-table value proving §7.3; location/error absent
+    rt(&NetFailedFile {
+        kind: 7,
+        location: buffa::MessageField::none(),
+        error: buffa::MessageField::none(),
+        error_status: 0,
+        index_status: 0,
+        ..Default::default()
+    });
+    rt(&NetFailedFile::default());
+
+    // ── IndexingFile: fully populated ────────────────────────────────────────
+    rt(&IndexingFile {
+        location: buffa::MessageField::some(make_local_location()),
+        name: "a.mp4".into(),
+        completed_phases: 0x01 | 0x04 | 0x40,
+        ..Default::default()
+    });
+    // IndexingFile: location absent, empty name, zero phases
+    rt(&IndexingFile {
+        location: buffa::MessageField::none(),
+        name: "".into(),
+        completed_phases: 0,
+        ..Default::default()
+    });
+    rt(&IndexingFile::default());
+}
+
+#[test]
+#[cfg(feature = "json")]
+fn batch2_sp3_json_roundtrip() {
+    // SearchHit: covers media.v1.Location + media.v1.Dimensions + mediatime.v1.TimeRange extern
+    // + inline bytes under serde
+    let sh = SearchHit {
+        scene_id: vec![0x01, 0x02],
+        video_id: vec![0x03, 0x04],
+        video_name: "beach.mp4".into(),
+        location: buffa::MessageField::some(make_local_location()),
+        description: "golden hour".into(),
+        score: 0.95,
+        range: buffa::MessageField::some(mediatime::TimeRange::new(
+            5,
+            15,
+            mediatime::Timebase::new(30000, core::num::NonZeroU32::new(1001).unwrap()),
+        )),
+        thumbnail: vec![0xAA, 0xBB],
+        dimensions: buffa::MessageField::some(Dimensions { width: 1280, height: 720, ..Default::default() }),
+        ..Default::default()
+    };
+    let json = serde_json::to_string(&sh).expect("to_json");
+    let back: SearchHit = serde_json::from_str(&json).expect("from_json");
+    assert_eq!(sh, back);
+
+    // BrowseItem: covers VideoMeta (same-package since mono-consolidation) under serde
+    let bi = BrowseItem {
+        meta: make_video_meta(),
+        location: buffa::MessageField::some(make_local_location()),
+        scene_count: 7,
+        thumbnail: vec![0x11, 0x22],
+        ..Default::default()
+    };
+    let json = serde_json::to_string(&bi).expect("to_json");
+    let back: BrowseItem = serde_json::from_str(&json).expect("from_json");
+    assert_eq!(bi, back);
+}
+
+// ── SP3 Batch 3: empty + simple request/response leaves ──────────────────────
+
+#[test]
+fn batch3_sp3_roundtrip() {
+    // empty message: populated == default (zero fields)
+    rt(&ListLocationsRequest::default());
+    // empty message: populated == default (zero fields)
+    rt(&RemoveLocationResponse::default());
+    // empty message: populated == default (zero fields)
+    rt(&RetryFailedResponse::default());
+    // empty message: populated == default (zero fields)
+    rt(&EjectVolumeResponse::default());
+    // empty message: populated == default (zero fields)
+    rt(&GetModelStatusRequest::default());
+    // empty message: populated == default (zero fields)
+    rt(&GetDaemonInfoRequest::default());
+    // empty message: populated == default (zero fields)
+    rt(&UpdateAnnotationResponse::default());
+
+    // EjectVolumeRequest: non-empty bytes + default
+    rt(&EjectVolumeRequest { volume_id: vec![1, 2, 3], ..Default::default() });
+    rt(&EjectVolumeRequest::default());
+
+    // GetIndexedFileRequest: non-empty bytes + default
+    rt(&GetIndexedFileRequest { checksum: vec![1, 2, 3], ..Default::default() });
+    rt(&GetIndexedFileRequest::default());
+
+    // GetFileIndexingStatsRequest: non-empty bytes + default
+    rt(&GetFileIndexingStatsRequest { video_id: vec![1, 2, 3], ..Default::default() });
+    rt(&GetFileIndexingStatsRequest::default());
+
+    // GetLocationStatsRequest: location present + none + default
+    rt(&GetLocationStatsRequest {
+        location: buffa::MessageField::some(make_local_location()),
+        ..Default::default()
+    });
+    rt(&GetLocationStatsRequest { location: buffa::MessageField::none(), ..Default::default() });
+    rt(&GetLocationStatsRequest::default());
+
+    // RemoveLocationRequest: location present + none + default
+    rt(&RemoveLocationRequest {
+        location: buffa::MessageField::some(make_local_location()),
+        ..Default::default()
+    });
+    rt(&RemoveLocationRequest { location: buffa::MessageField::none(), ..Default::default() });
+    rt(&RemoveLocationRequest::default());
+
+    // RetryFailedRequest: location present + none + default
+    rt(&RetryFailedRequest {
+        location: buffa::MessageField::some(make_local_location()),
+        ..Default::default()
+    });
+    rt(&RetryFailedRequest { location: buffa::MessageField::none(), ..Default::default() });
+    rt(&RetryFailedRequest::default());
+
+    // BrowseRequest: both present + both none + default
+    rt(&BrowseRequest {
+        location: buffa::MessageField::some(make_local_location()),
+        pagination: buffa::MessageField::some(Pagination { limit: 10, offset: 0, ..Default::default() }),
+        ..Default::default()
+    });
+    rt(&BrowseRequest {
+        location: buffa::MessageField::none(),
+        pagination: buffa::MessageField::none(),
+        ..Default::default()
+    });
+    rt(&BrowseRequest::default());
+
+    // IndexLocationRequest: target with Local arm set + none + default
+    rt(&IndexLocationRequest {
+        target: buffa::MessageField::some(LocationTarget {
+            kind: Some(LocationTargetKind::Local("/tmp/media".into())),
+            ..Default::default()
+        }),
+        ..Default::default()
+    });
+    rt(&IndexLocationRequest { target: buffa::MessageField::none(), ..Default::default() });
+    rt(&IndexLocationRequest::default());
+
+    // IndexLocationResponse: folder with full WatchedLocation + none + default
+    rt(&IndexLocationResponse {
+        folder: buffa::MessageField::some(WatchedLocation {
+            id: buffa::MessageField::some(Id { value: (1u8..=16).collect(), ..Default::default() }),
+            location: buffa::MessageField::some(make_local_location()),
+            name: "My Videos".into(),
+            status: 3,
+            created_at: 1_700_000_000,
+            deleted_at: Some(1_800_000_000),
+            total_files: 1000,
+            indexed_files: 950,
+            total_videos: 800,
+            indexed_videos: 780,
+            total_scenes: 5000,
+            total_audios: 200,
+            indexed_audios: 195,
+            total_failed_files: 50,
+            failed_videos: 20,
+            failed_audios: 5,
+            ..Default::default()
+        }),
+        ..Default::default()
+    });
+    rt(&IndexLocationResponse { folder: buffa::MessageField::none(), ..Default::default() });
+    rt(&IndexLocationResponse::default());
+
+    // UpdateAnnotationRequest: scene_ids + user_tags populated; empty-both case; default
+    rt(&UpdateAnnotationRequest {
+        scene_ids: vec![vec![1], vec![2]],
+        user_tags: vec![Tag { name: "favorite".into(), color: 0xFF_AA_00_FF, ..Default::default() }],
+        ..Default::default()
+    });
+    rt(&UpdateAnnotationRequest {
+        scene_ids: vec![],
+        user_tags: vec![],
+        ..Default::default()
+    });
+    rt(&UpdateAnnotationRequest::default());
+
+    // SearchResponse: non-trivial + default
+    rt(&SearchResponse { search_id: vec![9, 9], total_count: 123, ..Default::default() });
+    rt(&SearchResponse::default());
+
+    // GetDaemonInfoResponse: all 5 fields non-trivial + default
+    rt(&GetDaemonInfoResponse {
+        version: "1.2.3".into(),
+        started_at: 1_700_000_000,
+        total_videos: 42_000,
+        total_scenes: 500_000,
+        active_tasks: 7,
+        ..Default::default()
+    });
+    rt(&GetDaemonInfoResponse::default());
+}
+
+#[test]
+#[cfg(feature = "json")]
+fn batch3_sp3_json_roundtrip() {
+    // IndexLocationResponse: covers media.v1.WatchedLocation cross-package +
+    // its nested media.v1.Location oneof under serde
+    let ilr = IndexLocationResponse {
+        folder: buffa::MessageField::some(WatchedLocation {
+            id: buffa::MessageField::some(Id { value: (1u8..=16).collect(), ..Default::default() }),
+            location: buffa::MessageField::some(make_local_location()),
+            name: "JSON Test Location".into(),
+            status: 3,
+            created_at: 1_700_000_000,
+            deleted_at: Some(1_800_000_000),
+            total_files: 1000,
+            indexed_files: 950,
+            total_videos: 800,
+            indexed_videos: 780,
+            total_scenes: 5000,
+            total_audios: 200,
+            indexed_audios: 195,
+            total_failed_files: 50,
+            failed_videos: 20,
+            failed_audios: 5,
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    let json = serde_json::to_string(&ilr).expect("to_json");
+    let back: IndexLocationResponse = serde_json::from_str(&json).expect("from_json");
+    assert_eq!(ilr, back);
+
+    // UpdateAnnotationRequest: covers repeated bytes + repeated media.v1.Tag under serde
+    let uar = UpdateAnnotationRequest {
+        scene_ids: vec![vec![1], vec![2]],
+        user_tags: vec![Tag { name: "favorite".into(), color: 0xFF_AA_00_FF, ..Default::default() }],
+        ..Default::default()
+    };
+    let json = serde_json::to_string(&uar).expect("to_json");
+    let back: UpdateAnnotationRequest = serde_json::from_str(&json).expect("from_json");
+    assert_eq!(uar, back);
+}
+
+// ── SP3 Batch 4: composite responses ────────────────────────────────────────
+
+#[test]
+fn batch4_sp3_roundtrip() {
+    // ── Volume ───────────────────────────────────────────────────────────────
+    let vol_populated = Volume {
+        meta: buffa::MessageField::some(VolumeMeta {
+            id: buffa::MessageField::some(Id { value: (1u8..=16).collect(), ..Default::default() }),
+            location: buffa::MessageField::some(make_local_location()),
+            name: "Seagate 4TB".into(),
+            total_size: 4_000_000_000_000,
+            used_size: 2_500_000_000_000,
+            status: 3,
+            ..Default::default()
+        }),
+        folders: vec![WatchedLocation {
+            id: buffa::MessageField::some(Id { value: (1u8..=16).collect(), ..Default::default() }),
+            location: buffa::MessageField::some(make_local_location()),
+            name: "My Videos".into(),
+            status: 3,
+            created_at: 1_700_000_000,
+            deleted_at: Some(1_800_000_000),
+            total_files: 1000,
+            indexed_files: 950,
+            total_videos: 800,
+            indexed_videos: 780,
+            total_scenes: 5000,
+            total_audios: 200,
+            indexed_audios: 195,
+            total_failed_files: 50,
+            failed_videos: 20,
+            failed_audios: 5,
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    rt(&vol_populated);
+    rt(&Volume {
+        meta: buffa::MessageField::none(),
+        folders: vec![],
+        ..Default::default()
+    });
+    rt(&Volume::default());
+
+    // ── ListLocationsResponse ────────────────────────────────────────────────
+    rt(&ListLocationsResponse {
+        groups: vec![vol_populated.clone()],
+        ..Default::default()
+    });
+    rt(&ListLocationsResponse { groups: vec![], ..Default::default() });
+    rt(&ListLocationsResponse::default());
+
+    // ── GetLocationStatsResponse ─────────────────────────────────────────────
+    rt(&GetLocationStatsResponse {
+        total_files: 1000,
+        indexed_files: 950,
+        total_videos: 800,
+        total_scenes: 5000,
+        total_audios: 200,
+        failed_files: vec![NetFailedFile {
+            kind: 0,
+            location: buffa::MessageField::some(make_local_location()),
+            error: make_error_info(),
+            error_status: 0x01,
+            index_status: 0x02,
+            ..Default::default()
+        }],
+        ..Default::default()
+    });
+    rt(&GetLocationStatsResponse {
+        total_files: 0,
+        indexed_files: 0,
+        total_videos: 0,
+        total_scenes: 0,
+        total_audios: 0,
+        failed_files: vec![],
+        ..Default::default()
+    });
+    rt(&GetLocationStatsResponse::default());
+
+    // ── FailedFilesResponse ───────────────────────────────────────────────────
+    rt(&FailedFilesResponse {
+        location_id: vec![7, 7],
+        failed_files: vec![NetFailedFile {
+            kind: 0,
+            location: buffa::MessageField::some(make_local_location()),
+            error: make_error_info(),
+            error_status: 0x01,
+            index_status: 0x02,
+            ..Default::default()
+        }],
+        ..Default::default()
+    });
+    rt(&FailedFilesResponse { location_id: vec![], failed_files: vec![], ..Default::default() });
+    rt(&FailedFilesResponse::default());
+
+    // ── SearchRequest ─────────────────────────────────────────────────────────
+    rt(&SearchRequest {
+        query: "beach".into(),
+        pagination: buffa::MessageField::some(Pagination { limit: 20, offset: 40, ..Default::default() }),
+        filters: vec![SearchFilter { key: "k".into(), value: "v".into(), weight: 0.8, ..Default::default() }],
+        ..Default::default()
+    });
+    rt(&SearchRequest {
+        query: "".into(),
+        pagination: buffa::MessageField::none(),
+        filters: vec![],
+        ..Default::default()
+    });
+    rt(&SearchRequest::default());
+
+    // ── BrowseResponse ────────────────────────────────────────────────────────
+    rt(&BrowseResponse {
+        items: vec![BrowseItem {
+            meta: make_video_meta(),
+            location: buffa::MessageField::some(make_local_location()),
+            scene_count: 3,
+            thumbnail: vec![1],
+            ..Default::default()
+        }],
+        total_count: 1,
+        pagination: buffa::MessageField::some(Pagination { limit: 50, offset: 0, ..Default::default() }),
+        ..Default::default()
+    });
+    rt(&BrowseResponse {
+        items: vec![],
+        total_count: 0,
+        pagination: buffa::MessageField::none(),
+        ..Default::default()
+    });
+    rt(&BrowseResponse::default());
+
+    // ── GetIndexedFileResponse ────────────────────────────────────────────────
+    rt(&GetIndexedFileResponse {
+        video: buffa::MessageField::some(Video {
+            meta: make_video_meta(),
+            scenes: vec![vec![1]],
+            index_status: 0x01 | 0x80,
+            index_error: make_error_info(),
+            error_status: 1,
+            ..Default::default()
+        }),
+        scenes: vec![Scene {
+            meta: make_scene_meta(),
+            keyframes: vec![vec![1]],
+            description: "ocean coast".into(),
+            shot_type: "wide".into(),
+            camera_motion: "pan".into(),
+            tags: "beach,sunset".into(),
+            people_count: 2,
+            tag_ids: vec![vec![9]],
+            vision_provider: vec!["apple".into()],
+            smart_folders: vec!["fav".into()],
+            ..Default::default()
+        }],
+        ..Default::default()
+    });
+    rt(&GetIndexedFileResponse {
+        video: buffa::MessageField::none(),
+        scenes: vec![],
+        ..Default::default()
+    });
+    rt(&GetIndexedFileResponse::default());
+
+    // ── GetFileIndexingStatsResponse ──────────────────────────────────────────
+    rt(&GetFileIndexingStatsResponse {
+        video_id: vec![1],
+        index_status: 0x01 | 0x04,
+        error: make_error_info(),
+        ..Default::default()
+    });
+    rt(&GetFileIndexingStatsResponse {
+        video_id: vec![2],
+        index_status: 0,
+        error: buffa::MessageField::none(),
+        ..Default::default()
+    });
+    rt(&GetFileIndexingStatsResponse::default());
+
+    // ── GetModelStatusResponse ────────────────────────────────────────────────
+    rt(&GetModelStatusResponse {
+        models: vec![ModelInfo { name: "m".into(), status: 2, size_bytes: 1024, ..Default::default() }],
+        ..Default::default()
+    });
+    rt(&GetModelStatusResponse { models: vec![], ..Default::default() });
+    rt(&GetModelStatusResponse::default());
+
+    // ── ModelDownloadProgressResponse ─────────────────────────────────────────
+    rt(&ModelDownloadProgressResponse {
+        model: buffa::MessageField::some(ModelDownloadProgress {
+            name: "m".into(),
+            progress: 0.5,
+            downloaded_bytes: 1,
+            total_bytes: 2,
+            status: 1,
+            error_msg: "".into(),
+            ..Default::default()
+        }),
+        ..Default::default()
+    });
+    rt(&ModelDownloadProgressResponse { model: buffa::MessageField::none(), ..Default::default() });
+    rt(&ModelDownloadProgressResponse::default());
+
+    // ── IndexingProgressResponse ──────────────────────────────────────────────
+    rt(&IndexingProgressResponse {
+        location: buffa::MessageField::some(make_local_location()),
+        total_files: 100,
+        indexed_files: 50,
+        active_files: vec![IndexingFile {
+            location: buffa::MessageField::some(make_local_location()),
+            name: "a".into(),
+            completed_phases: 0x01,
+            ..Default::default()
+        }],
+        ..Default::default()
+    });
+    rt(&IndexingProgressResponse {
+        location: buffa::MessageField::none(),
+        total_files: 0,
+        indexed_files: 0,
+        active_files: vec![],
+        ..Default::default()
+    });
+    rt(&IndexingProgressResponse::default());
+}
+
+#[test]
+#[cfg(feature = "json")]
+fn batch4_sp3_json_roundtrip() {
+    // GetIndexedFileResponse: heaviest SP3 serde — Video + repeated Scene (same-package since mono-consolidation)
+    let gifr = GetIndexedFileResponse {
+        video: buffa::MessageField::some(Video {
+            meta: make_video_meta(),
+            scenes: vec![vec![1], vec![2]],
+            index_status: 0x01 | 0x80,
+            index_error: make_error_info(),
+            error_status: 1,
+            ..Default::default()
+        }),
+        scenes: vec![Scene {
+            meta: make_scene_meta(),
+            keyframes: vec![vec![1]],
+            description: "ocean coast".into(),
+            shot_type: "wide".into(),
+            camera_motion: "pan".into(),
+            tags: "beach,sunset".into(),
+            people_count: 3,
+            tag_ids: vec![vec![9]],
+            vision_provider: vec!["apple".into()],
+            smart_folders: vec!["fav".into()],
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    let json = serde_json::to_string(&gifr).expect("to_json");
+    let back: GetIndexedFileResponse = serde_json::from_str(&json).expect("from_json");
+    assert_eq!(gifr, back);
+
+    // ListLocationsResponse: nested Volume -> media.v1.VolumeMeta / media.v1.WatchedLocation
+    let llr = ListLocationsResponse {
+        groups: vec![Volume {
+            meta: buffa::MessageField::some(VolumeMeta {
+                id: buffa::MessageField::some(Id { value: (1u8..=16).collect(), ..Default::default() }),
+                location: buffa::MessageField::some(make_local_location()),
+                name: "Seagate 4TB".into(),
+                total_size: 4_000_000_000_000,
+                used_size: 2_500_000_000_000,
+                status: 3,
+                ..Default::default()
+            }),
+            folders: vec![WatchedLocation {
+                id: buffa::MessageField::some(Id { value: (1u8..=16).collect(), ..Default::default() }),
+                location: buffa::MessageField::some(make_local_location()),
+                name: "My Videos".into(),
+                status: 3,
+                created_at: 1_700_000_000,
+                deleted_at: Some(1_800_000_000),
+                total_files: 1000,
+                indexed_files: 950,
+                total_videos: 800,
+                indexed_videos: 780,
+                total_scenes: 5000,
+                total_audios: 200,
+                indexed_audios: 195,
+                total_failed_files: 50,
+                failed_videos: 20,
+                failed_audios: 5,
+                ..Default::default()
+            }],
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    let json = serde_json::to_string(&llr).expect("to_json");
+    let back: ListLocationsResponse = serde_json::from_str(&json).expect("from_json");
+    assert_eq!(llr, back);
+
+    // SearchRequest: nested Pagination + SearchFilter
+    let sr = SearchRequest {
+        query: "beach".into(),
+        pagination: buffa::MessageField::some(Pagination { limit: 20, offset: 40, ..Default::default() }),
+        filters: vec![SearchFilter { key: "k".into(), value: "v".into(), weight: 0.8, ..Default::default() }],
+        ..Default::default()
+    };
+    let json = serde_json::to_string(&sr).expect("to_json");
+    let back: SearchRequest = serde_json::from_str(&json).expect("from_json");
+    assert_eq!(sr, back);
+}
+
+#[test]
+fn batch5_sp3_roundtrip() {
+    // ── VolumeStateChangedEvent ───────────────────────────────────────────────
+    rt(&VolumeStateChangedEvent {
+        volume: buffa::MessageField::some(VolumeMeta {
+            id: buffa::MessageField::some(Id { value: (1u8..=16).collect(), ..Default::default() }),
+            location: buffa::MessageField::some(make_local_location()),
+            name: "Seagate 4TB".into(),
+            total_size: 4_000_000_000_000,
+            used_size: 2_500_000_000_000,
+            status: 3,
+            ..Default::default()
+        }),
+        event: 2,
+        ..Default::default()
+    });
+    // OUT-OF-TABLE event: 99 — proves §7.3 bare-uint32 round-trips undocumented value
+    rt(&VolumeStateChangedEvent {
+        volume: buffa::MessageField::none(),
+        event: 99,
+        ..Default::default()
+    });
+    rt(&VolumeStateChangedEvent::default());
+
+    // ── FolderUpdatedEvent ────────────────────────────────────────────────────
+    rt(&FolderUpdatedEvent {
+        folder_location: buffa::MessageField::some(make_local_location()),
+        path: "/a/b.mp4".into(),
+        event: 1,
+        ..Default::default()
+    });
+    // OUT-OF-TABLE event: 200 — proves §7.3 bare-uint32 round-trips undocumented value
+    rt(&FolderUpdatedEvent {
+        folder_location: buffa::MessageField::none(),
+        path: "".into(),
+        event: 200,
+        ..Default::default()
+    });
+    rt(&FolderUpdatedEvent::default());
+
+    // ── ModelDownloadProgressEvent ────────────────────────────────────────────
+    rt(&ModelDownloadProgressEvent {
+        model: buffa::MessageField::some(ModelDownloadProgress {
+            name: "m".into(),
+            progress: 0.9,
+            downloaded_bytes: 9,
+            total_bytes: 10,
+            status: 1,
+            error_msg: "".into(),
+            ..Default::default()
+        }),
+        ..Default::default()
+    });
+    rt(&ModelDownloadProgressEvent { model: buffa::MessageField::none(), ..Default::default() });
+    rt(&ModelDownloadProgressEvent::default());
+}
+
+#[test]
+#[cfg(feature = "json")]
+fn batch5_sp3_json_roundtrip() {
+    // VolumeStateChangedEvent: covers media.v1.VolumeMeta cross-package + bare-uint32 event under serde
+    let vse = VolumeStateChangedEvent {
+        volume: buffa::MessageField::some(VolumeMeta {
+            id: buffa::MessageField::some(Id { value: (1u8..=16).collect(), ..Default::default() }),
+            location: buffa::MessageField::some(make_local_location()),
+            name: "Seagate 4TB".into(),
+            total_size: 4_000_000_000_000,
+            used_size: 2_500_000_000_000,
+            status: 3,
+            ..Default::default()
+        }),
+        event: 2,
+        ..Default::default()
+    };
+    let json = serde_json::to_string(&vse).expect("to_json");
+    let back: VolumeStateChangedEvent = serde_json::from_str(&json).expect("from_json");
+    assert_eq!(vse, back);
+
+    // FolderUpdatedEvent: covers media.v1.Location oneof under serde
+    let fue = FolderUpdatedEvent {
+        folder_location: buffa::MessageField::some(make_local_location()),
+        path: "/a/b.mp4".into(),
+        event: 1,
+        ..Default::default()
+    };
+    let json = serde_json::to_string(&fue).expect("to_json");
+    let back: FolderUpdatedEvent = serde_json::from_str(&json).expect("from_json");
+    assert_eq!(fue, back);
+}
+
+// ── SP3 Batch 6: Request oneof envelope ─────────────────────────────────────
+
+#[test]
+fn batch6_sp3_roundtrip() {
+    // ── all 14 arms individually ─────────────────────────────────────────────
+    rt(&Request { kind: Some(RequestKind::Heartbeat(Box::new(HeartbeatRequest { timestamp: 1, ..Default::default() }))), ..Default::default() });
+    rt(&Request { kind: Some(RequestKind::Search(Box::new(SearchRequest { query: "q".into(), pagination: buffa::MessageField::none(), filters: vec![], ..Default::default() }))), ..Default::default() });
+    rt(&Request { kind: Some(RequestKind::Browse(Box::new(BrowseRequest { location: buffa::MessageField::none(), pagination: buffa::MessageField::none(), ..Default::default() }))), ..Default::default() });
+    rt(&Request { kind: Some(RequestKind::GetLocationStats(Box::new(GetLocationStatsRequest { location: buffa::MessageField::none(), ..Default::default() }))), ..Default::default() });
+    rt(&Request { kind: Some(RequestKind::ListLocations(Box::new(ListLocationsRequest::default()))), ..Default::default() });
+    rt(&Request { kind: Some(RequestKind::GetIndexedFile(Box::new(GetIndexedFileRequest { checksum: vec![1], ..Default::default() }))), ..Default::default() });
+    rt(&Request { kind: Some(RequestKind::GetFileIndexingStats(Box::new(GetFileIndexingStatsRequest { video_id: vec![1], ..Default::default() }))), ..Default::default() });
+    rt(&Request { kind: Some(RequestKind::GetModelStatus(Box::new(GetModelStatusRequest::default()))), ..Default::default() });
+    rt(&Request { kind: Some(RequestKind::GetDaemonInfo(Box::new(GetDaemonInfoRequest::default()))), ..Default::default() });
+    rt(&Request { kind: Some(RequestKind::IndexLocation(Box::new(IndexLocationRequest { target: buffa::MessageField::none(), ..Default::default() }))), ..Default::default() });
+    rt(&Request { kind: Some(RequestKind::RemoveLocation(Box::new(RemoveLocationRequest { location: buffa::MessageField::none(), ..Default::default() }))), ..Default::default() });
+    rt(&Request { kind: Some(RequestKind::UpdateAnnotation(Box::new(UpdateAnnotationRequest { scene_ids: vec![vec![1]], user_tags: vec![], ..Default::default() }))), ..Default::default() });
+    rt(&Request { kind: Some(RequestKind::EjectVolume(Box::new(EjectVolumeRequest { volume_id: vec![1], ..Default::default() }))), ..Default::default() });
+    rt(&Request { kind: Some(RequestKind::RetryFailed(Box::new(RetryFailedRequest { location: buffa::MessageField::some(make_local_location()), ..Default::default() }))), ..Default::default() });
+
+    // ── no-arm default (empty oneof round-trips) ─────────────────────────────
+    rt(&Request::default());
+
+    // ── fully-populated Search arm ────────────────────────────────────────────
+    rt(&Request {
+        kind: Some(RequestKind::Search(Box::new(SearchRequest {
+            query: "beach sunset".into(),
+            pagination: buffa::MessageField::some(Pagination { limit: 20, offset: 40, ..Default::default() }),
+            filters: vec![SearchFilter { key: "type".into(), value: "video".into(), weight: 0.9, ..Default::default() }],
+            ..Default::default()
+        }))),
+        ..Default::default()
+    });
+
+    // ── fully-populated UpdateAnnotation arm ──────────────────────────────────
+    rt(&Request {
+        kind: Some(RequestKind::UpdateAnnotation(Box::new(UpdateAnnotationRequest {
+            scene_ids: vec![vec![1]],
+            user_tags: vec![Tag { name: "favorite".into(), color: 0xFF_AA_00_FF, ..Default::default() }],
+            ..Default::default()
+        }))),
+        ..Default::default()
+    });
+}
+
+#[test]
+#[cfg(feature = "json")]
+fn batch6_sp3_json_roundtrip() {
+    // Search arm: covers nested Pagination + SearchFilter under serde
+    let req_search = Request {
+        kind: Some(RequestKind::Search(Box::new(SearchRequest {
+            query: "beach sunset".into(),
+            pagination: buffa::MessageField::some(Pagination { limit: 20, offset: 40, ..Default::default() }),
+            filters: vec![SearchFilter { key: "type".into(), value: "video".into(), weight: 0.9, ..Default::default() }],
+            ..Default::default()
+        }))),
+        ..Default::default()
+    };
+    let json = serde_json::to_string(&req_search).expect("to_json");
+    let back: Request = serde_json::from_str(&json).expect("from_json");
+    assert_eq!(req_search, back);
+
+    // RetryFailed arm (tag 2005): proves the sparse high arm-tag survives serde
+    let req_retry = Request {
+        kind: Some(RequestKind::RetryFailed(Box::new(RetryFailedRequest {
+            location: buffa::MessageField::some(make_local_location()),
+            ..Default::default()
+        }))),
+        ..Default::default()
+    };
+    let json = serde_json::to_string(&req_retry).expect("to_json");
+    let back: Request = serde_json::from_str(&json).expect("from_json");
+    assert_eq!(req_retry, back);
+}
+
+#[test]
+fn batch7_sp3_roundtrip() {
+    // ── all 15 arms individually ─────────────────────────────────────────────
+    rt(&Response { kind: Some(ResponseKind::Heartbeat(Box::new(HeartbeatResponse { timestamp: 1, ..Default::default() }))), ..Default::default() });
+    rt(&Response { kind: Some(ResponseKind::Search(Box::new(SearchResponse { search_id: vec![1], total_count: 1, ..Default::default() }))), ..Default::default() });
+    rt(&Response { kind: Some(ResponseKind::Browse(Box::new(BrowseResponse { items: vec![], total_count: 0, pagination: buffa::MessageField::none(), ..Default::default() }))), ..Default::default() });
+    rt(&Response {
+        kind: Some(ResponseKind::GetIndexedFile(Box::new(GetIndexedFileResponse {
+            video: buffa::MessageField::some(Video {
+                meta: make_video_meta(),
+                scenes: vec![vec![1]],
+                index_status: 0x01 | 0x80,
+                index_error: make_error_info(),
+                error_status: 1,
+                ..Default::default()
+            }),
+            scenes: vec![Scene {
+                meta: make_scene_meta(),
+                keyframes: vec![vec![1]],
+                description: "ocean coast".into(),
+                shot_type: "wide".into(),
+                camera_motion: "pan".into(),
+                tags: "beach,sunset".into(),
+                people_count: 2,
+                tag_ids: vec![vec![9]],
+                vision_provider: vec!["apple".into()],
+                smart_folders: vec!["fav".into()],
+                ..Default::default()
+            }],
+            ..Default::default()
+        }))),
+        ..Default::default()
+    });
+    rt(&Response { kind: Some(ResponseKind::ListLocations(Box::new(ListLocationsResponse::default()))), ..Default::default() });
+    rt(&Response { kind: Some(ResponseKind::GetLocationStats(Box::new(GetLocationStatsResponse { total_files: 10, indexed_files: 8, total_videos: 5, total_scenes: 50, total_audios: 3, failed_files: vec![], ..Default::default() }))), ..Default::default() });
+    rt(&Response { kind: Some(ResponseKind::GetFileIndexingStats(Box::new(GetFileIndexingStatsResponse { video_id: vec![1], index_status: 0x01, error: buffa::MessageField::none(), ..Default::default() }))), ..Default::default() });
+    rt(&Response { kind: Some(ResponseKind::GetModelStatus(Box::new(GetModelStatusResponse { models: vec![ModelInfo { name: "m".into(), status: 2, size_bytes: 1024, ..Default::default() }], ..Default::default() }))), ..Default::default() });
+    rt(&Response { kind: Some(ResponseKind::GetDaemonInfo(Box::new(GetDaemonInfoResponse { version: "1.0".into(), started_at: 1_700_000_000, total_videos: 100, total_scenes: 1000, active_tasks: 2, ..Default::default() }))), ..Default::default() });
+    rt(&Response { kind: Some(ResponseKind::IndexLocation(Box::new(IndexLocationResponse { folder: buffa::MessageField::some(WatchedLocation { id: buffa::MessageField::some(Id { value: (1u8..=16).collect(), ..Default::default() }), location: buffa::MessageField::some(make_local_location()), name: "Videos".into(), status: 1, created_at: 1_700_000_000, ..Default::default() }), ..Default::default() }))), ..Default::default() });
+    rt(&Response { kind: Some(ResponseKind::RemoveLocation(Box::new(RemoveLocationResponse::default()))), ..Default::default() });
+    rt(&Response { kind: Some(ResponseKind::UpdateAnnotation(Box::new(UpdateAnnotationResponse::default()))), ..Default::default() });
+    rt(&Response { kind: Some(ResponseKind::EjectVolume(Box::new(EjectVolumeResponse::default()))), ..Default::default() });
+    rt(&Response { kind: Some(ResponseKind::RetryFailed(Box::new(RetryFailedResponse::default()))), ..Default::default() });
+    rt(&Response { kind: Some(ResponseKind::Error(Box::new(ErrorInfo { code: 5, message: "e".into(), ..Default::default() }))), ..Default::default() });
+
+    // ── no-arm default (empty oneof round-trips) ─────────────────────────────
+    rt(&Response::default());
+
+    // ── fully-populated GetIndexedFile arm (cross-package db.v1.Video + repeated db.v1.Scene) ──
+    rt(&Response {
+        kind: Some(ResponseKind::GetIndexedFile(Box::new(GetIndexedFileResponse {
+            video: buffa::MessageField::some(Video {
+                meta: make_video_meta(),
+                scenes: vec![vec![1], vec![2]],
+                index_status: 0x01 | 0x02 | 0x80,
+                index_error: make_error_info(),
+                error_status: 1,
+                ..Default::default()
+            }),
+            scenes: vec![Scene {
+                meta: make_scene_meta(),
+                keyframes: vec![vec![1]],
+                description: "ocean coast".into(),
+                shot_type: "wide".into(),
+                camera_motion: "pan".into(),
+                tags: "beach,sunset".into(),
+                people_count: 3,
+                tag_ids: vec![vec![9]],
+                vision_provider: vec!["apple".into()],
+                smart_folders: vec!["fav".into()],
+                ..Default::default()
+            }],
+            ..Default::default()
+        }))),
+        ..Default::default()
+    });
+
+    // ── fully-populated Error arm (cross-package media.v1.ErrorInfo collapse §7.8 #4) ──
+    rt(&Response {
+        kind: Some(ResponseKind::Error(Box::new(ErrorInfo { code: 404, message: "not found".into(), ..Default::default() }))),
+        ..Default::default()
+    });
+}
+
+#[test]
+#[cfg(feature = "json")]
+fn batch7_sp3_json_roundtrip() {
+    // GetIndexedFile arm: heaviest SP3 serde — Video + repeated Scene (same-package since mono-consolidation)
+    let resp_gif = Response {
+        kind: Some(ResponseKind::GetIndexedFile(Box::new(GetIndexedFileResponse {
+            video: buffa::MessageField::some(Video {
+                meta: make_video_meta(),
+                scenes: vec![vec![1], vec![2]],
+                index_status: 0x01 | 0x80,
+                index_error: make_error_info(),
+                error_status: 1,
+                ..Default::default()
+            }),
+            scenes: vec![Scene {
+                meta: make_scene_meta(),
+                keyframes: vec![vec![1]],
+                description: "ocean coast".into(),
+                shot_type: "wide".into(),
+                camera_motion: "pan".into(),
+                tags: "beach,sunset".into(),
+                people_count: 3,
+                tag_ids: vec![vec![9]],
+                vision_provider: vec!["apple".into()],
+                smart_folders: vec!["fav".into()],
+                ..Default::default()
+            }],
+            ..Default::default()
+        }))),
+        ..Default::default()
+    };
+    let json = serde_json::to_string(&resp_gif).expect("to_json");
+    let back: Response = serde_json::from_str(&json).expect("from_json");
+    assert_eq!(resp_gif, back);
+
+    // Error arm at tag 20000 (remapped from reserved 19999, §7.8): proves the
+    // collapsed cross-package error arm + highest sparse arm-tag survive serde
+    // (§7.8 #4 collapse).
+    let resp_err = Response {
+        kind: Some(ResponseKind::Error(Box::new(ErrorInfo { code: 7, message: "x".into(), ..Default::default() }))),
+        ..Default::default()
+    };
+    let json = serde_json::to_string(&resp_err).expect("to_json");
+    let back: Response = serde_json::from_str(&json).expect("from_json");
+    assert_eq!(resp_err, back);
+}
+
+// ── SP3 Batch 8: Event oneof envelope ───────────────────────────────────────
+
+#[test]
+fn batch8_sp3_roundtrip() {
+    // ── all 5 arms individually ──────────────────────────────────────────────
+    rt(&Event { kind: Some(EventKind::FailedFiles(Box::new(FailedFilesResponse { location_id: vec![1], failed_files: vec![NetFailedFile { kind: 0, location: buffa::MessageField::some(make_local_location()), error: make_error_info(), error_status: 0x01, index_status: 0x02, ..Default::default() }], ..Default::default() }))), ..Default::default() });
+    rt(&Event { kind: Some(EventKind::IndexingProgress(Box::new(IndexingProgressResponse { location: buffa::MessageField::some(make_local_location()), total_files: 10, indexed_files: 5, active_files: vec![IndexingFile { location: buffa::MessageField::some(make_local_location()), name: "a".into(), completed_phases: 0x01, ..Default::default() }], ..Default::default() }))), ..Default::default() });
+    rt(&Event { kind: Some(EventKind::VolumeStateChanged(Box::new(VolumeStateChangedEvent { volume: buffa::MessageField::none(), event: 2, ..Default::default() }))), ..Default::default() });
+    rt(&Event { kind: Some(EventKind::FolderUpdated(Box::new(FolderUpdatedEvent { folder_location: buffa::MessageField::some(make_local_location()), path: "/x".into(), event: 1, ..Default::default() }))), ..Default::default() });
+    rt(&Event { kind: Some(EventKind::ModelDownloadProgress(Box::new(ModelDownloadProgressEvent { model: buffa::MessageField::some(ModelDownloadProgress { name: "m".into(), progress: 0.5, downloaded_bytes: 1, total_bytes: 2, status: 1, error_msg: "".into(), ..Default::default() }), ..Default::default() }))), ..Default::default() });
+
+    // ── no-arm default (proves empty oneof round-trips) ──────────────────────
+    rt(&Event::default());
+}
+
+#[test]
+#[cfg(feature = "json")]
+fn batch8_sp3_json_roundtrip() {
+    // IndexingProgress arm: covers nested media.v1.Location + repeated IndexingFile under serde
+    let ev_progress = Event {
+        kind: Some(EventKind::IndexingProgress(Box::new(IndexingProgressResponse {
+            location: buffa::MessageField::some(make_local_location()),
+            total_files: 10,
+            indexed_files: 5,
+            active_files: vec![IndexingFile {
+                location: buffa::MessageField::some(make_local_location()),
+                name: "a".into(),
+                completed_phases: 0x01,
+                ..Default::default()
+            }],
+            ..Default::default()
+        }))),
+        ..Default::default()
+    };
+    let json = serde_json::to_string(&ev_progress).expect("to_json");
+    let back: Event = serde_json::from_str(&json).expect("from_json");
+    assert_eq!(ev_progress, back);
+
+    // ModelDownloadProgress arm at tag 20002: proves the high event arm-tag survives serde
+    let ev_mdp = Event {
+        kind: Some(EventKind::ModelDownloadProgress(Box::new(ModelDownloadProgressEvent {
+            model: buffa::MessageField::some(ModelDownloadProgress {
+                name: "m".into(),
+                progress: 0.5,
+                downloaded_bytes: 1,
+                total_bytes: 2,
+                status: 1,
+                error_msg: "".into(),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }))),
+        ..Default::default()
+    };
+    let json = serde_json::to_string(&ev_mdp).expect("to_json");
+    let back: Event = serde_json::from_str(&json).expect("from_json");
+    assert_eq!(ev_mdp, back);
+}
+
+// ── SP3 Batch 9: correlation envelopes ──────────────────────────────────────
+
+#[test]
+fn batch9_sp3_roundtrip() {
+    // ── RequestEnvelope ──────────────────────────────────────────────────────
+
+    // request_id=42, heartbeat arm
+    rt(&RequestEnvelope {
+        request_id: 42,
+        request: buffa::MessageField::some(Request {
+            kind: Some(RequestKind::Heartbeat(Box::new(HeartbeatRequest { timestamp: 1, ..Default::default() }))),
+            ..Default::default()
+        }),
+        ..Default::default()
+    });
+
+    // request_id=0 (plain uint64 zero default) + RetryFailed arm:
+    // proves the plain-uint64 (NOT optional) zero-default round-trips EXACTLY,
+    // not dropped (the core §7.8 #3 risk).
+    rt(&RequestEnvelope {
+        request_id: 0,
+        request: buffa::MessageField::some(Request {
+            kind: Some(RequestKind::RetryFailed(Box::new(RetryFailedRequest {
+                location: buffa::MessageField::some(make_local_location()),
+                ..Default::default()
+            }))),
+            ..Default::default()
+        }),
+        ..Default::default()
+    });
+
+    // request_id=9, no inner Request (MessageField::none)
+    rt(&RequestEnvelope {
+        request_id: 9,
+        request: buffa::MessageField::none(),
+        ..Default::default()
+    });
+
+    // default (request_id=0, no request)
+    rt(&RequestEnvelope::default());
+
+    // ── ResponseEnvelope ─────────────────────────────────────────────────────
+
+    // request_id=7, heartbeat arm
+    rt(&ResponseEnvelope {
+        request_id: 7,
+        response: buffa::MessageField::some(Response {
+            kind: Some(ResponseKind::Heartbeat(Box::new(HeartbeatResponse { timestamp: 1, ..Default::default() }))),
+            ..Default::default()
+        }),
+        ..Default::default()
+    });
+
+    // request_id=0 + Error arm: proves the collapsed error arm survives inside
+    // the envelope AND request_id=0 round-trips (§7.8 #3 + §7.8 #4).
+    rt(&ResponseEnvelope {
+        request_id: 0,
+        response: buffa::MessageField::some(Response {
+            kind: Some(ResponseKind::Error(Box::new(ErrorInfo { code: 5, message: "e".into(), ..Default::default() }))),
+            ..Default::default()
+        }),
+        ..Default::default()
+    });
+
+    // no inner Response (MessageField::none)
+    rt(&ResponseEnvelope {
+        request_id: 0,
+        response: buffa::MessageField::none(),
+        ..Default::default()
+    });
+
+    // default
+    rt(&ResponseEnvelope::default());
+}
+
+#[test]
+#[cfg(feature = "json")]
+fn batch9_sp3_json_roundtrip() {
+    // Populated RequestEnvelope: nested Request oneof under serde; request_id non-zero
+    let req_env = RequestEnvelope {
+        request_id: 42,
+        request: buffa::MessageField::some(Request {
+            kind: Some(RequestKind::Heartbeat(Box::new(HeartbeatRequest { timestamp: 1, ..Default::default() }))),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    let json = serde_json::to_string(&req_env).expect("to_json");
+    let back: RequestEnvelope = serde_json::from_str(&json).expect("from_json");
+    assert_eq!(req_env, back);
+
+    // Populated ResponseEnvelope carrying ResponseKind::Error (collapsed error
+    // oneof under serde); request_id non-zero
+    let resp_env = ResponseEnvelope {
+        request_id: 7,
+        response: buffa::MessageField::some(Response {
+            kind: Some(ResponseKind::Error(Box::new(ErrorInfo { code: 5, message: "e".into(), ..Default::default() }))),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    let json = serde_json::to_string(&resp_env).expect("to_json");
+    let back: ResponseEnvelope = serde_json::from_str(&json).expect("from_json");
+    assert_eq!(resp_env, back);
+
+    // request_id=0 JSON case: proves the zero default round-trips through serde
+    // (plain uint64, NOT optional — §7.8 #3).
+    let req_env_zero = RequestEnvelope {
+        request_id: 0,
+        request: buffa::MessageField::some(Request {
+            kind: Some(RequestKind::RetryFailed(Box::new(RetryFailedRequest {
+                location: buffa::MessageField::some(make_local_location()),
+                ..Default::default()
+            }))),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    let json = serde_json::to_string(&req_env_zero).expect("to_json");
+    let back: RequestEnvelope = serde_json::from_str(&json).expect("from_json");
+    assert_eq!(req_env_zero, back);
 }

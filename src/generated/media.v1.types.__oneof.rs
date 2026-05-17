@@ -157,3 +157,631 @@ pub mod subtitle_track_origin {
         }
     }
 }
+pub mod request {
+    #[allow(unused_imports)]
+    use super::*;
+    #[derive(Clone, PartialEq, Debug)]
+    #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
+    #[cfg_attr(
+        feature = "quickcheck",
+        derive(::mediaschema_derive::QuickcheckArbitrary)
+    )]
+    pub enum Kind {
+        Heartbeat(::buffa::alloc::boxed::Box<super::super::super::HeartbeatRequest>),
+        Search(::buffa::alloc::boxed::Box<super::super::super::SearchRequest>),
+        Browse(::buffa::alloc::boxed::Box<super::super::super::BrowseRequest>),
+        GetLocationStats(
+            ::buffa::alloc::boxed::Box<super::super::super::GetLocationStatsRequest>,
+        ),
+        ListLocations(
+            ::buffa::alloc::boxed::Box<super::super::super::ListLocationsRequest>,
+        ),
+        GetIndexedFile(
+            ::buffa::alloc::boxed::Box<super::super::super::GetIndexedFileRequest>,
+        ),
+        GetFileIndexingStats(
+            ::buffa::alloc::boxed::Box<super::super::super::GetFileIndexingStatsRequest>,
+        ),
+        GetModelStatus(
+            ::buffa::alloc::boxed::Box<super::super::super::GetModelStatusRequest>,
+        ),
+        GetDaemonInfo(
+            ::buffa::alloc::boxed::Box<super::super::super::GetDaemonInfoRequest>,
+        ),
+        IndexLocation(
+            ::buffa::alloc::boxed::Box<super::super::super::IndexLocationRequest>,
+        ),
+        RemoveLocation(
+            ::buffa::alloc::boxed::Box<super::super::super::RemoveLocationRequest>,
+        ),
+        UpdateAnnotation(
+            ::buffa::alloc::boxed::Box<super::super::super::UpdateAnnotationRequest>,
+        ),
+        EjectVolume(::buffa::alloc::boxed::Box<super::super::super::EjectVolumeRequest>),
+        RetryFailed(::buffa::alloc::boxed::Box<super::super::super::RetryFailedRequest>),
+    }
+    impl ::buffa::Oneof for Kind {}
+    impl From<super::super::super::HeartbeatRequest> for Kind {
+        fn from(v: super::super::super::HeartbeatRequest) -> Self {
+            Self::Heartbeat(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::HeartbeatRequest> for ::core::option::Option<Kind> {
+        fn from(v: super::super::super::HeartbeatRequest) -> Self {
+            Self::Some(Kind::from(v))
+        }
+    }
+    impl From<super::super::super::SearchRequest> for Kind {
+        fn from(v: super::super::super::SearchRequest) -> Self {
+            Self::Search(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::SearchRequest> for ::core::option::Option<Kind> {
+        fn from(v: super::super::super::SearchRequest) -> Self {
+            Self::Some(Kind::from(v))
+        }
+    }
+    impl From<super::super::super::BrowseRequest> for Kind {
+        fn from(v: super::super::super::BrowseRequest) -> Self {
+            Self::Browse(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::BrowseRequest> for ::core::option::Option<Kind> {
+        fn from(v: super::super::super::BrowseRequest) -> Self {
+            Self::Some(Kind::from(v))
+        }
+    }
+    impl From<super::super::super::GetLocationStatsRequest> for Kind {
+        fn from(v: super::super::super::GetLocationStatsRequest) -> Self {
+            Self::GetLocationStats(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::GetLocationStatsRequest>
+    for ::core::option::Option<Kind> {
+        fn from(v: super::super::super::GetLocationStatsRequest) -> Self {
+            Self::Some(Kind::from(v))
+        }
+    }
+    impl From<super::super::super::ListLocationsRequest> for Kind {
+        fn from(v: super::super::super::ListLocationsRequest) -> Self {
+            Self::ListLocations(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::ListLocationsRequest>
+    for ::core::option::Option<Kind> {
+        fn from(v: super::super::super::ListLocationsRequest) -> Self {
+            Self::Some(Kind::from(v))
+        }
+    }
+    impl From<super::super::super::GetIndexedFileRequest> for Kind {
+        fn from(v: super::super::super::GetIndexedFileRequest) -> Self {
+            Self::GetIndexedFile(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::GetIndexedFileRequest>
+    for ::core::option::Option<Kind> {
+        fn from(v: super::super::super::GetIndexedFileRequest) -> Self {
+            Self::Some(Kind::from(v))
+        }
+    }
+    impl From<super::super::super::GetFileIndexingStatsRequest> for Kind {
+        fn from(v: super::super::super::GetFileIndexingStatsRequest) -> Self {
+            Self::GetFileIndexingStats(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::GetFileIndexingStatsRequest>
+    for ::core::option::Option<Kind> {
+        fn from(v: super::super::super::GetFileIndexingStatsRequest) -> Self {
+            Self::Some(Kind::from(v))
+        }
+    }
+    impl From<super::super::super::GetModelStatusRequest> for Kind {
+        fn from(v: super::super::super::GetModelStatusRequest) -> Self {
+            Self::GetModelStatus(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::GetModelStatusRequest>
+    for ::core::option::Option<Kind> {
+        fn from(v: super::super::super::GetModelStatusRequest) -> Self {
+            Self::Some(Kind::from(v))
+        }
+    }
+    impl From<super::super::super::GetDaemonInfoRequest> for Kind {
+        fn from(v: super::super::super::GetDaemonInfoRequest) -> Self {
+            Self::GetDaemonInfo(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::GetDaemonInfoRequest>
+    for ::core::option::Option<Kind> {
+        fn from(v: super::super::super::GetDaemonInfoRequest) -> Self {
+            Self::Some(Kind::from(v))
+        }
+    }
+    impl From<super::super::super::IndexLocationRequest> for Kind {
+        fn from(v: super::super::super::IndexLocationRequest) -> Self {
+            Self::IndexLocation(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::IndexLocationRequest>
+    for ::core::option::Option<Kind> {
+        fn from(v: super::super::super::IndexLocationRequest) -> Self {
+            Self::Some(Kind::from(v))
+        }
+    }
+    impl From<super::super::super::RemoveLocationRequest> for Kind {
+        fn from(v: super::super::super::RemoveLocationRequest) -> Self {
+            Self::RemoveLocation(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::RemoveLocationRequest>
+    for ::core::option::Option<Kind> {
+        fn from(v: super::super::super::RemoveLocationRequest) -> Self {
+            Self::Some(Kind::from(v))
+        }
+    }
+    impl From<super::super::super::UpdateAnnotationRequest> for Kind {
+        fn from(v: super::super::super::UpdateAnnotationRequest) -> Self {
+            Self::UpdateAnnotation(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::UpdateAnnotationRequest>
+    for ::core::option::Option<Kind> {
+        fn from(v: super::super::super::UpdateAnnotationRequest) -> Self {
+            Self::Some(Kind::from(v))
+        }
+    }
+    impl From<super::super::super::EjectVolumeRequest> for Kind {
+        fn from(v: super::super::super::EjectVolumeRequest) -> Self {
+            Self::EjectVolume(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::EjectVolumeRequest> for ::core::option::Option<Kind> {
+        fn from(v: super::super::super::EjectVolumeRequest) -> Self {
+            Self::Some(Kind::from(v))
+        }
+    }
+    impl From<super::super::super::RetryFailedRequest> for Kind {
+        fn from(v: super::super::super::RetryFailedRequest) -> Self {
+            Self::RetryFailed(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::RetryFailedRequest> for ::core::option::Option<Kind> {
+        fn from(v: super::super::super::RetryFailedRequest) -> Self {
+            Self::Some(Kind::from(v))
+        }
+    }
+    #[cfg(feature = "json")]
+    impl serde::Serialize for Kind {
+        fn serialize<S: serde::Serializer>(
+            &self,
+            s: S,
+        ) -> ::core::result::Result<S::Ok, S::Error> {
+            use serde::ser::SerializeMap;
+            let mut map = s.serialize_map(Some(1))?;
+            match self {
+                Self::Heartbeat(v) => {
+                    map.serialize_entry("heartbeat", v)?;
+                }
+                Self::Search(v) => {
+                    map.serialize_entry("search", v)?;
+                }
+                Self::Browse(v) => {
+                    map.serialize_entry("browse", v)?;
+                }
+                Self::GetLocationStats(v) => {
+                    map.serialize_entry("getLocationStats", v)?;
+                }
+                Self::ListLocations(v) => {
+                    map.serialize_entry("listLocations", v)?;
+                }
+                Self::GetIndexedFile(v) => {
+                    map.serialize_entry("getIndexedFile", v)?;
+                }
+                Self::GetFileIndexingStats(v) => {
+                    map.serialize_entry("getFileIndexingStats", v)?;
+                }
+                Self::GetModelStatus(v) => {
+                    map.serialize_entry("getModelStatus", v)?;
+                }
+                Self::GetDaemonInfo(v) => {
+                    map.serialize_entry("getDaemonInfo", v)?;
+                }
+                Self::IndexLocation(v) => {
+                    map.serialize_entry("indexLocation", v)?;
+                }
+                Self::RemoveLocation(v) => {
+                    map.serialize_entry("removeLocation", v)?;
+                }
+                Self::UpdateAnnotation(v) => {
+                    map.serialize_entry("updateAnnotation", v)?;
+                }
+                Self::EjectVolume(v) => {
+                    map.serialize_entry("ejectVolume", v)?;
+                }
+                Self::RetryFailed(v) => {
+                    map.serialize_entry("retryFailed", v)?;
+                }
+            }
+            map.end()
+        }
+    }
+}
+pub mod response {
+    #[allow(unused_imports)]
+    use super::*;
+    #[derive(Clone, PartialEq, Debug)]
+    #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
+    #[cfg_attr(
+        feature = "quickcheck",
+        derive(::mediaschema_derive::QuickcheckArbitrary)
+    )]
+    pub enum Kind {
+        Heartbeat(::buffa::alloc::boxed::Box<super::super::super::HeartbeatResponse>),
+        Search(::buffa::alloc::boxed::Box<super::super::super::SearchResponse>),
+        Browse(::buffa::alloc::boxed::Box<super::super::super::BrowseResponse>),
+        GetIndexedFile(
+            ::buffa::alloc::boxed::Box<super::super::super::GetIndexedFileResponse>,
+        ),
+        ListLocations(
+            ::buffa::alloc::boxed::Box<super::super::super::ListLocationsResponse>,
+        ),
+        GetLocationStats(
+            ::buffa::alloc::boxed::Box<super::super::super::GetLocationStatsResponse>,
+        ),
+        GetFileIndexingStats(
+            ::buffa::alloc::boxed::Box<super::super::super::GetFileIndexingStatsResponse>,
+        ),
+        GetModelStatus(
+            ::buffa::alloc::boxed::Box<super::super::super::GetModelStatusResponse>,
+        ),
+        GetDaemonInfo(
+            ::buffa::alloc::boxed::Box<super::super::super::GetDaemonInfoResponse>,
+        ),
+        IndexLocation(
+            ::buffa::alloc::boxed::Box<super::super::super::IndexLocationResponse>,
+        ),
+        RemoveLocation(
+            ::buffa::alloc::boxed::Box<super::super::super::RemoveLocationResponse>,
+        ),
+        UpdateAnnotation(
+            ::buffa::alloc::boxed::Box<super::super::super::UpdateAnnotationResponse>,
+        ),
+        EjectVolume(
+            ::buffa::alloc::boxed::Box<super::super::super::EjectVolumeResponse>,
+        ),
+        RetryFailed(
+            ::buffa::alloc::boxed::Box<super::super::super::RetryFailedResponse>,
+        ),
+        Error(::buffa::alloc::boxed::Box<super::super::super::ErrorInfo>),
+    }
+    impl ::buffa::Oneof for Kind {}
+    impl From<super::super::super::HeartbeatResponse> for Kind {
+        fn from(v: super::super::super::HeartbeatResponse) -> Self {
+            Self::Heartbeat(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::HeartbeatResponse> for ::core::option::Option<Kind> {
+        fn from(v: super::super::super::HeartbeatResponse) -> Self {
+            Self::Some(Kind::from(v))
+        }
+    }
+    impl From<super::super::super::SearchResponse> for Kind {
+        fn from(v: super::super::super::SearchResponse) -> Self {
+            Self::Search(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::SearchResponse> for ::core::option::Option<Kind> {
+        fn from(v: super::super::super::SearchResponse) -> Self {
+            Self::Some(Kind::from(v))
+        }
+    }
+    impl From<super::super::super::BrowseResponse> for Kind {
+        fn from(v: super::super::super::BrowseResponse) -> Self {
+            Self::Browse(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::BrowseResponse> for ::core::option::Option<Kind> {
+        fn from(v: super::super::super::BrowseResponse) -> Self {
+            Self::Some(Kind::from(v))
+        }
+    }
+    impl From<super::super::super::GetIndexedFileResponse> for Kind {
+        fn from(v: super::super::super::GetIndexedFileResponse) -> Self {
+            Self::GetIndexedFile(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::GetIndexedFileResponse>
+    for ::core::option::Option<Kind> {
+        fn from(v: super::super::super::GetIndexedFileResponse) -> Self {
+            Self::Some(Kind::from(v))
+        }
+    }
+    impl From<super::super::super::ListLocationsResponse> for Kind {
+        fn from(v: super::super::super::ListLocationsResponse) -> Self {
+            Self::ListLocations(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::ListLocationsResponse>
+    for ::core::option::Option<Kind> {
+        fn from(v: super::super::super::ListLocationsResponse) -> Self {
+            Self::Some(Kind::from(v))
+        }
+    }
+    impl From<super::super::super::GetLocationStatsResponse> for Kind {
+        fn from(v: super::super::super::GetLocationStatsResponse) -> Self {
+            Self::GetLocationStats(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::GetLocationStatsResponse>
+    for ::core::option::Option<Kind> {
+        fn from(v: super::super::super::GetLocationStatsResponse) -> Self {
+            Self::Some(Kind::from(v))
+        }
+    }
+    impl From<super::super::super::GetFileIndexingStatsResponse> for Kind {
+        fn from(v: super::super::super::GetFileIndexingStatsResponse) -> Self {
+            Self::GetFileIndexingStats(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::GetFileIndexingStatsResponse>
+    for ::core::option::Option<Kind> {
+        fn from(v: super::super::super::GetFileIndexingStatsResponse) -> Self {
+            Self::Some(Kind::from(v))
+        }
+    }
+    impl From<super::super::super::GetModelStatusResponse> for Kind {
+        fn from(v: super::super::super::GetModelStatusResponse) -> Self {
+            Self::GetModelStatus(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::GetModelStatusResponse>
+    for ::core::option::Option<Kind> {
+        fn from(v: super::super::super::GetModelStatusResponse) -> Self {
+            Self::Some(Kind::from(v))
+        }
+    }
+    impl From<super::super::super::GetDaemonInfoResponse> for Kind {
+        fn from(v: super::super::super::GetDaemonInfoResponse) -> Self {
+            Self::GetDaemonInfo(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::GetDaemonInfoResponse>
+    for ::core::option::Option<Kind> {
+        fn from(v: super::super::super::GetDaemonInfoResponse) -> Self {
+            Self::Some(Kind::from(v))
+        }
+    }
+    impl From<super::super::super::IndexLocationResponse> for Kind {
+        fn from(v: super::super::super::IndexLocationResponse) -> Self {
+            Self::IndexLocation(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::IndexLocationResponse>
+    for ::core::option::Option<Kind> {
+        fn from(v: super::super::super::IndexLocationResponse) -> Self {
+            Self::Some(Kind::from(v))
+        }
+    }
+    impl From<super::super::super::RemoveLocationResponse> for Kind {
+        fn from(v: super::super::super::RemoveLocationResponse) -> Self {
+            Self::RemoveLocation(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::RemoveLocationResponse>
+    for ::core::option::Option<Kind> {
+        fn from(v: super::super::super::RemoveLocationResponse) -> Self {
+            Self::Some(Kind::from(v))
+        }
+    }
+    impl From<super::super::super::UpdateAnnotationResponse> for Kind {
+        fn from(v: super::super::super::UpdateAnnotationResponse) -> Self {
+            Self::UpdateAnnotation(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::UpdateAnnotationResponse>
+    for ::core::option::Option<Kind> {
+        fn from(v: super::super::super::UpdateAnnotationResponse) -> Self {
+            Self::Some(Kind::from(v))
+        }
+    }
+    impl From<super::super::super::EjectVolumeResponse> for Kind {
+        fn from(v: super::super::super::EjectVolumeResponse) -> Self {
+            Self::EjectVolume(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::EjectVolumeResponse>
+    for ::core::option::Option<Kind> {
+        fn from(v: super::super::super::EjectVolumeResponse) -> Self {
+            Self::Some(Kind::from(v))
+        }
+    }
+    impl From<super::super::super::RetryFailedResponse> for Kind {
+        fn from(v: super::super::super::RetryFailedResponse) -> Self {
+            Self::RetryFailed(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::RetryFailedResponse>
+    for ::core::option::Option<Kind> {
+        fn from(v: super::super::super::RetryFailedResponse) -> Self {
+            Self::Some(Kind::from(v))
+        }
+    }
+    impl From<super::super::super::ErrorInfo> for Kind {
+        fn from(v: super::super::super::ErrorInfo) -> Self {
+            Self::Error(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::ErrorInfo> for ::core::option::Option<Kind> {
+        fn from(v: super::super::super::ErrorInfo) -> Self {
+            Self::Some(Kind::from(v))
+        }
+    }
+    #[cfg(feature = "json")]
+    impl serde::Serialize for Kind {
+        fn serialize<S: serde::Serializer>(
+            &self,
+            s: S,
+        ) -> ::core::result::Result<S::Ok, S::Error> {
+            use serde::ser::SerializeMap;
+            let mut map = s.serialize_map(Some(1))?;
+            match self {
+                Self::Heartbeat(v) => {
+                    map.serialize_entry("heartbeat", v)?;
+                }
+                Self::Search(v) => {
+                    map.serialize_entry("search", v)?;
+                }
+                Self::Browse(v) => {
+                    map.serialize_entry("browse", v)?;
+                }
+                Self::GetIndexedFile(v) => {
+                    map.serialize_entry("getIndexedFile", v)?;
+                }
+                Self::ListLocations(v) => {
+                    map.serialize_entry("listLocations", v)?;
+                }
+                Self::GetLocationStats(v) => {
+                    map.serialize_entry("getLocationStats", v)?;
+                }
+                Self::GetFileIndexingStats(v) => {
+                    map.serialize_entry("getFileIndexingStats", v)?;
+                }
+                Self::GetModelStatus(v) => {
+                    map.serialize_entry("getModelStatus", v)?;
+                }
+                Self::GetDaemonInfo(v) => {
+                    map.serialize_entry("getDaemonInfo", v)?;
+                }
+                Self::IndexLocation(v) => {
+                    map.serialize_entry("indexLocation", v)?;
+                }
+                Self::RemoveLocation(v) => {
+                    map.serialize_entry("removeLocation", v)?;
+                }
+                Self::UpdateAnnotation(v) => {
+                    map.serialize_entry("updateAnnotation", v)?;
+                }
+                Self::EjectVolume(v) => {
+                    map.serialize_entry("ejectVolume", v)?;
+                }
+                Self::RetryFailed(v) => {
+                    map.serialize_entry("retryFailed", v)?;
+                }
+                Self::Error(v) => {
+                    map.serialize_entry("error", v)?;
+                }
+            }
+            map.end()
+        }
+    }
+}
+pub mod event {
+    #[allow(unused_imports)]
+    use super::*;
+    #[derive(Clone, PartialEq, Debug)]
+    #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
+    #[cfg_attr(
+        feature = "quickcheck",
+        derive(::mediaschema_derive::QuickcheckArbitrary)
+    )]
+    pub enum Kind {
+        FailedFiles(
+            ::buffa::alloc::boxed::Box<super::super::super::FailedFilesResponse>,
+        ),
+        IndexingProgress(
+            ::buffa::alloc::boxed::Box<super::super::super::IndexingProgressResponse>,
+        ),
+        VolumeStateChanged(
+            ::buffa::alloc::boxed::Box<super::super::super::VolumeStateChangedEvent>,
+        ),
+        FolderUpdated(
+            ::buffa::alloc::boxed::Box<super::super::super::FolderUpdatedEvent>,
+        ),
+        ModelDownloadProgress(
+            ::buffa::alloc::boxed::Box<super::super::super::ModelDownloadProgressEvent>,
+        ),
+    }
+    impl ::buffa::Oneof for Kind {}
+    impl From<super::super::super::FailedFilesResponse> for Kind {
+        fn from(v: super::super::super::FailedFilesResponse) -> Self {
+            Self::FailedFiles(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::FailedFilesResponse>
+    for ::core::option::Option<Kind> {
+        fn from(v: super::super::super::FailedFilesResponse) -> Self {
+            Self::Some(Kind::from(v))
+        }
+    }
+    impl From<super::super::super::IndexingProgressResponse> for Kind {
+        fn from(v: super::super::super::IndexingProgressResponse) -> Self {
+            Self::IndexingProgress(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::IndexingProgressResponse>
+    for ::core::option::Option<Kind> {
+        fn from(v: super::super::super::IndexingProgressResponse) -> Self {
+            Self::Some(Kind::from(v))
+        }
+    }
+    impl From<super::super::super::VolumeStateChangedEvent> for Kind {
+        fn from(v: super::super::super::VolumeStateChangedEvent) -> Self {
+            Self::VolumeStateChanged(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::VolumeStateChangedEvent>
+    for ::core::option::Option<Kind> {
+        fn from(v: super::super::super::VolumeStateChangedEvent) -> Self {
+            Self::Some(Kind::from(v))
+        }
+    }
+    impl From<super::super::super::FolderUpdatedEvent> for Kind {
+        fn from(v: super::super::super::FolderUpdatedEvent) -> Self {
+            Self::FolderUpdated(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::FolderUpdatedEvent> for ::core::option::Option<Kind> {
+        fn from(v: super::super::super::FolderUpdatedEvent) -> Self {
+            Self::Some(Kind::from(v))
+        }
+    }
+    impl From<super::super::super::ModelDownloadProgressEvent> for Kind {
+        fn from(v: super::super::super::ModelDownloadProgressEvent) -> Self {
+            Self::ModelDownloadProgress(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::ModelDownloadProgressEvent>
+    for ::core::option::Option<Kind> {
+        fn from(v: super::super::super::ModelDownloadProgressEvent) -> Self {
+            Self::Some(Kind::from(v))
+        }
+    }
+    #[cfg(feature = "json")]
+    impl serde::Serialize for Kind {
+        fn serialize<S: serde::Serializer>(
+            &self,
+            s: S,
+        ) -> ::core::result::Result<S::Ok, S::Error> {
+            use serde::ser::SerializeMap;
+            let mut map = s.serialize_map(Some(1))?;
+            match self {
+                Self::FailedFiles(v) => {
+                    map.serialize_entry("failedFiles", v)?;
+                }
+                Self::IndexingProgress(v) => {
+                    map.serialize_entry("indexingProgress", v)?;
+                }
+                Self::VolumeStateChanged(v) => {
+                    map.serialize_entry("volumeStateChanged", v)?;
+                }
+                Self::FolderUpdated(v) => {
+                    map.serialize_entry("folderUpdated", v)?;
+                }
+                Self::ModelDownloadProgress(v) => {
+                    map.serialize_entry("modelDownloadProgress", v)?;
+                }
+            }
+            map.end()
+        }
+    }
+}

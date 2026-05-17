@@ -311,8 +311,8 @@ message HumanAnalysis {
 // TimedDetection fixture role).
 message Sp2CodegenSmoke {
   bytes id = 1;                              // inline-bytes id convention
-  ErrorInfo error = 2;              // cross-package media.v1 MESSAGE ref
-  VideoFormat format = 3;           // cross-package media.v1 ENUM ref
+  ErrorInfo error = 2;              // same-package MESSAGE ref (was cross-package media.v1)
+  VideoFormat format = 3;           // same-package ENUM ref (was cross-package media.v1)
   optional mediatime.v1.TimeRange range = 4; // mediatime extern (-> ::mediatime)
 }
 
@@ -1012,4 +1012,383 @@ message AudioFileRecord {
   optional AudioCoverArt cover_art = 27;
   reserved 28 to 30;
   int64 created_at = 31;
+}
+
+// ── SP3: findit `network` domain (consolidated into media.v1) ──
+// findit-proto's src/network/ Rust as a clean proto3 redesign (NO wire-compat
+// with the hand-rolled framing/encoding; correctness = round-trip + semantic
+// fidelity).
+//
+// Same-package (media.v1) since the mono-consolidation; the SP3 `FailedFile` message is named `NetFailedFile` to avoid colliding with SP2's `FailedFile` DB record.
+
+// Task-0 codegen smoke fixture (NOT a domain message): proves the SP3 same-package
+// (media.v1) refs and the mediatime.v1.TimeRange extern, all resolving in a single
+// buffa codegen run. Kept permanently: it is the permanent regression guard for the
+// SP3 same-package pipeline (mirrors SP0's TimedDetection / SP2's Sp2CodegenSmoke
+// fixture role).
+message Sp3CodegenSmoke {
+  bytes id = 1;                              // inline-bytes id convention (§7.1)
+  ErrorInfo error = 2;              // same-package ref (was cross-package media.v1)
+  VideoMeta video_meta = 3;     // same-package ref (VideoMeta, SP2 DB domain)
+  optional mediatime.v1.TimeRange range = 4; // mediatime extern (-> ::mediatime)
+}
+
+// ── Batch 1: scalar leaves (§7.5 shared.rs/heartbeat.rs) ────────────────────
+
+// `limit`: client default 50 when absent (documented client-side
+// convention, NOT `optional` — the wire format carries no presence bit;
+// §7.8 #9). `offset` default 0.
+message Pagination {
+  uint32 limit = 1;
+  uint32 offset = 2;
+}
+
+// `weight`: client default 1.0 when absent (documented client-side
+// convention, NOT `optional`; §7.8 #9).
+message SearchFilter {
+  string key = 1;
+  string value = 2;
+  float weight = 3;
+}
+
+// Unix epoch milliseconds.
+message HeartbeatRequest { int64 timestamp = 1; }
+
+// Unix epoch milliseconds.
+message HeartbeatResponse { int64 timestamp = 1; }
+
+// ── Batch 2: reuse-only leaves (§7.5 shared.rs) ─────────────────────────────
+
+// `scene_id`/`video_id`: inline bytes (Id convention, §7.1). `range`:
+// mediatime.v1.TimeRange extern (-> ::mediatime). `dimensions`:
+// Dimensions (SP1 split uint32 width/height; source packed u32
+// via to_u32() — clean-redesign, §7.8 #8).
+message SearchHit {
+  bytes scene_id = 1;
+  bytes video_id = 2;
+  string video_name = 3;
+  Location location = 4;
+  string description = 5;
+  float score = 6;
+  mediatime.v1.TimeRange range = 7;
+  bytes thumbnail = 8;
+  Dimensions dimensions = 9;
+}
+
+// `meta`: VideoMeta (SP2 DB domain, same-package). `scene_count`
+// src u16 varint -> uint32. `thumbnail`: inline bytes.
+message BrowseItem {
+  VideoMeta meta = 1;
+  Location location = 2;
+  uint32 scene_count = 3;
+  bytes thumbnail = 4;
+}
+
+// `status`: bare u32 enum-by-convention (NOT a proto enum, §7.3) —
+// 0=not_downloaded, 1=downloading, 2=ready, 3=error. Values outside this
+// set round-trip exactly (the migration's correctness criterion).
+message ModelInfo {
+  string name = 1;
+  uint32 status = 2;
+  uint64 size_bytes = 3;
+}
+
+// `status`: bare u32 enum-by-convention (NOT a proto enum, §7.3) —
+// 0=pending, 1=downloading, 2=paused, 3=completed, 4=error (distinct
+// value set from ModelInfo.status; documentary only). `progress` 0.0–1.0.
+message ModelDownloadProgress {
+  string name = 1;
+  float progress = 2;
+  uint64 downloaded_bytes = 3;
+  uint64 total_bytes = 4;
+  uint32 status = 5;
+  string error_msg = 6;
+}
+
+// `kind`: bare u32 enum-by-convention (NOT a proto enum, §7.3) — 0=video,
+// 1=audio. `error_status`/`index_status`: inline uint32 VideoIndexStatus
+// (SP2 bitflag reused by-value, §7.4) — bits: PROBED=0x01,
+// SCENE_DETECTED=0x02, KEYFRAME_EXTRACTED=0x04, VLM_ANALYZED=0x10,
+// APPLE_VISION_ANALYZED=0x20, TEXT_EMBEDDING_FINISHED=0x40,
+// SCENE_EMBEDDING_FINISHED=0x80 (source gap at 0x08). DISTINCT type from
+// NetFailedFile (the distinct package disambiguates, §7.1).
+message NetFailedFile {
+  uint32 kind = 1;
+  Location location = 2;
+  ErrorInfo error = 3;
+  uint32 error_status = 4;
+  uint32 index_status = 5;
+}
+
+// `completed_phases`: inline uint32 VideoIndexStatus (SP2 bitflag reused
+// by-value, §7.4) — bits: PROBED=0x01, SCENE_DETECTED=0x02,
+// KEYFRAME_EXTRACTED=0x04, VLM_ANALYZED=0x10, APPLE_VISION_ANALYZED=0x20,
+// TEXT_EMBEDDING_FINISHED=0x40, SCENE_EMBEDDING_FINISHED=0x80 (src gap
+// at 0x08).
+message IndexingFile {
+  Location location = 1;
+  string name = 2;
+  uint32 completed_phases = 3;
+}
+
+// ── Batch 3: empty + simple request/response leaves (§7.5 folder.rs/
+//    volume_eject.rs/file.rs/daemon.rs/model.rs/search.rs/browse.rs/annotation.rs) ────
+
+// Empty request (zero fields) — the discriminant alone carries intent.
+message ListLocationsRequest {}
+
+message RemoveLocationResponse {}
+
+message RetryFailedResponse {}
+
+message EjectVolumeResponse {}
+
+message GetModelStatusRequest {}
+
+message GetDaemonInfoRequest {}
+
+message UpdateAnnotationResponse {}
+
+// `volume_id`: inline bytes (Id convention, §7.1).
+message EjectVolumeRequest { bytes volume_id = 1; }
+
+// `checksum`: inline bytes (FileChecksum convention, §7.1).
+message GetIndexedFileRequest { bytes checksum = 1; }
+
+// `video_id`: inline bytes (Id convention, §7.1).
+message GetFileIndexingStatsRequest { bytes video_id = 1; }
+
+message GetLocationStatsRequest { Location location = 1; }
+
+message RemoveLocationRequest { Location location = 1; }
+
+message RetryFailedRequest { Location location = 1; }
+
+message BrowseRequest {
+  Location location = 1;
+  Pagination pagination = 2;
+}
+
+message IndexLocationRequest { LocationTarget target = 1; }
+
+message IndexLocationResponse { WatchedLocation folder = 1; }
+
+// `scene_ids`: repeated bytes (Id convention, §7.1). `user_tags`:
+// Tag (SP1, same-package).
+message UpdateAnnotationRequest {
+  repeated bytes scene_ids = 1;
+  repeated Tag user_tags = 2;
+}
+
+// `search_id`: inline bytes (Id convention, §7.1).
+message SearchResponse {
+  bytes search_id = 1;
+  uint32 total_count = 2;
+}
+
+message GetDaemonInfoResponse {
+  string version = 1;
+  int64 started_at = 2;
+  uint64 total_videos = 3;
+  uint64 total_scenes = 4;
+  uint32 active_tasks = 5;
+}
+
+// ── Batch 4: composite responses (§7.5 folder.rs/search.rs/browse.rs/file.rs/
+//    model.rs/progress.rs) ────────────────────────────────────────────────
+
+message Volume {
+  VolumeMeta meta = 1;
+  repeated WatchedLocation folders = 2;
+}
+
+message ListLocationsResponse { repeated Volume groups = 1; }
+
+message GetLocationStatsResponse {
+  uint64 total_files = 1;
+  uint64 indexed_files = 2;
+  uint64 total_videos = 3;
+  uint64 total_scenes = 4;
+  uint64 total_audios = 5;
+  repeated NetFailedFile failed_files = 6;
+}
+
+// `location_id`: inline bytes (Id convention, §7.1).
+message FailedFilesResponse {
+  bytes location_id = 1;
+  repeated NetFailedFile failed_files = 2;
+}
+
+message SearchRequest {
+  string query = 1;
+  Pagination pagination = 2;
+  repeated SearchFilter filters = 3;
+}
+
+message BrowseResponse {
+  repeated BrowseItem items = 1;
+  uint32 total_count = 2;
+  Pagination pagination = 3;
+}
+
+// `video`/`scenes`: Video / Scene (SP2 DB domain,
+// same-package refs).
+message GetIndexedFileResponse {
+  Video video = 1;
+  repeated Scene scenes = 2;
+}
+
+// `video_id`: inline bytes (Id convention, §7.1). `index_status`: inline
+// uint32 VideoIndexStatus (SP2 bitflag reused by-value, §7.4) — bits:
+// PROBED=0x01, SCENE_DETECTED=0x02, KEYFRAME_EXTRACTED=0x04,
+// VLM_ANALYZED=0x10, APPLE_VISION_ANALYZED=0x20,
+// TEXT_EMBEDDING_FINISHED=0x40, SCENE_EMBEDDING_FINISHED=0x80 (src gap at
+// 0x08). `error`: source Option<ErrorInfo> -> optional ErrorInfo
+// (source normalizes empty->None; presence per §2).
+message GetFileIndexingStatsResponse {
+  bytes video_id = 1;
+  uint32 index_status = 2;
+  optional ErrorInfo error = 3;
+}
+
+message GetModelStatusResponse { repeated ModelInfo models = 1; }
+
+// Thin wrapper kept as a named message — distinct RESPONSE role; references
+// the shared batch-2 ModelDownloadProgress leaf (NOT a re-typed copy). NOT
+// collapsed: it is a separate decode target from ModelDownloadProgressEvent
+// in the source dispatch (response vs push role, §7.8 #4/#10).
+message ModelDownloadProgressResponse { ModelDownloadProgress model = 1; }
+
+message IndexingProgressResponse {
+  Location location = 1;
+  uint64 total_files = 2;
+  uint64 indexed_files = 3;
+  repeated IndexingFile active_files = 4;
+}
+
+// ── Batch 5: events (§7.5 event.rs) ─────────────────────────────────────────
+
+// `event`: bare u32 enum-by-convention (NOT a proto enum, §7.3) —
+// 0=mounted, 1=unmounted, 2=ejected. Out-of-set values round-trip exactly.
+message VolumeStateChangedEvent {
+  VolumeMeta volume = 1;
+  uint32 event = 2;
+}
+
+// `event`: bare u32 enum-by-convention (NOT a proto enum, §7.3) —
+// 0=file_created, 1=file_modified, 2=file_removed. Out-of-set values
+// round-trip exactly.
+message FolderUpdatedEvent {
+  Location folder_location = 1;
+  string path = 2;
+  uint32 event = 3;
+}
+
+// Thin wrapper kept as a named message — distinct PUSH/EVENT role (the
+// uncorrelated server-push Event arm at discriminant tag 20002); same wire
+// shape as ModelDownloadProgressResponse but a separate type per its source
+// role; references the shared batch-2 ModelDownloadProgress leaf (NOT a
+// re-typed copy). NOT collapsed (§7.8 #4/#10).
+message ModelDownloadProgressEvent { ModelDownloadProgress model = 1; }
+
+// ── Batch 6: Request oneof envelope (§7.5 mod.rs) ───────────────────────────
+
+// Rust enum-with-data -> proto3 message + single `oneof kind` (owned;
+// mirrors SP2 SubtitleTrackOrigin). Each arm's tag is the source
+// MessageType discriminant integer, VERBATIM (sparse, deliberately-banded:
+// 1 / 500–501 / 1000s / 2000s) — emitted with NO `reserved` per §2's
+// wide-band rule and the SP2 §6.8 #3 AudioAnalysis/TrackRecord precedent.
+message Request {
+  oneof kind {
+    HeartbeatRequest heartbeat = 1;
+    SearchRequest search = 500;
+    BrowseRequest browse = 501;
+    GetLocationStatsRequest get_location_stats = 1000;
+    ListLocationsRequest list_locations = 1001;
+    GetIndexedFileRequest get_indexed_file = 1002;
+    GetFileIndexingStatsRequest get_file_indexing_stats = 1003;
+    GetModelStatusRequest get_model_status = 1004;
+    GetDaemonInfoRequest get_daemon_info = 1007;
+    IndexLocationRequest index_location = 2000;
+    RemoveLocationRequest remove_location = 2001;
+    UpdateAnnotationRequest update_annotation = 2002;
+    EjectVolumeRequest eject_volume = 2003;
+    RetryFailedRequest retry_failed = 2005;
+  }
+}
+
+// ── Batch 7: Response oneof envelope (§7.5 mod.rs) ──────────────────────────
+
+// Rust enum-with-data -> proto3 message + single `oneof kind` (owned;
+// mirrors SP2 SubtitleTrackOrigin). 15 arms (§7.8 #1: mod.rs defines 15,
+// incl. ErrorResponse=19999). Each arm's tag is the source MessageType
+// discriminant integer, VERBATIM (sparse bands 10000s / 12000s / 20000
+// (error remapped from reserved 19999, §7.8)) — NO `reserved` per §2's
+// wide-band rule / SP2 §6.8 #3 precedent. The `error` arm references
+// ErrorInfo DIRECTLY (the source thin error.rs::ErrorResponse
+// {error:ErrorInfo} wrapper is collapsed, §7.8 #4 — NO
+// ErrorResponse type). The error arm tag is 20000, NOT the
+// source MessageType::ErrorResponse=19999: protobuf reserves field numbers
+// 19000-19999, and §2's NO-wire-compat invariant makes the source
+// discriminant non-binding — remapped to the next clean non-reserved high
+// sentinel (§7.8).
+message Response {
+  oneof kind {
+    HeartbeatResponse heartbeat = 10001;
+    SearchResponse search = 10500;
+    BrowseResponse browse = 10501;
+    GetIndexedFileResponse get_indexed_file = 11002;
+    ListLocationsResponse list_locations = 11003;
+    GetLocationStatsResponse get_location_stats = 11004;
+    GetFileIndexingStatsResponse get_file_indexing_stats = 11005;
+    GetModelStatusResponse get_model_status = 11006;
+    GetDaemonInfoResponse get_daemon_info = 11009;
+    IndexLocationResponse index_location = 12000;
+    RemoveLocationResponse remove_location = 12001;
+    UpdateAnnotationResponse update_annotation = 12003;
+    EjectVolumeResponse eject_volume = 12004;
+    RetryFailedResponse retry_failed = 12006;
+    ErrorInfo error = 20000;
+  }
+}
+
+// ── Batch 8: Event oneof envelope (§7.5 mod.rs) ─────────────────────────────
+
+// Rust enum-with-data -> proto3 message + single `oneof kind` (owned;
+// mirrors SP2 SubtitleTrackOrigin). 5 arms. Each arm's tag is the source
+// MessageType discriminant integer, VERBATIM (sparse: 13000 / 12007 /
+// 20000–20002) — NO `reserved` per §2's wide-band rule / SP2 §6.8 #3
+// precedent. `progress`/`failed_files` arms reuse the batch-4
+// IndexingProgressResponse / FailedFilesResponse messages (§7.5). Event has
+// NO correlation envelope (uncorrelated server-push, §7.8 #3).
+message Event {
+  oneof kind {
+    FailedFilesResponse failed_files = 12007;
+    IndexingProgressResponse indexing_progress = 13000;
+    VolumeStateChangedEvent volume_state_changed = 20000;
+    FolderUpdatedEvent folder_updated = 20001;
+    ModelDownloadProgressEvent model_download_progress = 20002;
+  }
+}
+
+// ── Batch 9: correlation envelopes (§7.5 mod.rs; §7.8 #3) ───────────────────
+
+// `Payload<Request>` monomorphized (proto3 has no generics, §7.8 #3).
+// `request_id`: the src RequestId u64 newtype inlined as uint64 (§7.2);
+// request_id=0 => no-correlation default (matches the source
+// RequestId::from_raw(0) Default and the `id.value()!=0` encode guard) —
+// plain uint64, NOT `optional`. `request`: the batch-6 Request oneof
+// envelope.
+message RequestEnvelope {
+  uint64 request_id = 1;
+  Request request = 2;
+}
+
+// `Payload<Response>` monomorphized. Same request_id convention. The source
+// RequestMessage=Payload<Request> / ResponseMessage=Payload<Response>
+// aliases are NOT separate types. `response`: the batch-7 Response oneof
+// envelope. (Event has NO envelope — uncorrelated push, §7.8 #3.)
+message ResponseEnvelope {
+  uint64 request_id = 1;
+  Response response = 2;
 }

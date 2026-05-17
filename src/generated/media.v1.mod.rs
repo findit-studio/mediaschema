@@ -151,6 +151,92 @@ pub mod __buffa {
         reg.register_json_any(super::__AUDIO_COVER_ART_JSON_ANY);
         #[cfg(feature = "json")]
         reg.register_json_any(super::__AUDIO_FILE_RECORD_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__SP3CODEGEN_SMOKE_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__PAGINATION_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__SEARCH_FILTER_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__HEARTBEAT_REQUEST_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__HEARTBEAT_RESPONSE_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__SEARCH_HIT_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__BROWSE_ITEM_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__MODEL_INFO_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__MODEL_DOWNLOAD_PROGRESS_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__NET_FAILED_FILE_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__INDEXING_FILE_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__LIST_LOCATIONS_REQUEST_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__REMOVE_LOCATION_RESPONSE_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__RETRY_FAILED_RESPONSE_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__EJECT_VOLUME_RESPONSE_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__GET_MODEL_STATUS_REQUEST_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__GET_DAEMON_INFO_REQUEST_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__UPDATE_ANNOTATION_RESPONSE_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__EJECT_VOLUME_REQUEST_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__GET_INDEXED_FILE_REQUEST_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__GET_FILE_INDEXING_STATS_REQUEST_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__GET_LOCATION_STATS_REQUEST_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__REMOVE_LOCATION_REQUEST_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__RETRY_FAILED_REQUEST_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__BROWSE_REQUEST_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__INDEX_LOCATION_REQUEST_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__INDEX_LOCATION_RESPONSE_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__UPDATE_ANNOTATION_REQUEST_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__SEARCH_RESPONSE_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__GET_DAEMON_INFO_RESPONSE_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__VOLUME_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__LIST_LOCATIONS_RESPONSE_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__GET_LOCATION_STATS_RESPONSE_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__FAILED_FILES_RESPONSE_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__SEARCH_REQUEST_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__BROWSE_RESPONSE_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__GET_INDEXED_FILE_RESPONSE_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__GET_FILE_INDEXING_STATS_RESPONSE_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__GET_MODEL_STATUS_RESPONSE_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__MODEL_DOWNLOAD_PROGRESS_RESPONSE_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__INDEXING_PROGRESS_RESPONSE_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__VOLUME_STATE_CHANGED_EVENT_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__FOLDER_UPDATED_EVENT_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__MODEL_DOWNLOAD_PROGRESS_EVENT_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__REQUEST_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__RESPONSE_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__EVENT_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__REQUEST_ENVELOPE_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__RESPONSE_ENVELOPE_JSON_ANY);
     }
 }
 #[cfg(feature = "json")]
