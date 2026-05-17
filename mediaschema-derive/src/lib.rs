@@ -16,6 +16,9 @@ pub fn derive_quickcheck_arbitrary(input: TokenStream) -> TokenStream {
     let expanded = quote! {
         impl #impl_generics ::quickcheck::Arbitrary for #name #ty_generics #where_clause {
             fn arbitrary(g: &mut ::quickcheck::Gen) -> Self {
+                // First attempt is 256 bytes, then doubles. For every
+                // buffa-generated target type the first attempt succeeds in
+                // practice; the zeroed-buffer fallback below is defensive only.
                 let mut len: usize = 256;
                 for _ in 0..8 {
                     let bytes: ::std::vec::Vec<u8> =
