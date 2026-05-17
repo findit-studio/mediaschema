@@ -111,8 +111,11 @@ adds `quickcheck`+`mediaschema-derive`. The `json`/`arbitrary` propagation into
 `.proto` authored from the **Rust structs/enums**, clean numbering from 1, single
 product-neutral package **`media.v1`**. Generation is a **manual developer step**
 (`cargo run -p xtask -- gen`) writing into `src/generated/` with `include_file("mod.rs")`
-and an explicit `out_dir` (→ relative `include!`s; `mod generated;`). `src/lib.rs`
-flattens with `pub use generated::media::v1::*;` so consumers see `mediaschema::Detection`.
+and an explicit `out_dir` (→ relative `include!`s; `#[allow(warnings, clippy::all)]
+mod generated;`). `src/lib.rs` flattens with **named** re-exports
+(`pub use generated::media::v1::{BoundingBox, Detection, TimedDetection};` — not a glob,
+so buffa internals `__buffa`/`__*_JSON_ANY` stay out of the public surface) so consumers
+see `mediaschema::Detection`.
 **CI gate:** re-run gen; `git diff --exit-code` (mirrors buffa's `check-generated-code`).
 `protoc` (default) or `buf` needed only at gen time; SP0 uses `protoc` 34.0 (verified
 present); never required by consumers.
@@ -219,9 +222,9 @@ bridge is exercised by a property test.
   require implementing that surface in `mediatime`.
 - **mediatime no-alloc** — the optional `buffa` feature pulls `buffa` (needs `alloc`).
   Opt-in/gated; default mediatime stays no-alloc. Recorded, not blocking.
-- **Generated module nesting** — public API is flattened via
-  `pub use generated::media::v1::*;`; the plan reads `src/generated/mod.rs` to confirm the
-  exact tree rather than assuming.
+- **Generated module nesting** — RESOLVED: confirmed tree is
+  `generated::media::v1::{Detection,BoundingBox,TimedDetection}`; public API flattened via
+  **named** re-exports (not a glob — keeps buffa `__buffa`/`__*_JSON_ANY` internal).
 
 ## 7. Explicitly Out of Scope
 
