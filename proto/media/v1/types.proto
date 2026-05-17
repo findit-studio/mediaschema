@@ -143,3 +143,54 @@ message VolumeMeta {
   uint64 used_size = 5;
   uint32 status = 6;            // VolumeStatus bitflags (EJECTABLE=1, ACTIVE=2)
 }
+
+// Single-Detection envelope: image-level classification result.
+message ClassificationDetection { Detection detection = 1; }
+// Single-Detection envelope: detected action/activity.
+message ActionDetection { Detection detection = 1; }
+// Single-Detection envelope: detected emotion.
+message EmotionDetection { Detection detection = 1; }
+// Single-Detection envelope: scene mood/atmosphere.
+message MoodDetection { Detection detection = 1; }
+// Single-Detection envelope: lighting condition.
+message LightingDetection { Detection detection = 1; }
+// Single-Detection envelope: dominant color (confidence = dominance).
+message ColorDetection { Detection detection = 1; }
+
+// A detected object: classification + optional bounding box.
+message ObjectDetection {
+  Detection detection = 1;
+  optional BoundingBox bbox = 2;
+}
+// A detected subject (e.g. Human/Cat): classification + bounding box.
+message SubjectDetection {
+  Detection detection = 1;
+  BoundingBox bbox = 2;
+}
+// Recognized text with location.
+message TextDetection {
+  string text = 1;
+  float confidence = 2;
+  BoundingBox bbox = 3;
+}
+// Decoded barcode/QR with location.
+message BarcodeDetection {
+  string payload = 1;
+  string symbology = 2;
+  float confidence = 3;
+  BoundingBox bbox = 4;
+}
+// Detected face with pose angles.
+message FaceDetection {
+  BoundingBox bbox = 1;
+  float confidence = 2;
+  float capture_quality = 3;
+  float roll = 4;
+  float yaw = 5;
+  float pitch = 6;
+}
+// A salient region of interest.
+message SaliencyRegion {
+  BoundingBox bbox = 1;
+  float confidence = 2;
+}

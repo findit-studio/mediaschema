@@ -14,10 +14,12 @@ mod generated {
 // consumers write `mediaschema::Detection`. Named (not glob) so buffa
 // internals (`__buffa`, `__*_JSON_ANY`) stay out of the public surface.
 pub use generated::media::v1::{
-    Aesthetics, AppPathBuf, AudioFormat, BoundingBox, CodecId, Detection, Dimensions,
-    DocumentSegment, ErrorInfo, FeaturePrint, FileChecksum, HorizonInfo, Id, Local, Location,
-    LocationTarget, MediaKind, Point2D, Tag, TimedDetection, VideoFormat, VolumeMeta,
-    WatchedLocation,
+    ActionDetection, Aesthetics, AppPathBuf, AudioFormat, BarcodeDetection, BoundingBox,
+    ClassificationDetection, CodecId, ColorDetection, Detection, Dimensions, DocumentSegment,
+    EmotionDetection, ErrorInfo, FaceDetection, FeaturePrint, FileChecksum, HorizonInfo, Id,
+    LightingDetection, Local, Location, LocationTarget, MediaKind, MoodDetection, ObjectDetection,
+    Point2D, SaliencyRegion, SubjectDetection, Tag, TextDetection, TimedDetection, VideoFormat,
+    VolumeMeta, WatchedLocation,
 };
 /// Oneof variant for [`MediaKind`]: `Kind::Video(…)` or `Kind::Audio(…)`.
 pub use generated::media::v1::media_kind::Kind as MediaKindKind;

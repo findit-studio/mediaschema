@@ -1,10 +1,12 @@
 use buffa::Message;
 use core::num::NonZeroU32;
 use mediaschema::{
-    Aesthetics, AppPathBuf, AudioFormat, BoundingBox, CodecId, Detection, Dimensions,
-    DocumentSegment, ErrorInfo, FeaturePrint, FileChecksum, HorizonInfo, Id, Local, Location,
-    LocationKind, LocationTarget, LocationTargetKind, MediaKind, MediaKindKind, Point2D, Tag,
-    TimedDetection, VideoFormat, VolumeMeta, WatchedLocation,
+    ActionDetection, Aesthetics, AppPathBuf, AudioFormat, BarcodeDetection, BoundingBox,
+    ClassificationDetection, CodecId, ColorDetection, Detection, Dimensions, DocumentSegment,
+    EmotionDetection, ErrorInfo, FaceDetection, FeaturePrint, FileChecksum, HorizonInfo, Id,
+    LightingDetection, Local, Location, LocationKind, LocationTarget, LocationTargetKind,
+    MediaKind, MediaKindKind, MoodDetection, ObjectDetection, Point2D, SaliencyRegion,
+    SubjectDetection, Tag, TextDetection, TimedDetection, VideoFormat, VolumeMeta, WatchedLocation,
 };
 use mediatime::{Timebase, TimeRange};
 
@@ -390,4 +392,129 @@ fn watched_location_json_roundtrip() {
     let json = serde_json::to_string(&wl).expect("to_json");
     let back: WatchedLocation = serde_json::from_str(&json).expect("from_json");
     assert_eq!(wl, back);
+}
+
+// ── SP1 Batch 4 ──────────────────────────────────────────────────────────────
+
+fn make_detection(label: &str, confidence: f32) -> buffa::MessageField<Detection> {
+    buffa::MessageField::some(Detection { label: label.into(), confidence, ..Default::default() })
+}
+
+fn make_bbox(x: f32, y: f32, w: f32, h: f32) -> buffa::MessageField<BoundingBox> {
+    buffa::MessageField::some(BoundingBox { x, y, width: w, height: h, ..Default::default() })
+}
+
+#[test]
+fn batch4_roundtrip() {
+    // ── 6 single-Detection envelopes ─────────────────────────────────────────
+    let populated_det = make_detection("x", 0.9);
+
+    let cd = ClassificationDetection { detection: populated_det.clone(), ..Default::default() };
+    rt(&cd);
+    rt(&ClassificationDetection::default());
+
+    let ad = ActionDetection { detection: populated_det.clone(), ..Default::default() };
+    rt(&ad);
+    rt(&ActionDetection::default());
+
+    let ed = EmotionDetection { detection: populated_det.clone(), ..Default::default() };
+    rt(&ed);
+    rt(&EmotionDetection::default());
+
+    let md = MoodDetection { detection: populated_det.clone(), ..Default::default() };
+    rt(&md);
+    rt(&MoodDetection::default());
+
+    let ld = LightingDetection { detection: populated_det.clone(), ..Default::default() };
+    rt(&ld);
+    rt(&LightingDetection::default());
+
+    let col = ColorDetection { detection: populated_det.clone(), ..Default::default() };
+    rt(&col);
+    rt(&ColorDetection::default());
+
+    // ── ObjectDetection: optional BoundingBox — SET and UNSET ────────────────
+    // Both arms use MessageField<BoundingBox>; presence distinguished by .is_set().
+    let obj_with_bbox = ObjectDetection {
+        detection: make_detection("dog", 0.85),
+        bbox: make_bbox(0.1, 0.2, 0.3, 0.4), // MessageField::some(…)
+        ..Default::default()
+    };
+    rt(&obj_with_bbox);
+
+    let obj_no_bbox = ObjectDetection {
+        detection: make_detection("sky", 0.7),
+        bbox: buffa::MessageField::none(), // optional: explicitly absent
+        ..Default::default()
+    };
+    rt(&obj_no_bbox);
+
+    rt(&ObjectDetection::default());
+
+    // ── SubjectDetection ─────────────────────────────────────────────────────
+    let sub = SubjectDetection {
+        detection: make_detection("Human", 0.95),
+        bbox: make_bbox(0.05, 0.1, 0.4, 0.8),
+        ..Default::default()
+    };
+    rt(&sub);
+    rt(&SubjectDetection::default());
+
+    // ── TextDetection ─────────────────────────────────────────────────────────
+    let txt = TextDetection {
+        text: "Hello World".into(),
+        confidence: 0.99,
+        bbox: make_bbox(0.0, 0.0, 0.5, 0.1),
+        ..Default::default()
+    };
+    rt(&txt);
+    rt(&TextDetection::default());
+
+    // ── BarcodeDetection ──────────────────────────────────────────────────────
+    let barcode = BarcodeDetection {
+        payload: "https://example.com".into(),
+        symbology: "QR_CODE".into(),
+        confidence: 0.98,
+        bbox: make_bbox(0.2, 0.3, 0.15, 0.15),
+        ..Default::default()
+    };
+    rt(&barcode);
+    rt(&BarcodeDetection::default());
+
+    // ── FaceDetection: all 6 floats non-zero incl. a negative angle ───────────
+    let face = FaceDetection {
+        bbox: make_bbox(0.3, 0.1, 0.2, 0.3),
+        confidence: 0.88,
+        capture_quality: 0.75,
+        roll: -0.5,  // negative angle
+        yaw: 0.1,
+        pitch: 0.2,
+        ..Default::default()
+    };
+    rt(&face);
+    rt(&FaceDetection::default());
+
+    // ── SaliencyRegion ────────────────────────────────────────────────────────
+    let sal = SaliencyRegion {
+        bbox: make_bbox(0.1, 0.1, 0.8, 0.8),
+        confidence: 0.6,
+        ..Default::default()
+    };
+    rt(&sal);
+    rt(&SaliencyRegion::default());
+}
+
+#[test]
+#[cfg(feature = "json")]
+fn barcode_detection_json_roundtrip() {
+    let barcode = BarcodeDetection {
+        payload: "https://example.com/scan?q=42".into(),
+        symbology: "QR_CODE".into(),
+        confidence: 0.98,
+        bbox: make_bbox(0.2, 0.3, 0.15, 0.15),
+        ..Default::default()
+    };
+    let json = serde_json::to_string(&barcode).expect("to_json");
+    let back: BarcodeDetection = serde_json::from_str(&json).expect("from_json");
+    assert_eq!(barcode, back);
 }

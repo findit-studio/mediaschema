@@ -49,6 +49,27 @@ pub mod __buffa {
         #[cfg(feature = "json")]
         reg.register_json_any(super::__WATCHED_LOCATION_JSON_ANY);
         #[cfg(feature = "json")] reg.register_json_any(super::__VOLUME_META_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__CLASSIFICATION_DETECTION_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__ACTION_DETECTION_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__EMOTION_DETECTION_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__MOOD_DETECTION_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__LIGHTING_DETECTION_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__COLOR_DETECTION_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__OBJECT_DETECTION_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__SUBJECT_DETECTION_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__TEXT_DETECTION_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__BARCODE_DETECTION_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__FACE_DETECTION_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__SALIENCY_REGION_JSON_ANY);
     }
 }
 #[cfg(feature = "json")]
