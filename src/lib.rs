@@ -5,4 +5,10 @@
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
-// Placeholder until Task 6 generates `src/generated/mod.rs`.
+mod generated {
+    include!("generated/mod.rs");
+}
+
+// Flatten the product-neutral `media.v1` package to the crate root so
+// consumers write `mediaschema::Detection`, not `mediaschema::media::v1::…`.
+pub use generated::media::v1::*;

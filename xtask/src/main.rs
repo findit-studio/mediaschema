@@ -30,6 +30,12 @@ fn gen() {
         .extern_path(".mediatime.v1", "::mediatime")
         .generate_json(true)
         .generate_arbitrary(true)
+        // buffa 0.6: without this, generate_json(true) emits UNGATED serde
+        // derives (hard serde dep). On => serde is `#[cfg_attr(feature="json",…)]`.
+        .gate_impls_on_crate_features(true)
+        // No zero-copy views in SP0: scalar-only mediatime extern types don't
+        // implement buffa's view-trait surface (ViewEncode/_decode_depth/…).
+        .generate_views(false)
         .type_attribute(
             ".",
             "#[cfg_attr(feature = \"quickcheck\", derive(::mediaschema_derive::QuickcheckArbitrary))]",

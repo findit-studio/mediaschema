@@ -14,7 +14,7 @@ rust-version = "1.85"
 [features]
 default = ["std"]
 std = ["buffa/std", "buffa-types/std"]
-serde = ["dep:serde", "dep:serde_json", "buffa/json", "buffa-types/json", "mediatime/serde"]
+json = ["dep:serde", "dep:serde_json", "buffa/json", "buffa-types/json", "mediatime/serde"]
 arbitrary = ["dep:arbitrary", "buffa/arbitrary", "buffa-types/arbitrary", "mediatime/arbitrary"]
 quickcheck = ["arbitrary", "dep:quickcheck", "dep:mediaschema-derive"]
 
