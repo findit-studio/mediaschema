@@ -96,10 +96,11 @@ mediaschema/
 
 `mediaschema` Cargo features (workspace `resolver = "2"`): `default=["std"]`;
 `std`→`buffa/std`+`buffa-types/std`;
-`serde`→`buffa/json`+`buffa-types/json`+`mediatime/serde`+serde/serde_json;
+`json`→`dep:serde`+`dep:serde_json`+`buffa/json`+`buffa-types/json`+`mediatime/serde`
+(feature MUST be literally `json` — buffa gates serde on `feature = "json"`);
 `arbitrary`→`buffa/arbitrary`+`buffa-types/arbitrary`+`mediatime/arbitrary` (literal
-feature name required by generated `cfg_attr`); `quickcheck` implies `arbitrary`,
-adds `quickcheck`+`mediaschema-derive`. The `serde`/`arbitrary` propagation into
+`arbitrary` required by generated `cfg_attr`); `quickcheck` implies `arbitrary`,
+adds `quickcheck`+`mediaschema-derive`. The `json`/`arbitrary` propagation into
 `mediatime` is **load-bearing**: generated messages embed `mediatime` types via
 `MessageField<T>`, and buffa's `cfg_attr` serde/arbitrary derives require
 `T: Serialize`/`Arbitrary` (spec §5.C.4). Deps: `buffa`, `buffa-types`, `mediatime`
@@ -118,9 +119,17 @@ present); never required by consumers.
 
 `buffa_build::Config`: `.files([proto/media/v1/types.proto]).includes([proto])
 .out_dir(src/generated).include_file("mod.rs").extern_path(".mediatime.v1","::mediatime")
-.generate_json(true).generate_arbitrary(true).type_attribute(".", quickcheck-cfg-derive)`.
-All capability derives are generated once; Cargo features gate them downstream (buffa's
-intended model — avoids per-feature generated trees).
+.generate_json(true).generate_arbitrary(true).generate_views(false)
+.gate_impls_on_crate_features(true).type_attribute(".", quickcheck-cfg-derive)`.
+
+**Critical buffa 0.6 fact:** `generate_json(true)` emits serde derives that are
+*unconditional* unless `gate_impls_on_crate_features(true)` is set (buffa-codegen's
+default is a hard serde dependency). With the flag on, JSON/views/text impls are
+wrapped in `#[cfg(feature = "json"|"views"|"text")]` / `#[cfg_attr(feature = "json", …)]`
+— the consuming crate **must name those features literally `json`/`views`/`text`**
+(like `arbitrary` must be literally `arbitrary`). SP0 sets the flag on and
+`generate_views(false)` (no zero-copy views — see §C), so only the `json` and
+`arbitrary` (and our `quickcheck`) gates are live.
 
 ### C. mediatime ↔ buffa integration — new `mediatime/buffa` feature
 
@@ -140,6 +149,7 @@ In the **mediatime** repo, behind a new optional `buffa` feature
 2. **`impl buffa::DefaultInstance`** via `buffa::__private::OnceBox` static.
 3. **View aliases** at `::mediatime::__buffa::view::{Timebase,TimeRange,Timestamp}View`
    (scalar-only ⇒ `pub type FooView<'a> = Foo;`), behind `#[cfg(feature="buffa")]`.
+   (Retained, but SP0 disables view generation — see below — so they are currently unused.)
 4. serde/arbitrary: reuse mediatime's **existing** `serde`/`arbitrary` features.
 
 Proto shapes (from the live mediatime structs): `Timebase{uint32 num=1; uint32 den=2;}`
@@ -148,17 +158,23 @@ Timebase timebase=3;}`, `Timestamp{int64 pts=1; Timebase timebase=2;}`. `mediasc
 `extern_path(".mediatime.v1","::mediatime")`. SP0 spans two repos (`mediaschema` +
 `mediatime`).
 
-**Fallback (spec-sanctioned):** if buffa's extern-view expectations for the nested-message
-types are awkward, SP0 may set `.generate_views(false)` — zero-copy views are not required
-to prove the foundation.
+**ADOPTED (was a sanctioned fallback, now the decision):** SP0 sets
+`.generate_views(false)`. buffa's generated view code requires extern types to provide a
+`ViewEncode`/`_decode_depth`/`to_owned_from_source` view surface that the scalar-only
+mediatime aliases do not implement; zero-copy views are not needed to prove the
+foundation (SP0 correctness = owned round-trip). The `__buffa::view` aliases in mediatime
+are retained for a possible future re-enable but are unused in SP0.
 
 ### D. serde / arbitrary / quickcheck
 
-- **serde** — `generate_json(true)`: owned types derive `Serialize`/`Deserialize`
-  (proto3-canonical JSON), views get `Serialize`. Gated by `serde`→`buffa/json`
-  (+`buffa-types/json`).
-- **arbitrary** — `generate_arbitrary(true)`: structural derive; feature must be literally
-  `arbitrary` forwarding to `buffa/arbitrary`.
+- **serde** — `generate_json(true)` + `gate_impls_on_crate_features(true)`: owned types
+  get `#[cfg_attr(feature = "json", derive(Serialize, Deserialize))]` (proto3-canonical
+  JSON). The mediaschema Cargo feature is therefore named **`json`** (buffa gates on the
+  literal `json`), `json`→`dep:serde`+`dep:serde_json`+`buffa/json`+`buffa-types/json`+
+  `mediatime/serde`. No unconditional serde dependency; default build has zero serde refs.
+- **arbitrary** — `generate_arbitrary(true)`: structural derive, always `#[cfg_attr(feature
+  = "arbitrary", …)]` (independent of the gating flag); feature literally `arbitrary` →
+  `buffa/arbitrary`+`buffa-types/arbitrary`+`mediatime/arbitrary`.
 - **quickcheck** — no buffa support, no off-the-shelf derive. A tiny `mediaschema-derive`
   proc-macro `QuickcheckArbitrary` expands to `impl quickcheck::Arbitrary` by sampling
   `quickcheck::Gen` bytes into `arbitrary::Unstructured` and delegating to
@@ -174,15 +190,14 @@ hand-authored to mirror the source structs; human-verified during authoring — 
 `findit-proto` coupling to assert against, by decision 1/3). Tests (`tests/roundtrip.rs`,
 property-based):
 
-- Wire round-trip, every slice type: `decode(encode(x)) == x`.
-- Owned↔view consistency where views are enabled (scalar-only slice ⇒ implied by
-  `decode_from_slice`; explicit `decode_view` assertion if views remain on).
-- JSON round-trip when `serde`: `from_str(to_string(x)) == x`.
+- Wire round-trip, every slice type: `decode(encode(x)) == x` (owned only — views are
+  disabled in SP0).
+- JSON round-trip when `json`: `from_str(to_string(x)) == x`.
 - mediatime extern: a `media.v1` message embedding `Timebase`/`TimeRange`/`Timestamp`
   round-trips, exercising `extern_path` + `MessageField`.
 
 **SP0 is done when:** (1) `mediaschema` builds across feature combos (default,
-no-default, std, serde, arbitrary, quickcheck, all-features); (2) `cargo run -p xtask -- gen`
+no-default, std, json, arbitrary, quickcheck, all-features); (2) `cargo run -p xtask -- gen`
 is `git diff`-clean in CI; (3) round-trip + JSON + extern tests pass for `Detection`,
 `BoundingBox`, and `Timebase`/`TimeRange`/`Timestamp`; (4) `mediatime --features buffa`
 builds and its types round-trip through a `media.v1` parent message; (5) the quickcheck
@@ -197,8 +212,11 @@ bridge is exercised by a property test.
   `__private::OnceBox`, `alloc::boxed::Box`, `DecodeError::WireTypeMismatch`,
   `MessageField`, `DefaultInstance: Default + 'static`, and `buffa-build` `Config` are
   signature-identical to 0.5.x — the SP0 surface is unaffected by the 0.5→0.6 bump.
-- **Extern view with nested message field** — confirm buffa accepts owned-alias views for
-  `TimeRange`/`Timestamp`; fallback `generate_views(false)` baked into the plan.
+- **Extern view with nested message field** — RESOLVED: views are disabled
+  (`generate_views(false)`). buffa's generated view path requires extern types to
+  implement a `ViewEncode`/`_decode_depth`/`to_owned_from_source` surface the scalar-only
+  mediatime aliases lack; SP0 needs no zero-copy views. Re-enabling views later would
+  require implementing that surface in `mediatime`.
 - **mediatime no-alloc** — the optional `buffa` feature pulls `buffa` (needs `alloc`).
   Opt-in/gated; default mediatime stays no-alloc. Recorded, not blocking.
 - **Generated module nesting** — public API is flattened via
