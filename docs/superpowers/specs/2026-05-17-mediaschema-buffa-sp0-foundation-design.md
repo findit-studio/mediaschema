@@ -1,8 +1,8 @@
 # mediaschema — Product-Agnostic Media Schema via buffa — Context & SP0 (Foundation) Design
 
-- **Date:** 2026-05-17 (rev. 2 — product-agnostic scope correction)
-- **Status:** Approved (brainstorming) — pending written-spec re-review
-- **Repos in scope:** `mediaschema` (primary), `mediatime`, `buffa` (capabilities only; no buffa changes in SP0)
+- **Date:** 2026-05-17 (rev. 3 — buffa consumed from crates.io `"0.6"`)
+- **Status:** Approved (brainstorming) — in execution
+- **Repos in scope:** `mediaschema` (primary), `mediatime` (local sibling, co-modified). **`buffa`/`buffa-types`/`buffa-build` are crates.io deps pinned `"0.6"`** (latest published; no local path dep, no buffa changes in SP0)
 - **Provenance (reference only, not a dependency):** type shapes are read from `findit-studio/indexer/findit-proto`'s hand-written Rust
 
 ---
@@ -185,9 +185,13 @@ bridge is exercised by a property test.
 
 ## 6. Risks & Verification Items
 
-- **buffa helper symbol paths** — confirmed from generated `Timestamp` (scalar leaf) and
-  generated `CodeGeneratorRequest` (singular nested message + `SizeCache`); transcribed
-  verbatim into the mediatime impls.
+- **buffa helper symbol paths** — idioms transcribed from generated `Timestamp` (scalar
+  leaf) and generated `CodeGeneratorRequest` (singular nested message + `SizeCache`).
+  **Re-verified against the published `buffa 0.6.0` (crates.io):** `Message`, `SizeCache`
+  (`reserve`/`set`/`consume_next`), `types`/`encoding` helpers (incl. `varint_len`),
+  `__private::OnceBox`, `alloc::boxed::Box`, `DecodeError::WireTypeMismatch`,
+  `MessageField`, `DefaultInstance: Default + 'static`, and `buffa-build` `Config` are
+  signature-identical to 0.5.x — the SP0 surface is unaffected by the 0.5→0.6 bump.
 - **Extern view with nested message field** — confirm buffa accepts owned-alias views for
   `TimeRange`/`Timestamp`; fallback `generate_views(false)` baked into the plan.
 - **mediatime no-alloc** — the optional `buffa` feature pulls `buffa` (needs `alloc`).
