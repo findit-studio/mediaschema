@@ -105,3 +105,55 @@ pub mod location_target {
         }
     }
 }
+pub mod subtitle_track_origin {
+    #[allow(unused_imports)]
+    use super::*;
+    #[derive(Clone, PartialEq, Debug)]
+    #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
+    #[cfg_attr(
+        feature = "quickcheck",
+        derive(::mediaschema_derive::QuickcheckArbitrary)
+    )]
+    pub enum Source {
+        SourceAudioTrackId(::buffa::alloc::vec::Vec<u8>),
+        SourceSubtitleTrackId(::buffa::alloc::vec::Vec<u8>),
+    }
+    impl ::buffa::Oneof for Source {}
+    #[cfg(feature = "json")]
+    impl serde::Serialize for Source {
+        fn serialize<S: serde::Serializer>(
+            &self,
+            s: S,
+        ) -> ::core::result::Result<S::Ok, S::Error> {
+            use serde::ser::SerializeMap;
+            let mut map = s.serialize_map(Some(1))?;
+            match self {
+                Self::SourceAudioTrackId(v) => {
+                    struct _W<'a>(&'a ::buffa::alloc::vec::Vec<u8>);
+                    impl serde::Serialize for _W<'_> {
+                        fn serialize<S2: serde::Serializer>(
+                            &self,
+                            s: S2,
+                        ) -> ::core::result::Result<S2::Ok, S2::Error> {
+                            ::buffa::json_helpers::bytes::serialize(self.0, s)
+                        }
+                    }
+                    map.serialize_entry("sourceAudioTrackId", &_W(v))?;
+                }
+                Self::SourceSubtitleTrackId(v) => {
+                    struct _W<'a>(&'a ::buffa::alloc::vec::Vec<u8>);
+                    impl serde::Serialize for _W<'_> {
+                        fn serialize<S2: serde::Serializer>(
+                            &self,
+                            s: S2,
+                        ) -> ::core::result::Result<S2::Ok, S2::Error> {
+                            ::buffa::json_helpers::bytes::serialize(self.0, s)
+                        }
+                    }
+                    map.serialize_entry("sourceSubtitleTrackId", &_W(v))?;
+                }
+            }
+            map.end()
+        }
+    }
+}

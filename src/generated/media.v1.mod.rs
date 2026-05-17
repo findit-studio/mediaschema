@@ -94,6 +94,63 @@ pub mod __buffa {
         #[cfg(feature = "json")]
         reg.register_json_any(super::__ANIMAL_ANALYSIS_JSON_ANY);
         #[cfg(feature = "json")] reg.register_json_any(super::__HUMAN_ANALYSIS_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__SP2CODEGEN_SMOKE_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__TAG_CONFIDENCE_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__SOUND_SOURCE_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__AUDIO_EVENT_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__SPEAKER_SEGMENT_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__AUDIO_TRANSCRIPT_SEGMENT_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__AUDIO_CHANNEL_SPEC_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__CHROMAPRINT_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__EBUR128_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__TIMECODE_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__CED_DETECTION_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__CED_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__AUDIO_CHANNEL_LAYOUT_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__CLAP_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__TRACK_TAG_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__VIDEO_META_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__VIDEO_TRACK_META_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__VIDEO_STREAM_META_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__MEDIA_META_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__SCENE_META_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__SUBTITLE_META_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__SUBTITLE_TRACK_META_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__SUBTITLE_TRACK_ORIGIN_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__FAILED_FILE_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__VIDEO_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__VIDEO_TRACK_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__MEDIA_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__SUBTITLE_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__SUBTITLE_TRACK_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__SUBTITLE_CUE_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__SCENE_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__SCENE_VLM_RESULT_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__KEYFRAME_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__AUDIO_META_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__AUDIO_STREAM_META_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__AUDIO_TRACK_META_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__AUDIO_SUMMARY_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__AUDIO_ANALYSIS_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__TRACK_RECORD_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__AUDIO_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__AUDIO_TRACK_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__AUDIO_COVER_ART_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__AUDIO_FILE_RECORD_JSON_ANY);
     }
 }
 #[cfg(feature = "json")]

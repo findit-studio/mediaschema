@@ -13,16 +13,26 @@ mod generated {
 // Flatten the product-neutral `media.v1` package to the crate root so
 // consumers write `mediaschema::Detection`. Named (not glob) so buffa
 // internals (`__buffa`, `__*_JSON_ANY`) stay out of the public surface.
+// SP2 database-domain types (same media.v1 package since mono-consolidation).
 pub use generated::media::v1::{
-    ActionDetection, Aesthetics, AnimalAnalysis, AppPathBuf, AudioFormat, BarcodeDetection,
-    BodyPose3DDetection, BodyPose3DHeightEstimation, BodyPose3DJoint, BodyPoseDetection,
-    BodyPoseJoint, BoundingBox, ClassificationDetection, CodecId, ColorDetection, Detection,
-    Dimensions, DocumentSegment, EmotionDetection, ErrorInfo, FaceDetection, FaceLandmarkPoint,
-    FaceLandmarkRegion, FaceLandmarksDetection, FeaturePrint, FileChecksum, HandChirality,
-    HandPoseDetection, HorizonInfo, HumanAnalysis, Id, LightingDetection, Local, Location,
-    LocationTarget, MediaKind, MoodDetection, ObjectDetection, PersonInstanceMaskDetection,
-    PersonSegmentationMask, Point2D, SaliencyRegion, SubjectDetection, Tag, TextDetection,
-    TimedDetection, TrackTime, TrackTimeSource, VideoFormat, VolumeMeta, WatchedLocation,
+    ActionDetection, Aesthetics, AnimalAnalysis, AppPathBuf, Audio, AudioAnalysis,
+    AudioChannelLayout, AudioChannelOrderKind, AudioChannelSpec, AudioClipKind, AudioCodec,
+    AudioContainerFormat, AudioCoverArt, AudioEvent, AudioFileRecord, AudioFormat, AudioMeta,
+    AudioPrefilterClass, AudioSampleFormat, AudioStreamMeta, AudioSummary, AudioTrack,
+    AudioTrackMeta, AudioTrackRole, AudioTranscriptSegment, BarcodeDetection, BodyPose3DDetection,
+    BodyPose3DHeightEstimation, BodyPose3DJoint, BodyPoseDetection, BodyPoseJoint, BoundingBox,
+    Ced, CedDetection, ChannelLayoutKind, Chromaprint, Clap, ClassificationDetection, CodecId,
+    ColorDetection, DbMediaKind, Detection, Dimensions, DocumentSegment, Ebur128, EmotionDetection,
+    ErrorInfo, FaceDetection, FaceLandmarkPoint, FaceLandmarkRegion, FaceLandmarksDetection,
+    FailedFile, FeaturePrint, FileChecksum, HandChirality, HandPoseDetection, HorizonInfo,
+    HumanAnalysis, Id, Keyframe, LightingDetection, Local, Location, LocationTarget, Media,
+    MediaKind, MediaMeta, MoodDetection, ObjectDetection, PersonInstanceMaskDetection,
+    PersonSegmentationMask, Point2D, SaliencyRegion, Scene, SceneMeta, SceneVlmResult,
+    SoundSource, Sp2CodegenSmoke, SpeakerSegment, SubjectDetection, Subtitle, SubtitleCue,
+    SubtitleMeta, SubtitleTrack, SubtitleTrackFormat, SubtitleTrackMeta, SubtitleTrackOrigin,
+    SubtitleTrackRole, Tag, TagConfidence, TextDetection, Timecode, TimedDetection,
+    TrackClassificationType, TrackRecord, TrackTag, TrackTime, TrackTimeSource, Video, VideoFormat,
+    VideoMeta, VideoStreamMeta, VideoTrack, VideoTrackMeta, VolumeMeta, WatchedLocation,
 };
 /// Oneof variant for [`MediaKind`]: `Kind::Video(…)` or `Kind::Audio(…)`.
 pub use generated::media::v1::media_kind::Kind as MediaKindKind;
@@ -30,3 +40,5 @@ pub use generated::media::v1::media_kind::Kind as MediaKindKind;
 pub use generated::media::v1::location::Kind as LocationKind;
 /// Oneof variant for [`LocationTarget`]: `Kind::Local(…)`.
 pub use generated::media::v1::location_target::Kind as LocationTargetKind;
+/// Oneof variant for [`SubtitleTrackOrigin`]: `Source::SourceAudioTrackId(…)` or `Source::SourceSubtitleTrackId(…)`.
+pub use generated::media::v1::subtitle_track_origin::Source as SubtitleTrackOriginSource;
