@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package media.v1;
+
+import "mediatime/v1/mediatime.proto";
+
+// Classification result. Shape from findit-proto Detection { label, confidence }.
+message Detection {
+  string label = 1;
+  float confidence = 2;
+}
+
+// Normalized image rectangle. Shape from findit-proto BoundingBox.
+message BoundingBox {
+  float x = 1;
+  float y = 2;
+  float width = 3;
+  float height = 4;
+}
+
+// Exercises the mediatime extern integration end-to-end.
+message TimedDetection {
+  Detection detection = 1;
+  mediatime.v1.TimeRange range = 2;
+  mediatime.v1.Timebase timebase = 3;
+}
