@@ -88,7 +88,9 @@ Authored from a full survey of `findit-proto/src/common/`. All in package **`med
 | `HumanAnalysis` | `repeated SubjectDetection subjects=1; repeated FaceDetection faces=2; repeated BodyPoseDetection body_poses=3; repeated HandPoseDetection hand_poses=4; repeated BodyPose3DDetection body_poses_3d=5; repeated PersonInstanceMaskDetection instance_masks=6; repeated FaceDetection face_rectangles=7; repeated FaceLandmarksDetection face_landmarks=8; repeated PersonSegmentationMask segmentation_masks=9` |
 | `TrackTime` | `optional mediatime.v1.TimeRange declared=1; optional …TimeRange packet_observed=2; optional …TimeRange decoded_observed=3` (+`TrackTimeSource` enum) |
 
-**Implementation batches** (dependency-ordered; one implementer task + two-stage review each; each batch = author proto into `proto/media/v1/types.proto` + `xtask gen` + round-trip/JSON/quickcheck + a semantic-equivalence test vs the findit-proto source type):
+Correctness model (per SP0's final approach — **no `findit-proto` dependency, not even dev**): correctness = wire round-trip + JSON round-trip (under `json`) + quickcheck property + mediatime-extern round-trip, plus **faithful authoring** (the `.proto` is authored to mirror the surveyed source field/enum mappings; fidelity is verified at authoring/review time against the survey + findit-proto source as read-only reference, not asserted via a code dependency).
+
+**Implementation batches** (dependency-ordered; one implementer task + two-stage review each; each batch = author proto into `proto/media/v1/types.proto` + `xtask gen` + extend `src/lib.rs` named re-exports + round-trip/JSON/quickcheck tests):
 1. **Primitives:** `Point2D, Dimensions, Aesthetics, HorizonInfo, CodecId, FeaturePrint, VideoFormat, AudioFormat, MediaKind, DocumentSegment`
 2. **Identity/infra:** `Id, FileChecksum, Local, Location, LocationTarget, AppPathBuf, Tag, ErrorInfo`
 3. **Location aggregates:** `WatchedLocation, VolumeMeta`
@@ -96,7 +98,7 @@ Authored from a full survey of `findit-proto/src/common/`. All in package **`med
 5. **Landmarks/pose/masks:** `FaceLandmarkPoint, FaceLandmarkRegion, FaceLandmarksDetection, BodyPoseJoint, BodyPoseDetection, BodyPose3DJoint, BodyPose3DHeightEstimation, BodyPose3DDetection, HandChirality, HandPoseDetection, PersonSegmentationMask, PersonInstanceMaskDetection`
 6. **Aggregates + time:** `AnimalAnalysis, HumanAnalysis, TrackTime, TrackTimeSource`
 
-Done-when (SP1): all 6 batches landed; full feature-matrix builds; `xtask gen` diff-clean; round-trip + JSON + quickcheck + mediatime-extern (`TrackTime`) + per-type semantic-equivalence tests green; stacked PR `sp1-common` → `sp0-foundation`.
+Done-when (SP1): all 6 batches landed; full feature-matrix builds (default/no-default/json/arbitrary/quickcheck/all-features); `xtask gen` diff-clean; round-trip + JSON + quickcheck + mediatime-extern (`TrackTime`) tests green for every SP1 type; stacked PR `sp1-common` → `sp0-foundation`.
 
 ## 6. Risks
 
