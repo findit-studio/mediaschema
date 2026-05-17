@@ -15,6 +15,11 @@ include!("media.v1.types.rs");
 pub mod __buffa {
     #[allow(unused_imports)]
     use super::*;
+    pub mod oneof {
+        #[allow(unused_imports)]
+        use super::*;
+        include!("media.v1.types.__oneof.rs");
+    }
     #[cfg(feature = "json")]
     /// Register this package's `Any` type entries and extension entries.
     #[allow(unused_variables)]
@@ -23,6 +28,15 @@ pub mod __buffa {
         #[cfg(feature = "json")] reg.register_json_any(super::__BOUNDING_BOX_JSON_ANY);
         #[cfg(feature = "json")]
         reg.register_json_any(super::__TIMED_DETECTION_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__POINT2D_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__DIMENSIONS_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__AESTHETICS_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__HORIZON_INFO_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__CODEC_ID_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__FEATURE_PRINT_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__MEDIA_KIND_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__DOCUMENT_SEGMENT_JSON_ANY);
     }
 }
 #[cfg(feature = "json")]

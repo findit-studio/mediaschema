@@ -32,3 +32,40 @@ message TimedDetection {
   mediatime.v1.TimeRange range = 2;
   mediatime.v1.Timebase timebase = 3;
 }
+
+message Point2D { float x = 1; float y = 2; }
+
+message Dimensions { uint32 width = 1; uint32 height = 2; }
+
+message Aesthetics { float overall_score = 1; bool is_utility = 2; }
+
+message HorizonInfo { float angle = 1; float confidence = 2; }
+
+message CodecId { int64 value = 1; }
+
+message FeaturePrint { bytes data = 1; uint32 element_type = 2; }
+
+enum VideoFormat {
+  VIDEO_FORMAT_UNSPECIFIED = 0;
+  VIDEO_FORMAT_AVI = 1; VIDEO_FORMAT_FLV = 2; VIDEO_FORMAT_MP4 = 3;
+  VIDEO_FORMAT_M4V = 4; VIDEO_FORMAT_MKV = 5; VIDEO_FORMAT_MOV = 6;
+  VIDEO_FORMAT_MXF = 7; VIDEO_FORMAT_MTS = 8; VIDEO_FORMAT_TS = 9;
+  VIDEO_FORMAT_WMV = 10; VIDEO_FORMAT_WEBM = 11;
+}
+
+enum AudioFormat {
+  AUDIO_FORMAT_UNSPECIFIED = 0;
+  AUDIO_FORMAT_MP3 = 1; AUDIO_FORMAT_AAC = 2; AUDIO_FORMAT_FLAC = 3;
+  AUDIO_FORMAT_WAV = 4; AUDIO_FORMAT_OGG = 5; AUDIO_FORMAT_WMA = 6;
+  AUDIO_FORMAT_M4A = 7; AUDIO_FORMAT_OPUS = 8; AUDIO_FORMAT_AIFF = 9;
+}
+
+message MediaKind {
+  oneof kind { VideoFormat video = 1; AudioFormat audio = 2; }
+}
+
+message DocumentSegment {
+  Point2D top_left = 1; Point2D top_right = 2;
+  Point2D bottom_left = 3; Point2D bottom_right = 4;
+  float confidence = 5;
+}

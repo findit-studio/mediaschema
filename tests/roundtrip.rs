@@ -1,6 +1,10 @@
 use buffa::Message;
 use core::num::NonZeroU32;
-use mediaschema::{BoundingBox, Detection, TimedDetection};
+use mediaschema::{
+    Aesthetics, AudioFormat, BoundingBox, CodecId, Detection, Dimensions, DocumentSegment,
+    FeaturePrint, HorizonInfo, MediaKind, Point2D, TimedDetection, VideoFormat,
+};
+use mediaschema::media_kind::Kind as MediaKindKind;
 use mediatime::{Timebase, TimeRange};
 
 fn rt<M: Message + PartialEq + std::fmt::Debug>(m: &M) {
@@ -71,4 +75,104 @@ fn detection_quickcheck_roundtrip() {
         quickcheck::TestResult::from_bool(ok)
     }
     quickcheck::quickcheck(prop as fn(String, f32) -> quickcheck::TestResult);
+}
+
+// ── SP1 Batch 1 ──────────────────────────────────────────────────────────────
+
+#[test]
+fn batch1_roundtrip() {
+    // Point2D
+    let p = Point2D { x: 1.5, y: 2.5, ..Default::default() };
+    rt(&p);
+    rt(&Point2D::default());
+
+    // Dimensions
+    let d = Dimensions { width: 1920, height: 1080, ..Default::default() };
+    rt(&d);
+    rt(&Dimensions::default());
+
+    // Aesthetics
+    let a = Aesthetics { overall_score: 0.85, is_utility: true, ..Default::default() };
+    rt(&a);
+    rt(&Aesthetics::default());
+
+    // HorizonInfo
+    let h = HorizonInfo { angle: 3.14, confidence: 0.9, ..Default::default() };
+    rt(&h);
+    rt(&HorizonInfo::default());
+
+    // CodecId
+    let c = CodecId { value: 42, ..Default::default() };
+    rt(&c);
+    rt(&CodecId::default());
+
+    // FeaturePrint
+    let f = FeaturePrint { data: vec![0xDE, 0xAD, 0xBE, 0xEF], element_type: 1, ..Default::default() };
+    rt(&f);
+    rt(&FeaturePrint::default());
+
+    // MediaKind — video arm
+    let mk_video = MediaKind {
+        kind: Some(MediaKindKind::Video(buffa::EnumValue::from(VideoFormat::VIDEO_FORMAT_MP4))),
+        ..Default::default()
+    };
+    rt(&mk_video);
+
+    // MediaKind — audio arm
+    let mk_audio = MediaKind {
+        kind: Some(MediaKindKind::Audio(buffa::EnumValue::from(AudioFormat::AUDIO_FORMAT_AAC))),
+        ..Default::default()
+    };
+    rt(&mk_audio);
+
+    // MediaKind — default (no arm set)
+    rt(&MediaKind::default());
+
+    // DocumentSegment
+    let make_pt = |x, y| buffa::MessageField::some(Point2D { x, y, ..Default::default() });
+    let seg = DocumentSegment {
+        top_left: make_pt(0.0, 0.0),
+        top_right: make_pt(1.0, 0.0),
+        bottom_left: make_pt(0.0, 1.0),
+        bottom_right: make_pt(1.0, 1.0),
+        confidence: 0.98,
+        ..Default::default()
+    };
+    rt(&seg);
+    rt(&DocumentSegment::default());
+}
+
+#[test]
+#[cfg(feature = "json")]
+fn document_segment_json_roundtrip() {
+    use buffa::MessageField;
+    let make_pt = |x, y| MessageField::some(Point2D { x, y, ..Default::default() });
+    let seg = DocumentSegment {
+        top_left: make_pt(0.1, 0.2),
+        top_right: make_pt(0.9, 0.2),
+        bottom_left: make_pt(0.1, 0.8),
+        bottom_right: make_pt(0.9, 0.8),
+        confidence: 0.75,
+        ..Default::default()
+    };
+    let json = serde_json::to_string(&seg).expect("to_json");
+    let back: DocumentSegment = serde_json::from_str(&json).expect("from_json");
+    assert_eq!(seg, back);
+}
+
+#[test]
+#[cfg(feature = "quickcheck")]
+fn dimensions_quickcheck_roundtrip() {
+    fn prop(width: u32, height: u32) -> quickcheck::TestResult {
+        // Dimensions uses u32 scalars; all values are valid (no non-finite
+        // domain to discard). Mirror SP0's style with discard as a safety
+        // valve — use it to filter any pathological zero-zero case if needed;
+        // here we simply admit all values.
+        let _ = (width, height); // prevent unused-variable lint
+        let d = Dimensions { width, height, ..Default::default() };
+        let bytes = d.encode_to_vec();
+        let ok = Dimensions::decode_from_slice(&bytes).map(|b| b == d).unwrap_or(false);
+        quickcheck::TestResult::from_bool(ok)
+    }
+    quickcheck::quickcheck(prop as fn(u32, u32) -> quickcheck::TestResult);
 }

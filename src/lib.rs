@@ -13,4 +13,11 @@ mod generated {
 // Flatten the product-neutral `media.v1` package to the crate root so
 // consumers write `mediaschema::Detection`. Named (not glob) so buffa
 // internals (`__buffa`, `__*_JSON_ANY`) stay out of the public surface.
-pub use generated::media::v1::{BoundingBox, Detection, TimedDetection};
+pub use generated::media::v1::{
+    Aesthetics, AudioFormat, BoundingBox, CodecId, Detection, Dimensions, DocumentSegment,
+    FeaturePrint, HorizonInfo, MediaKind, Point2D, TimedDetection, VideoFormat,
+};
+/// Oneof variant types for [`MediaKind`].
+pub mod media_kind {
+    pub use super::generated::media::v1::media_kind::Kind;
+}
