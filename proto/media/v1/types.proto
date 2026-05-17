@@ -79,3 +79,37 @@ message DocumentSegment {
   Point2D bottom_left = 3; Point2D bottom_right = 4;
   float confidence = 5;
 }
+
+// Stable identifier (16-byte UUIDv7).
+message Id { bytes value = 1; }
+
+// Content hash (32-byte blake3-256).
+message FileChecksum { bytes value = 1; }
+
+// A path on a local volume: volume Id + path components.
+message Local {
+  Id volume = 1;
+  repeated string components = 2;
+}
+
+// A resolved storage location.
+message Location {
+  oneof kind { Local local = 1; }
+}
+
+// An unresolved storage target (pre-volume-resolution).
+message LocationTarget {
+  oneof kind { string local = 1; }
+}
+
+// A content-addressed path: checksum + location.
+message AppPathBuf {
+  FileChecksum checksum = 1;
+  Location location = 2;
+}
+
+// A user tag: name + packed RGBA color.
+message Tag { string name = 1; uint32 color = 2; }
+
+// A structured error: numeric code + message.
+message ErrorInfo { uint32 code = 1; string message = 2; }

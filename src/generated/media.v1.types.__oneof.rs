@@ -35,3 +35,73 @@ pub mod media_kind {
         }
     }
 }
+pub mod location {
+    #[allow(unused_imports)]
+    use super::*;
+    #[derive(Clone, PartialEq, Debug)]
+    #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
+    #[cfg_attr(
+        feature = "quickcheck",
+        derive(::mediaschema_derive::QuickcheckArbitrary)
+    )]
+    pub enum Kind {
+        Local(::buffa::alloc::boxed::Box<super::super::super::Local>),
+    }
+    impl ::buffa::Oneof for Kind {}
+    impl From<super::super::super::Local> for Kind {
+        fn from(v: super::super::super::Local) -> Self {
+            Self::Local(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::Local> for ::core::option::Option<Kind> {
+        fn from(v: super::super::super::Local) -> Self {
+            Self::Some(Kind::from(v))
+        }
+    }
+    #[cfg(feature = "json")]
+    impl serde::Serialize for Kind {
+        fn serialize<S: serde::Serializer>(
+            &self,
+            s: S,
+        ) -> ::core::result::Result<S::Ok, S::Error> {
+            use serde::ser::SerializeMap;
+            let mut map = s.serialize_map(Some(1))?;
+            match self {
+                Self::Local(v) => {
+                    map.serialize_entry("local", v)?;
+                }
+            }
+            map.end()
+        }
+    }
+}
+pub mod location_target {
+    #[allow(unused_imports)]
+    use super::*;
+    #[derive(Clone, PartialEq, Debug)]
+    #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
+    #[cfg_attr(
+        feature = "quickcheck",
+        derive(::mediaschema_derive::QuickcheckArbitrary)
+    )]
+    pub enum Kind {
+        Local(::buffa::alloc::string::String),
+    }
+    impl ::buffa::Oneof for Kind {}
+    #[cfg(feature = "json")]
+    impl serde::Serialize for Kind {
+        fn serialize<S: serde::Serializer>(
+            &self,
+            s: S,
+        ) -> ::core::result::Result<S::Ok, S::Error> {
+            use serde::ser::SerializeMap;
+            let mut map = s.serialize_map(Some(1))?;
+            match self {
+                Self::Local(v) => {
+                    map.serialize_entry("local", v)?;
+                }
+            }
+            map.end()
+        }
+    }
+}

@@ -1,8 +1,10 @@
 use buffa::Message;
 use core::num::NonZeroU32;
 use mediaschema::{
-    Aesthetics, AudioFormat, BoundingBox, CodecId, Detection, Dimensions, DocumentSegment,
-    FeaturePrint, HorizonInfo, MediaKind, MediaKindKind, Point2D, TimedDetection, VideoFormat,
+    Aesthetics, AppPathBuf, AudioFormat, BoundingBox, CodecId, Detection, Dimensions,
+    DocumentSegment, ErrorInfo, FeaturePrint, FileChecksum, HorizonInfo, Id, Local, Location,
+    LocationKind, LocationTarget, LocationTargetKind, MediaKind, MediaKindKind, Point2D, Tag,
+    TimedDetection, VideoFormat,
 };
 use mediatime::{Timebase, TimeRange};
 
@@ -173,4 +175,111 @@ fn dimensions_quickcheck_roundtrip() {
         quickcheck::TestResult::from_bool(ok)
     }
     quickcheck::quickcheck(prop as fn(u32, u32) -> quickcheck::TestResult);
+}
+
+// ── SP1 Batch 2 ──────────────────────────────────────────────────────────────
+
+#[test]
+fn batch2_roundtrip() {
+    // Id — 16 non-zero bytes + default (empty)
+    let id = Id { value: (1u8..=16).collect(), ..Default::default() };
+    rt(&id);
+    rt(&Id::default());
+
+    // FileChecksum — 32 non-zero bytes + default (empty)
+    let cksum = FileChecksum { value: (1u8..=32).collect(), ..Default::default() };
+    rt(&cksum);
+    rt(&FileChecksum::default());
+
+    // Local — nested Id + components
+    let local_populated = Local {
+        volume: buffa::MessageField::some(Id { value: (1u8..=16).collect(), ..Default::default() }),
+        components: vec!["a".into(), "b".into()],
+        ..Default::default()
+    };
+    rt(&local_populated);
+    rt(&Local::default());
+
+    // Location — Local arm set
+    let loc_local = Location {
+        kind: Some(LocationKind::Local(Box::new(Local {
+            volume: buffa::MessageField::some(Id {
+                value: (1u8..=16).collect(),
+                ..Default::default()
+            }),
+            components: vec!["a".into(), "b".into()],
+            ..Default::default()
+        }))),
+        ..Default::default()
+    };
+    rt(&loc_local);
+    // Location — no arm set (default)
+    rt(&Location::default());
+
+    // LocationTarget — local (String) arm set
+    let lt_local = LocationTarget {
+        kind: Some(LocationTargetKind::Local("/tmp/media".into())),
+        ..Default::default()
+    };
+    rt(&lt_local);
+    // LocationTarget — no arm set (default)
+    rt(&LocationTarget::default());
+
+    // AppPathBuf — nesting FileChecksum + Location
+    let apb = AppPathBuf {
+        checksum: buffa::MessageField::some(FileChecksum {
+            value: (1u8..=32).collect(),
+            ..Default::default()
+        }),
+        location: buffa::MessageField::some(Location {
+            kind: Some(LocationKind::Local(Box::new(Local {
+                volume: buffa::MessageField::some(Id {
+                    value: (1u8..=16).collect(),
+                    ..Default::default()
+                }),
+                components: vec!["a".into(), "b".into()],
+                ..Default::default()
+            }))),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    rt(&apb);
+    rt(&AppPathBuf::default());
+
+    // Tag — populated + default
+    let tag = Tag { name: "favorite".into(), color: 0xFF_AA_00_FF, ..Default::default() };
+    rt(&tag);
+    rt(&Tag::default());
+
+    // ErrorInfo — populated + default
+    let err = ErrorInfo { code: 404, message: "not found".into(), ..Default::default() };
+    rt(&err);
+    rt(&ErrorInfo::default());
+}
+
+#[test]
+#[cfg(feature = "json")]
+fn app_path_buf_json_roundtrip() {
+    let apb = AppPathBuf {
+        checksum: buffa::MessageField::some(FileChecksum {
+            value: (1u8..=32).collect(),
+            ..Default::default()
+        }),
+        location: buffa::MessageField::some(Location {
+            kind: Some(LocationKind::Local(Box::new(Local {
+                volume: buffa::MessageField::some(Id {
+                    value: (1u8..=16).collect(),
+                    ..Default::default()
+                }),
+                components: vec!["docs".into(), "video.mp4".into()],
+                ..Default::default()
+            }))),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    let json = serde_json::to_string(&apb).expect("to_json");
+    let back: AppPathBuf = serde_json::from_str(&json).expect("from_json");
+    assert_eq!(apb, back);
 }
