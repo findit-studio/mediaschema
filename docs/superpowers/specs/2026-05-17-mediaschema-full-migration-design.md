@@ -63,7 +63,7 @@ Authored from a full survey of `findit-proto/src/common/`. All in package **`med
 | `Location` | `oneof kind { Local local=1 }` |
 | `LocationTarget` | `oneof kind { string local=1 }` |
 | `AppPathBuf` | `FileChecksum checksum=1; Location location=2` |
-| `Tag` | `string name=1; uint32 color=2` |
+| `Tag` | `string name=1; fixed32 color=2` |
 | `ErrorInfo` | `uint32 code=1; string message=2` |
 | `WatchedLocation` | `Id id=1; Location location=2; string name=3; uint32 status=4; int64 created_at=5; optional int64 deleted_at=6; uint64 total_files=7; indexed_files=8; total_videos=9; indexed_videos=10; total_scenes=11; total_audios=12; indexed_audios=13; total_failed_files=14; failed_videos=15; failed_audios=16` |
 | `VolumeMeta` | `Id id=1; Location location=2; string name=3; uint64 total_size=4; uint64 used_size=5; uint32 status=6` |

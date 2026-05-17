@@ -3776,7 +3776,7 @@ impl ::buffa::Message for Tag {
             size += 1u32 + ::buffa::types::string_encoded_len(&self.name) as u32;
         }
         if self.color != 0u32 {
-            size += 1u32 + ::buffa::types::uint32_encoded_len(self.color) as u32;
+            size += 1u32 + ::buffa::types::FIXED32_ENCODED_LEN as u32;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u32;
         size
@@ -3797,9 +3797,9 @@ impl ::buffa::Message for Tag {
             ::buffa::types::encode_string(&self.name, buf);
         }
         if self.color != 0u32 {
-            ::buffa::encoding::Tag::new(2u32, ::buffa::encoding::WireType::Varint)
+            ::buffa::encoding::Tag::new(2u32, ::buffa::encoding::WireType::Fixed32)
                 .encode(buf);
-            ::buffa::types::encode_uint32(self.color, buf);
+            ::buffa::types::encode_fixed32(self.color, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3825,14 +3825,14 @@ impl ::buffa::Message for Tag {
                 ::buffa::types::merge_string(&mut self.name, buf)?;
             }
             2u32 => {
-                if tag.wire_type() != ::buffa::encoding::WireType::Varint {
+                if tag.wire_type() != ::buffa::encoding::WireType::Fixed32 {
                     return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
                         field_number: 2u32,
-                        expected: 0u8,
+                        expected: 5u8,
                         actual: tag.wire_type() as u8,
                     });
                 }
-                self.color = ::buffa::types::decode_uint32(buf)?;
+                self.color = ::buffa::types::decode_fixed32(buf)?;
             }
             _ => {
                 self.__buffa_unknown_fields

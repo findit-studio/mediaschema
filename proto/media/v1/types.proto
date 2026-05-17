@@ -109,7 +109,7 @@ message AppPathBuf {
 }
 
 // A user tag: name + packed RGBA color.
-message Tag { string name = 1; uint32 color = 2; }
+message Tag { string name = 1; fixed32 color = 2; }
 
 // A structured error: numeric code + message.
 message ErrorInfo { uint32 code = 1; string message = 2; }
