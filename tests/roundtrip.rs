@@ -339,9 +339,9 @@ fn batch3_roundtrip() {
         total_scenes: 100,
         total_audios: 32,
         indexed_audios: 32,
-        total_failed_files: 0,
-        failed_videos: 0,
-        failed_audios: 0,
+        total_failed_files: 3,
+        failed_videos: 2,
+        failed_audios: 1,
         ..Default::default()
     };
     rt(&wl_no_deleted);
