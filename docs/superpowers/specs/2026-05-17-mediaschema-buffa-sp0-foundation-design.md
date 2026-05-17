@@ -94,10 +94,15 @@ mediaschema/
   tests/roundtrip.rs
 ```
 
-`mediaschema` Cargo features: `default=["std"]`; `std`→`buffa/std`;
-`serde`→`buffa/json`+`buffa-types/json`+serde/serde_json; `arbitrary`→`buffa/arbitrary`
-(literal feature name required by generated `cfg_attr`); `quickcheck` implies `arbitrary`,
-adds `quickcheck`+`mediaschema-derive`. Deps: `buffa`, `buffa-types`, `mediatime`
+`mediaschema` Cargo features (workspace `resolver = "2"`): `default=["std"]`;
+`std`→`buffa/std`+`buffa-types/std`;
+`serde`→`buffa/json`+`buffa-types/json`+`mediatime/serde`+serde/serde_json;
+`arbitrary`→`buffa/arbitrary`+`buffa-types/arbitrary`+`mediatime/arbitrary` (literal
+feature name required by generated `cfg_attr`); `quickcheck` implies `arbitrary`,
+adds `quickcheck`+`mediaschema-derive`. The `serde`/`arbitrary` propagation into
+`mediatime` is **load-bearing**: generated messages embed `mediatime` types via
+`MessageField<T>`, and buffa's `cfg_attr` serde/arbitrary derives require
+`T: Serialize`/`Arbitrary` (spec §5.C.4). Deps: `buffa`, `buffa-types`, `mediatime`
 (`features=["buffa"]`). **No `findit-proto` dependency (not even dev).**
 
 ### B. Proto authoring + codegen pipeline
