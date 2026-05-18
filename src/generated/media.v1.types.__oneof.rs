@@ -115,8 +115,20 @@ pub mod subtitle_track_origin {
         derive(::mediaschema_derive::QuickcheckArbitrary)
     )]
     pub enum Source {
-        SourceAudioTrackId(::buffa::alloc::vec::Vec<u8>),
-        SourceSubtitleTrackId(::buffa::alloc::vec::Vec<u8>),
+        SourceAudioTrackId(
+            #[cfg_attr(
+                feature = "arbitrary",
+                arbitrary(with = ::buffa::__private::arbitrary_bytes)
+            )]
+            ::buffa::bytes::Bytes,
+        ),
+        SourceSubtitleTrackId(
+            #[cfg_attr(
+                feature = "arbitrary",
+                arbitrary(with = ::buffa::__private::arbitrary_bytes)
+            )]
+            ::buffa::bytes::Bytes,
+        ),
     }
     impl ::buffa::Oneof for Source {}
     #[cfg(feature = "json")]
@@ -129,7 +141,7 @@ pub mod subtitle_track_origin {
             let mut map = s.serialize_map(Some(1))?;
             match self {
                 Self::SourceAudioTrackId(v) => {
-                    struct _W<'a>(&'a ::buffa::alloc::vec::Vec<u8>);
+                    struct _W<'a>(&'a ::buffa::bytes::Bytes);
                     impl serde::Serialize for _W<'_> {
                         fn serialize<S2: serde::Serializer>(
                             &self,
@@ -141,7 +153,7 @@ pub mod subtitle_track_origin {
                     map.serialize_entry("sourceAudioTrackId", &_W(v))?;
                 }
                 Self::SourceSubtitleTrackId(v) => {
-                    struct _W<'a>(&'a ::buffa::alloc::vec::Vec<u8>);
+                    struct _W<'a>(&'a ::buffa::bytes::Bytes);
                     impl serde::Serialize for _W<'_> {
                         fn serialize<S2: serde::Serializer>(
                             &self,
