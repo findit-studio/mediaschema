@@ -1,48 +1,38 @@
-[package]
-name = "template-rs"
-version = "0.0.0"
-edition = "2021"
-repository = "https://github.com/al8n/template-rs"
-homepage = "https://github.com/al8n/template-rs"
-documentation = "https://docs.rs/template-rs"
-description = "A template for creating Rust open-source repo on GitHub"
-license = "MIT OR Apache-2.0"
-rust-version = "1.73"
+[workspace]
+resolver = "2"
+members = ["mediaschema-derive", "xtask"]
 
-[[bench]]
-path = "benches/foo.rs"
-name = "foo"
-harness = false
+[package]
+name = "mediaschema"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Product-agnostic media-primitive schema (buffa-generated)"
+publish = false
+rust-version = "1.85"
 
 [features]
 default = ["std"]
-alloc = []
-std = []
+std = ["buffa/std", "buffa-types/std"]
+json = ["dep:serde", "dep:serde_json", "buffa/json", "buffa-types/json", "mediatime/serde"]
+arbitrary = ["dep:arbitrary", "buffa/arbitrary", "buffa-types/arbitrary", "mediatime/arbitrary"]
+quickcheck = ["arbitrary", "dep:quickcheck", "dep:mediaschema-derive"]
 
 [dependencies]
+buffa = { version = "0.6", default-features = false }
+buffa-types = { version = "0.6", default-features = false }
+mediatime = { version = "0.1.6", default-features = false, features = ["buffa"] }
+serde = { version = "1", optional = true }
+serde_json = { version = "1", optional = true }
+arbitrary = { version = "1", optional = true, features = ["derive"] }
+quickcheck = { version = "1", optional = true }
+mediaschema-derive = { path = "mediaschema-derive", optional = true }
 
 [dev-dependencies]
-criterion = "0.8"
-tempfile = "3"
-
-[profile.bench]
-opt-level = 3
-debug = false
-codegen-units = 1
-lto = 'thin'
-incremental = false
-debug-assertions = false
-overflow-checks = false
-rpath = false
-
-[package.metadata.docs.rs]
-all-features = true
-rustdoc-args = ["--cfg", "docsrs"]
+quickcheck = "1"
+serde_json = "1"
+buffa = { version = "0.6", default-features = false, features = ["std"] }
+mediatime = { version = "0.1.6", default-features = false, features = ["buffa"] }
 
 [lints.rust]
 rust_2018_idioms = "warn"
-single_use_lifetimes = "warn"
-unexpected_cfgs = { level = "warn", check-cfg = [
-  'cfg(all_tests)',
-  'cfg(tarpaulin)',
-] }

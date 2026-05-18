@@ -1,0 +1,36 @@
+name: codegen
+on: [push, pull_request]
+jobs:
+  gen-is-committed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      # Pin protoc to the version src/generated was authored with (local
+      # protoc 34.0). buffa-build feeds --include_source_info into codegen,
+      # so a protoc-version mismatch would make this drift gate false-fail.
+      - name: Install protoc 34.0
+        uses: arduino/setup-protoc@v3
+        with:
+          version: "34.0"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Regenerate
+        run: cargo run -p xtask -- gen
+      - name: Fail if generated code is stale
+        run: git diff --exit-code -- src/generated
+  test-matrix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install protoc 34.0
+        uses: arduino/setup-protoc@v3
+        with:
+          version: "34.0"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Test (no default features)
+        run: cargo test --no-default-features
+      - name: Test (default features)
+        run: cargo test
+      - name: Test (all features)
+        run: cargo test --all-features

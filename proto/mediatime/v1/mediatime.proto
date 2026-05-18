@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+// EXTERN-MAPPED: these types are provided by the `mediatime` crate via buffa
+// `extern_path(".mediatime.v1", "::mediatime")`. This file is intentionally NOT
+// in the xtask `.files()` — it exists only so protoc can resolve
+// `import "mediatime/v1/mediatime.proto"` and to document the wire contract.
+
+package mediatime.v1;
+
+// Rational media timebase. Maps to ::mediatime::Timebase via extern_path.
+message Timebase {
+  uint32 num = 1;
+  uint32 den = 2;
+}
+
+// Half-open [start, end) range in a Timebase. -> ::mediatime::TimeRange
+message TimeRange {
+  int64 start = 1;
+  int64 end = 2;
+  Timebase timebase = 3;
+}
+
+// A point in time in a Timebase. -> ::mediatime::Timestamp
+message Timestamp {
+  int64 pts = 1;
+  Timebase timebase = 2;
+}
