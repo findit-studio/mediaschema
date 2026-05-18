@@ -36,6 +36,12 @@ fn gen() {
         // No zero-copy views in SP0: scalar-only mediatime extern types don't
         // implement buffa's view-trait surface (ViewEncode/_decode_depth/…).
         .generate_views(false)
+        // proto `bytes` -> ::buffa::bytes::Bytes (immutable, cheap-clone,
+        // zero-copy-capable); the in-memory model is read-only, so a mutable
+        // Vec<u8> buffer is unnecessary. buffa re-exports ::bytes and handles
+        // json/arbitrary generically, so no extra dependency or feature
+        // wiring is required.
+        .use_bytes_type()
         .type_attribute(
             ".",
             "#[cfg_attr(feature = \"quickcheck\", derive(::mediaschema_derive::QuickcheckArbitrary))]",

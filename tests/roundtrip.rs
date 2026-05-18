@@ -142,7 +142,7 @@ fn batch1_roundtrip() {
     rt(&CodecId::default());
 
     // FeaturePrint
-    let f = FeaturePrint { data: vec![0xDE, 0xAD, 0xBE, 0xEF], element_type: 1, ..Default::default() };
+    let f = FeaturePrint { data: vec![0xDE, 0xAD, 0xBE, 0xEF].into(), element_type: 1, ..Default::default() };
     rt(&f);
     rt(&FeaturePrint::default());
 
@@ -694,7 +694,7 @@ fn batch5_roundtrip() {
         bbox: make_bbox(0.0, 0.0, 1.0, 1.0),
         confidence: 0.97,
         dimensions: buffa::MessageField::some(Dimensions { width: 64, height: 64, ..Default::default() }),
-        data: vec![0xAAu8; 64 * 64],
+        data: vec![0xAAu8; 64 * 64].into(),
         ..Default::default()
     };
     rt(&psm);
@@ -706,7 +706,7 @@ fn batch5_roundtrip() {
         confidence: 0.89,
         instance_index: 2,
         dimensions: buffa::MessageField::some(Dimensions { width: 32, height: 32, ..Default::default() }),
-        data: vec![0xBBu8; 32 * 32],
+        data: vec![0xBBu8; 32 * 32].into(),
         ..Default::default()
     };
     rt(&pimd);
@@ -860,7 +860,7 @@ fn batch6_roundtrip() {
                 height: 32,
                 ..Default::default()
             }),
-            data: vec![0xAAu8; 32 * 32],
+            data: vec![0xAAu8; 32 * 32].into(),
             ..Default::default()
         }],
         ..Default::default()
@@ -939,7 +939,7 @@ fn human_analysis_json_roundtrip() {
                 height: 16,
                 ..Default::default()
             }),
-            data: vec![0xBBu8; 16 * 16],
+            data: vec![0xBBu8; 16 * 16].into(),
             ..Default::default()
         }],
         ..Default::default()
@@ -955,7 +955,7 @@ fn human_analysis_json_roundtrip() {
 fn sp2_codegen_smoke_roundtrip() {
     use mediaschema::{ErrorInfo, VideoFormat};
     let s = Sp2CodegenSmoke {
-        id: vec![0x01, 0x02, 0x03, 0x04],
+        id: vec![0x01, 0x02, 0x03, 0x04].into(),
         error: buffa::MessageField::some(ErrorInfo {
             code: 7,
             message: "smoke".into(),
@@ -978,7 +978,7 @@ fn sp2_codegen_smoke_roundtrip() {
 fn sp2_codegen_smoke_json_roundtrip() {
     use mediaschema::{ErrorInfo, VideoFormat};
     let s = Sp2CodegenSmoke {
-        id: vec![0xAA, 0xBB],
+        id: vec![0xAA, 0xBB].into(),
         error: buffa::MessageField::some(ErrorInfo {
             code: 1,
             message: "json".into(),
@@ -1049,7 +1049,7 @@ fn batch2_sp2_roundtrip() {
     rt(&AudioTranscriptSegment::default());
     rt(&AudioChannelSpec { index: 2, raw_id: 0x10, label: "FL".into(), ..Default::default() });
     rt(&AudioChannelSpec::default());
-    rt(&Chromaprint { fingerprint: vec![0x01, 0x02, 0x03, 0x04], fingerprint_duration: 120.5, ..Default::default() });
+    rt(&Chromaprint { fingerprint: vec![0x01, 0x02, 0x03, 0x04].into(), fingerprint_duration: 120.5, ..Default::default() });
     rt(&Chromaprint::default());
     rt(&Ebur128 { loudness_lufs: -14.0, loudness_range_lu: 7.5, true_peak_dbtp: -1.2, ..Default::default() });
     rt(&Ebur128::default());
@@ -1182,7 +1182,7 @@ fn batch4_sp2_roundtrip() {
         VideoMeta, VideoStreamMeta, VideoTrackMeta,
     };
     rt(&VideoMeta {
-        id: vec![1, 2, 3, 4],
+        id: vec![1, 2, 3, 4].into(),
         name: "clip.mp4".into(),
         format: buffa::EnumValue::from(VideoFormat::VIDEO_FORMAT_MP4),
         dimensions: buffa::MessageField::some(Dimensions { width: 1920, height: 1080, ..Default::default() }),
@@ -1195,8 +1195,8 @@ fn batch4_sp2_roundtrip() {
     });
     rt(&VideoMeta::default());
 
-    rt(&VideoTrackMeta { id: vec![9], ordinal: 0, stream_index: 1, container_track_id: Some(42), time: sp2_track_time_one(), ..Default::default() });
-    rt(&VideoTrackMeta { id: vec![9], ordinal: 1, stream_index: 2, container_track_id: None, time: buffa::MessageField::none(), ..Default::default() });
+    rt(&VideoTrackMeta { id: vec![9].into(), ordinal: 0, stream_index: 1, container_track_id: Some(42), time: sp2_track_time_one(), ..Default::default() });
+    rt(&VideoTrackMeta { id: vec![9].into(), ordinal: 1, stream_index: 2, container_track_id: None, time: buffa::MessageField::none(), ..Default::default() });
     rt(&VideoTrackMeta::default());
 
     rt(&VideoStreamMeta {
@@ -1210,32 +1210,32 @@ fn batch4_sp2_roundtrip() {
     });
     rt(&VideoStreamMeta::default());
 
-    rt(&MediaMeta { id: vec![1], checksum: (1u8..=32).collect(), name: "a".into(), size: 10, time: sp2_track_time_one(), created_at: 1, ..Default::default() });
+    rt(&MediaMeta { id: vec![1].into(), checksum: (1u8..=32).collect(), name: "a".into(), size: 10, time: sp2_track_time_one(), created_at: 1, ..Default::default() });
     rt(&MediaMeta::default());
 
     rt(&SceneMeta {
-        id: vec![1], video_id: vec![2],
+        id: vec![1].into(), video_id: vec![2].into(),
         range: buffa::MessageField::some(mediatime::TimeRange::new(
             100, 500, mediatime::Timebase::new(30000, core::num::NonZeroU32::new(1001).unwrap()),
         )),
-        created_at: 5, video_track_id: vec![3],
+        created_at: 5, video_track_id: vec![3].into(),
         ..Default::default()
     });
     rt(&SceneMeta::default());
 
-    rt(&SubtitleMeta { id: vec![7], created_at: 9, ..Default::default() });
+    rt(&SubtitleMeta { id: vec![7].into(), created_at: 9, ..Default::default() });
     rt(&SubtitleMeta::default());
 
-    rt(&SubtitleTrackMeta { id: vec![1], ordinal: 0, stream_index: Some(3), container_track_id: Some(8), time: sp2_track_time_one(), ..Default::default() });
-    rt(&SubtitleTrackMeta { id: vec![1], ordinal: 2, stream_index: None, container_track_id: None, time: buffa::MessageField::none(), ..Default::default() });
+    rt(&SubtitleTrackMeta { id: vec![1].into(), ordinal: 0, stream_index: Some(3), container_track_id: Some(8), time: sp2_track_time_one(), ..Default::default() });
+    rt(&SubtitleTrackMeta { id: vec![1].into(), ordinal: 2, stream_index: None, container_track_id: None, time: buffa::MessageField::none(), ..Default::default() });
     rt(&SubtitleTrackMeta::default());
 
     rt(&SubtitleTrackOrigin { kind: 1, source: None, ..Default::default() });
-    rt(&SubtitleTrackOrigin { kind: 3, source: Some(SubtitleTrackOriginSource::SourceAudioTrackId(vec![0xAA, 0xBB])), ..Default::default() });
-    rt(&SubtitleTrackOrigin { kind: 4, source: Some(SubtitleTrackOriginSource::SourceSubtitleTrackId(vec![0xCC, 0xDD])), ..Default::default() });
+    rt(&SubtitleTrackOrigin { kind: 3, source: Some(SubtitleTrackOriginSource::SourceAudioTrackId(vec![0xAA, 0xBB].into())), ..Default::default() });
+    rt(&SubtitleTrackOrigin { kind: 4, source: Some(SubtitleTrackOriginSource::SourceSubtitleTrackId(vec![0xCC, 0xDD].into())), ..Default::default() });
     rt(&SubtitleTrackOrigin::default());
 
-    rt(&FailedFile { id: vec![1], media_id: vec![2], location_id: vec![3], failed_at: 42, ..Default::default() });
+    rt(&FailedFile { id: vec![1].into(), media_id: vec![2].into(), location_id: vec![3].into(), failed_at: 42, ..Default::default() });
     rt(&FailedFile::default());
 }
 
@@ -1244,7 +1244,7 @@ fn batch4_sp2_roundtrip() {
 fn batch4_sp2_json_roundtrip() {
     use mediaschema::{Dimensions, SubtitleTrackOrigin, SubtitleTrackOriginSource, VideoFormat, VideoMeta};
     let vm = VideoMeta {
-        id: vec![1, 2],
+        id: vec![1, 2].into(),
         name: "j.mp4".into(),
         format: buffa::EnumValue::from(VideoFormat::VIDEO_FORMAT_MKV),
         dimensions: buffa::MessageField::some(Dimensions { width: 1280, height: 720, ..Default::default() }),
@@ -1259,7 +1259,7 @@ fn batch4_sp2_json_roundtrip() {
     let back: VideoMeta = serde_json::from_str(&json).expect("from_json");
     assert_eq!(vm, back);
 
-    let o = SubtitleTrackOrigin { kind: 4, source: Some(SubtitleTrackOriginSource::SourceSubtitleTrackId(vec![1, 2, 3])), ..Default::default() };
+    let o = SubtitleTrackOrigin { kind: 4, source: Some(SubtitleTrackOriginSource::SourceSubtitleTrackId(vec![1, 2, 3].into())), ..Default::default() };
     let oj = serde_json::to_string(&o).expect("to_json");
     let ob: SubtitleTrackOrigin = serde_json::from_str(&oj).expect("from_json");
     assert_eq!(o, ob);
@@ -1269,7 +1269,7 @@ fn batch4_sp2_json_roundtrip() {
 
 fn make_video_meta() -> buffa::MessageField<VideoMeta> {
     buffa::MessageField::some(VideoMeta {
-        id: vec![1, 2, 3, 4],
+        id: vec![1, 2, 3, 4].into(),
         name: "clip.mp4".into(),
         format: buffa::EnumValue::from(mediaschema::VideoFormat::VIDEO_FORMAT_MP4),
         dimensions: buffa::MessageField::some(Dimensions { width: 1920, height: 1080, ..Default::default() }),
@@ -1284,7 +1284,7 @@ fn make_video_meta() -> buffa::MessageField<VideoMeta> {
 
 fn make_video_track_meta() -> buffa::MessageField<VideoTrackMeta> {
     buffa::MessageField::some(VideoTrackMeta {
-        id: vec![9],
+        id: vec![9].into(),
         ordinal: 0,
         stream_index: 1,
         container_track_id: Some(42),
@@ -1307,7 +1307,7 @@ fn make_video_stream_meta() -> buffa::MessageField<VideoStreamMeta> {
 
 fn make_subtitle_track_meta() -> buffa::MessageField<SubtitleTrackMeta> {
     buffa::MessageField::some(SubtitleTrackMeta {
-        id: vec![1],
+        id: vec![1].into(),
         ordinal: 0,
         stream_index: Some(3),
         container_track_id: Some(8),
@@ -1318,7 +1318,7 @@ fn make_subtitle_track_meta() -> buffa::MessageField<SubtitleTrackMeta> {
 
 fn make_media_meta() -> buffa::MessageField<mediaschema::MediaMeta> {
     buffa::MessageField::some(mediaschema::MediaMeta {
-        id: vec![1],
+        id: vec![1].into(),
         checksum: (1u8..=32).collect(),
         name: "movie.mp4".into(),
         size: 99_000_000,
@@ -1330,7 +1330,7 @@ fn make_media_meta() -> buffa::MessageField<mediaschema::MediaMeta> {
 
 fn make_subtitle_meta() -> buffa::MessageField<mediaschema::SubtitleMeta> {
     buffa::MessageField::some(mediaschema::SubtitleMeta {
-        id: vec![7],
+        id: vec![7].into(),
         created_at: 9,
         ..Default::default()
     })
@@ -1345,7 +1345,7 @@ fn batch5_sp2_roundtrip() {
     // ── Video: populated (non-trivial) ───────────────────────────────────────
     rt(&Video {
         meta: make_video_meta(),
-        scenes: vec![vec![1], vec![2]],
+        scenes: vec![vec![1].into(), vec![2].into()],
         index_status: 0x01 | 0x02 | 0x80,
         index_error: make_error_info(),
         error_status: 1,
@@ -1370,7 +1370,7 @@ fn batch5_sp2_roundtrip() {
         is_primary: true,
         auto_selected: false,
         selection_reason: "auto".into(),
-        video_id: vec![7],
+        video_id: vec![7].into(),
         index_error: make_error_info(),
         ..Default::default()
     });
@@ -1382,7 +1382,7 @@ fn batch5_sp2_roundtrip() {
         kind: buffa::EnumValue::from(DbMediaKind::MEDIA_KIND_VIDEO),
         index_status: 0x01 | 0x02,
         index_error: make_error_info(),
-        video_id: Some(vec![1]),
+        video_id: Some(vec![1].into()),
         audio_id: None,
         subtitle_id: None,
         error_status: 0,
@@ -1422,7 +1422,7 @@ fn batch5_sp2_roundtrip() {
     // ── SubtitleTrack: populated ─────────────────────────────────────────────
     rt(&SubtitleTrack {
         meta: make_subtitle_track_meta(),
-        subtitle_id: vec![0xAB, 0xCD],
+        subtitle_id: vec![0xAB, 0xCD].into(),
         origin: buffa::MessageField::some(SubtitleTrackOrigin { kind: 2, source: None, ..Default::default() }),
         format: buffa::EnumValue::from(SubtitleTrackFormat::SUBTITLE_TRACK_FORMAT_SRT),
         role: buffa::EnumValue::from(SubtitleTrackRole::SUBTITLE_TRACK_ROLE_CAPTION),
@@ -1440,8 +1440,8 @@ fn batch5_sp2_roundtrip() {
 
     // ── SubtitleCue: populated ───────────────────────────────────────────────
     rt(&SubtitleCue {
-        id: vec![0x01, 0x02],
-        subtitle_track_id: vec![0x03, 0x04],
+        id: vec![0x01, 0x02].into(),
+        subtitle_track_id: vec![0x03, 0x04].into(),
         range: buffa::MessageField::some(mediatime::TimeRange::new(
             10,
             99,
@@ -1455,8 +1455,8 @@ fn batch5_sp2_roundtrip() {
     });
     // SubtitleCue: confidence None, range none
     rt(&SubtitleCue {
-        id: vec![0x05],
-        subtitle_track_id: vec![0x06],
+        id: vec![0x05].into(),
+        subtitle_track_id: vec![0x06].into(),
         range: buffa::MessageField::none(),
         text: "bye".into(),
         language: "fr".into(),
@@ -1472,10 +1472,10 @@ fn batch5_sp2_roundtrip() {
 fn batch5_sp2_json_roundtrip() {
     let st = SubtitleTrack {
         meta: make_subtitle_track_meta(),
-        subtitle_id: vec![0xAB, 0xCD],
+        subtitle_id: vec![0xAB, 0xCD].into(),
         origin: buffa::MessageField::some(SubtitleTrackOrigin {
             kind: 3,
-            source: Some(SubtitleTrackOriginSource::SourceAudioTrackId(vec![0xAA, 0xBB])),
+            source: Some(SubtitleTrackOriginSource::SourceAudioTrackId(vec![0xAA, 0xBB].into())),
             ..Default::default()
         }),
         format: buffa::EnumValue::from(SubtitleTrackFormat::SUBTITLE_TRACK_FORMAT_SRT),
@@ -1499,15 +1499,15 @@ fn batch5_sp2_json_roundtrip() {
 
 fn make_scene_meta() -> buffa::MessageField<SceneMeta> {
     buffa::MessageField::some(SceneMeta {
-        id: vec![1],
-        video_id: vec![2],
+        id: vec![1].into(),
+        video_id: vec![2].into(),
         range: buffa::MessageField::some(mediatime::TimeRange::new(
             100,
             500,
             mediatime::Timebase::new(30000, core::num::NonZeroU32::new(1001).unwrap()),
         )),
         created_at: 5,
-        video_track_id: vec![3],
+        video_track_id: vec![3].into(),
         ..Default::default()
     })
 }
@@ -1517,13 +1517,13 @@ fn batch6_sp2_roundtrip() {
     // ── Scene: populated ──────────────────────────────────────────────────────
     rt(&Scene {
         meta: make_scene_meta(),
-        keyframes: vec![vec![1], vec![2]],
+        keyframes: vec![vec![1].into(), vec![2].into()],
         description: "ocean coast".into(),
         shot_type: "wide".into(),
         camera_motion: "pan".into(),
         tags: "beach,sunset".into(),
         people_count: 3,
-        tag_ids: vec![vec![9]],
+        tag_ids: vec![vec![9].into()],
         vision_provider: vec!["apple".into()],
         smart_folders: vec!["fav".into()],
         ..Default::default()
@@ -1637,11 +1637,11 @@ fn batch6_sp2_json_roundtrip() {
 
 fn make_keyframe() -> Keyframe {
     Keyframe {
-        id: vec![1, 2],
-        scene_id: vec![3, 4],
+        id: vec![1, 2].into(),
+        scene_id: vec![3, 4].into(),
         pts: 12345,
         dimensions: buffa::MessageField::some(Dimensions { width: 1920, height: 1080, ..Default::default() }),
-        data: vec![0xABu8; 64],
+        data: vec![0xABu8; 64].into(),
         classifications: vec![ClassificationDetection {
             detection: make_detection("landscape", 0.95),
             ..Default::default()
@@ -1698,7 +1698,7 @@ fn make_keyframe() -> Keyframe {
                     height: 32,
                     ..Default::default()
                 }),
-                data: vec![0xAAu8; 32 * 32],
+                data: vec![0xAAu8; 32 * 32].into(),
                 ..Default::default()
             }],
             ..Default::default()
@@ -1766,7 +1766,7 @@ fn make_keyframe() -> Keyframe {
             ..Default::default()
         }],
         feature_print: buffa::MessageField::some(FeaturePrint {
-            data: vec![0xFFu8; 64],
+            data: vec![0xFFu8; 64].into(),
             element_type: 1,
             ..Default::default()
         }),
@@ -1801,7 +1801,7 @@ fn batch7_sp2_json_roundtrip() {
 fn batch8_sp2_roundtrip() {
     // ── AudioMeta: populated (exercises reserved 2 transparently) ────────────
     rt(&AudioMeta {
-        id: vec![1, 2],
+        id: vec![1, 2].into(),
         name: "mka".into(),
         container: "mka".into(),
         size: 999,
@@ -1840,7 +1840,7 @@ fn batch8_sp2_roundtrip() {
 
     // ── AudioTrackMeta: container_track_id Some ───────────────────────────────
     rt(&AudioTrackMeta {
-        id: vec![1],
+        id: vec![1].into(),
         ordinal: 0,
         stream_index: 1,
         container_track_id: Some(7),
@@ -1849,7 +1849,7 @@ fn batch8_sp2_roundtrip() {
     });
     // AudioTrackMeta: container_track_id None, time none
     rt(&AudioTrackMeta {
-        id: vec![2],
+        id: vec![2].into(),
         ordinal: 1,
         stream_index: 2,
         container_track_id: None,
@@ -1932,7 +1932,7 @@ fn batch8_sp2_json_roundtrip() {
 
 fn make_audio_meta_mf() -> buffa::MessageField<AudioMeta> {
     buffa::MessageField::some(AudioMeta {
-        id: vec![0xA1, 0xA2],
+        id: vec![0xA1, 0xA2].into(),
         name: "track.mka".into(),
         container: "mka".into(),
         size: 88_200,
@@ -1982,7 +1982,7 @@ fn make_audio_summary_mf() -> buffa::MessageField<AudioSummary> {
 
 fn make_audio_track_meta_mf() -> buffa::MessageField<AudioTrackMeta> {
     buffa::MessageField::some(AudioTrackMeta {
-        id: vec![0xB1],
+        id: vec![0xB1].into(),
         ordinal: 0,
         stream_index: 1,
         container_track_id: Some(7),
@@ -2022,13 +2022,13 @@ fn make_audio_stream_meta_mf() -> buffa::MessageField<AudioStreamMeta> {
 fn batch9_sp2_roundtrip() {
     // ── AudioAnalysis: fully populated (all ~44 fields non-trivial) ───────────
     let aa_full = AudioAnalysis {
-        id: vec![0x01, 0x02, 0x03, 0x04],
-        audio_id: vec![0x05, 0x06, 0x07, 0x08],
-        scene_id: Some(vec![5]),
+        id: vec![0x01, 0x02, 0x03, 0x04].into(),
+        audio_id: vec![0x05, 0x06, 0x07, 0x08].into(),
+        scene_id: Some(vec![5].into()),
         kind: buffa::EnumValue::from(AudioClipKind::AUDIO_CLIP_KIND_FIXED_WINDOW),
         start_ms: 1000,
         end_ms: 5000,
-        track_id: vec![0x09, 0x0A],
+        track_id: vec![0x09, 0x0A].into(),
         ced_tags: vec![CedDetection { tag: 0xDEAD_BEEF_0000_0001, confidence: 0.7, ..Default::default() }],
         zs_audio_type: buffa::MessageField::some(TagConfidence { label: "speech".into(), confidence: 0.88, ..Default::default() }),
         zs_scene: buffa::MessageField::some(TagConfidence { label: "concert".into(), confidence: 0.77, ..Default::default() }),
@@ -2073,13 +2073,13 @@ fn batch9_sp2_roundtrip() {
 
     // ── AudioAnalysis: minimal (sparse-band guard — all optional→None, repeated→empty) ──
     let aa_min = AudioAnalysis {
-        id: vec![0x10],
-        audio_id: vec![0x11],
+        id: vec![0x10].into(),
+        audio_id: vec![0x11].into(),
         scene_id: None,
         kind: buffa::EnumValue::from(AudioClipKind::AUDIO_CLIP_KIND_UNSPECIFIED),
         start_ms: 0,
         end_ms: 0,
-        track_id: vec![],
+        track_id: vec![].into(),
         ced_tags: vec![],
         zs_audio_type: buffa::MessageField::none(),
         zs_scene: buffa::MessageField::none(),
@@ -2126,8 +2126,8 @@ fn batch9_sp2_roundtrip() {
 
     // ── TrackRecord: fully populated ─────────────────────────────────────────
     let tr_full = TrackRecord {
-        id: vec![0x20, 0x21],
-        audio_id: vec![0x22, 0x23],
+        id: vec![0x20, 0x21].into(),
+        audio_id: vec![0x22, 0x23].into(),
         track_index: 1,
         codec: buffa::EnumValue::from(AudioCodec::AUDIO_CODEC_AAC),
         sample_format: buffa::EnumValue::from(AudioSampleFormat::AUDIO_SAMPLE_FORMAT_FLTP),
@@ -2178,7 +2178,7 @@ fn batch9_sp2_roundtrip() {
             ..Default::default()
         }),
         chromaprint: buffa::MessageField::some(Chromaprint {
-            fingerprint: vec![0x01, 0x02, 0x03, 0x04],
+            fingerprint: vec![0x01, 0x02, 0x03, 0x04].into(),
             fingerprint_duration: 120.5,
             ..Default::default()
         }),
@@ -2192,8 +2192,8 @@ fn batch9_sp2_roundtrip() {
     // ── TrackRecord: 1000s band all none(), timecode none(), index_error none() ──
     // (proves reserved 17 + 1000s/2000s bands round-trip)
     let tr_min = TrackRecord {
-        id: vec![0x30],
-        audio_id: vec![0x31],
+        id: vec![0x30].into(),
+        audio_id: vec![0x31].into(),
         track_index: 0,
         codec: buffa::EnumValue::from(AudioCodec::AUDIO_CODEC_UNSPECIFIED),
         sample_format: buffa::EnumValue::from(AudioSampleFormat::AUDIO_SAMPLE_FORMAT_UNSPECIFIED),
@@ -2225,7 +2225,7 @@ fn batch9_sp2_roundtrip() {
     // ── Audio: populated (proves reserved 3, 4) ───────────────────────────────
     let audio_full = Audio {
         meta: make_audio_meta_mf(),
-        analyses: vec![vec![1], vec![2]],
+        analyses: vec![vec![1].into(), vec![2].into()],
         summary: make_audio_summary_mf(),
         index_status: 0x01 | 0x20,
         index_error: buffa::MessageField::some(ErrorInfo { code: 5, message: "x".into(), ..Default::default() }),
@@ -2255,7 +2255,7 @@ fn batch9_sp2_roundtrip() {
         is_primary: true,
         auto_selected: false,
         selection_reason: "auto".into(),
-        audio_id: vec![0xC1, 0xC2],
+        audio_id: vec![0xC1, 0xC2].into(),
         index_error: buffa::MessageField::some(ErrorInfo { code: 3, message: "err".into(), ..Default::default() }),
         ..Default::default()
     };
@@ -2269,13 +2269,13 @@ fn batch9_sp2_roundtrip() {
 fn batch9_sp2_json_roundtrip() {
     // ── AudioAnalysis: fully populated (widest sparse-field serde case) ───────
     let aa = AudioAnalysis {
-        id: vec![0x01, 0x02, 0x03, 0x04],
-        audio_id: vec![0x05, 0x06, 0x07, 0x08],
-        scene_id: Some(vec![5]),
+        id: vec![0x01, 0x02, 0x03, 0x04].into(),
+        audio_id: vec![0x05, 0x06, 0x07, 0x08].into(),
+        scene_id: Some(vec![5].into()),
         kind: buffa::EnumValue::from(AudioClipKind::AUDIO_CLIP_KIND_FIXED_WINDOW),
         start_ms: 1000,
         end_ms: 5000,
-        track_id: vec![0x09, 0x0A],
+        track_id: vec![0x09, 0x0A].into(),
         ced_tags: vec![CedDetection { tag: 0xDEAD_BEEF_0000_0001, confidence: 0.7, ..Default::default() }],
         zs_audio_type: buffa::MessageField::some(TagConfidence { label: "speech".into(), confidence: 0.88, ..Default::default() }),
         zs_scene: buffa::MessageField::some(TagConfidence { label: "concert".into(), confidence: 0.77, ..Default::default() }),
@@ -2322,8 +2322,8 @@ fn batch9_sp2_json_roundtrip() {
 
     // ── TrackRecord: banded tags + extern Timebase + nested Clap/Ced ─────────
     let tr = TrackRecord {
-        id: vec![0x20, 0x21],
-        audio_id: vec![0x22, 0x23],
+        id: vec![0x20, 0x21].into(),
+        audio_id: vec![0x22, 0x23].into(),
         track_index: 1,
         codec: buffa::EnumValue::from(AudioCodec::AUDIO_CODEC_AAC),
         sample_format: buffa::EnumValue::from(AudioSampleFormat::AUDIO_SAMPLE_FORMAT_FLTP),
@@ -2374,7 +2374,7 @@ fn batch9_sp2_json_roundtrip() {
             ..Default::default()
         }),
         chromaprint: buffa::MessageField::some(Chromaprint {
-            fingerprint: vec![0x01, 0x02, 0x03, 0x04],
+            fingerprint: vec![0x01, 0x02, 0x03, 0x04].into(),
             fingerprint_duration: 120.5,
             ..Default::default()
         }),
@@ -2415,7 +2415,7 @@ fn batch10_sp2_roundtrip() {
 
     // ── AudioFileRecord: fully populated ──────────────────────────────────────
     let afr_full = AudioFileRecord {
-        id: vec![1, 2],
+        id: vec![1, 2].into(),
         checksum: Some((1u8..=32).collect()),
         name: "track.flac".into(),
         format: buffa::EnumValue::from(AudioFormat::AUDIO_FORMAT_FLAC),
@@ -2456,7 +2456,7 @@ fn batch10_sp2_roundtrip() {
     // ── AudioFileRecord: checksum/cover_art/tag_types absent ──────────────────
     // (proves reserved 28..30 transparent + optionals default to absent)
     let afr_sparse = AudioFileRecord {
-        id: vec![3, 4],
+        id: vec![3, 4].into(),
         checksum: None,
         name: "sparse.flac".into(),
         format: buffa::EnumValue::from(AudioFormat::AUDIO_FORMAT_FLAC),
@@ -2494,7 +2494,7 @@ fn batch10_sp2_roundtrip() {
 #[cfg(feature = "json")]
 fn batch10_sp2_json_roundtrip() {
     let afr = AudioFileRecord {
-        id: vec![1, 2],
+        id: vec![1, 2].into(),
         checksum: Some((1u8..=32).collect()),
         name: "track.flac".into(),
         format: buffa::EnumValue::from(AudioFormat::AUDIO_FORMAT_FLAC),
@@ -2540,7 +2540,7 @@ fn batch10_sp2_json_roundtrip() {
 #[test]
 fn sp3_codegen_smoke_roundtrip() {
     let s = Sp3CodegenSmoke {
-        id: vec![0x01, 0x02, 0x03, 0x04],
+        id: vec![0x01, 0x02, 0x03, 0x04].into(),
         error: make_error_info(),
         video_meta: make_video_meta(),
         range: buffa::MessageField::some(mediatime::TimeRange::new(
@@ -2558,7 +2558,7 @@ fn sp3_codegen_smoke_roundtrip() {
 #[cfg(feature = "json")]
 fn sp3_codegen_smoke_json_roundtrip() {
     let s = Sp3CodegenSmoke {
-        id: vec![0xAA, 0xBB],
+        id: vec![0xAA, 0xBB].into(),
         error: make_error_info(),
         video_meta: make_video_meta(),
         range: buffa::MessageField::some(mediatime::TimeRange::new(
@@ -2602,8 +2602,8 @@ fn batch1_sp3_json_roundtrip() {
 fn batch2_sp3_roundtrip() {
     // ── SearchHit: fully populated ───────────────────────────────────────────
     rt(&SearchHit {
-        scene_id: vec![0x01, 0x02, 0x03],
-        video_id: vec![0x04, 0x05, 0x06],
+        scene_id: vec![0x01, 0x02, 0x03].into(),
+        video_id: vec![0x04, 0x05, 0x06].into(),
         video_name: "clip.mp4".into(),
         location: buffa::MessageField::some(make_local_location()),
         description: "sunset on the beach".into(),
@@ -2613,20 +2613,20 @@ fn batch2_sp3_roundtrip() {
             20,
             mediatime::Timebase::new(30000, core::num::NonZeroU32::new(1001).unwrap()),
         )),
-        thumbnail: vec![0xFF, 0xD8, 0xFF],
+        thumbnail: vec![0xFF, 0xD8, 0xFF].into(),
         dimensions: buffa::MessageField::some(Dimensions { width: 1920, height: 1080, ..Default::default() }),
         ..Default::default()
     });
     // SearchHit: optional fields absent, empty bytes/strings
     rt(&SearchHit {
-        scene_id: vec![],
-        video_id: vec![],
+        scene_id: vec![].into(),
+        video_id: vec![].into(),
         video_name: "".into(),
         location: buffa::MessageField::none(),
         description: "".into(),
         score: 0.0,
         range: buffa::MessageField::none(),
-        thumbnail: vec![],
+        thumbnail: vec![].into(),
         dimensions: buffa::MessageField::none(),
         ..Default::default()
     });
@@ -2637,7 +2637,7 @@ fn batch2_sp3_roundtrip() {
         meta: make_video_meta(),
         location: buffa::MessageField::some(make_local_location()),
         scene_count: 42,
-        thumbnail: vec![0xAB, 0xCD],
+        thumbnail: vec![0xAB, 0xCD].into(),
         ..Default::default()
     });
     // BrowseItem: meta/location absent, empty thumbnail
@@ -2645,7 +2645,7 @@ fn batch2_sp3_roundtrip() {
         meta: buffa::MessageField::none(),
         location: buffa::MessageField::none(),
         scene_count: 0,
-        thumbnail: vec![],
+        thumbnail: vec![].into(),
         ..Default::default()
     });
     rt(&BrowseItem::default());
@@ -2721,8 +2721,8 @@ fn batch2_sp3_json_roundtrip() {
     // SearchHit: covers media.v1.Location + media.v1.Dimensions + mediatime.v1.TimeRange extern
     // + inline bytes under serde
     let sh = SearchHit {
-        scene_id: vec![0x01, 0x02],
-        video_id: vec![0x03, 0x04],
+        scene_id: vec![0x01, 0x02].into(),
+        video_id: vec![0x03, 0x04].into(),
         video_name: "beach.mp4".into(),
         location: buffa::MessageField::some(make_local_location()),
         description: "golden hour".into(),
@@ -2732,7 +2732,7 @@ fn batch2_sp3_json_roundtrip() {
             15,
             mediatime::Timebase::new(30000, core::num::NonZeroU32::new(1001).unwrap()),
         )),
-        thumbnail: vec![0xAA, 0xBB],
+        thumbnail: vec![0xAA, 0xBB].into(),
         dimensions: buffa::MessageField::some(Dimensions { width: 1280, height: 720, ..Default::default() }),
         ..Default::default()
     };
@@ -2745,7 +2745,7 @@ fn batch2_sp3_json_roundtrip() {
         meta: make_video_meta(),
         location: buffa::MessageField::some(make_local_location()),
         scene_count: 7,
-        thumbnail: vec![0x11, 0x22],
+        thumbnail: vec![0x11, 0x22].into(),
         ..Default::default()
     };
     let json = serde_json::to_string(&bi).expect("to_json");
@@ -2773,15 +2773,15 @@ fn batch3_sp3_roundtrip() {
     rt(&UpdateAnnotationResponse::default());
 
     // EjectVolumeRequest: non-empty bytes + default
-    rt(&EjectVolumeRequest { volume_id: vec![1, 2, 3], ..Default::default() });
+    rt(&EjectVolumeRequest { volume_id: vec![1, 2, 3].into(), ..Default::default() });
     rt(&EjectVolumeRequest::default());
 
     // GetIndexedFileRequest: non-empty bytes + default
-    rt(&GetIndexedFileRequest { checksum: vec![1, 2, 3], ..Default::default() });
+    rt(&GetIndexedFileRequest { checksum: vec![1, 2, 3].into(), ..Default::default() });
     rt(&GetIndexedFileRequest::default());
 
     // GetFileIndexingStatsRequest: non-empty bytes + default
-    rt(&GetFileIndexingStatsRequest { video_id: vec![1, 2, 3], ..Default::default() });
+    rt(&GetFileIndexingStatsRequest { video_id: vec![1, 2, 3].into(), ..Default::default() });
     rt(&GetFileIndexingStatsRequest::default());
 
     // GetLocationStatsRequest: location present + none + default
@@ -2860,7 +2860,7 @@ fn batch3_sp3_roundtrip() {
 
     // UpdateAnnotationRequest: scene_ids + user_tags populated; empty-both case; default
     rt(&UpdateAnnotationRequest {
-        scene_ids: vec![vec![1], vec![2]],
+        scene_ids: vec![vec![1].into(), vec![2].into()],
         user_tags: vec![Tag { name: "favorite".into(), color: 0xFF_AA_00_FF, ..Default::default() }],
         ..Default::default()
     });
@@ -2872,7 +2872,7 @@ fn batch3_sp3_roundtrip() {
     rt(&UpdateAnnotationRequest::default());
 
     // SearchResponse: non-trivial + default
-    rt(&SearchResponse { search_id: vec![9, 9], total_count: 123, ..Default::default() });
+    rt(&SearchResponse { search_id: vec![9, 9].into(), total_count: 123, ..Default::default() });
     rt(&SearchResponse::default());
 
     // GetDaemonInfoResponse: all 5 fields non-trivial + default
@@ -2920,7 +2920,7 @@ fn batch3_sp3_json_roundtrip() {
 
     // UpdateAnnotationRequest: covers repeated bytes + repeated media.v1.Tag under serde
     let uar = UpdateAnnotationRequest {
-        scene_ids: vec![vec![1], vec![2]],
+        scene_ids: vec![vec![1].into(), vec![2].into()],
         user_tags: vec![Tag { name: "favorite".into(), color: 0xFF_AA_00_FF, ..Default::default() }],
         ..Default::default()
     };
@@ -3011,7 +3011,7 @@ fn batch4_sp3_roundtrip() {
 
     // ── FailedFilesResponse ───────────────────────────────────────────────────
     rt(&FailedFilesResponse {
-        location_id: vec![7, 7],
+        location_id: vec![7, 7].into(),
         failed_files: vec![NetFailedFile {
             kind: 0,
             location: buffa::MessageField::some(make_local_location()),
@@ -3022,7 +3022,7 @@ fn batch4_sp3_roundtrip() {
         }],
         ..Default::default()
     });
-    rt(&FailedFilesResponse { location_id: vec![], failed_files: vec![], ..Default::default() });
+    rt(&FailedFilesResponse { location_id: vec![].into(), failed_files: vec![], ..Default::default() });
     rt(&FailedFilesResponse::default());
 
     // ── SearchRequest ─────────────────────────────────────────────────────────
@@ -3046,7 +3046,7 @@ fn batch4_sp3_roundtrip() {
             meta: make_video_meta(),
             location: buffa::MessageField::some(make_local_location()),
             scene_count: 3,
-            thumbnail: vec![1],
+            thumbnail: vec![1].into(),
             ..Default::default()
         }],
         total_count: 1,
@@ -3065,7 +3065,7 @@ fn batch4_sp3_roundtrip() {
     rt(&GetIndexedFileResponse {
         video: buffa::MessageField::some(Video {
             meta: make_video_meta(),
-            scenes: vec![vec![1]],
+            scenes: vec![vec![1].into()],
             index_status: 0x01 | 0x80,
             index_error: make_error_info(),
             error_status: 1,
@@ -3073,13 +3073,13 @@ fn batch4_sp3_roundtrip() {
         }),
         scenes: vec![Scene {
             meta: make_scene_meta(),
-            keyframes: vec![vec![1]],
+            keyframes: vec![vec![1].into()],
             description: "ocean coast".into(),
             shot_type: "wide".into(),
             camera_motion: "pan".into(),
             tags: "beach,sunset".into(),
             people_count: 2,
-            tag_ids: vec![vec![9]],
+            tag_ids: vec![vec![9].into()],
             vision_provider: vec!["apple".into()],
             smart_folders: vec!["fav".into()],
             ..Default::default()
@@ -3095,13 +3095,13 @@ fn batch4_sp3_roundtrip() {
 
     // ── GetFileIndexingStatsResponse ──────────────────────────────────────────
     rt(&GetFileIndexingStatsResponse {
-        video_id: vec![1],
+        video_id: vec![1].into(),
         index_status: 0x01 | 0x04,
         error: make_error_info(),
         ..Default::default()
     });
     rt(&GetFileIndexingStatsResponse {
-        video_id: vec![2],
+        video_id: vec![2].into(),
         index_status: 0,
         error: buffa::MessageField::none(),
         ..Default::default()
@@ -3162,7 +3162,7 @@ fn batch4_sp3_json_roundtrip() {
     let gifr = GetIndexedFileResponse {
         video: buffa::MessageField::some(Video {
             meta: make_video_meta(),
-            scenes: vec![vec![1], vec![2]],
+            scenes: vec![vec![1].into(), vec![2].into()],
             index_status: 0x01 | 0x80,
             index_error: make_error_info(),
             error_status: 1,
@@ -3170,13 +3170,13 @@ fn batch4_sp3_json_roundtrip() {
         }),
         scenes: vec![Scene {
             meta: make_scene_meta(),
-            keyframes: vec![vec![1]],
+            keyframes: vec![vec![1].into()],
             description: "ocean coast".into(),
             shot_type: "wide".into(),
             camera_motion: "pan".into(),
             tags: "beach,sunset".into(),
             people_count: 3,
-            tag_ids: vec![vec![9]],
+            tag_ids: vec![vec![9].into()],
             vision_provider: vec!["apple".into()],
             smart_folders: vec!["fav".into()],
             ..Default::default()
@@ -3338,14 +3338,14 @@ fn batch6_sp3_roundtrip() {
     rt(&Request { kind: Some(RequestKind::Browse(Box::new(BrowseRequest { location: buffa::MessageField::none(), pagination: buffa::MessageField::none(), ..Default::default() }))), ..Default::default() });
     rt(&Request { kind: Some(RequestKind::GetLocationStats(Box::new(GetLocationStatsRequest { location: buffa::MessageField::none(), ..Default::default() }))), ..Default::default() });
     rt(&Request { kind: Some(RequestKind::ListLocations(Box::new(ListLocationsRequest::default()))), ..Default::default() });
-    rt(&Request { kind: Some(RequestKind::GetIndexedFile(Box::new(GetIndexedFileRequest { checksum: vec![1], ..Default::default() }))), ..Default::default() });
-    rt(&Request { kind: Some(RequestKind::GetFileIndexingStats(Box::new(GetFileIndexingStatsRequest { video_id: vec![1], ..Default::default() }))), ..Default::default() });
+    rt(&Request { kind: Some(RequestKind::GetIndexedFile(Box::new(GetIndexedFileRequest { checksum: vec![1].into(), ..Default::default() }))), ..Default::default() });
+    rt(&Request { kind: Some(RequestKind::GetFileIndexingStats(Box::new(GetFileIndexingStatsRequest { video_id: vec![1].into(), ..Default::default() }))), ..Default::default() });
     rt(&Request { kind: Some(RequestKind::GetModelStatus(Box::new(GetModelStatusRequest::default()))), ..Default::default() });
     rt(&Request { kind: Some(RequestKind::GetDaemonInfo(Box::new(GetDaemonInfoRequest::default()))), ..Default::default() });
     rt(&Request { kind: Some(RequestKind::IndexLocation(Box::new(IndexLocationRequest { target: buffa::MessageField::none(), ..Default::default() }))), ..Default::default() });
     rt(&Request { kind: Some(RequestKind::RemoveLocation(Box::new(RemoveLocationRequest { location: buffa::MessageField::none(), ..Default::default() }))), ..Default::default() });
-    rt(&Request { kind: Some(RequestKind::UpdateAnnotation(Box::new(UpdateAnnotationRequest { scene_ids: vec![vec![1]], user_tags: vec![], ..Default::default() }))), ..Default::default() });
-    rt(&Request { kind: Some(RequestKind::EjectVolume(Box::new(EjectVolumeRequest { volume_id: vec![1], ..Default::default() }))), ..Default::default() });
+    rt(&Request { kind: Some(RequestKind::UpdateAnnotation(Box::new(UpdateAnnotationRequest { scene_ids: vec![vec![1].into()], user_tags: vec![], ..Default::default() }))), ..Default::default() });
+    rt(&Request { kind: Some(RequestKind::EjectVolume(Box::new(EjectVolumeRequest { volume_id: vec![1].into(), ..Default::default() }))), ..Default::default() });
     rt(&Request { kind: Some(RequestKind::RetryFailed(Box::new(RetryFailedRequest { location: buffa::MessageField::some(make_local_location()), ..Default::default() }))), ..Default::default() });
 
     // ── no-arm default (empty oneof round-trips) ─────────────────────────────
@@ -3365,7 +3365,7 @@ fn batch6_sp3_roundtrip() {
     // ── fully-populated UpdateAnnotation arm ──────────────────────────────────
     rt(&Request {
         kind: Some(RequestKind::UpdateAnnotation(Box::new(UpdateAnnotationRequest {
-            scene_ids: vec![vec![1]],
+            scene_ids: vec![vec![1].into()],
             user_tags: vec![Tag { name: "favorite".into(), color: 0xFF_AA_00_FF, ..Default::default() }],
             ..Default::default()
         }))),
@@ -3407,13 +3407,13 @@ fn batch6_sp3_json_roundtrip() {
 fn batch7_sp3_roundtrip() {
     // ── all 15 arms individually ─────────────────────────────────────────────
     rt(&Response { kind: Some(ResponseKind::Heartbeat(Box::new(HeartbeatResponse { timestamp: 1, ..Default::default() }))), ..Default::default() });
-    rt(&Response { kind: Some(ResponseKind::Search(Box::new(SearchResponse { search_id: vec![1], total_count: 1, ..Default::default() }))), ..Default::default() });
+    rt(&Response { kind: Some(ResponseKind::Search(Box::new(SearchResponse { search_id: vec![1].into(), total_count: 1, ..Default::default() }))), ..Default::default() });
     rt(&Response { kind: Some(ResponseKind::Browse(Box::new(BrowseResponse { items: vec![], total_count: 0, pagination: buffa::MessageField::none(), ..Default::default() }))), ..Default::default() });
     rt(&Response {
         kind: Some(ResponseKind::GetIndexedFile(Box::new(GetIndexedFileResponse {
             video: buffa::MessageField::some(Video {
                 meta: make_video_meta(),
-                scenes: vec![vec![1]],
+                scenes: vec![vec![1].into()],
                 index_status: 0x01 | 0x80,
                 index_error: make_error_info(),
                 error_status: 1,
@@ -3421,13 +3421,13 @@ fn batch7_sp3_roundtrip() {
             }),
             scenes: vec![Scene {
                 meta: make_scene_meta(),
-                keyframes: vec![vec![1]],
+                keyframes: vec![vec![1].into()],
                 description: "ocean coast".into(),
                 shot_type: "wide".into(),
                 camera_motion: "pan".into(),
                 tags: "beach,sunset".into(),
                 people_count: 2,
-                tag_ids: vec![vec![9]],
+                tag_ids: vec![vec![9].into()],
                 vision_provider: vec!["apple".into()],
                 smart_folders: vec!["fav".into()],
                 ..Default::default()
@@ -3438,7 +3438,7 @@ fn batch7_sp3_roundtrip() {
     });
     rt(&Response { kind: Some(ResponseKind::ListLocations(Box::new(ListLocationsResponse::default()))), ..Default::default() });
     rt(&Response { kind: Some(ResponseKind::GetLocationStats(Box::new(GetLocationStatsResponse { total_files: 10, indexed_files: 8, total_videos: 5, total_scenes: 50, total_audios: 3, failed_files: vec![], ..Default::default() }))), ..Default::default() });
-    rt(&Response { kind: Some(ResponseKind::GetFileIndexingStats(Box::new(GetFileIndexingStatsResponse { video_id: vec![1], index_status: 0x01, error: buffa::MessageField::none(), ..Default::default() }))), ..Default::default() });
+    rt(&Response { kind: Some(ResponseKind::GetFileIndexingStats(Box::new(GetFileIndexingStatsResponse { video_id: vec![1].into(), index_status: 0x01, error: buffa::MessageField::none(), ..Default::default() }))), ..Default::default() });
     rt(&Response { kind: Some(ResponseKind::GetModelStatus(Box::new(GetModelStatusResponse { models: vec![ModelInfo { name: "m".into(), status: 2, size_bytes: 1024, ..Default::default() }], ..Default::default() }))), ..Default::default() });
     rt(&Response { kind: Some(ResponseKind::GetDaemonInfo(Box::new(GetDaemonInfoResponse { version: "1.0".into(), started_at: 1_700_000_000, total_videos: 100, total_scenes: 1000, active_tasks: 2, ..Default::default() }))), ..Default::default() });
     rt(&Response { kind: Some(ResponseKind::IndexLocation(Box::new(IndexLocationResponse { folder: buffa::MessageField::some(WatchedLocation { id: buffa::MessageField::some(Id { value: (1u8..=16).collect(), ..Default::default() }), location: buffa::MessageField::some(make_local_location()), name: "Videos".into(), status: 1, created_at: 1_700_000_000, ..Default::default() }), ..Default::default() }))), ..Default::default() });
@@ -3456,7 +3456,7 @@ fn batch7_sp3_roundtrip() {
         kind: Some(ResponseKind::GetIndexedFile(Box::new(GetIndexedFileResponse {
             video: buffa::MessageField::some(Video {
                 meta: make_video_meta(),
-                scenes: vec![vec![1], vec![2]],
+                scenes: vec![vec![1].into(), vec![2].into()],
                 index_status: 0x01 | 0x02 | 0x80,
                 index_error: make_error_info(),
                 error_status: 1,
@@ -3464,13 +3464,13 @@ fn batch7_sp3_roundtrip() {
             }),
             scenes: vec![Scene {
                 meta: make_scene_meta(),
-                keyframes: vec![vec![1]],
+                keyframes: vec![vec![1].into()],
                 description: "ocean coast".into(),
                 shot_type: "wide".into(),
                 camera_motion: "pan".into(),
                 tags: "beach,sunset".into(),
                 people_count: 3,
-                tag_ids: vec![vec![9]],
+                tag_ids: vec![vec![9].into()],
                 vision_provider: vec!["apple".into()],
                 smart_folders: vec!["fav".into()],
                 ..Default::default()
@@ -3495,7 +3495,7 @@ fn batch7_sp3_json_roundtrip() {
         kind: Some(ResponseKind::GetIndexedFile(Box::new(GetIndexedFileResponse {
             video: buffa::MessageField::some(Video {
                 meta: make_video_meta(),
-                scenes: vec![vec![1], vec![2]],
+                scenes: vec![vec![1].into(), vec![2].into()],
                 index_status: 0x01 | 0x80,
                 index_error: make_error_info(),
                 error_status: 1,
@@ -3503,13 +3503,13 @@ fn batch7_sp3_json_roundtrip() {
             }),
             scenes: vec![Scene {
                 meta: make_scene_meta(),
-                keyframes: vec![vec![1]],
+                keyframes: vec![vec![1].into()],
                 description: "ocean coast".into(),
                 shot_type: "wide".into(),
                 camera_motion: "pan".into(),
                 tags: "beach,sunset".into(),
                 people_count: 3,
-                tag_ids: vec![vec![9]],
+                tag_ids: vec![vec![9].into()],
                 vision_provider: vec!["apple".into()],
                 smart_folders: vec!["fav".into()],
                 ..Default::default()
@@ -3539,7 +3539,7 @@ fn batch7_sp3_json_roundtrip() {
 #[test]
 fn batch8_sp3_roundtrip() {
     // ── all 5 arms individually ──────────────────────────────────────────────
-    rt(&Event { kind: Some(EventKind::FailedFiles(Box::new(FailedFilesResponse { location_id: vec![1], failed_files: vec![NetFailedFile { kind: 0, location: buffa::MessageField::some(make_local_location()), error: make_error_info(), error_status: 0x01, index_status: 0x02, ..Default::default() }], ..Default::default() }))), ..Default::default() });
+    rt(&Event { kind: Some(EventKind::FailedFiles(Box::new(FailedFilesResponse { location_id: vec![1].into(), failed_files: vec![NetFailedFile { kind: 0, location: buffa::MessageField::some(make_local_location()), error: make_error_info(), error_status: 0x01, index_status: 0x02, ..Default::default() }], ..Default::default() }))), ..Default::default() });
     rt(&Event { kind: Some(EventKind::IndexingProgress(Box::new(IndexingProgressResponse { location: buffa::MessageField::some(make_local_location()), total_files: 10, indexed_files: 5, active_files: vec![IndexingFile { location: buffa::MessageField::some(make_local_location()), name: "a".into(), completed_phases: 0x01, ..Default::default() }], ..Default::default() }))), ..Default::default() });
     rt(&Event { kind: Some(EventKind::VolumeStateChanged(Box::new(VolumeStateChangedEvent { volume: buffa::MessageField::none(), event: 2, ..Default::default() }))), ..Default::default() });
     rt(&Event { kind: Some(EventKind::FolderUpdated(Box::new(FolderUpdatedEvent { folder_location: buffa::MessageField::some(make_local_location()), path: "/x".into(), event: 1, ..Default::default() }))), ..Default::default() });

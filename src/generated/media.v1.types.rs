@@ -4685,7 +4685,11 @@ pub struct FeaturePrint {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
         )
     )]
-    pub data: ::buffa::alloc::vec::Vec<u8>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes)
+    )]
+    pub data: ::buffa::bytes::Bytes,
     /// Field 2: `element_type`
     #[cfg_attr(
         feature = "json",
@@ -4789,7 +4793,7 @@ impl ::buffa::Message for FeaturePrint {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(&mut self.data, buf)?;
+                self.data = ::buffa::types::decode_bytes_to_bytes(buf)?;
             }
             2u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Varint {
@@ -4809,7 +4813,7 @@ impl ::buffa::Message for FeaturePrint {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.data.clear();
+        self.data = ::buffa::bytes::Bytes::new();
         self.element_type = 0u32;
         self.__buffa_unknown_fields.clear();
     }
@@ -5435,7 +5439,11 @@ pub struct Id {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
         )
     )]
-    pub value: ::buffa::alloc::vec::Vec<u8>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes)
+    )]
+    pub value: ::buffa::bytes::Bytes,
     #[cfg_attr(feature = "json", serde(skip))]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -5517,7 +5525,7 @@ impl ::buffa::Message for Id {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(&mut self.value, buf)?;
+                self.value = ::buffa::types::decode_bytes_to_bytes(buf)?;
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -5527,7 +5535,7 @@ impl ::buffa::Message for Id {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.value.clear();
+        self.value = ::buffa::bytes::Bytes::new();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -5578,7 +5586,11 @@ pub struct FileChecksum {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
         )
     )]
-    pub value: ::buffa::alloc::vec::Vec<u8>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes)
+    )]
+    pub value: ::buffa::bytes::Bytes,
     #[cfg_attr(feature = "json", serde(skip))]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -5660,7 +5672,7 @@ impl ::buffa::Message for FileChecksum {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(&mut self.value, buf)?;
+                self.value = ::buffa::types::decode_bytes_to_bytes(buf)?;
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -5670,7 +5682,7 @@ impl ::buffa::Message for FileChecksum {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.value.clear();
+        self.value = ::buffa::bytes::Bytes::new();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -11980,7 +11992,11 @@ pub struct PersonSegmentationMask {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
         )
     )]
-    pub data: ::buffa::alloc::vec::Vec<u8>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes)
+    )]
+    pub data: ::buffa::bytes::Bytes,
     #[cfg_attr(feature = "json", serde(skip))]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -12147,7 +12163,7 @@ impl ::buffa::Message for PersonSegmentationMask {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(&mut self.data, buf)?;
+                self.data = ::buffa::types::decode_bytes_to_bytes(buf)?;
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -12160,7 +12176,7 @@ impl ::buffa::Message for PersonSegmentationMask {
         self.bbox = ::buffa::MessageField::none();
         self.confidence = 0f32;
         self.dimensions = ::buffa::MessageField::none();
-        self.data.clear();
+        self.data = ::buffa::bytes::Bytes::new();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -12250,7 +12266,11 @@ pub struct PersonInstanceMaskDetection {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
         )
     )]
-    pub data: ::buffa::alloc::vec::Vec<u8>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes)
+    )]
+    pub data: ::buffa::bytes::Bytes,
     #[cfg_attr(feature = "json", serde(skip))]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -12437,7 +12457,7 @@ impl ::buffa::Message for PersonInstanceMaskDetection {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(&mut self.data, buf)?;
+                self.data = ::buffa::types::decode_bytes_to_bytes(buf)?;
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -12451,7 +12471,7 @@ impl ::buffa::Message for PersonInstanceMaskDetection {
         self.confidence = 0f32;
         self.instance_index = 0u32;
         self.dimensions = ::buffa::MessageField::none();
-        self.data.clear();
+        self.data = ::buffa::bytes::Bytes::new();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -13441,7 +13461,11 @@ pub struct Sp2CodegenSmoke {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
         )
     )]
-    pub id: ::buffa::alloc::vec::Vec<u8>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes)
+    )]
+    pub id: ::buffa::bytes::Bytes,
     /// same-package MESSAGE ref (was cross-package media.v1)
     ///
     /// Field 2: `error`
@@ -13610,7 +13634,7 @@ impl ::buffa::Message for Sp2CodegenSmoke {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(&mut self.id, buf)?;
+                self.id = ::buffa::types::decode_bytes_to_bytes(buf)?;
             }
             2u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -13660,7 +13684,7 @@ impl ::buffa::Message for Sp2CodegenSmoke {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.id.clear();
+        self.id = ::buffa::bytes::Bytes::new();
         self.error = ::buffa::MessageField::none();
         self.format = ::buffa::EnumValue::from(0);
         self.range = ::buffa::MessageField::none();
@@ -15014,7 +15038,11 @@ pub struct Chromaprint {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
         )
     )]
-    pub fingerprint: ::buffa::alloc::vec::Vec<u8>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes)
+    )]
+    pub fingerprint: ::buffa::bytes::Bytes,
     /// Field 2: `fingerprint_duration`
     #[cfg_attr(
         feature = "json",
@@ -15118,7 +15146,7 @@ impl ::buffa::Message for Chromaprint {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(&mut self.fingerprint, buf)?;
+                self.fingerprint = ::buffa::types::decode_bytes_to_bytes(buf)?;
             }
             2u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Fixed64 {
@@ -15138,7 +15166,7 @@ impl ::buffa::Message for Chromaprint {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.fingerprint.clear();
+        self.fingerprint = ::buffa::bytes::Bytes::new();
         self.fingerprint_duration = 0f64;
         self.__buffa_unknown_fields.clear();
     }
@@ -16835,7 +16863,11 @@ pub struct VideoMeta {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
         )
     )]
-    pub id: ::buffa::alloc::vec::Vec<u8>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes)
+    )]
+    pub id: ::buffa::bytes::Bytes,
     /// Field 3: `name`
     #[cfg_attr(
         feature = "json",
@@ -17099,7 +17131,7 @@ impl ::buffa::Message for VideoMeta {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(&mut self.id, buf)?;
+                self.id = ::buffa::types::decode_bytes_to_bytes(buf)?;
             }
             3u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -17199,7 +17231,7 @@ impl ::buffa::Message for VideoMeta {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.id.clear();
+        self.id = ::buffa::bytes::Bytes::new();
         self.name.clear();
         self.format = ::buffa::EnumValue::from(0);
         self.dimensions = ::buffa::MessageField::none();
@@ -17257,7 +17289,11 @@ pub struct VideoTrackMeta {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
         )
     )]
-    pub id: ::buffa::alloc::vec::Vec<u8>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes)
+    )]
+    pub id: ::buffa::bytes::Bytes,
     /// Field 2: `ordinal`
     #[cfg_attr(
         feature = "json",
@@ -17436,7 +17472,7 @@ impl ::buffa::Message for VideoTrackMeta {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(&mut self.id, buf)?;
+                self.id = ::buffa::types::decode_bytes_to_bytes(buf)?;
             }
             2u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Varint {
@@ -17492,7 +17528,7 @@ impl ::buffa::Message for VideoTrackMeta {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.id.clear();
+        self.id = ::buffa::bytes::Bytes::new();
         self.ordinal = 0u32;
         self.stream_index = 0u32;
         self.container_track_id = ::core::option::Option::None;
@@ -17878,7 +17914,11 @@ pub struct MediaMeta {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
         )
     )]
-    pub id: ::buffa::alloc::vec::Vec<u8>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes)
+    )]
+    pub id: ::buffa::bytes::Bytes,
     /// Field 2: `checksum`
     #[cfg_attr(
         feature = "json",
@@ -17888,7 +17928,11 @@ pub struct MediaMeta {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
         )
     )]
-    pub checksum: ::buffa::alloc::vec::Vec<u8>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes)
+    )]
+    pub checksum: ::buffa::bytes::Bytes,
     /// Field 3: `name`
     #[cfg_attr(
         feature = "json",
@@ -18072,7 +18116,7 @@ impl ::buffa::Message for MediaMeta {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(&mut self.id, buf)?;
+                self.id = ::buffa::types::decode_bytes_to_bytes(buf)?;
             }
             2u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -18082,7 +18126,7 @@ impl ::buffa::Message for MediaMeta {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(&mut self.checksum, buf)?;
+                self.checksum = ::buffa::types::decode_bytes_to_bytes(buf)?;
             }
             3u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -18136,8 +18180,8 @@ impl ::buffa::Message for MediaMeta {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.id.clear();
-        self.checksum.clear();
+        self.id = ::buffa::bytes::Bytes::new();
+        self.checksum = ::buffa::bytes::Bytes::new();
         self.name.clear();
         self.size = 0u64;
         self.time = ::buffa::MessageField::none();
@@ -18191,7 +18235,11 @@ pub struct SceneMeta {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
         )
     )]
-    pub id: ::buffa::alloc::vec::Vec<u8>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes)
+    )]
+    pub id: ::buffa::bytes::Bytes,
     /// Field 2: `video_id`
     #[cfg_attr(
         feature = "json",
@@ -18202,7 +18250,11 @@ pub struct SceneMeta {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
         )
     )]
-    pub video_id: ::buffa::alloc::vec::Vec<u8>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes)
+    )]
+    pub video_id: ::buffa::bytes::Bytes,
     /// Field 3: `range`
     #[cfg_attr(
         feature = "json",
@@ -18233,7 +18285,11 @@ pub struct SceneMeta {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
         )
     )]
-    pub video_track_id: ::buffa::alloc::vec::Vec<u8>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes)
+    )]
+    pub video_track_id: ::buffa::bytes::Bytes,
     #[cfg_attr(feature = "json", serde(skip))]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -18369,7 +18425,7 @@ impl ::buffa::Message for SceneMeta {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(&mut self.id, buf)?;
+                self.id = ::buffa::types::decode_bytes_to_bytes(buf)?;
             }
             2u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -18379,7 +18435,7 @@ impl ::buffa::Message for SceneMeta {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(&mut self.video_id, buf)?;
+                self.video_id = ::buffa::types::decode_bytes_to_bytes(buf)?;
             }
             3u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -18413,7 +18469,7 @@ impl ::buffa::Message for SceneMeta {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(&mut self.video_track_id, buf)?;
+                self.video_track_id = ::buffa::types::decode_bytes_to_bytes(buf)?;
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -18423,11 +18479,11 @@ impl ::buffa::Message for SceneMeta {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.id.clear();
-        self.video_id.clear();
+        self.id = ::buffa::bytes::Bytes::new();
+        self.video_id = ::buffa::bytes::Bytes::new();
         self.range = ::buffa::MessageField::none();
         self.created_at = 0i64;
-        self.video_track_id.clear();
+        self.video_track_id = ::buffa::bytes::Bytes::new();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -18477,7 +18533,11 @@ pub struct SubtitleMeta {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
         )
     )]
-    pub id: ::buffa::alloc::vec::Vec<u8>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes)
+    )]
+    pub id: ::buffa::bytes::Bytes,
     /// Field 2: `created_at`
     #[cfg_attr(
         feature = "json",
@@ -18581,7 +18641,7 @@ impl ::buffa::Message for SubtitleMeta {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(&mut self.id, buf)?;
+                self.id = ::buffa::types::decode_bytes_to_bytes(buf)?;
             }
             2u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Varint {
@@ -18601,7 +18661,7 @@ impl ::buffa::Message for SubtitleMeta {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.id.clear();
+        self.id = ::buffa::bytes::Bytes::new();
         self.created_at = 0i64;
         self.__buffa_unknown_fields.clear();
     }
@@ -18652,7 +18712,11 @@ pub struct SubtitleTrackMeta {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
         )
     )]
-    pub id: ::buffa::alloc::vec::Vec<u8>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes)
+    )]
+    pub id: ::buffa::bytes::Bytes,
     /// Field 2: `ordinal`
     #[cfg_attr(
         feature = "json",
@@ -18838,7 +18902,7 @@ impl ::buffa::Message for SubtitleTrackMeta {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(&mut self.id, buf)?;
+                self.id = ::buffa::types::decode_bytes_to_bytes(buf)?;
             }
             2u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Varint {
@@ -18896,7 +18960,7 @@ impl ::buffa::Message for SubtitleTrackMeta {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.id.clear();
+        self.id = ::buffa::bytes::Bytes::new();
         self.ordinal = 0u32;
         self.stream_index = ::core::option::Option::None;
         self.container_track_id = ::core::option::Option::None;
@@ -19085,7 +19149,7 @@ impl ::buffa::Message for SubtitleTrackOrigin {
                 }
                 self.source = ::core::option::Option::Some(
                     __buffa::oneof::subtitle_track_origin::Source::SourceAudioTrackId(
-                        ::buffa::types::decode_bytes(buf)?,
+                        ::buffa::types::decode_bytes_to_bytes(buf)?,
                     ),
                 );
             }
@@ -19099,7 +19163,7 @@ impl ::buffa::Message for SubtitleTrackOrigin {
                 }
                 self.source = ::core::option::Option::Some(
                     __buffa::oneof::subtitle_track_origin::Source::SourceSubtitleTrackId(
-                        ::buffa::types::decode_bytes(buf)?,
+                        ::buffa::types::decode_bytes_to_bytes(buf)?,
                     ),
                 );
             }
@@ -19165,20 +19229,18 @@ impl<'de> serde::Deserialize<'de> for SubtitleTrackOrigin {
                         "sourceAudioTrackId" | "source_audio_track_id" => {
                             struct _DeserSeed;
                             impl<'de> serde::de::DeserializeSeed<'de> for _DeserSeed {
-                                type Value = ::buffa::alloc::vec::Vec<u8>;
+                                type Value = ::buffa::bytes::Bytes;
                                 fn deserialize<D: serde::Deserializer<'de>>(
                                     self,
                                     d: D,
                                 ) -> ::core::result::Result<
-                                    ::buffa::alloc::vec::Vec<u8>,
+                                    ::buffa::bytes::Bytes,
                                     D::Error,
                                 > {
                                     ::buffa::json_helpers::bytes::deserialize(d)
                                 }
                             }
-                            let v: ::core::option::Option<
-                                ::buffa::alloc::vec::Vec<u8>,
-                            > = map
+                            let v: ::core::option::Option<::buffa::bytes::Bytes> = map
                                 .next_value_seed(
                                     ::buffa::json_helpers::NullableDeserializeSeed(_DeserSeed),
                                 )?;
@@ -19200,20 +19262,18 @@ impl<'de> serde::Deserialize<'de> for SubtitleTrackOrigin {
                         "sourceSubtitleTrackId" | "source_subtitle_track_id" => {
                             struct _DeserSeed;
                             impl<'de> serde::de::DeserializeSeed<'de> for _DeserSeed {
-                                type Value = ::buffa::alloc::vec::Vec<u8>;
+                                type Value = ::buffa::bytes::Bytes;
                                 fn deserialize<D: serde::Deserializer<'de>>(
                                     self,
                                     d: D,
                                 ) -> ::core::result::Result<
-                                    ::buffa::alloc::vec::Vec<u8>,
+                                    ::buffa::bytes::Bytes,
                                     D::Error,
                                 > {
                                     ::buffa::json_helpers::bytes::deserialize(d)
                                 }
                             }
-                            let v: ::core::option::Option<
-                                ::buffa::alloc::vec::Vec<u8>,
-                            > = map
+                            let v: ::core::option::Option<::buffa::bytes::Bytes> = map
                                 .next_value_seed(
                                     ::buffa::json_helpers::NullableDeserializeSeed(_DeserSeed),
                                 )?;
@@ -19291,7 +19351,11 @@ pub struct FailedFile {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
         )
     )]
-    pub id: ::buffa::alloc::vec::Vec<u8>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes)
+    )]
+    pub id: ::buffa::bytes::Bytes,
     /// Field 2: `media_id`
     #[cfg_attr(
         feature = "json",
@@ -19302,7 +19366,11 @@ pub struct FailedFile {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
         )
     )]
-    pub media_id: ::buffa::alloc::vec::Vec<u8>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes)
+    )]
+    pub media_id: ::buffa::bytes::Bytes,
     /// Field 3: `location_id`
     #[cfg_attr(
         feature = "json",
@@ -19313,7 +19381,11 @@ pub struct FailedFile {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
         )
     )]
-    pub location_id: ::buffa::alloc::vec::Vec<u8>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes)
+    )]
+    pub location_id: ::buffa::bytes::Bytes,
     /// Field 4: `failed_at`
     #[cfg_attr(
         feature = "json",
@@ -19441,7 +19513,7 @@ impl ::buffa::Message for FailedFile {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(&mut self.id, buf)?;
+                self.id = ::buffa::types::decode_bytes_to_bytes(buf)?;
             }
             2u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -19451,7 +19523,7 @@ impl ::buffa::Message for FailedFile {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(&mut self.media_id, buf)?;
+                self.media_id = ::buffa::types::decode_bytes_to_bytes(buf)?;
             }
             3u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -19461,7 +19533,7 @@ impl ::buffa::Message for FailedFile {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(&mut self.location_id, buf)?;
+                self.location_id = ::buffa::types::decode_bytes_to_bytes(buf)?;
             }
             4u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Varint {
@@ -19481,9 +19553,9 @@ impl ::buffa::Message for FailedFile {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.id.clear();
-        self.media_id.clear();
-        self.location_id.clear();
+        self.id = ::buffa::bytes::Bytes::new();
+        self.media_id = ::buffa::bytes::Bytes::new();
+        self.location_id = ::buffa::bytes::Bytes::new();
         self.failed_at = 0i64;
         self.__buffa_unknown_fields.clear();
     }
@@ -19549,7 +19621,11 @@ pub struct Video {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec"
         )
     )]
-    pub scenes: ::buffa::alloc::vec::Vec<::buffa::alloc::vec::Vec<u8>>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes_vec)
+    )]
+    pub scenes: ::buffa::alloc::vec::Vec<::buffa::bytes::Bytes>,
     /// Field 8: `index_status`
     #[cfg_attr(
         feature = "json",
@@ -19733,7 +19809,7 @@ impl ::buffa::Message for Video {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                self.scenes.push(::buffa::types::decode_bytes(buf)?);
+                self.scenes.push(::buffa::types::decode_bytes_to_bytes(buf)?);
             }
             8u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Varint {
@@ -19900,7 +19976,11 @@ pub struct VideoTrack {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
         )
     )]
-    pub video_id: ::buffa::alloc::vec::Vec<u8>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes)
+    )]
+    pub video_id: ::buffa::bytes::Bytes,
     /// Field 8: `index_error`
     #[cfg_attr(
         feature = "json",
@@ -20157,7 +20237,7 @@ impl ::buffa::Message for VideoTrack {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(&mut self.video_id, buf)?;
+                self.video_id = ::buffa::types::decode_bytes_to_bytes(buf)?;
             }
             8u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -20187,7 +20267,7 @@ impl ::buffa::Message for VideoTrack {
         self.is_primary = false;
         self.auto_selected = false;
         self.selection_reason.clear();
-        self.video_id.clear();
+        self.video_id = ::buffa::bytes::Bytes::new();
         self.index_error = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
@@ -20281,7 +20361,11 @@ pub struct Media {
             skip_serializing_if = "::core::option::Option::is_none"
         )
     )]
-    pub video_id: ::core::option::Option<::buffa::alloc::vec::Vec<u8>>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes_opt)
+    )]
+    pub video_id: ::core::option::Option<::buffa::bytes::Bytes>,
     /// Field 6: `audio_id`
     #[cfg_attr(
         feature = "json",
@@ -20292,7 +20376,11 @@ pub struct Media {
             skip_serializing_if = "::core::option::Option::is_none"
         )
     )]
-    pub audio_id: ::core::option::Option<::buffa::alloc::vec::Vec<u8>>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes_opt)
+    )]
+    pub audio_id: ::core::option::Option<::buffa::bytes::Bytes>,
     /// Field 7: `subtitle_id`
     #[cfg_attr(
         feature = "json",
@@ -20303,7 +20391,11 @@ pub struct Media {
             skip_serializing_if = "::core::option::Option::is_none"
         )
     )]
-    pub subtitle_id: ::core::option::Option<::buffa::alloc::vec::Vec<u8>>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes_opt)
+    )]
+    pub subtitle_id: ::core::option::Option<::buffa::bytes::Bytes>,
     /// Field 8: `error_status`
     #[cfg_attr(
         feature = "json",
@@ -20392,30 +20484,21 @@ impl Media {
     #[must_use = "with_* setters return `self` by value; assign or chain the result"]
     #[inline]
     ///Sets [`Self::video_id`] to `Some(value)`, consuming and returning `self`.
-    pub fn with_video_id(
-        mut self,
-        value: impl Into<::buffa::alloc::vec::Vec<u8>>,
-    ) -> Self {
+    pub fn with_video_id(mut self, value: impl Into<::buffa::bytes::Bytes>) -> Self {
         self.video_id = Some(value.into());
         self
     }
     #[must_use = "with_* setters return `self` by value; assign or chain the result"]
     #[inline]
     ///Sets [`Self::audio_id`] to `Some(value)`, consuming and returning `self`.
-    pub fn with_audio_id(
-        mut self,
-        value: impl Into<::buffa::alloc::vec::Vec<u8>>,
-    ) -> Self {
+    pub fn with_audio_id(mut self, value: impl Into<::buffa::bytes::Bytes>) -> Self {
         self.audio_id = Some(value.into());
         self
     }
     #[must_use = "with_* setters return `self` by value; assign or chain the result"]
     #[inline]
     ///Sets [`Self::subtitle_id`] to `Some(value)`, consuming and returning `self`.
-    pub fn with_subtitle_id(
-        mut self,
-        value: impl Into<::buffa::alloc::vec::Vec<u8>>,
-    ) -> Self {
+    pub fn with_subtitle_id(mut self, value: impl Into<::buffa::bytes::Bytes>) -> Self {
         self.subtitle_id = Some(value.into());
         self
     }
@@ -20660,10 +20743,9 @@ impl ::buffa::Message for Media {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(
-                    self.video_id.get_or_insert_with(::buffa::alloc::vec::Vec::new),
-                    buf,
-                )?;
+                self.video_id = ::core::option::Option::Some(
+                    ::buffa::types::decode_bytes_to_bytes(buf)?,
+                );
             }
             6u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -20673,10 +20755,9 @@ impl ::buffa::Message for Media {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(
-                    self.audio_id.get_or_insert_with(::buffa::alloc::vec::Vec::new),
-                    buf,
-                )?;
+                self.audio_id = ::core::option::Option::Some(
+                    ::buffa::types::decode_bytes_to_bytes(buf)?,
+                );
             }
             7u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -20686,10 +20767,9 @@ impl ::buffa::Message for Media {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(
-                    self.subtitle_id.get_or_insert_with(::buffa::alloc::vec::Vec::new),
-                    buf,
-                )?;
+                self.subtitle_id = ::core::option::Option::Some(
+                    ::buffa::types::decode_bytes_to_bytes(buf)?,
+                );
             }
             8u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Varint {
@@ -21056,7 +21136,11 @@ pub struct SubtitleTrack {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
         )
     )]
-    pub subtitle_id: ::buffa::alloc::vec::Vec<u8>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes)
+    )]
+    pub subtitle_id: ::buffa::bytes::Bytes,
     /// Field 3: `origin`
     #[cfg_attr(
         feature = "json",
@@ -21433,7 +21517,7 @@ impl ::buffa::Message for SubtitleTrack {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(&mut self.subtitle_id, buf)?;
+                self.subtitle_id = ::buffa::types::decode_bytes_to_bytes(buf)?;
             }
             3u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -21568,7 +21652,7 @@ impl ::buffa::Message for SubtitleTrack {
     }
     fn clear(&mut self) {
         self.meta = ::buffa::MessageField::none();
-        self.subtitle_id.clear();
+        self.subtitle_id = ::buffa::bytes::Bytes::new();
         self.origin = ::buffa::MessageField::none();
         self.format = ::buffa::EnumValue::from(0);
         self.role = ::buffa::EnumValue::from(0);
@@ -21629,7 +21713,11 @@ pub struct SubtitleCue {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
         )
     )]
-    pub id: ::buffa::alloc::vec::Vec<u8>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes)
+    )]
+    pub id: ::buffa::bytes::Bytes,
     /// Field 2: `subtitle_track_id`
     #[cfg_attr(
         feature = "json",
@@ -21640,7 +21728,11 @@ pub struct SubtitleCue {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
         )
     )]
-    pub subtitle_track_id: ::buffa::alloc::vec::Vec<u8>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes)
+    )]
+    pub subtitle_track_id: ::buffa::bytes::Bytes,
     /// Field 3: `range`
     #[cfg_attr(
         feature = "json",
@@ -21860,7 +21952,7 @@ impl ::buffa::Message for SubtitleCue {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(&mut self.id, buf)?;
+                self.id = ::buffa::types::decode_bytes_to_bytes(buf)?;
             }
             2u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -21870,7 +21962,7 @@ impl ::buffa::Message for SubtitleCue {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(&mut self.subtitle_track_id, buf)?;
+                self.subtitle_track_id = ::buffa::types::decode_bytes_to_bytes(buf)?;
             }
             3u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -21936,8 +22028,8 @@ impl ::buffa::Message for SubtitleCue {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.id.clear();
-        self.subtitle_track_id.clear();
+        self.id = ::buffa::bytes::Bytes::new();
+        self.subtitle_track_id = ::buffa::bytes::Bytes::new();
         self.range = ::buffa::MessageField::none();
         self.text.clear();
         self.language.clear();
@@ -22002,7 +22094,11 @@ pub struct Scene {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec"
         )
     )]
-    pub keyframes: ::buffa::alloc::vec::Vec<::buffa::alloc::vec::Vec<u8>>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes_vec)
+    )]
+    pub keyframes: ::buffa::alloc::vec::Vec<::buffa::bytes::Bytes>,
     /// Field 3: `description`
     #[cfg_attr(
         feature = "json",
@@ -22066,7 +22162,11 @@ pub struct Scene {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec"
         )
     )]
-    pub tag_ids: ::buffa::alloc::vec::Vec<::buffa::alloc::vec::Vec<u8>>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes_vec)
+    )]
+    pub tag_ids: ::buffa::alloc::vec::Vec<::buffa::bytes::Bytes>,
     /// Field 9: `vision_provider`
     #[cfg_attr(
         feature = "json",
@@ -22298,7 +22398,7 @@ impl ::buffa::Message for Scene {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                self.keyframes.push(::buffa::types::decode_bytes(buf)?);
+                self.keyframes.push(::buffa::types::decode_bytes_to_bytes(buf)?);
             }
             3u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -22358,7 +22458,7 @@ impl ::buffa::Message for Scene {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                self.tag_ids.push(::buffa::types::decode_bytes(buf)?);
+                self.tag_ids.push(::buffa::types::decode_bytes_to_bytes(buf)?);
             }
             9u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -23021,7 +23121,11 @@ pub struct Keyframe {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
         )
     )]
-    pub id: ::buffa::alloc::vec::Vec<u8>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes)
+    )]
+    pub id: ::buffa::bytes::Bytes,
     /// Field 2: `scene_id`
     #[cfg_attr(
         feature = "json",
@@ -23032,7 +23136,11 @@ pub struct Keyframe {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
         )
     )]
-    pub scene_id: ::buffa::alloc::vec::Vec<u8>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes)
+    )]
+    pub scene_id: ::buffa::bytes::Bytes,
     /// Field 3: `pts`
     #[cfg_attr(
         feature = "json",
@@ -23061,7 +23169,11 @@ pub struct Keyframe {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
         )
     )]
-    pub data: ::buffa::alloc::vec::Vec<u8>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes)
+    )]
+    pub data: ::buffa::bytes::Bytes,
     /// Field 6: `classifications`
     #[cfg_attr(
         feature = "json",
@@ -23672,7 +23784,7 @@ impl ::buffa::Message for Keyframe {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(&mut self.id, buf)?;
+                self.id = ::buffa::types::decode_bytes_to_bytes(buf)?;
             }
             2u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -23682,7 +23794,7 @@ impl ::buffa::Message for Keyframe {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(&mut self.scene_id, buf)?;
+                self.scene_id = ::buffa::types::decode_bytes_to_bytes(buf)?;
             }
             3u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Varint {
@@ -23716,7 +23828,7 @@ impl ::buffa::Message for Keyframe {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(&mut self.data, buf)?;
+                self.data = ::buffa::types::decode_bytes_to_bytes(buf)?;
             }
             6u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -23940,11 +24052,11 @@ impl ::buffa::Message for Keyframe {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.id.clear();
-        self.scene_id.clear();
+        self.id = ::buffa::bytes::Bytes::new();
+        self.scene_id = ::buffa::bytes::Bytes::new();
         self.pts = 0i64;
         self.dimensions = ::buffa::MessageField::none();
-        self.data.clear();
+        self.data = ::buffa::bytes::Bytes::new();
         self.classifications.clear();
         self.humans = ::buffa::MessageField::none();
         self.animals = ::buffa::MessageField::none();
@@ -24012,7 +24124,11 @@ pub struct AudioMeta {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
         )
     )]
-    pub id: ::buffa::alloc::vec::Vec<u8>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes)
+    )]
+    pub id: ::buffa::bytes::Bytes,
     /// Field 3: `name`
     #[cfg_attr(
         feature = "json",
@@ -24206,7 +24322,7 @@ impl ::buffa::Message for AudioMeta {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(&mut self.id, buf)?;
+                self.id = ::buffa::types::decode_bytes_to_bytes(buf)?;
             }
             3u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -24270,7 +24386,7 @@ impl ::buffa::Message for AudioMeta {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.id.clear();
+        self.id = ::buffa::bytes::Bytes::new();
         self.name.clear();
         self.container.clear();
         self.size = 0u64;
@@ -24881,7 +24997,11 @@ pub struct AudioTrackMeta {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
         )
     )]
-    pub id: ::buffa::alloc::vec::Vec<u8>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes)
+    )]
+    pub id: ::buffa::bytes::Bytes,
     /// Field 2: `ordinal`
     #[cfg_attr(
         feature = "json",
@@ -25060,7 +25180,7 @@ impl ::buffa::Message for AudioTrackMeta {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(&mut self.id, buf)?;
+                self.id = ::buffa::types::decode_bytes_to_bytes(buf)?;
             }
             2u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Varint {
@@ -25116,7 +25236,7 @@ impl ::buffa::Message for AudioTrackMeta {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.id.clear();
+        self.id = ::buffa::bytes::Bytes::new();
         self.ordinal = 0u32;
         self.stream_index = 0u32;
         self.container_track_id = ::core::option::Option::None;
@@ -25884,7 +26004,11 @@ pub struct AudioAnalysis {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
         )
     )]
-    pub id: ::buffa::alloc::vec::Vec<u8>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes)
+    )]
+    pub id: ::buffa::bytes::Bytes,
     /// Field 2: `audio_id`
     #[cfg_attr(
         feature = "json",
@@ -25895,7 +26019,11 @@ pub struct AudioAnalysis {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
         )
     )]
-    pub audio_id: ::buffa::alloc::vec::Vec<u8>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes)
+    )]
+    pub audio_id: ::buffa::bytes::Bytes,
     /// Field 3: `scene_id`
     #[cfg_attr(
         feature = "json",
@@ -25906,7 +26034,11 @@ pub struct AudioAnalysis {
             skip_serializing_if = "::core::option::Option::is_none"
         )
     )]
-    pub scene_id: ::core::option::Option<::buffa::alloc::vec::Vec<u8>>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes_opt)
+    )]
+    pub scene_id: ::core::option::Option<::buffa::bytes::Bytes>,
     /// Field 4: `kind`
     #[cfg_attr(
         feature = "json",
@@ -25949,7 +26081,11 @@ pub struct AudioAnalysis {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
         )
     )]
-    pub track_id: ::buffa::alloc::vec::Vec<u8>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes)
+    )]
+    pub track_id: ::buffa::bytes::Bytes,
     /// Field 10: `ced_tags`
     #[cfg_attr(
         feature = "json",
@@ -26424,10 +26560,7 @@ impl AudioAnalysis {
     #[must_use = "with_* setters return `self` by value; assign or chain the result"]
     #[inline]
     ///Sets [`Self::scene_id`] to `Some(value)`, consuming and returning `self`.
-    pub fn with_scene_id(
-        mut self,
-        value: impl Into<::buffa::alloc::vec::Vec<u8>>,
-    ) -> Self {
+    pub fn with_scene_id(mut self, value: impl Into<::buffa::bytes::Bytes>) -> Self {
         self.scene_id = Some(value.into());
         self
     }
@@ -27074,7 +27207,7 @@ impl ::buffa::Message for AudioAnalysis {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(&mut self.id, buf)?;
+                self.id = ::buffa::types::decode_bytes_to_bytes(buf)?;
             }
             2u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -27084,7 +27217,7 @@ impl ::buffa::Message for AudioAnalysis {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(&mut self.audio_id, buf)?;
+                self.audio_id = ::buffa::types::decode_bytes_to_bytes(buf)?;
             }
             3u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -27094,10 +27227,9 @@ impl ::buffa::Message for AudioAnalysis {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(
-                    self.scene_id.get_or_insert_with(::buffa::alloc::vec::Vec::new),
-                    buf,
-                )?;
+                self.scene_id = ::core::option::Option::Some(
+                    ::buffa::types::decode_bytes_to_bytes(buf)?,
+                );
             }
             4u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Varint {
@@ -27137,7 +27269,7 @@ impl ::buffa::Message for AudioAnalysis {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(&mut self.track_id, buf)?;
+                self.track_id = ::buffa::types::decode_bytes_to_bytes(buf)?;
             }
             10u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -27595,13 +27727,13 @@ impl ::buffa::Message for AudioAnalysis {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.id.clear();
-        self.audio_id.clear();
+        self.id = ::buffa::bytes::Bytes::new();
+        self.audio_id = ::buffa::bytes::Bytes::new();
         self.scene_id = ::core::option::Option::None;
         self.kind = ::buffa::EnumValue::from(0);
         self.start_ms = 0u32;
         self.end_ms = 0u32;
-        self.track_id.clear();
+        self.track_id = ::buffa::bytes::Bytes::new();
         self.ced_tags.clear();
         self.zs_audio_type = ::buffa::MessageField::none();
         self.zs_scene = ::buffa::MessageField::none();
@@ -27697,7 +27829,11 @@ pub struct TrackRecord {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
         )
     )]
-    pub id: ::buffa::alloc::vec::Vec<u8>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes)
+    )]
+    pub id: ::buffa::bytes::Bytes,
     /// Field 2: `audio_id`
     #[cfg_attr(
         feature = "json",
@@ -27708,7 +27844,11 @@ pub struct TrackRecord {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
         )
     )]
-    pub audio_id: ::buffa::alloc::vec::Vec<u8>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes)
+    )]
+    pub audio_id: ::buffa::bytes::Bytes,
     /// Field 3: `track_index`
     #[cfg_attr(
         feature = "json",
@@ -28324,7 +28464,7 @@ impl ::buffa::Message for TrackRecord {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(&mut self.id, buf)?;
+                self.id = ::buffa::types::decode_bytes_to_bytes(buf)?;
             }
             2u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -28334,7 +28474,7 @@ impl ::buffa::Message for TrackRecord {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(&mut self.audio_id, buf)?;
+                self.audio_id = ::buffa::types::decode_bytes_to_bytes(buf)?;
             }
             3u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Varint {
@@ -28602,8 +28742,8 @@ impl ::buffa::Message for TrackRecord {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.id.clear();
-        self.audio_id.clear();
+        self.id = ::buffa::bytes::Bytes::new();
+        self.audio_id = ::buffa::bytes::Bytes::new();
         self.track_index = 0u32;
         self.codec = ::buffa::EnumValue::from(0);
         self.sample_format = ::buffa::EnumValue::from(0);
@@ -28687,7 +28827,11 @@ pub struct Audio {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec"
         )
     )]
-    pub analyses: ::buffa::alloc::vec::Vec<::buffa::alloc::vec::Vec<u8>>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes_vec)
+    )]
+    pub analyses: ::buffa::alloc::vec::Vec<::buffa::bytes::Bytes>,
     /// Field 5: `summary`
     #[cfg_attr(
         feature = "json",
@@ -28878,7 +29022,7 @@ impl ::buffa::Message for Audio {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                self.analyses.push(::buffa::types::decode_bytes(buf)?);
+                self.analyses.push(::buffa::types::decode_bytes_to_bytes(buf)?);
             }
             5u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -29059,7 +29203,11 @@ pub struct AudioTrack {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
         )
     )]
-    pub audio_id: ::buffa::alloc::vec::Vec<u8>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes)
+    )]
+    pub audio_id: ::buffa::bytes::Bytes,
     /// Field 10: `index_error`
     #[cfg_attr(
         feature = "json",
@@ -29341,7 +29489,7 @@ impl ::buffa::Message for AudioTrack {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(&mut self.audio_id, buf)?;
+                self.audio_id = ::buffa::types::decode_bytes_to_bytes(buf)?;
             }
             10u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -29372,7 +29520,7 @@ impl ::buffa::Message for AudioTrack {
         self.is_primary = false;
         self.auto_selected = false;
         self.selection_reason.clear();
-        self.audio_id.clear();
+        self.audio_id = ::buffa::bytes::Bytes::new();
         self.index_error = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
@@ -29682,7 +29830,11 @@ pub struct AudioFileRecord {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
         )
     )]
-    pub id: ::buffa::alloc::vec::Vec<u8>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes)
+    )]
+    pub id: ::buffa::bytes::Bytes,
     /// Field 2: `checksum`
     #[cfg_attr(
         feature = "json",
@@ -29692,7 +29844,11 @@ pub struct AudioFileRecord {
             skip_serializing_if = "::core::option::Option::is_none"
         )
     )]
-    pub checksum: ::core::option::Option<::buffa::alloc::vec::Vec<u8>>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes_opt)
+    )]
+    pub checksum: ::core::option::Option<::buffa::bytes::Bytes>,
     /// Field 3: `name`
     #[cfg_attr(
         feature = "json",
@@ -30014,10 +30170,7 @@ impl AudioFileRecord {
     #[must_use = "with_* setters return `self` by value; assign or chain the result"]
     #[inline]
     ///Sets [`Self::checksum`] to `Some(value)`, consuming and returning `self`.
-    pub fn with_checksum(
-        mut self,
-        value: impl Into<::buffa::alloc::vec::Vec<u8>>,
-    ) -> Self {
+    pub fn with_checksum(mut self, value: impl Into<::buffa::bytes::Bytes>) -> Self {
         self.checksum = Some(value.into());
         self
     }
@@ -30372,7 +30525,7 @@ impl ::buffa::Message for AudioFileRecord {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(&mut self.id, buf)?;
+                self.id = ::buffa::types::decode_bytes_to_bytes(buf)?;
             }
             2u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -30382,10 +30535,9 @@ impl ::buffa::Message for AudioFileRecord {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(
-                    self.checksum.get_or_insert_with(::buffa::alloc::vec::Vec::new),
-                    buf,
-                )?;
+                self.checksum = ::core::option::Option::Some(
+                    ::buffa::types::decode_bytes_to_bytes(buf)?,
+                );
             }
             3u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -30667,7 +30819,7 @@ impl ::buffa::Message for AudioFileRecord {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.id.clear();
+        self.id = ::buffa::bytes::Bytes::new();
         self.checksum = ::core::option::Option::None;
         self.name.clear();
         self.format = ::buffa::EnumValue::from(0);
@@ -30758,7 +30910,11 @@ pub struct Sp3CodegenSmoke {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
         )
     )]
-    pub id: ::buffa::alloc::vec::Vec<u8>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes)
+    )]
+    pub id: ::buffa::bytes::Bytes,
     /// same-package ref (was cross-package media.v1)
     ///
     /// Field 2: `error`
@@ -30930,7 +31086,7 @@ impl ::buffa::Message for Sp3CodegenSmoke {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(&mut self.id, buf)?;
+                self.id = ::buffa::types::decode_bytes_to_bytes(buf)?;
             }
             2u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -30982,7 +31138,7 @@ impl ::buffa::Message for Sp3CodegenSmoke {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.id.clear();
+        self.id = ::buffa::bytes::Bytes::new();
         self.error = ::buffa::MessageField::none();
         self.video_meta = ::buffa::MessageField::none();
         self.range = ::buffa::MessageField::none();
@@ -31707,7 +31863,11 @@ pub struct SearchHit {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
         )
     )]
-    pub scene_id: ::buffa::alloc::vec::Vec<u8>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes)
+    )]
+    pub scene_id: ::buffa::bytes::Bytes,
     /// Field 2: `video_id`
     #[cfg_attr(
         feature = "json",
@@ -31718,7 +31878,11 @@ pub struct SearchHit {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
         )
     )]
-    pub video_id: ::buffa::alloc::vec::Vec<u8>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes)
+    )]
+    pub video_id: ::buffa::bytes::Bytes,
     /// Field 3: `video_name`
     #[cfg_attr(
         feature = "json",
@@ -31777,7 +31941,11 @@ pub struct SearchHit {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
         )
     )]
-    pub thumbnail: ::buffa::alloc::vec::Vec<u8>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes)
+    )]
+    pub thumbnail: ::buffa::bytes::Bytes,
     /// Field 9: `dimensions`
     #[cfg_attr(
         feature = "json",
@@ -31981,7 +32149,7 @@ impl ::buffa::Message for SearchHit {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(&mut self.scene_id, buf)?;
+                self.scene_id = ::buffa::types::decode_bytes_to_bytes(buf)?;
             }
             2u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -31991,7 +32159,7 @@ impl ::buffa::Message for SearchHit {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(&mut self.video_id, buf)?;
+                self.video_id = ::buffa::types::decode_bytes_to_bytes(buf)?;
             }
             3u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -32059,7 +32227,7 @@ impl ::buffa::Message for SearchHit {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(&mut self.thumbnail, buf)?;
+                self.thumbnail = ::buffa::types::decode_bytes_to_bytes(buf)?;
             }
             9u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -32083,14 +32251,14 @@ impl ::buffa::Message for SearchHit {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.scene_id.clear();
-        self.video_id.clear();
+        self.scene_id = ::buffa::bytes::Bytes::new();
+        self.video_id = ::buffa::bytes::Bytes::new();
         self.video_name.clear();
         self.location = ::buffa::MessageField::none();
         self.description.clear();
         self.score = 0f32;
         self.range = ::buffa::MessageField::none();
-        self.thumbnail.clear();
+        self.thumbnail = ::buffa::bytes::Bytes::new();
         self.dimensions = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
@@ -32172,7 +32340,11 @@ pub struct BrowseItem {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
         )
     )]
-    pub thumbnail: ::buffa::alloc::vec::Vec<u8>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes)
+    )]
+    pub thumbnail: ::buffa::bytes::Bytes,
     #[cfg_attr(feature = "json", serde(skip))]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -32339,7 +32511,7 @@ impl ::buffa::Message for BrowseItem {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(&mut self.thumbnail, buf)?;
+                self.thumbnail = ::buffa::types::decode_bytes_to_bytes(buf)?;
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -32352,7 +32524,7 @@ impl ::buffa::Message for BrowseItem {
         self.meta = ::buffa::MessageField::none();
         self.location = ::buffa::MessageField::none();
         self.scene_count = 0u32;
-        self.thumbnail.clear();
+        self.thumbnail = ::buffa::bytes::Bytes::new();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -34211,7 +34383,11 @@ pub struct EjectVolumeRequest {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
         )
     )]
-    pub volume_id: ::buffa::alloc::vec::Vec<u8>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes)
+    )]
+    pub volume_id: ::buffa::bytes::Bytes,
     #[cfg_attr(feature = "json", serde(skip))]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -34293,7 +34469,7 @@ impl ::buffa::Message for EjectVolumeRequest {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(&mut self.volume_id, buf)?;
+                self.volume_id = ::buffa::types::decode_bytes_to_bytes(buf)?;
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -34303,7 +34479,7 @@ impl ::buffa::Message for EjectVolumeRequest {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.volume_id.clear();
+        self.volume_id = ::buffa::bytes::Bytes::new();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -34354,7 +34530,11 @@ pub struct GetIndexedFileRequest {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
         )
     )]
-    pub checksum: ::buffa::alloc::vec::Vec<u8>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes)
+    )]
+    pub checksum: ::buffa::bytes::Bytes,
     #[cfg_attr(feature = "json", serde(skip))]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -34438,7 +34618,7 @@ impl ::buffa::Message for GetIndexedFileRequest {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(&mut self.checksum, buf)?;
+                self.checksum = ::buffa::types::decode_bytes_to_bytes(buf)?;
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -34448,7 +34628,7 @@ impl ::buffa::Message for GetIndexedFileRequest {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.checksum.clear();
+        self.checksum = ::buffa::bytes::Bytes::new();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -34500,7 +34680,11 @@ pub struct GetFileIndexingStatsRequest {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
         )
     )]
-    pub video_id: ::buffa::alloc::vec::Vec<u8>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes)
+    )]
+    pub video_id: ::buffa::bytes::Bytes,
     #[cfg_attr(feature = "json", serde(skip))]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -34584,7 +34768,7 @@ impl ::buffa::Message for GetFileIndexingStatsRequest {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(&mut self.video_id, buf)?;
+                self.video_id = ::buffa::types::decode_bytes_to_bytes(buf)?;
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -34594,7 +34778,7 @@ impl ::buffa::Message for GetFileIndexingStatsRequest {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.video_id.clear();
+        self.video_id = ::buffa::bytes::Bytes::new();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -35601,7 +35785,11 @@ pub struct UpdateAnnotationRequest {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec"
         )
     )]
-    pub scene_ids: ::buffa::alloc::vec::Vec<::buffa::alloc::vec::Vec<u8>>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes_vec)
+    )]
+    pub scene_ids: ::buffa::alloc::vec::Vec<::buffa::bytes::Bytes>,
     /// Field 2: `user_tags`
     #[cfg_attr(
         feature = "json",
@@ -35714,7 +35902,7 @@ impl ::buffa::Message for UpdateAnnotationRequest {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                self.scene_ids.push(::buffa::types::decode_bytes(buf)?);
+                self.scene_ids.push(::buffa::types::decode_bytes_to_bytes(buf)?);
             }
             2u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -35789,7 +35977,11 @@ pub struct SearchResponse {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
         )
     )]
-    pub search_id: ::buffa::alloc::vec::Vec<u8>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes)
+    )]
+    pub search_id: ::buffa::bytes::Bytes,
     /// Field 2: `total_count`
     #[cfg_attr(
         feature = "json",
@@ -35893,7 +36085,7 @@ impl ::buffa::Message for SearchResponse {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(&mut self.search_id, buf)?;
+                self.search_id = ::buffa::types::decode_bytes_to_bytes(buf)?;
             }
             2u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Varint {
@@ -35913,7 +36105,7 @@ impl ::buffa::Message for SearchResponse {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.search_id.clear();
+        self.search_id = ::buffa::bytes::Bytes::new();
         self.total_count = 0u32;
         self.__buffa_unknown_fields.clear();
     }
@@ -36890,7 +37082,11 @@ pub struct FailedFilesResponse {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
         )
     )]
-    pub location_id: ::buffa::alloc::vec::Vec<u8>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes)
+    )]
+    pub location_id: ::buffa::bytes::Bytes,
     /// Field 2: `failed_files`
     #[cfg_attr(
         feature = "json",
@@ -37003,7 +37199,7 @@ impl ::buffa::Message for FailedFilesResponse {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(&mut self.location_id, buf)?;
+                self.location_id = ::buffa::types::decode_bytes_to_bytes(buf)?;
             }
             2u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -37025,7 +37221,7 @@ impl ::buffa::Message for FailedFilesResponse {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.location_id.clear();
+        self.location_id = ::buffa::bytes::Bytes::new();
         self.failed_files.clear();
         self.__buffa_unknown_fields.clear();
     }
@@ -37732,7 +37928,11 @@ pub struct GetFileIndexingStatsResponse {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
         )
     )]
-    pub video_id: ::buffa::alloc::vec::Vec<u8>,
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes)
+    )]
+    pub video_id: ::buffa::bytes::Bytes,
     /// Field 2: `index_status`
     #[cfg_attr(
         feature = "json",
@@ -37863,7 +38063,7 @@ impl ::buffa::Message for GetFileIndexingStatsResponse {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_bytes(&mut self.video_id, buf)?;
+                self.video_id = ::buffa::types::decode_bytes_to_bytes(buf)?;
             }
             2u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Varint {
@@ -37897,7 +38097,7 @@ impl ::buffa::Message for GetFileIndexingStatsResponse {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.video_id.clear();
+        self.video_id = ::buffa::bytes::Bytes::new();
         self.index_status = 0u32;
         self.error = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
