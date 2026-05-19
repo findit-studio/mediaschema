@@ -10,6 +10,14 @@ mod generated {
     include!("generated/mod.rs");
 }
 
+/// Hand-written domain layer — the architectural hub. App logic programs
+/// against `mediaschema::domain::*`; the buffa-generated wire types at the
+/// crate root (re-exported from `generated::media::v1::*`) are the
+/// serialization edge. Domain ⇄ wire conversions are added incrementally as
+/// each aggregate lands (with `domain → wire → domain` round-trip property
+/// tests). See `schema/*.md` for the locked specifications.
+pub mod domain;
+
 // Flatten the product-neutral `media.v1` package to the crate root so
 // consumers write `mediaschema::Detection`. Named (not glob) so buffa
 // internals (`__buffa`, `__*_JSON_ANY`) stay out of the public surface.
