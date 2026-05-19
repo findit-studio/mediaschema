@@ -1,4 +1,4 @@
-# WIRE-only types — no domain twin  *(rev 1 — drafted for review, NOT self-locked)*
+# WIRE-only types — no domain twin  *(rev 1 — LOCKED, user-approved)*
 
 The **63 WIRE-only** types from the type audit: RPC/transport envelopes that
 exist only in `proto/media/v1/types.proto` (buffa-generated). They are **not**
@@ -24,12 +24,31 @@ the proto, not the domain).
   re-bucketed (audit is a hint, not authority) — flag it during review rather
   than mirroring speculatively (YAGNI).
 
-## Open questions
+## Resolved
 
-- **W-verify:** confirm none of the 63 hides a domain aggregate (spot-check the
-  request/response bodies that embed rich sub-messages — those sub-messages may
-  be DOM-value, even though the envelope is WIRE-only).
-- **W-graphql:** confirm graphql pagination/filters are defined freshly in the
-  graphql projection (not derived from these wire wrappers).
+- **W-verify — PASSED** (spot-checked the rich envelopes in
+  `generated/media.v1.types.rs`): `GetIndexedFileResponse` embeds
+  `Video`+`Scene` = **already-locked domain aggregates**, correctly referenced
+  (WIRE envelope, domain payload). `BrowseResponse`/`SearchRequest` embed
+  `BrowseItem`/`Pagination`/`SearchFilter` = genuine **query/transport DTOs**,
+  correctly no domain twin. `UpdateAnnotationRequest` embeds `Tag` = transport
+  for the curation layer (domain home = `smart_folder.md`). **No domain
+  aggregate is hidden inside a WIRE-only type — the audit bucketing holds.**
+- **W-graphql — only `Pagination` confirmable now (your correction):**
+  `Pagination` is unambiguously a wire transport wrapper with no domain twin —
+  confirmed. **`SearchFilter`/`*Filter`/`Sort`/`BrowseItem` are NOT confirmed
+  yet** — their query-layer disposition depends on the **storage layer** (sqlx/
+  mongodb) being designed first; the query/graphql shaping waits for that
+  (task #68 / persistence sub-projects). They stay catalogued here as
+  *not domain twins* (the boundary holds), but their final query-layer
+  treatment is **deferred to the storage+query layer**, not asserted now.
 
-**Status: in review (rev 1) — boundary catalogue; confirm W-verify. NOT self-locked.**
+**Status: LOCKED (rev 1) — user-approved.** Boundary policy: the 63 are
+transport, no domain mirror, conversions only at the RPC boundary. W-verify
+PASSED (spot-checked — no domain aggregate hidden; the audit bucketing holds).
+W-graphql: `Pagination` confirmed; `SearchFilter`/`Sort`/`BrowseItem`
+query-layer disposition **deferred** — the query layer is designed **only
+after (a) all storage schema is finished AND (b) the indexer is finished**
+(query is downstream of storage + indexer; user sequencing). They remain
+catalogued here as not-domain-twins (boundary holds); their query-layer
+treatment is settled in that later phase, not a reopen of this lock.

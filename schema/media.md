@@ -1,4 +1,4 @@
-# `Media<Id>` — root / file entity  *(rev 7 — LOCKED, user-approved)*
+# `Media<Id>` — root / file entity  *(rev 8 — LOCKED, user-approved; `Device`/`GeoLocation` → `::mediaframe`)*
 
 ## Domain meaning
 
@@ -10,9 +10,10 @@ aggregates and stream/codec data is per-track.
 
 Generic over `Id` (single **UUIDv7** key — Postgres `uuid` / Mongo `_id`; FKs
 are the UUID). `FileChecksum` distinct 32-byte newtype. Wall-clock =
-`jiff::Timestamp` (ms); media-time = `mediatime`/`TrackTime`. Genuine nested
-VOs (`Device`, `GeoLocation`, `TrackTime`) nested; entity's own meta flattened
-in. Conversions deferred.
+`jiff::Timestamp` (ms); media-time = `::mediatime` (`TrackTime`). **EXIF/capture
+types — `GeoLocation` and `Device` — are `::mediaframe` externs** (rev 8: the
+EXIF/capture-metadata charter; *no longer mediaschema-owned VOs*). Entity's own
+meta flattened in. Conversions deferred.
 
 ## Fields (flat — the file level)
 
@@ -31,9 +32,9 @@ in. Conversions deferred.
 | `subtitle` | `Option<Id>` | `Media.subtitle_id` | ref → `Subtitle` facet |
 | `error_flags` | `MediaErrorFlags` (bitflags! **u16**) | — (rollup) | `VIDEO_ERROR`/`AUDIO_ERROR`/`SUBTITLE_ERROR` + reserved bits |
 | `probe_error` | `Option<ErrorInfo>` | `Media.index_error` (collapsed) | file-level probe failure only |
-| `capture_date` | `Option<jiff::Timestamp>` | `Media.capture_date: i64` | EXIF; ms; `0→None` |
-| `device` | `Option<Device>` (nested VO) | `Media.device_make`+`_model` | `{ make, model }` |
-| `gps` | `Option<GeoLocation>` (nested VO) | `Media.gps_location` | owned decimal; parsed via `locat` |
+| `capture_date` | `Option<jiff::Timestamp>` | `Media.capture_date: i64` | EXIF; ms; `0→None` (stays `jiff` — wall-clock standard, not a mediaframe type) |
+| `device` | `Option<mediaframe::Device>` (**extern**) | `Media.device_make`+`_model` | `{ make, model }` — `::mediaframe` (EXIF/capture charter) |
+| `gps` | `Option<mediaframe::GeoLocation>` (**extern**) | `Media.gps_location` | `{lat,lon,altitude}` decimal; ISO-6709 parse/format **in mediaframe** (the `locat` owned-vs-borrowed reasoning now lives there) |
 
 **Not here:** `codec`, `dimensions`, `frame_rate`, `bit_rate`, per-track
 `duration`, index/error *details* → all per-track. No `meta:` wrapper, no
@@ -49,8 +50,15 @@ maintained rollup of `kind.track_progress.failed > 0` — bit set ⇒ drill down
 
 - **sqlx**: flat `media` table; `id` PK (uuid); `checksum` UNIQUE;
   `kind`/`format`/`created_at` indexed; `error_flags` 2-byte `INTEGER` +
-  generated per-bit booleans; `device`/`gps` flattened; facet FKs (UUIDv7).
-- **mongodb**: `_id`=UUIDv7; `device`/`gps` embedded.
+  generated per-bit booleans; `device`/`gps` flattened (extern types still
+  flatten to columns: `device_make`/`device_model`, `gps_lat`/`lon`/`alt`);
+  facet FKs (UUIDv7).
+- **mongodb**: `_id`=UUIDv7; `device`/`gps` embedded (mediaframe externs).
 - **graphql**: expose `error_flags`+`probe_error`; opaque external id.
 
-**Status: LOCKED (rev 7) — user-approved.**
+**Status: LOCKED (rev 8) — user-approved.** *(rev 8: user-authorized reopen of
+r7 — `device: Option<mediaframe::Device>` + `gps: Option<mediaframe::GeoLocation>`
+are now `::mediaframe` externs (EXIF/capture charter); ISO-6709 parse moves
+into mediaframe; `capture_date` stays `jiff`. Mechanical `::mediaframe::` path
+applies when mediaschema externs the post-0.1.0 mediaframe minor — tracked in
+[mediaframe-candidates.md](mediaframe-candidates.md).)*

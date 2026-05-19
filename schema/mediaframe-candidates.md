@@ -1,0 +1,105 @@
+# mediaframe — media-stream vocabulary tracker
+
+Per the (broadened) **boundary rule**, generic **media-stream descriptor
+vocabulary** for video + audio + subtitle lives in the **`mediaframe`** crate
+(renamed from `videoframe`; charter widened by user decision), **not** in
+mediaschema. This doc tracks what is already in `mediaframe` and what the
+ongoing one-by-one schema review still needs to land there — **batched into
+mediaframe releases, never piecemeal per-doc**.
+
+## In `mediaframe 0.1.0`  (PR #3 — branch `feat/0.3.1-frame-types`, in flight)
+
+Rename `videoframe → mediaframe` + version restart `0.1.0` (all prior
+`videoframe` 0.x crates.io versions to be yanked), carrying forward verbatim:
+
+- pixel/colour/frame: `PixelFormat`, `ColorInfo` + colour enums,
+  `DcpTargetGamut`, `Dimensions`, `Rect`, `Rotation`, `SampleAspectRatio`,
+  HDR static (`HdrStaticMetadata`/`ContentLightLevel`/`MasteringDisplay`/
+  `ChromaCoord`).
+- `Rational` (foundational reusable exact ratio), `FrameRate` (Rational +
+  is_vfr), `FieldOrder`, `StereoMode`, `DolbyVisionConfig`.
+- `SampleAspectRatio` **represented via `Rational`** (option B — done; public
+  method API + buffa wire preserved; only representation + `From`/`rational`
+  surface changed).
+
+## Pending — append as the review surfaces them (future batched `mediaframe` minors)
+
+Generic stream vocab that the broadened charter pulls out of mediaschema-domain;
+each decided **per-doc during the one-by-one review**, then batched:
+
+### Stream-descriptor enum re-scope — **CONFIRMED (user-approved 2026-05-19)**
+
+Decided during the `enums.md`/`bitflags.md` review. Batched into a `mediaframe`
+minor **after `0.1.0`** (PR #3 = rename + frame types only):
+
+- **Codecs:** `VideoCodec`, `AudioCodec`, `SubtitleCodec` (+ profile/level
+  when modeled) — `#[non_exhaustive]` + `Other(SmolStr)`, codec-family only.
+- **Container/file form:** `ContainerFormat`, `AudioFormat`,
+  `AudioContainerFormat`, `SubtitleFormat`.
+- **Layout:** `ChannelLayout` (`Other(SmolStr)`).
+- **`TrackDisposition`** (bitflags, FFmpeg `AV_DISPOSITION_*`) — shared across
+  all 3 track types; was a mediaschema bitflags, now mediaframe.
+- `SubtitleTrackOrigin` (closed), `BitRateMode` (closed; with the audio batch).
+
+Code-like enums get the lossless `Unknown(u32)` + `to_u32`/`from_u32` pattern.
+
+**Still mediaschema-owned (NOT moved):** `MediaKind`, `SceneDetector`,
+`KeyframeExtractor`, `SubtitleKind`, `SegmentKind`, `AudioContentKind`,
+`ScanStatus`, all `*IndexStage`/`*IndexStatus` + `MediaErrorFlags`. (No
+`*ErrorStatus` — removed; error-state derived from `index_errors`.)
+
+**Mechanical-rename obligation (locked docs — NOT a re-open):** when
+mediaschema externs the post-`0.1.0` minor, apply to LOCKED docs: the
+`::mediaframe::` path rename to descriptor enums — `video_track.md`
+(`VideoCodec`), `subtitle_track.md` (`SubtitleCodec`/`SubtitleFormat`/
+`SubtitleTrackOrigin`/`TrackDisposition`), `audio.md`/`subtitle.md`, and (when
+reviewed) `audio_track.md`; **plus the `LanguageCode` → `mediaframe::Language`
+rename** (`subtitle_track.md` r3 `language: Option<LanguageCode>`, and
+`audio_track.md` when reviewed — `audio_segments.md`/`primitives.md` already
+carry the new name). Name+path only; field set + invariants unchanged.
+
+- **audio** (with the audio-cluster review): sample format, EBU-R128
+  `Loudness`, fingerprint repr, … (codec/layout/`BitRateMode` already above).
+
+### EXIF / capture metadata — **CONFIRMED (user-approved 2026-05-19)**
+
+Charter broadened again: mediaframe owns media-stream descriptor **and
+EXIF/capture-metadata** vocabulary. Batched post-`0.1.0`:
+
+- **`GeoLocation`** `{ lat: f64, lon: f64, altitude: Option<f32> }` — owned,
+  decimal degrees; **ISO-6709 parse/format** (findit-proto stores location as
+  an ISO-6709 `SmolStr` on `MediaMeta`, e.g. `"+48.8566+002.3522/"`).
+  Supersedes the dropped mediaschema `GeoLocation`. (`accuracy`/`heading`?
+  decide when added.)
+- **Capture/device:** camera make·model (proto `MediaMeta.device_*: SmolStr`),
+  capture-time, lens, exposure (ISO/aperture/shutter) — surface per-doc as the
+  review reaches capture metadata; orientation already = `Rotation`.
+- **`Language`** (renamed from `LanguageCode`; user 2026-05-19, supersedes the
+  `medialang`-crate plan): a BCP-47 tag `{ language, script: Option, region:
+  Option }` **wrapping `icu_locid` subtags** (validates ISO-639-1/2/3 +
+  optional script/region; `Copy`, no-alloc). Engine `Lang`/`Region`/`Script`
+  (e.g. `whispercpp::Lang` = ISO-639-1) stay engine-internal, boundary-convert
+  in. Batched post-`0.1.0` with the EXIF/capture set.
+
+**`media.md` switch — DONE (r8, user-authorized 2026-05-19).** `media.md`
+reopened r7→r8: `device: Option<mediaframe::Device>` +
+`gps: Option<mediaframe::GeoLocation>` now `::mediaframe` externs (was
+mediaschema-owned VOs); ISO-6709 parse/format moves into mediaframe;
+`capture_date` stays `jiff`. So `mediaframe` must ship **`Device {make,
+model}`** + **`GeoLocation`** with ISO-6709 parse (batched post-`0.1.0` with
+the rest of the EXIF/capture set). Mechanical `::mediaframe::` path applies to
+`media.md` when mediaschema externs that minor (same as the other locked
+docs).
+
+## Conventions (mirror the existing mediaframe types)
+
+- `#![no_std]`; `buffa` wire behind the `buffa` feature (hand-written
+  `DefaultInstance`+`Message`, default-elision codec, no codegen).
+- Code-like enums get the lossless **`Unknown(u32)`** + `to_u32`/`from_u32`
+  (matches `Rotation`/colour-enum convention).
+- CHANGELOG entry per release; **no Claude attribution**; verified across the
+  build/test matrix + `xtask check`.
+- mediaschema externs `mediaframe` **once** after `0.1.0` publishes
+  (`.mediaframe.v1 → ::mediaframe`); later batches = a dep bump.
+
+**Status: living tracker — append as the review surfaces vocab. Not self-locked.**

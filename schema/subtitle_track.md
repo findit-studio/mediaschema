@@ -1,4 +1,4 @@
-# `SubtitleTrack<Id>` — a subtitle stream  *(rev 1 — drafted for review, NOT self-locked)*
+# `SubtitleTrack<Id>` — a subtitle stream  *(rev 3 — LOCKED, user-approved; `error_status` removed)*
 
 ## Domain meaning
 
@@ -23,19 +23,31 @@ Conversions deferred.
 | `stream_index` | `Option<u32>` | stream idx | source-locator (ffmpeg/WebCodecs); not identity; `None` for external file |
 | `container_track_id` | `Option<u64>` | — | keep only if pipeline uses it |
 | `codec` | `SubtitleCodec` (enum) | codec | `Srt`/`Ass`/`WebVtt`/`MovText`/`DvbSub`/`Pgs`/`DvdSub`/`Other(SmolStr)` (see [enums.md](enums.md)) |
-| `format` | `SubtitleFormat` (enum) | format | text vs bitmap container form; may fold into `codec` (open ST-codec) |
+| `format` | `SubtitleFormat` (enum) | format | text vs bitmap container form — **kept** (your call: do not fold into `codec`) |
 | `origin` | `SubtitleTrackOrigin` (enum) | origin | `External` / `Embedded` / `Generated` (cheap-unambiguous redesign, locked) |
 | `language` | `Option<LanguageCode>` | language | BCP-47/ISO-639 newtype |
-| `title` | `Option<SmolStr>` | title | track title/label |
-| `is_image_based` | `bool` | derived from `codec` | PGS/DVBSUB/DVDSUB ⇒ OCR stage required |
+| `title` | `SmolStr` | title | track title/label; `""`=absent (no `Option` — string rule) |
+| `is_image_based` | `bool` | derived from `codec`/`format` | PGS/DVBSUB/DVDSUB ⇒ OCR stage required — **derived, not stored** (resolved) |
 | `disposition` | `TrackDisposition` (bitflags!) | disposition `u32` | shared flag set — `FORCED`/`HEARING_IMPAIRED`/`DEFAULT`/… (see [bitflags.md](bitflags.md)) |
 | `is_primary` · `auto_selected` | `bool` | selection | selection signals |
 | `duration` | `Option<TrackTime>` | time | per-track duration (mediatime extern) |
 | `cue_count` | `u32` | — (rollup) | maintained Σ of the cue aggregate's len (no progress lifecycle, like scenes) |
-| `cues` | `Vec<Id>` | — | refs to the per-track `SubtitleCue` segment aggregate (see open ST-cues) |
-| `index_status` | `SubtitleIndexStatus` (bitflags!) | status `u32` | per-kind pipeline stages |
-| `index_errors` | `Vec<ErrorInfo>` | index errors | per-track error truth (rolls up to `Media.error_flags`) |
-| `error_status` | `SubtitleErrorStatus` (bitflags!) | — | error categories |
+| `cues` | `Vec<Id>` | — | refs to the per-track `SubtitleCue` segment aggregate |
+| `provenance` | `Provenance` (shared VO) | — | parse/OCR reproducibility; shared cross-cutting VO ([README.md](README.md)) |
+| — *adopted rev 2 (all obtainable via ffmpeg-probe / parse / ingest — your "if we can obtain them" gate met)* — |
+| `source_path` | `Option<Location>` | ingest | external `.srt`/`.vtt` *is its own file*; `None` for embedded (structured ⇒ `Option` OK) |
+| `source_checksum` | `Option<FileChecksum>` | ingest | change-detection / re-index; `None` for embedded |
+| `character_encoding` | `SmolStr` | parse | charset (Win-1252/GBK/…); `""`=absent (ffmpeg `sub_charenc` / detector) |
+| `bom_present` | `bool` | parse | BOM sniffed at parse |
+| `is_sdh` | `bool` | ffmpeg disp/title | SDH (deaf/HoH) — finer than `disposition.HEARING_IMPAIRED` (best-effort) |
+| `is_closed_caption` | `bool` | ffmpeg | CEA-608/708 lifted to a track (codec/disposition) |
+| `is_translation` | `bool` | computed | sub `language` ≠ audio `language` (from ffmpeg stream metadata) |
+| `kind` | `SubtitleKind` (enum) | ffmpeg disp | `FullDialogue`/`ForcedNarrative`(=`FORCED`)/`CommentaryText`(=`COMMENT`) (best-effort) |
+| `coverage_ratio` | `Option<f32>` | cue-parse | subtitled duration ÷ track duration (partial/truncated detection) |
+| `is_empty` | `bool` | cue-parse | parsed but zero cues (a defect to surface) |
+| `first_cue` · `last_cue` | `Option<TrackTime>` | cue-parse | first/last cue start (mediatime extern) |
+| `index_status` | `SubtitleIndexStatus` (bitflags!) | status `u32` | per-kind pipeline stages (bit = stage succeeded) |
+| `index_errors` | `Vec<ErrorInfo>` | index errors | per-track error truth (stage-coded `ErrorInfo.code`); → `Media.error_flags` rollup. **Error-state derived from this + `index_status`** — no separate `error_status` field |
 
 `ordinal` dropped (derive from `Subtitle.tracks` order). Per-kind index model:
 `SubtitleIndexStatus` + `index_errors` are truth; coarse stage derived per-kind.
@@ -51,19 +63,22 @@ aggregate (heavy, segmented — same pattern as `VideoTrack.scenes → Scene`),
 `id` non-empty; `codec`/`origin` closed-ish enums (`Other(SmolStr)` escape);
 `is_image_based` is a pure function of `codec` (store derived or compute — open).
 
+## Resolved (your calls)
+
+- **ST-cues** = referenced per-track aggregate ([subtitle_cues.md](subtitle_cues.md)) + `cue_count` rollup.
+- **ST-codec/format** = **keep both** `codec` + `format` (do not fold).
+- **`is_image_based`** = **derived** from `codec`/`format`, not stored.
+- **`provenance`** = shared `Provenance` VO added.
+- Recommended-field set **all adopted** (obtainable via ffmpeg-probe / parse /
+  ingest); `Option<SmolStr>` `title` → `SmolStr` (`""`=absent).
+
 ## Open questions
 
-- **ST-cues:** model parsed cues as a referenced per-track aggregate
-  `SubtitleCue {index, start, end, text|image_ref, ocr_text}` + `cue_count`
-  rollup (recommended — parallels `Scene`, keeps the track row light, OCR/search
-  attach per cue) **vs** inline `Vec<Cue>` (simpler, but unbounded on the row).
-  *Lean: referenced aggregate.* If yes it gets its own `subtitle_cues.md`.
-- **ST-codec/format:** one `SubtitleCodec` enum vs split `codec`+`format`
-  (text/bitmap). *Lean: single `SubtitleCodec` with an `is_image_based()` helper;
-  drop `format`.*
 - **OCR stage:** image-based subs (PGS/DVBSUB) need an OCR pipeline stage →
   bit in `SubtitleIndexStatus`; confirm the stage vocabulary in [bitflags.md](bitflags.md).
-- **`is_image_based`** stored vs derived (recommend derived; no column).
+- *Deferred (YAGNI, your split):* `sync_offset_ms`, `frame_rate`
+  (frame-based MicroDVD/MPL2 only — if adopted later → `mediaframe::FrameRate`),
+  karaoke/positioning flags, `max_chars_per_sec`, ASS styling detail.
 
 ## Projection notes
 
@@ -72,56 +87,31 @@ aggregate (heavy, segmented — same pattern as `VideoTrack.scenes → Scene`),
   `language`/`codec`/`origin` indexed.
 - **mongodb**: `_id`=UUIDv7; `cues` UUID ref array; flags as ints.
 - **graphql**: codec/language/origin/disposition exposed; cues + OCR text
-  searchable via the cue aggregate; `index_errors`/`error_status` exposed.
+  searchable via the cue aggregate; `index_errors` exposed (error-state /
+  which-stage derived from it + `index_status`).
 
-## Useful information you may have forgotten (proposed — accept/reject individually)
+## Forgotten-info pass — resolved
 
-Subtitle-domain essentials not in findit-proto / unmentioned. Rationale each;
-none added to the field table until you approve.
+**Adopted (rev 2, in the Fields table):** `source_path`+`source_checksum`
+(external-file identity — embedded ⇒ `None`), `character_encoding`+
+`bom_present` (charset / silent-corruption guard), `is_sdh`,
+`is_closed_caption` (CEA-608/708 lifted; relates to
+`VideoTrack.has_embedded_captions`), `is_translation`, `kind: SubtitleKind`,
+`coverage_ratio`, `is_empty`, `first_cue`/`last_cue`. All obtainable via
+ffmpeg-probe / parse / ingest (your gate). OCR model-provenance folded into the
+shared `Provenance` VO; `ocr_avg_confidence` stays a per-track quality signal.
 
-**External-file identity (the big gap):** an `origin = External` `.srt`/`.vtt`
-**is its own file** — it needs `source_path: Option<Location>` and
-`source_checksum: Option<FileChecksum>` (change-detection / re-index), the
-subtitle analog of `Media`'s file identity. Embedded tracks leave these `None`.
-*Strongly recommend adopting.*
+**Deferred (YAGNI):** `sync_offset_ms`, `frame_rate` (frame-based
+MicroDVD/MPL2 only — `mediaframe::FrameRate` if ever adopted), `is_styled`/
+`has_karaoke`/`has_positioning`, `max_chars_per_sec`, `total_chars`/
+`total_words`.
 
-**Text decoding (silent corruption if missed):**
-- `character_encoding: Option<SmolStr>` — legacy `.srt` is frequently
-  Windows-1252/Latin-1/GBK, not UTF-8; wrong charset ⇒ garbled cues & broken
-  search. `bom_present: bool`. *Recommend adopting.*
-
-**Timing correction (subtitles are routinely out of sync):**
-- `sync_offset_ms: Option<i32>` — global delay correction applied/needed.
-- `frame_rate: Option<Rational>` — required to convert frame-based formats
-  (MicroDVD/MPL2) to time; mismatched fps is a classic desync cause.
-
-**Accessibility / selection flags (distinct from generic disposition):**
-- `is_sdh: bool` (Subtitles for Deaf/Hard-of-hearing — includes sound
-  descriptions; a real selection/search facet, not the same as
-  `disposition.HEARING_IMPAIRED`’s coarse bit).
-- `is_closed_caption: bool` + note the relationship to
-  `VideoTrack.has_embedded_captions` (CEA-608/708 lifted to a `SubtitleTrack`).
-- `kind: SubtitleKind` (`FullDialogue`/`ForcedNarrative`/`CommentaryText`) and
-  `is_translation: bool` vs transcription (subtitle in a *different* language
-  than the audio) — drives default-track selection.
-
-**Cue/quality stats (QC + accessibility + “is this complete?”):**
-- `cue_count` (have), `total_chars`/`total_words: u32`,
-  `coverage_ratio: Option<f32>` (subtitled duration ÷ track duration — detects
-  partial/truncated subs), `first_cue`/`last_cue: Option<TrackTime>`,
-  `max_chars_per_sec: Option<f32>` (reading-speed/accessibility QC),
-  `is_empty: bool` (parsed but zero cues — a defect to surface).
-
-**Styling/format detail (ASS/SSA):** `is_styled: bool`, `has_karaoke: bool`,
-`has_positioning: bool` — affects render fidelity and plain-text extraction.
-
-**OCR provenance (image-based subs):** `ocr_engine`/`ocr_language:
-Option<SmolStr>`, `ocr_avg_confidence: Option<f32>` — quality + re-OCR on
-upgrade. (Lives with the OCR pipeline stage.)
-
-*Recommended to adopt now:* `source_path`+`source_checksum`,
-`character_encoding`, `is_sdh`, `is_closed_caption`, `is_translation`,
-`coverage_ratio`, `is_empty`, `first/last_cue`. *Defer:* `sync_offset_ms`,
-karaoke/positioning flags, `max_chars_per_sec`.
-
-**Status: in review (rev 1) — drafted for your one-by-one review. NOT self-locked.**
+**Status: LOCKED (rev 3) — user-approved.** `format` kept (codec+format both);
+`is_image_based` derived; shared `provenance: Provenance`; all recommended
+fields adopted (ffmpeg-probe/parse/ingest-obtainable); `title: SmolStr`
+(`""`=absent). Per-track `cues` aggregate ([subtitle_cues.md](subtitle_cues.md)).
+The OCR-stage bit in `SubtitleIndexStatus` is settled in
+[bitflags.md](bitflags.md) (a bit value, not a `SubtitleTrack`-shape change).
+*(rev 3: per-track `error_status` removed — error-state derived from
+`index_errors` (stage-coded) + `index_status`; cross-cutting cleanup,
+user-authorized reopen of locked r2.)*

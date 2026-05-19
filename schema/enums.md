@@ -1,49 +1,71 @@
-# Domain enums  *(rev 1 — drafted for review, NOT self-locked)*
+# Domain enums  *(rev 4 — LOCKED, user-approved; + `ErrorCode`)*
 
-Reference for the **18 enums** (17 wire enums + the new per-kind index-stage
-model). Policy: small fixed vocabularies = **closed** enums; open/extensible
-vocabularies (codecs, containers) = `#[non_exhaustive]` + an `Other(SmolStr)`
-arm so an unrecognised wire value is preserved, not lost (the proto3 zero arm
-becomes a domain sentinel). Colour/pixfmt enums are **`::videoframe` extern** —
-*not* redefined here (FFmpeg-n8.1 numbered + `Unknown(u32)` + `DOMAIN_EXT_BASE`,
-per videoframe PR #2); listed only for completeness.
+Policy: small fixed findit vocabularies = **closed** enums; open/extensible =
+`#[non_exhaustive]` + `Other(SmolStr)` (unrecognised wire value preserved, not
+lost). **Boundary ([extern-vs-flatten]):** media-stream *descriptor*
+vocabulary (codec/container/format/layout/disposition — FFmpeg-derived,
+reusable beyond findit) lives in **`::mediaframe`**, not here. mediaschema owns
+only the findit **pipeline/analysis** enums.
 
-| domain enum | kind | variants (key) | wire / notes |
+## mediaschema-owned (findit domain / pipeline — flatten/own)
+
+| domain enum | kind | variants (key) | notes |
 |---|---|---|---|
-| `MediaKind` | closed | `Video`, `Audio` | wire `UNSPECIFIED` = pre-probe sentinel → `Option`/explicit `Unknown`; **kept, not derived** (drives which facets are created) |
-| `ContainerFormat` | non_exhaustive | `Mp4`,`Mkv`,`Mov`,`Webm`,`Avi`,`Ts`,`Mka`,`Other(SmolStr)` | file/container (codec is per-track) |
-| `AudioFormat` | non_exhaustive | `Mp3`,`Flac`,`Wav`,`Aac`,`Ogg`,`M4a`,`Other` | standalone-audio file form |
-| `AudioContainerFormat` | non_exhaustive | container of an audio file | parallels `ContainerFormat` |
-| `VideoCodec` | non_exhaustive | `H264`,`Hevc`,`Av1`,`Vp9`,`Vp8`,`Mpeg2`,`ProRes`,`Other(SmolStr)` | stream descriptor (VT-codec) |
-| `AudioCodec` | non_exhaustive | `Aac`,`Mp3`,`Flac`,`Opus`,`Vorbis`,`Ac3`,`Eac3`,`Dts`,`TrueHd`,`PcmS16Le`,`Other` | |
-| `SubtitleCodec` | non_exhaustive | `Srt`,`Ass`,`WebVtt`,`MovText`,`DvbSub`,`Pgs`,`DvdSub`,`Other` | `is_image_based()` derived |
-| `SubtitleTrackOrigin` | closed | `External`,`Embedded`,`Generated` | cheap-unambiguous redesign (locked) |
-| `ChannelLayout` | non_exhaustive | `Mono`,`Stereo`,`5_1`,`7_1`,`Other(SmolStr)` | audio |
-| `KeyframeKind` | closed | `Poster`,`SceneRepresentative`,`Interval`,`IFrame` | |
-| `SegmentKind` | closed | `Speech`,`Music`,`Silence`,`Noise`,`Overlap` | audio-segment (proposed enrichment) |
-| `BitRateMode` | closed | `Cbr`,`Vbr`,`Abr` | audio (proposed enrichment) |
-| `AudioContentKind` | closed | `Speech`,`Music`,`Mixed`,`Silence` | audio track (proposed enrichment) |
-| `ScanStatus` | closed | `Ok`,`Partial`,`Failed` | `WatchedLocation` |
-| `VideoIndexStage` | closed | `Pending→Probed→Scenes→Keyframes→Vlm→Embedded→Done`(+`Failed`) | **per-kind**, distinct lifecycle; derived from `VideoIndexStatus` bits |
-| `AudioIndexStage` | closed | `Pending→Probed→Analyzed→Transcribed→Diarized→Embedded→Done`(+`Failed`) | **per-kind** |
-| `SubtitleIndexStage` | closed | `Pending→Probed→CuesParsed→Ocr→SearchIndexed→Done`(+`Failed`) | **per-kind** |
-| *(videoframe extern)* `ColorPrimaries`/`ColorTransfer`/`ColorMatrix`/`ColorRange`/`ChromaLocation`/`DcpTargetGamut`/`PixelFormat` | — | — | `::videoframe`; not a mediaschema enum |
+| `MediaKind` | closed | `Video`, `Audio` | **kept, not derived** (drives which facets are created); `kind` required post-probe (pre-probe = different lifecycle, not an `Unknown` arm) |
+| `SceneDetector` | non_exhaustive | `Histogram`,`Phash`,`Threshold`,`Content`,`Adaptive`,`Manual` | **scenesdetect** engine; locked in `scene.md` r6 — **added (resolved)** |
+| `KeyframeExtractor` | non_exhaustive | all `SceneDetector` variants + `CompositeQuality`,`Interval`,`IFrame`,`SceneRepresentative`,`Manual` | findit keyframe pipeline; locked in `keyframe.md` r15 — **replaces the dropped closed `KeyframeKind` (resolved)** |
+| `SubtitleKind` | closed | `FullDialogue`,`ForcedNarrative`,`CommentaryText` | **mediaschema-owned** (subtitle *role* — a findit selection/search facet, not a raw stream property); locked `subtitle_track.md` r2 adopted it — **added (resolved)** |
+| `SegmentKind` | closed | `Speech`,`Music`,`Silence`,`Noise`,`Overlap` | audio-segment analysis (pyannote) — *pending audio-cluster review* |
+| `AudioContentKind` | closed | `Speech`,`Music`,`Mixed`,`Silence` | audio-track analysis — *pending audio-cluster review* |
+| `ScanStatus` | closed | `Ok`,`Partial`,`Failed` | `WatchedLocation` product concept |
+| `ErrorCode` | non_exhaustive `#[repr(u32)]` | HTTP-style `BadRequest 400`/`PermissionDenied 403`/`NotFound 404`/`AlreadyExists 409`/`UnprocessableEntity 422`/`InternalError 500`/`ServiceUnavailable 503`/`Timeout 504`; domain: `Probe* 1000–1003`, `SceneDetection* 2000–2001`, `Transcription* 3000–3001`, `Vlm* 4000–4001`, `AppleVision* 5000–5001`, `Embedding* 6000–6005`, `Path/Volume* 7000–7007`, `Remote* 8000–8005`, `Cancelled 9000`/`OutOfMemory 9001`, `Ced* 10000–10002` | the `code` of `ErrorInfo` ([primitives.md](primitives.md)); verified vs `findit-proto::common::error_info`; **carries which-stage/why** (the derived error model — no `error_status`) |
+| `VideoIndexStage` | closed | `Pending→Probed→SceneDetected→KeyframeExtracted→Analyzed→Embedded→Done`(+`Failed`) | **per-kind**; derived (VERIFIED bits): `Analyzed` = `VLM_ANALYZED`+`APPLE_VISION_ANALYZED`; `Embedded` = `TEXT_EMBEDDING_FINISHED`+`SCENE_EMBEDDING_FINISHED` |
+| `AudioIndexStage` | closed | derived from the real 11-bit `ProcessingStage` — *pending audio-cluster review* | **per-kind** |
+| `SubtitleIndexStage` | closed | `Pending→TracksDiscovered→CuesExtracted→Ocr→SearchIndexed→Done`(+`Failed`) | **per-kind**; `Ocr` image-based only (VERIFIED bits) |
 
-The three `*IndexStage` enums are **separate types** (do not unify — pipelines
-genuinely differ). Coarse stage is **derived** from the per-kind
-`*IndexStatus` bitflags ([bitflags.md](bitflags.md)) + `index_errors`; it is not
-an independently stored field of record.
+The three `*IndexStage` enums are **separate types** (pipelines genuinely
+differ); coarse stage is **derived** from the per-kind `*IndexStatus` bitflags
+([bitflags.md](bitflags.md)) + `index_errors`, not a stored field.
+
+## `::mediaframe` extern — NOT redefined here (user-approved re-scope)
+
+Media-stream descriptor vocabulary. Tracked in
+[mediaframe-candidates.md](mediaframe-candidates.md); batched into a
+`mediaframe` minor **after `0.1.0`**; mediaschema externs them
+(`.mediaframe.v1 → ::mediaframe`). Locked docs get only the **mechanical
+`::mediaframe::` path rename** (not a re-open — per the tracker rule).
+
+| `::mediaframe` enum | kind | notes |
+|---|---|---|
+| `VideoCodec`/`AudioCodec`/`SubtitleCodec` (+ profile/level) | non_exhaustive `Other(SmolStr)` | codec family only; profile/level separate fields |
+| `ContainerFormat`/`AudioFormat`/`AudioContainerFormat` | non_exhaustive `Other` | file/container form |
+| `SubtitleFormat` | non_exhaustive | text vs bitmap form (locked `subtitle_track.md` r2 uses it) |
+| `ChannelLayout` | non_exhaustive `Other(SmolStr)` | `Mono`/`Stereo`/`5_1`/`7_1`/… |
+| `SubtitleTrackOrigin` | closed | `External`/`Embedded`/`Generated` |
+| `BitRateMode` | closed | `Cbr`/`Vbr`/`Abr` (with audio batch) |
+| `ColorPrimaries`/`ColorTransfer`/`ColorMatrix`/`ColorRange`/`ChromaLocation`/`DcpTargetGamut`/`PixelFormat` | — | FFmpeg-n8.1 numbered + `Unknown(u32)` + `DOMAIN_EXT_BASE` (already in `mediaframe`, ex-`videoframe` PR #2 → now PR #3 `0.1.0`) |
+| `TrackDisposition` (bitflags) | — | FFmpeg `AV_DISPOSITION_*`; see [bitflags.md](bitflags.md) |
+
+## Resolved (your calls)
+
+- **Gap fixes:** `SceneDetector` added; old closed `KeyframeKind` **dropped**,
+  replaced by locked `KeyframeExtractor`; `SubtitleKind` added
+  **mediaschema-owned** (subtitle role = findit facet, your agreement).
+- **E-stage:** **VERIFIED** vs `findit-proto::database` — `VideoIndexStage`/
+  `SubtitleIndexStage` ordering corrected to the real bits ([bitflags.md](bitflags.md));
+  `AudioIndexStage` derived from the real 11-bit `ProcessingStage`, pending the
+  audio-cluster review.
+- Descriptor enums re-scoped `::mediaframe` (user-approved).
 
 ## Open questions
 
-- **E-codec granularity:** how fine should `VideoCodec`/`AudioCodec` go (e.g.
-  `H264` vs profiles)? *Lean: codec family only; profile/level separate fields.*
-- **E-closed:** confirm `#[non_exhaustive]`+`Other(SmolStr)` for codec/container
-  vs strictly closed (closed loses unknown real-world values). *Lean: as tabled.*
-- **E-stage:** the exact stage ordering per kind needs confirmation against the
-  real pipeline (depends on [bitflags.md](bitflags.md) stage bits).
-- **MediaKind pre-probe:** model the wire `UNSPECIFIED` as `Option<MediaKind>`
-  on `Media` vs a `MediaKind::Unknown` variant. *Lean: `kind` stays required
-  (`Media` exists post-probe); pre-probe is a different lifecycle, not this enum.*
+- *(none for the mediaschema-owned set — audio enums + `AudioIndexStage` final
+  shape ride with the deferred audio-cluster review.)*
 
-**Status: in review (rev 1) — drafted for your one-by-one review. NOT self-locked.**
+**Status: LOCKED (rev 4) — user-approved.** Gap-fixes done (`SceneDetector`+,
+`KeyframeKind`→`KeyframeExtractor`, `SubtitleKind` mediaschema); stage vocab
+VERIFIED vs `findit-proto`; descriptor enums `::mediaframe`. *(rev 4:
+user-authorized reopen of locked r3 to add **`ErrorCode`** — mediaschema-owned,
+verified vs `findit-proto::common::error_info`; underpins the derived error
+model.)* Audio enums + `AudioIndexStage` ride with the deferred audio-cluster
+review (not a reopen of this lock).

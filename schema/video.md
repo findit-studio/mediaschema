@@ -1,4 +1,4 @@
-# `Video<Id>` — video facet (thin aggregate)  *(rev 8 — REOPENED by user: scenes → per-VideoTrack; in review, NOT self-locked)*
+# `Video<Id>` — video facet (thin aggregate)  *(rev 8 — LOCKED, user-approved)*
 
 ## Domain meaning
 
@@ -32,4 +32,4 @@ Change from rev 7: `scenes: Vec<Id>` **removed** → moved to
 - **mongodb**: `_id`=UUIDv7; `tracks` UUID ref array; counts/progress embedded.
 - **graphql**: `total_scenes` + `track_progress`; scene detail via `VideoTrack`.
 
-**Status: in review (rev 8) — reopened by your direction; for re-approval. Not self-locked.**
+**Status: LOCKED (rev 8) — user-approved.**

@@ -1,68 +1,62 @@
-# `Scene<Id>` — a detected video scene/shot  *(rev 1 — drafted for review, NOT self-locked)*
+# `Scene<Id>` — a described video segment  *(rev 6 — LOCKED, user-approved)*
 
 ## Domain meaning
 
-One detected scene/shot segment of a video stream — the **heavy segmented-ML
-aggregate** referenced by `VideoTrack.scenes` (detection runs per video stream,
-so the parent is the **track**, not the facet; the facet keeps only the
-`Video.total_scenes` rollup). Carries the scene's time span, representative
-keyframe refs, the VLM/caption output, and the embedding for similarity search.
+One **described time segment** of a video stream — e.g. a ~5–10 s span
+captioned *"Jane is eating"*. Referenced by `VideoTrack.scenes` (detection per
+video stream → parent is the **track**; facet keeps the `Video.total_scenes`
+rollup). Keyframes **are** the thumbnails (a scene has multiple). Immutable
+detected+analysed record — **user curation (tags/favorite/…) is NOT here**; it
+lives in the separate mutable layer ([smart_folder.md](smart_folder.md)).
 
 ## Cross-cutting (locked)
 
-Generic over `Id` (UUIDv7). Media-time = `mediatime` (extern). Scenes have **no
-progress lifecycle** — an id list + count rollup only (not an index stage).
-Strings = `SmolStr`. Conversions deferred.
+Generic over `Id` (UUIDv7). Media-time = `mediatime` (extern). No progress
+lifecycle (id list + count rollup). Strings = `SmolStr` (`""`=absent).
+**Embeddings live in LanceDB** (keyed by this `id`) — no embedding field.
+`SceneDetector` is **mediaschema-owned** (scenesdetect is an engine crate →
+flatten/own, not extern). Conversions deferred.
 
 ## Fields
 
 | field | domain type | wire origin | notes |
 |---|---|---|---|
-| `id` | `Id` (UUIDv7) | `*.id: bytes` | canonical identity |
-| `parent` | `Id` | scene→track | FK → `VideoTrack.id` (per-stream detection) |
+| `id` | `Id` (UUIDv7) | `*.id: bytes` | canonical identity (LanceDB vector key) |
+| `parent` | `Id` | scene→track | FK → `VideoTrack.id` |
 | `index` | `u32` | ordinal | 0-based scene order within the track |
-| `span` | `mediatime::TimeRange` | start/end pts | shot boundary span (media-time, extern; not wall-clock) |
-| `keyframes` | `Vec<Id>` | — | refs → [keyframe.md](keyframe.md) (representative frame(s)) |
-| `caption` | `Option<SmolStr>` | VLM text | VLM/caption description of the scene |
-| `labels` | `Vec<SmolStr>` | tags | detected labels/tags |
-| `embedding` | `Option<Embedding>` (nested VO) | vector | similarity-search vector (see open SC-embed) |
-| `confidence` | `Option<f32>` | score | detector confidence |
+| `span` | `mediatime::TimeRange` | start/end pts | the segment (e.g. 5–10 s); media-time |
+| `detector` | `SceneDetector` (enum) | — | which detector raised this scene (you asked) |
+| `keyframes` | `Vec<Id>` | — | refs → [keyframe.md](keyframe.md) — these **are** the thumbnails |
+| `description` | `SmolStr` | VLM text | e.g. `"Jane is eating"`; `""` = none |
+| `provenance` | `Provenance` (shared VO) | — | analysis-run reproducibility; shared cross-cutting VO ([README.md](README.md)) |
 
-## Nested value-objects
-
-- **`Embedding`**: `{ model: SmolStr, dim: u32, vector: Vec<f32> }` — the
-  scene/VLM embedding. Storage is projection-sensitive (see open).
+**`SceneDetector`** (mediaschema-owned enum; the 5 scenesdetect detection
+modules + manual): `Histogram` · `Phash` · `Threshold` · `Content` ·
+`Adaptive` · `Manual` (user-created / imported boundary). `#[non_exhaustive]`.
 
 ## Invariants
 
-`id` non-empty; `span.start <= span.end`; `index` unique within `parent`;
-`embedding.vector.len() == embedding.dim` when present.
+`id` non-empty; `span.start <= span.end`; `index` unique within `parent`.
 
-## Open questions
+## Resolved (your calls)
 
-- **SC-time:** `mediatime::TimeRange` (recommended — true media-time, extern,
-  consistent) vs frame-index pair (`first_frame`/`last_frame: u64`). *Lean:
-  `TimeRange`, optionally also frame indices if the pipeline needs them.*
-- **SC-embed (projection-critical):** store the vector **inline**
-  (`Vec<f32>` → mongodb array / sqlx `vector`/`BLOB` / pgvector) vs a **ref to
-  an external vector store** (`embedding_ref: SmolStr`) vs **both**. Affects all
-  three projections + graphql (likely *not* exposed raw). *Lean: inline VO in
-  the domain; projections decide physical (pgvector / Mongo Atlas vector / FAISS
-  ref) — flag for the persistence sub-projects.*
-- **SC-keyframes:** `Scene.keyframes → Keyframe` (recommended — keyframes are
-  scene-scoped) vs `VideoTrack.keyframes` (track-scoped, scene references by
-  pts). *Lean: Scene-scoped.*
-- **Scene detector metadata** (algo/threshold) — per-scene, or once on the
-  track's index state? *Lean: track-level (not per scene).*
+- **`labels` dropped** — per-keyframe analysis (apple-vision
+  `classifications`/`objects` + VLM `categories`/`tags`/`vlm_subjects` +
+  colorthief `colors`) already covers frame-level search; *user* tags live in
+  the scene-level smart-folder layer ([smart_folder.md](smart_folder.md)).
+- **Smart folders are scene-level** (not keyframe-level): `SceneAnnotation`
+  targets `Scene.id`; `Scene` carries **no** curation field.
 
 ## Projection notes
 
-- **sqlx**: `scene` table; `id` PK; `parent` FK (`video_track_id`); `span`→
-  `start_pts`/`end_pts`(+timebase via track); `labels`→ side table or `text[]`;
-  `embedding`→ `vector`/pgvector or side table; `(parent, index)` unique.
-- **mongodb**: `_id`=UUIDv7; `keyframes` UUID ref array; `embedding` array
-  (Atlas vector index).
-- **graphql**: caption/labels/span/keyframes exposed; embedding **not** exposed
-  raw (search endpoint instead).
+- **sqlx**: `scene` table; `id` PK; `parent` FK; `span`→`start/end_pts`;
+  `detector` enum col (indexed — filterable in smart folders);
+  `(parent, index)` unique. No embedding column (LanceDB).
+- **mongodb**: `_id`=UUIDv7; `keyframes` UUID ref array.
+- **graphql**: `description`/`span`/`keyframes`/`detector`;
+  similarity = LanceDB endpoint keyed by `id`.
 
-**Status: in review (rev 1) — drafted for your one-by-one review. NOT self-locked.**
+**Status: LOCKED (rev 6) — user-approved.** Thin described-segment:
+`id`/`parent`(→VideoTrack)/`index`/`span`(mediatime)/`detector`(SceneDetector)/
+`keyframes`(=thumbnails)/`description`/`provenance`(shared VO). `labels`
+dropped; embeddings→LanceDB; curation = scene-level smart-folder layer.

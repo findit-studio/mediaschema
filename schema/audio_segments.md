@@ -1,104 +1,95 @@
-# `AudioSegment<Id>` — diarization + transcript segment  *(rev 1 — drafted for review, NOT self-locked)*
+# `AudioSegment<Id>` — diarization + transcript segment  *(rev 3 — LOCKED, user-approved; `speaker`→`Speaker`)*
 
 ## Domain meaning
 
-One analysis segment of an audio stream — the **heavy segmented-ML aggregate**
-that is the audio analog of `Scene`: pyannote **speaker diarization** + whisper
-**transcript**, as a timeline span. Referenced by `Audio.segments` (facet —
-locked in `audio.md`) **or** per-`AudioTrack.segments` (open **A-loc**, see
-[audio_track.md](audio_track.md)). No progress lifecycle (id list + count, like
-scenes).
+One analysis segment of an **audio track** — the heavy segmented-ML aggregate,
+the audio analog of `Scene`. It is the **reconciled join** of two engine
+timelines: `dia` speaker **diarization** (who) ⋈ `asry` word-level **ASR**
+(what), as one timeline span. `parent → AudioTrack.id` (**A-loc = per-track**,
+your call — mirrors locked `VideoTrack.scenes`; multi-track files keep
+which-track attribution). No progress lifecycle (id list + `Audio.total_segments`
+rollup, like scenes).
 
 ## Cross-cutting (locked)
 
-Generic over `Id` (UUIDv7). Media-time = `mediatime` (extern). Strings =
-`SmolStr`; language = `LanguageCode`. Conversions deferred.
+Generic over `Id` (UUIDv7). Media-time = `::mediatime` (`TimeRange`). Strings
+= `SmolStr` (`""`=absent, **no `Option`**); free-text = **`LocalizedText`**
+shared VO; `language` = **`mediaframe::Language`** (extern — BCP-47 tag;
+renamed from `LanguageCode` → `Language`, moved to `mediaframe`, your call). **Embeddings → LanceDB** keyed by this `id` — no embedding
+field. **`Provenance` is per-track** (on `AudioTrack`, one per run) — not per
+segment. Conversions deferred.
 
-## Fields (proposed — unified segment; see A-agg)
+## Fields
 
-| field | domain type | wire origin | notes |
+| field | domain type | source | notes |
 |---|---|---|---|
-| `id` | `Id` (UUIDv7) | `*.id: bytes` | canonical identity |
-| `parent` | `Id` | seg→(audio\|audio_track) | FK target depends on **A-loc** |
-| `index` | `u32` | ordinal | 0-based segment order |
-| `span` | `mediatime::TimeRange` | start/end | segment time span (media-time, extern) |
-| `speaker` | `Option<SpeakerLabel>` | diarization | `SmolStr` newtype (`SPEAKER_00`, …); registry open A-spk |
-| `text` | `Option<SmolStr>` | transcript | whisper transcript for the span |
-| `language` | `Option<LanguageCode>` | detected lang | whisper language id |
-| `words` | `Vec<Word>` (nested VO) | word ts | word-level timestamps (optional, may be empty) |
-| `confidence` | `Option<f32>` | score | ASR/diarization confidence |
-| `embedding` | `Option<Embedding>` (nested VO) | vector | optional text/segment embedding (see `scene.md` SC-embed) |
+| `id` | `Id` (UUIDv7) | — | canonical identity |
+| `parent` | `Id` | seg→track | FK → `AudioTrack.id` (**A-loc per-track**) |
+| `index` | `u32` | ordinal | 0-based segment order within the track |
+| `span` | `mediatime::TimeRange` | dia/asry | segment time span (media-time, extern) |
+| `speaker` | `Option<Id>` | `dia` | FK → `Speaker` ([speaker.md](speaker.md)); `None` = not diarized. (The raw `dia` `u32` is `Speaker.cluster_id`; voiceprint → LanceDB keyed by `Speaker.id`) |
+| `text` | `LocalizedText` | `asry` | `{src, translated}`; `src`=`asry` transcript, `translated`=whisper-translate (**planned `asry` extension** — `""` until emitted) |
+| `language` | `Option<mediaframe::Language>` | `asry` | chunk language (`asry::Transcript.language`) |
+| `words` | `Vec<Word>` | `asry` | word-level timing+score; **may be empty** (= no word timing for this span; no `Option`) |
+| `no_speech_prob` | `Option<f32>` | `asry` | whisper silence prob (replaces the generic per-segment `confidence`) |
+| `avg_logprob` | `Option<f32>` | `asry` | whisper mean token logprob |
+| `temperature` | `Option<f32>` | `asry` | final decode temperature (retry/quality signal) |
 
 ## Nested value-objects
 
-- **`Word`**: `{ text: SmolStr, span: mediatime::TimeRange,
-  confidence: Option<f32> }`.
-- **`Embedding`**: same shape as `scene.md` (`model`, `dim`, `vector`) — reuse.
+- *(`SpeakerId(u32)` removed — `speaker` is now `Option<Id> → Speaker`; the
+  `dia` cluster id lives as `Speaker.cluster_id`. Display `"SPEAKER_NN"` is
+  derived from `cluster_id`, not stored.)*
+- **`Word`** = `{ text: SmolStr, span: mediatime::TimeRange, score: f32,
+  language: Option<mediaframe::Language> }`. `score` ∈ `[0,1]`, **always present**
+  (NaN-free; producer-agnostic — whisperX-port alignment now, native-timing
+  models later). Per-word `language` carries code-switch/multilingual.
 
 ## Invariants
 
-`id` non-empty; `span.start <= span.end`; `index` unique within `parent`;
-`words` (if any) lie within `span`.
+`id` non-empty; `span.start <= span.end`; `(parent, index)` unique; every
+`words[i].span` ⊆ `span`; `speaker = None` ⇒ segment not diarized (text-only).
 
-## Open questions
+## Resolved (your calls)
 
-- **A-loc** (the crux, cascades from locked `audio.md`): parent = `Audio` facet
-  vs `AudioTrack`. *Lean: per-track (multi-track files; consistency with
-  `Video.scenes` moving to `VideoTrack`).* Decides the FK only, not the shape.
-- **A-agg:** **unified** `AudioSegment` carrying *both* speaker + text per span
-  (recommended — diarization and ASR are reconciled into one timeline; simplest
-  to query/display) **vs** separate `Diarization`/`Transcript` aggregates (truer
-  to the two models, but needs span-join). *Lean: unified.*
-- **A-name:** `segments` (recommended) vs `analyses` vs `transcript`.
-- **A-spk:** inline `speaker: SmolStr` label vs a `Speaker` registry aggregate
-  (per-media speaker identity, embeddings, names). *Lean: inline label now;
-  `Speaker` aggregate is a later enhancement (YAGNI) — flag as future.*
-- **Words:** keep word-level timestamps (recommended for search/karaoke) vs
-  segment-only. Storage cost is a projection concern.
+- **A-loc:** per-track — `parent → AudioTrack.id`; `AudioTrack.segments` +
+  `Audio.total_segments` rollup. **Reopens locked `audio.md` r7 → r8** (handled
+  in step 3 of the audio order).
+- **A-agg:** **unified** `AudioSegment` (speaker + text + words per span) —
+  the reconciled `dia`⋈`asry` join (the pipeline does the join; the domain
+  models the result).
+- **A-name:** `segments` (`AudioTrack.segments` / `AudioSegment` /
+  `Audio.total_segments`).
+- **A-spk (rev 3 — superseded: `Speaker` promoted future→now, your call):**
+  `speaker: Option<Id>` → **`Speaker`** ([speaker.md](speaker.md)), a per-track
+  aggregate; `dia` `u32` = `Speaker.cluster_id`; 256-d voice embedding →
+  LanceDB keyed by `Speaker.id`. (Was: inline `SpeakerId(u32)` + future
+  registry.)
+- **Words:** keep — first-class, roadmapped, producer-agnostic.
+- **`text` = `LocalizedText`** (kept; `asry` `translated_text` is a planned
+  cross-crate follow-up).
+- **Quality:** `no_speech_prob`/`avg_logprob`/`temperature` (the real `asry`
+  trio — **not** `compression_ratio`, which `asry` doesn't emit). Generic
+  per-segment `confidence` dropped.
+- **`SegmentKind`** (Speech/Music/Silence/Noise/Overlap) **deferred** — not in
+  `dia`/`asry` output; would come from the separate CED/CLAP stage. Add only
+  if/when that stage's real vocabulary is confirmed.
 
 ## Projection notes
 
-- **sqlx**: `audio_segment` table; `id` PK; `parent` FK (A-loc target);
-  `span`→ `start_pts`/`end_pts`; `text` full-text indexed; `words` → side table
-  or JSON; `embedding` like `scene`.
-- **mongodb**: `_id`=UUIDv7; `words` embedded array; `text` text index.
-- **graphql**: transcript (`text`/`words`/`speaker`/`span`) exposed for the
-  player; embedding not raw.
+- **sqlx**: `audio_segment` table; `id` PK; `parent` FK → `audio_track`;
+  `span`→`start_pts`/`end_pts`; `speaker_id` INTEGER; `text_src`/
+  `text_translated` (derived `display_text` full-text indexed); `words` → side
+  table or JSON; quality columns. No vector column (LanceDB).
+- **mongodb**: `_id`=UUIDv7; `words` embedded array; text index on display text.
+- **graphql**: transcript (`text`/`words`/`speaker`/`span`/`language`) exposed
+  for the player; similarity = LanceDB endpoint keyed by `id` (never a field).
 
-## Useful information you may have forgotten (proposed — accept/reject individually)
-
-Diarization/ASR essentials not in findit-proto / unmentioned.
-
-**Segment type (diarization labels more than speech):**
-- `kind: SegmentKind` (`Speech`/`Music`/`Silence`/`Noise`/`Overlap`) — pyannote
-  emits non-speech regions; without this you can't tell silence from untranscribed
-  speech. *Recommend adopting.*
-- `is_overlap: bool` — overlapping speakers (degrades ASR; flag for UX/QC).
-
-**Whisper quality signals (hallucination filtering — high value, cheap):**
-- `no_speech_prob: Option<f32>`, `avg_logprob: Option<f32>`,
-  `compression_ratio: Option<f32>` — the standard whisper trio to drop
-  hallucinated/low-confidence text from search and display. *Recommend adopting.*
-
-**Transcribe vs translate:**
-- `translated_text: Option<SmolStr>` — whisper's `translate` task output
-  (usually English) alongside original-language `text`; enables cross-language
-  search. Pairs with per-segment `language`.
-
-**Normalization & provenance:**
-- `is_punctuated: bool` (raw vs punctuated/cased text — affects display & search
-  tokenization).
-- Model provenance (`asr_model`/`diarization_model`/`model_version`) belongs on
-  the **track index-state**, not per segment (one value for the run).
-
-**Speaker identity (rollup + future):**
-- `speaker_count` is a **parent** rollup (`AudioTrack`/`Audio`), not per segment.
-- A `Speaker` registry aggregate (per-media speaker id, voice embedding,
-  human-assigned name, gender) is a real future enhancement — keep `speaker:
-  SmolStr` label inline now (YAGNI), flag `Speaker` as a later aggregate.
-
-*Recommended to adopt now:* `kind`, `no_speech_prob`/`avg_logprob`/
-`compression_ratio`, `translated_text`, parent `speaker_count`.
-*Defer:* `is_overlap`, `is_punctuated`, the `Speaker` registry aggregate.
-
-**Status: in review (rev 1) — drafted for your one-by-one review. NOT self-locked.**
+**Status: LOCKED (rev 3) — user-approved.** A-loc=per-track
+(`parent→AudioTrack.id`); A-agg unified (reconciled `dia`⋈`asry`); A-name
+`segments`; **A-spk rev 3: `speaker: Option<Id>` → `Speaker`** ([speaker.md](speaker.md),
+promoted future→now — user-authorized reopen of r2); Words first-class; `text`
+`LocalizedText` (asry-translate follow-up); quality =
+`no_speech_prob`/`avg_logprob`/`temperature`; `language` =
+`mediaframe::Language`. *(Order: this✓ → `audio_track.md` → `speaker.md` →
+`audio.md` r7→r8.)*
