@@ -10,6 +10,9 @@
 //! enums + bitflags, then the leaf aggregates, then the big container/track
 //! aggregates.
 
+#[cfg(any(feature = "std", feature = "alloc"))]
+#[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
+pub mod aggregates;
 pub mod bitflags;
 pub mod enums;
 pub mod primitives;
@@ -25,7 +28,10 @@ pub use enums::{
 };
 pub use primitives::{ErrorCode, FileChecksum, Rgba, Uuid7};
 
-// `feature = "alloc"`-gated: types that reach `Vec` or `SmolStr`.
+// Heap-tier (gate on `any(std, alloc)`): aggregates and types that reach
+// `Vec` / `SmolStr`.
+#[cfg(any(feature = "std", feature = "alloc"))]
+pub use aggregates::{SceneAnnotation, Speaker, UserTag, WatchedLocation};
 #[cfg(any(feature = "std", feature = "alloc"))]
 pub use primitives::{ErrorInfo, Location};
 #[cfg(any(feature = "std", feature = "alloc"))]
