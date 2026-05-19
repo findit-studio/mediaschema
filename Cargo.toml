@@ -86,6 +86,7 @@ uuid = { version = "1", default-features = false }
 # `Unwrap` / `TryUnwrap` (newtype) with `#[unwrap(ref, ref_mut)]
 # #[try_unwrap(ref, ref_mut)]` for shared-ref + mut-ref accessor flavours.
 derive_more = { version = "2", default-features = false, features = ["is_variant", "unwrap", "try_unwrap"] }
+bitflags = { version = "2", default-features = false }
 serde = { version = "1", optional = true }
 serde_json = { version = "1", optional = true }
 arbitrary = { version = "1", optional = true, features = ["derive"] }
