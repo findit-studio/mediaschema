@@ -25,7 +25,7 @@
 use core::{fmt, str::FromStr};
 
 use derive_more::{IsVariant, TryUnwrap, Unwrap};
-#[cfg(feature = "alloc")]
+#[cfg(any(feature = "std", feature = "alloc"))]
 use smol_str::SmolStr;
 use uuid::Uuid;
 
@@ -413,15 +413,15 @@ impl core::error::Error for LocationError {}
 ///
 /// **Requires `feature = "alloc"`** — the `components` field is a
 /// `Vec<SmolStr>` (heap).
-#[cfg(feature = "alloc")]
-#[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
+#[cfg(any(feature = "std", feature = "alloc"))]
+#[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LocalLocation<Id = Uuid7> {
   volume: Id,
   components: std::vec::Vec<SmolStr>,
 }
 
-#[cfg(feature = "alloc")]
+#[cfg(any(feature = "std", feature = "alloc"))]
 impl<Id> LocalLocation<Id> {
   /// **Internal** infallible builder — `pub(crate)` to keep
   /// [`Location::try_local`] the single public construction gate.
@@ -483,8 +483,8 @@ impl<Id> LocalLocation<Id> {
 ///
 /// **Requires `feature = "alloc"`** — wraps [`LocalLocation`] whose
 /// payload is a `Vec<SmolStr>`.
-#[cfg(feature = "alloc")]
-#[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
+#[cfg(any(feature = "std", feature = "alloc"))]
+#[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
 #[derive(Debug, Clone, PartialEq, Eq, Hash, IsVariant, Unwrap, TryUnwrap)]
 #[unwrap(ref, ref_mut)]
 #[try_unwrap(ref, ref_mut)]
@@ -497,7 +497,7 @@ pub enum Location<Id = Uuid7> {
   // `Location` enum at that time.
 }
 
-#[cfg(feature = "alloc")]
+#[cfg(any(feature = "std", feature = "alloc"))]
 impl<Id> Location<Id> {
   /// Generic validating builder: requires a non-empty path.
   ///
@@ -516,7 +516,7 @@ impl<Id> Location<Id> {
   }
 }
 
-#[cfg(feature = "alloc")]
+#[cfg(any(feature = "std", feature = "alloc"))]
 impl Location<Uuid7> {
   /// `Uuid7`-specialized validating builder: also rejects a nil volume id
   /// (the wire-codec sentinel is `pub(crate)`, so external callers can't
@@ -834,15 +834,15 @@ impl ErrorCode {
 ///
 /// **Requires `feature = "alloc"`** — the `message` field is a
 /// `SmolStr` (which needs an allocator for non-inline-sized strings).
-#[cfg(feature = "alloc")]
-#[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
+#[cfg(any(feature = "std", feature = "alloc"))]
+#[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ErrorInfo {
   code: ErrorCode,
   message: SmolStr,
 }
 
-#[cfg(feature = "alloc")]
+#[cfg(any(feature = "std", feature = "alloc"))]
 impl ErrorInfo {
   /// Construct an `ErrorInfo` with the given code and message.
   #[inline]
