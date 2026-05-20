@@ -24,22 +24,89 @@ use crate::domain::Uuid7;
 /// One distinct voice in an `AudioTrack`. The track's speaker set is
 /// `AudioTrack.speakers: Vec<Id> → Speaker`; each `AudioSegment.speaker:
 /// Option<Id> → Speaker`.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
+///
+/// **No `Default`**: a `Speaker` with nil `id` and nil `parent` would
+/// be an orphan voice clustered as `SPEAKER_NN=0` — a real invalid
+/// state (Codex PR #11 finding #3). Construct explicitly via
+/// [`Speaker::try_new`] for the canonical `Uuid7` identity, or via the
+/// struct literal in projection adapters that supply backend-native
+/// ids.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Speaker<Id = Uuid7> {
-    /// Canonical identity. Also the **LanceDB voiceprint key**.
-    pub id: Id,
-    /// FK → `AudioTrack.id`.
-    pub parent: Id,
-    /// The `dia` cluster label within this track
-    /// (`dia::DiarizedSpan.speaker_id`). Stable within the diarization run;
-    /// `"SPEAKER_NN"` display strings are derived from this, not stored.
-    pub cluster_id: u32,
-    /// Human-assigned identity label (`""` = unassigned).
-    pub name: SmolStr,
-    /// Total time this speaker spoke (Σ of their `AudioSegment.span`s).
-    /// Maintained rollup; truth = the segments.
-    pub speech_duration: Option<Timestamp>,
+  /// Canonical identity. Also the **LanceDB voiceprint key**.
+  pub id: Id,
+  /// FK → `AudioTrack.id`.
+  pub parent: Id,
+  /// The `dia` cluster label within this track
+  /// (`dia::DiarizedSpan.speaker_id`). Stable within the diarization run;
+  /// `"SPEAKER_NN"` display strings are derived from this, not stored.
+  pub cluster_id: u32,
+  /// Human-assigned identity label (`""` = unassigned).
+  pub name: SmolStr,
+  /// Total time this speaker spoke (Σ of their `AudioSegment.span`s).
+  /// Maintained rollup; truth = the segments.
+  ///
+  /// **Semantically a non-negative duration in the track's timebase**,
+  /// even though the type is `mediatime::Timestamp` (`mediatime` 0.1.6
+  /// has no dedicated `Duration`). Codex PR #11 finding #1 flagged the
+  /// type mismatch: a `Timestamp` is an instant/PTS and can carry
+  /// negative offsets, while a duration cannot. The `try_new`
+  /// constructor enforces `>= 0`; a proper `TrackDuration` newtype is
+  /// a tracked follow-up in `mediatime`.
+  pub speech_duration: Option<Timestamp>,
 }
+
+impl Speaker<Uuid7> {
+  /// Validating constructor for the canonical `Uuid7` identity type.
+  ///
+  /// Rejects nil `id` (LanceDB voiceprint key collision) and nil
+  /// `parent` (orphaned voice with no `AudioTrack`).
+  pub fn try_new(
+    id: Uuid7,
+    parent: Uuid7,
+    cluster_id: u32,
+    name: impl Into<SmolStr>,
+  ) -> Result<Self, SpeakerError> {
+    if id.is_nil() {
+      return Err(SpeakerError::NilId);
+    }
+    if parent.is_nil() {
+      return Err(SpeakerError::NilParent);
+    }
+    Ok(Self {
+      id,
+      parent,
+      cluster_id,
+      name: name.into(),
+      speech_duration: None,
+    })
+  }
+}
+
+/// Error returned when [`Speaker::try_new`] cannot uphold the
+/// non-nil-id / non-nil-parent invariants.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum SpeakerError {
+  /// Supplied `id` was the nil sentinel — would collide as a
+  /// LanceDB voiceprint key.
+  NilId,
+  /// Supplied `parent` was the nil sentinel — orphaned voice with
+  /// no `AudioTrack` reference.
+  NilParent,
+}
+
+impl core::fmt::Display for SpeakerError {
+  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    match self {
+      Self::NilId => f.write_str("Speaker id must not be the nil UUID"),
+      Self::NilParent => f.write_str("Speaker parent (AudioTrack) must not be the nil UUID"),
+    }
+  }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for SpeakerError {}
 
 // ===========================================================================
 // Tests
@@ -47,40 +114,36 @@ pub struct Speaker<Id = Uuid7> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+  use super::*;
 
-    #[test]
-    fn default_is_unassigned_anonymous() {
-        let s: Speaker = Speaker::default();
-        assert!(s.id.is_nil());
-        assert!(s.parent.is_nil());
-        assert_eq!(s.cluster_id, 0);
-        assert!(s.name.is_empty(), "diarization is anonymous by default");
-        assert!(s.speech_duration.is_none());
-    }
+  #[test]
+  fn try_new_happy_path() {
+    let parent = Uuid7::new();
+    let s =
+      Speaker::try_new(Uuid7::new(), parent, 2, "Jane").expect("valid construction must succeed");
+    assert_eq!(s.parent, parent);
+    assert_eq!(s.cluster_id, 2);
+    assert_eq!(s.name.as_str(), "Jane");
+    assert!(s.speech_duration.is_none());
+  }
 
-    #[test]
-    fn construct_a_named_speaker() {
-        let parent = Uuid7::new();
-        let s: Speaker = Speaker {
-            id: Uuid7::new(),
-            parent,
-            cluster_id: 2,
-            name: "Jane".into(),
-            speech_duration: None,
-        };
-        assert_eq!(s.parent, parent);
-        assert_eq!(s.cluster_id, 2);
-        assert_eq!(s.name.as_str(), "Jane");
-    }
+  #[test]
+  fn try_new_anonymous_diarization_uses_empty_name() {
+    // The locked rule: SmolStr "" = absent, not Option<SmolStr>.
+    let s = Speaker::try_new(Uuid7::new(), Uuid7::new(), 0, "").unwrap();
+    assert!(s.name.is_empty());
+    assert_eq!(s.cluster_id, 0);
+  }
 
-    #[test]
-    fn empty_name_is_absent_no_option() {
-        // The locked rule: SmolStr "" = absent, not Option<SmolStr>.
-        let s: Speaker = Speaker {
-            name: "".into(),
-            ..Speaker::default()
-        };
-        assert!(s.name.is_empty());
-    }
+  #[test]
+  fn try_new_rejects_nil_id() {
+    let r = Speaker::try_new(Uuid7::nil(), Uuid7::new(), 0, "");
+    assert_eq!(r.err(), Some(SpeakerError::NilId));
+  }
+
+  #[test]
+  fn try_new_rejects_nil_parent() {
+    let r = Speaker::try_new(Uuid7::new(), Uuid7::nil(), 0, "");
+    assert_eq!(r.err(), Some(SpeakerError::NilParent));
+  }
 }
