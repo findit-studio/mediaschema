@@ -6,8 +6,7 @@
 //! [`Location`] is the structured oneof copied from
 //! `findit-proto::common::location` (volume-aware).
 
-use core::fmt;
-use core::str::FromStr;
+use core::{fmt, str::FromStr};
 
 use smol_str::SmolStr;
 use uuid::Uuid;
@@ -27,70 +26,161 @@ use uuid::Uuid;
 ///
 /// Locked invariant: `Uuid7` is **distinct** from [`FileChecksum`] (content
 /// hash is not identity).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
-pub struct Uuid7(pub Uuid);
+///
+/// ## Construction
+///
+/// Public construction goes through **validating** entry points only:
+/// [`Uuid7::new`] (fresh v7), [`Uuid7::try_from_bytes`], `TryFrom<Uuid>`,
+/// and `FromStr` — all of which reject nil and non-v7 values. There is no
+/// `Default` impl: a UUIDv7 has no meaningful zero, and the nil sentinel
+/// must be requested explicitly via [`Uuid7::nil`]. Unvalidated paths
+/// (`from_bytes_unchecked`) exist for wire-codec round-trips that have
+/// already established the byte sequence is a v7 — they are documented as
+/// caller-asserted and not part of the casual surface.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct Uuid7(Uuid);
+
+/// Error returned when a value fails the [`Uuid7`] invariants
+/// (non-nil + UUIDv7 layout).
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum Uuid7Error {
+  /// The input parsed as a UUID but its byte layout is the all-zero
+  /// nil UUID — not a valid identity.
+  Nil,
+  /// The input parsed as a UUID but its version field is not `7`.
+  NotV7(usize),
+  /// The input could not be parsed as a UUID at all (string form).
+  InvalidUuid(uuid::Error),
+}
+
+impl fmt::Display for Uuid7Error {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    match self {
+      Self::Nil => f.write_str("nil UUID is not a valid Uuid7 identity"),
+      Self::NotV7(v) => write!(f, "expected UUIDv7, got UUIDv{v}"),
+      Self::InvalidUuid(e) => write!(f, "invalid UUID: {e}"),
+    }
+  }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for Uuid7Error {
+  fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+    match self {
+      Self::InvalidUuid(e) => Some(e),
+      _ => None,
+    }
+  }
+}
+
+impl From<uuid::Error> for Uuid7Error {
+  fn from(e: uuid::Error) -> Self {
+    Self::InvalidUuid(e)
+  }
+}
+
+/// Validate that `u` is a non-nil UUIDv7. Single source of truth for the
+/// invariant — every validating constructor funnels through here.
+fn validate_v7(u: Uuid) -> Result<Uuid7, Uuid7Error> {
+  if u.is_nil() {
+    return Err(Uuid7Error::Nil);
+  }
+  // `Uuid::get_version_num()` returns the 4-bit version field directly,
+  // which is what RFC 9562 §4.2 calls out as the version discriminant.
+  let v = u.get_version_num();
+  if v != 7 {
+    return Err(Uuid7Error::NotV7(v));
+  }
+  Ok(Uuid7(u))
+}
 
 impl Uuid7 {
-    /// Generate a new time-ordered UUIDv7 from the current wall-clock time.
-    #[cfg(feature = "std")]
-    #[inline]
-    pub fn new() -> Self {
-        Self(Uuid::now_v7())
-    }
+  /// Generate a new time-ordered UUIDv7 from the current wall-clock time.
+  #[cfg(feature = "std")]
+  #[inline]
+  pub fn new() -> Self {
+    Self(Uuid::now_v7())
+  }
 
-    /// The nil UUID (all-zero bits). Sentinel for "never assigned"; do **not**
-    /// use as a real identity.
-    #[inline]
-    pub const fn nil() -> Self {
-        Self(Uuid::nil())
-    }
+  /// The nil UUID (all-zero bits). **Sentinel** for "never assigned" —
+  /// projection adapters / wire round-trips occasionally need an explicit
+  /// "unset" marker even though it is not a real identity. Constructing
+  /// the nil value requires calling this method explicitly (`Default` is
+  /// intentionally **not** implemented).
+  #[inline]
+  pub const fn nil() -> Self {
+    Self(Uuid::nil())
+  }
 
-    /// Is this the nil sentinel?
-    #[inline]
-    pub fn is_nil(&self) -> bool {
-        self.0.is_nil()
-    }
+  /// Is this the nil sentinel?
+  #[inline]
+  pub fn is_nil(&self) -> bool {
+    self.0.is_nil()
+  }
 
-    /// Raw 16-byte representation.
-    #[inline]
-    pub fn as_bytes(&self) -> &[u8; 16] {
-        self.0.as_bytes()
-    }
+  /// Underlying `uuid::Uuid` (read-only; conversion back is `TryFrom`).
+  #[inline]
+  pub fn as_uuid(&self) -> Uuid {
+    self.0
+  }
 
-    /// Construct from raw 16 bytes — caller asserts UUIDv7 layout; no
-    /// validation is performed.
-    #[inline]
-    pub const fn from_bytes(bytes: [u8; 16]) -> Self {
-        Self(Uuid::from_bytes(bytes))
-    }
+  /// Raw 16-byte representation.
+  #[inline]
+  pub fn as_bytes(&self) -> &[u8; 16] {
+    self.0.as_bytes()
+  }
+
+  /// Validating constructor from raw 16 bytes — rejects nil and any
+  /// non-v7 layout.
+  #[inline]
+  pub fn try_from_bytes(bytes: [u8; 16]) -> Result<Self, Uuid7Error> {
+    validate_v7(Uuid::from_bytes(bytes))
+  }
+
+  /// **Unchecked** construction from raw 16 bytes — the caller asserts
+  /// the layout is a non-nil UUIDv7. The only legitimate use is wire
+  /// round-trips where the byte sequence has already been validated on
+  /// the producing side; everywhere else, use [`Uuid7::try_from_bytes`].
+  ///
+  /// This is **safe** Rust (no memory-safety hazard), but it can violate
+  /// the locked invariant — callers carry that obligation.
+  #[inline]
+  pub const fn from_bytes_unchecked(bytes: [u8; 16]) -> Self {
+    Self(Uuid::from_bytes(bytes))
+  }
 }
 
 impl fmt::Display for Uuid7 {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(&self.0, f)
-    }
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fmt::Display::fmt(&self.0, f)
+  }
 }
 
 impl FromStr for Uuid7 {
-    type Err = uuid::Error;
+  type Err = Uuid7Error;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Uuid::parse_str(s).map(Self)
-    }
+  /// Parse a UUID string and validate it as a non-nil UUIDv7.
+  fn from_str(s: &str) -> Result<Self, Self::Err> {
+    let u = Uuid::parse_str(s)?;
+    validate_v7(u)
+  }
 }
 
-impl From<Uuid> for Uuid7 {
-    #[inline]
-    fn from(u: Uuid) -> Self {
-        Self(u)
-    }
+impl TryFrom<Uuid> for Uuid7 {
+  type Error = Uuid7Error;
+
+  /// Convert a `uuid::Uuid` — rejects nil and non-v7 layouts.
+  fn try_from(u: Uuid) -> Result<Self, Self::Error> {
+    validate_v7(u)
+  }
 }
 
 impl From<Uuid7> for Uuid {
-    #[inline]
-    fn from(id: Uuid7) -> Self {
-        id.0
-    }
+  #[inline]
+  fn from(id: Uuid7) -> Self {
+    id.0
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -106,46 +196,46 @@ impl From<Uuid7> for Uuid {
 pub struct FileChecksum(pub [u8; 32]);
 
 impl FileChecksum {
-    /// Wrap a 32-byte hash.
-    #[inline]
-    pub const fn new(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
+  /// Wrap a 32-byte hash.
+  #[inline]
+  pub const fn new(bytes: [u8; 32]) -> Self {
+    Self(bytes)
+  }
 
-    /// All-zero sentinel for "not yet computed".
-    #[inline]
-    pub const fn zero() -> Self {
-        Self([0; 32])
-    }
+  /// All-zero sentinel for "not yet computed".
+  #[inline]
+  pub const fn zero() -> Self {
+    Self([0; 32])
+  }
 
-    /// Raw bytes.
-    #[inline]
-    pub const fn as_bytes(&self) -> &[u8; 32] {
-        &self.0
-    }
+  /// Raw bytes.
+  #[inline]
+  pub const fn as_bytes(&self) -> &[u8; 32] {
+    &self.0
+  }
 
-    /// Is this the all-zero sentinel?
-    #[inline]
-    pub fn is_zero(&self) -> bool {
-        self.0 == [0; 32]
-    }
+  /// Is this the all-zero sentinel?
+  #[inline]
+  pub fn is_zero(&self) -> bool {
+    self.0 == [0; 32]
+  }
 }
 
 impl fmt::Display for FileChecksum {
-    /// Lower-case hex (64 chars).
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for b in &self.0 {
-            write!(f, "{:02x}", b)?;
-        }
-        Ok(())
+  /// Lower-case hex (64 chars).
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    for b in &self.0 {
+      write!(f, "{:02x}", b)?;
     }
+    Ok(())
+  }
 }
 
 impl From<[u8; 32]> for FileChecksum {
-    #[inline]
-    fn from(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
+  #[inline]
+  fn from(bytes: [u8; 32]) -> Self {
+    Self(bytes)
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -161,28 +251,28 @@ impl From<[u8; 32]> for FileChecksum {
 pub struct Rgba(pub u32);
 
 impl Rgba {
-    /// Pack from RGBA components.
-    #[inline]
-    pub const fn new(r: u8, g: u8, b: u8, a: u8) -> Self {
-        Self(((r as u32) << 24) | ((g as u32) << 16) | ((b as u32) << 8) | (a as u32))
-    }
+  /// Pack from RGBA components.
+  #[inline]
+  pub const fn new(r: u8, g: u8, b: u8, a: u8) -> Self {
+    Self(((r as u32) << 24) | ((g as u32) << 16) | ((b as u32) << 8) | (a as u32))
+  }
 
-    #[inline]
-    pub const fn r(self) -> u8 {
-        (self.0 >> 24) as u8
-    }
-    #[inline]
-    pub const fn g(self) -> u8 {
-        (self.0 >> 16) as u8
-    }
-    #[inline]
-    pub const fn b(self) -> u8 {
-        (self.0 >> 8) as u8
-    }
-    #[inline]
-    pub const fn a(self) -> u8 {
-        self.0 as u8
-    }
+  #[inline]
+  pub const fn r(self) -> u8 {
+    (self.0 >> 24) as u8
+  }
+  #[inline]
+  pub const fn g(self) -> u8 {
+    (self.0 >> 16) as u8
+  }
+  #[inline]
+  pub const fn b(self) -> u8 {
+    (self.0 >> 8) as u8
+  }
+  #[inline]
+  pub const fn a(self) -> u8 {
+    self.0 as u8
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -201,42 +291,40 @@ impl Rgba {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum Location<Id = Uuid7> {
-    /// A local volume path: stable `volume` identity + platform-agnostic
-    /// path components. Identity is the volume's stable UUID (the old
-    /// indexer writes it once to `<mount>/.findit_index/.id`), **not** the
-    /// OS mount path (which is volatile across remounts).
-    Local {
-        volume: Id,
-        components: Vec<SmolStr>,
-    },
-    // Future: `RemoteUrl(SmolStr)`, `Object { store, bucket, key }` —
-    // surfaced when a real consumer needs object-storage roots; reopens
-    // this `Location` enum at that time.
-}
-
-impl<Id: Default> Default for Location<Id> {
-    fn default() -> Self {
-        Self::Local {
-            volume: Id::default(),
-            components: Vec::new(),
-        }
-    }
+  /// A local volume path: stable `volume` identity + platform-agnostic
+  /// path components. Identity is the volume's stable UUID (the old
+  /// indexer writes it once to `<mount>/.findit_index/.id`), **not** the
+  /// OS mount path (which is volatile across remounts).
+  Local {
+    volume: Id,
+    components: Vec<SmolStr>,
+  },
+  // Future: `RemoteUrl(SmolStr)`, `Object { store, bucket, key }` —
+  // surfaced when a real consumer needs object-storage roots; reopens
+  // this `Location` enum at that time.
 }
 
 impl<Id> Location<Id> {
-    /// Construct a local volume path from components.
-    #[inline]
-    pub fn local<I, S>(volume: Id, components: I) -> Self
-    where
-        I: IntoIterator<Item = S>,
-        S: Into<SmolStr>,
-    {
-        Self::Local {
-            volume,
-            components: components.into_iter().map(Into::into).collect(),
-        }
+  /// Construct a local volume path from components.
+  #[inline]
+  pub fn local<I, S>(volume: Id, components: I) -> Self
+  where
+    I: IntoIterator<Item = S>,
+    S: Into<SmolStr>,
+  {
+    Self::Local {
+      volume,
+      components: components.into_iter().map(Into::into).collect(),
     }
+  }
 }
+
+// Note: `Location` deliberately does **not** implement `Default`. The wire
+// shape is a `oneof` whose absence is "no arm at all", and the only existing
+// arm (`Local`) cannot be defaulted without fabricating a nil volume id and
+// an empty path — neither of which represents a real file. Domain fields
+// that may be absent express that with `Option<Location>`; wire conversion
+// returns `None` for a no-arm value.
 
 // ---------------------------------------------------------------------------
 // ErrorCode — structured error vocabulary (verified vs findit-proto)
@@ -250,96 +338,235 @@ impl<Id> Location<Id> {
 /// wire-stable). `#[non_exhaustive]` — new codes may be added without
 /// breaking domain consumers.
 ///
+/// `Unknown(u32)` preserves any wire code not yet enumerated here so a
+/// future producer's stage signal survives an older mediaschema's
+/// wire→domain→wire round-trip lossless. (Without it, `#[non_exhaustive]`
+/// would only protect source compat, not wire compat — an unrecognised
+/// code would have nowhere to land.)
+///
 /// The domain error model uses `code` as the *stage-coded* signal in
 /// `index_errors: Vec<ErrorInfo>`; this replaces the dropped per-track
 /// `error_status` bitflags (error-state is now **derived** from the
 /// stage codes + `index_status`).
-#[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum ErrorCode {
-    // --- HTTP-style protocol errors ---
-    BadRequest = 400,
-    PermissionDenied = 403,
-    NotFound = 404,
-    AlreadyExists = 409,
-    UnprocessableEntity = 422,
-    InternalError = 500,
-    ServiceUnavailable = 503,
-    Timeout = 504,
+  // --- HTTP-style protocol errors ---
+  BadRequest,
+  PermissionDenied,
+  NotFound,
+  AlreadyExists,
+  UnprocessableEntity,
+  InternalError,
+  ServiceUnavailable,
+  Timeout,
 
-    // --- Probe (1000s) ---
-    ProbeCorrupt = 1000,
-    ProbeUnsupportedFormat = 1001,
-    ProbeNoVideoStream = 1002,
-    ProbeNoAudioStream = 1003,
+  // --- Probe (1000s) ---
+  ProbeCorrupt,
+  ProbeUnsupportedFormat,
+  ProbeNoVideoStream,
+  ProbeNoAudioStream,
 
-    // --- Scene detection (2000s) ---
-    SceneDetectionFailed = 2000,
-    SceneDetectionModelError = 2001,
+  // --- Scene detection (2000s) ---
+  SceneDetectionFailed,
+  SceneDetectionModelError,
 
-    // --- Transcription (3000s) ---
-    TranscriptionFailed = 3000,
-    TranscriptionModelError = 3001,
+  // --- Transcription (3000s) ---
+  TranscriptionFailed,
+  TranscriptionModelError,
 
-    // --- VLM (4000s) ---
-    VlmFailed = 4000,
-    VlmModelError = 4001,
+  // --- VLM (4000s) ---
+  VlmFailed,
+  VlmModelError,
 
-    // --- Apple Vision (5000s) ---
-    AppleVisionFailed = 5000,
-    AppleVisionRequestFailed = 5001,
+  // --- Apple Vision (5000s) ---
+  AppleVisionFailed,
+  AppleVisionRequestFailed,
 
-    // --- Embedding (6000s) ---
-    EmbeddingFailed = 6000,
-    EmbeddingModelError = 6001,
-    EmbeddingModelLoadFailed = 6002,
-    EmbeddingPreprocessFailed = 6003,
-    EmbeddingInferenceFailed = 6004,
-    EmbeddingOutputInvalid = 6005,
+  // --- Embedding (6000s) ---
+  EmbeddingFailed,
+  EmbeddingModelError,
+  EmbeddingModelLoadFailed,
+  EmbeddingPreprocessFailed,
+  EmbeddingInferenceFailed,
+  EmbeddingOutputInvalid,
 
-    // --- Path / volume (7000s) ---
-    PathNotFound = 7000,
-    VolumeNotAvailable = 7001,
-    MissingVolumeId = 7002,
-    MalformedVolumeId = 7003,
-    VolumeIdMismatch = 7004,
-    LocalDatabaseError = 7005,
-    FolderNotAvailable = 7006,
-    LocalPermissionDenied = 7007,
+  // --- Path / volume (7000s) ---
+  PathNotFound,
+  VolumeNotAvailable,
+  MissingVolumeId,
+  MalformedVolumeId,
+  VolumeIdMismatch,
+  LocalDatabaseError,
+  FolderNotAvailable,
+  LocalPermissionDenied,
 
-    // --- Remote (8000s) ---
-    EndpointUnreachable = 8000,
-    AuthenticationFailed = 8001,
-    BucketNotFound = 8002,
-    QuotaExceeded = 8003,
-    RemoteDatabaseError = 8004,
-    RemoteTimeout = 8005,
+  // --- Remote (8000s) ---
+  EndpointUnreachable,
+  AuthenticationFailed,
+  BucketNotFound,
+  QuotaExceeded,
+  RemoteDatabaseError,
+  RemoteTimeout,
 
-    // --- Cancelled / resource (9000s) ---
-    Cancelled = 9000,
-    OutOfMemory = 9001,
+  // --- Cancelled / resource (9000s) ---
+  Cancelled,
+  OutOfMemory,
 
-    // --- CED sound-event detection (10000s) ---
-    CedFailed = 10000,
-    CedRequestFailed = 10001,
-    CedModelError = 10002,
+  // --- CED sound-event detection (10000s) ---
+  CedFailed,
+  CedRequestFailed,
+  CedModelError,
+
+  /// A wire code not enumerated above — preserved verbatim so a wire
+  /// → domain → wire round-trip retains the producer's exact stage
+  /// signal across version skew.
+  Unknown(u32),
 }
 
 impl ErrorCode {
-    /// Numeric discriminant (wire-stable; matches
-    /// `findit-proto::common::error_info::ErrorCode`).
-    #[inline]
-    pub const fn as_u32(self) -> u32 {
-        self as u32
+  /// Numeric wire value (matches `findit-proto::common::error_info::ErrorCode`).
+  /// Always lossless: known variants emit their stable HTTP-style /
+  /// domain-bucket code; `Unknown(n)` round-trips `n` verbatim.
+  pub const fn as_u32(self) -> u32 {
+    match self {
+      // --- HTTP-style protocol errors ---
+      Self::BadRequest => 400,
+      Self::PermissionDenied => 403,
+      Self::NotFound => 404,
+      Self::AlreadyExists => 409,
+      Self::UnprocessableEntity => 422,
+      Self::InternalError => 500,
+      Self::ServiceUnavailable => 503,
+      Self::Timeout => 504,
+      // --- Probe (1000s) ---
+      Self::ProbeCorrupt => 1000,
+      Self::ProbeUnsupportedFormat => 1001,
+      Self::ProbeNoVideoStream => 1002,
+      Self::ProbeNoAudioStream => 1003,
+      // --- Scene detection (2000s) ---
+      Self::SceneDetectionFailed => 2000,
+      Self::SceneDetectionModelError => 2001,
+      // --- Transcription (3000s) ---
+      Self::TranscriptionFailed => 3000,
+      Self::TranscriptionModelError => 3001,
+      // --- VLM (4000s) ---
+      Self::VlmFailed => 4000,
+      Self::VlmModelError => 4001,
+      // --- Apple Vision (5000s) ---
+      Self::AppleVisionFailed => 5000,
+      Self::AppleVisionRequestFailed => 5001,
+      // --- Embedding (6000s) ---
+      Self::EmbeddingFailed => 6000,
+      Self::EmbeddingModelError => 6001,
+      Self::EmbeddingModelLoadFailed => 6002,
+      Self::EmbeddingPreprocessFailed => 6003,
+      Self::EmbeddingInferenceFailed => 6004,
+      Self::EmbeddingOutputInvalid => 6005,
+      // --- Path / volume (7000s) ---
+      Self::PathNotFound => 7000,
+      Self::VolumeNotAvailable => 7001,
+      Self::MissingVolumeId => 7002,
+      Self::MalformedVolumeId => 7003,
+      Self::VolumeIdMismatch => 7004,
+      Self::LocalDatabaseError => 7005,
+      Self::FolderNotAvailable => 7006,
+      Self::LocalPermissionDenied => 7007,
+      // --- Remote (8000s) ---
+      Self::EndpointUnreachable => 8000,
+      Self::AuthenticationFailed => 8001,
+      Self::BucketNotFound => 8002,
+      Self::QuotaExceeded => 8003,
+      Self::RemoteDatabaseError => 8004,
+      Self::RemoteTimeout => 8005,
+      // --- Cancelled / resource (9000s) ---
+      Self::Cancelled => 9000,
+      Self::OutOfMemory => 9001,
+      // --- CED (10000s) ---
+      Self::CedFailed => 10000,
+      Self::CedRequestFailed => 10001,
+      Self::CedModelError => 10002,
+      // --- Wire-preserved escape ---
+      Self::Unknown(n) => n,
     }
+  }
+
+  /// Convert a wire `u32` into an [`ErrorCode`]. Unknown values land in
+  /// `Self::Unknown(n)` — never lossy, infallible.
+  pub const fn from_u32(n: u32) -> Self {
+    match n {
+      // --- HTTP-style protocol errors ---
+      400 => Self::BadRequest,
+      403 => Self::PermissionDenied,
+      404 => Self::NotFound,
+      409 => Self::AlreadyExists,
+      422 => Self::UnprocessableEntity,
+      500 => Self::InternalError,
+      503 => Self::ServiceUnavailable,
+      504 => Self::Timeout,
+      // --- Probe (1000s) ---
+      1000 => Self::ProbeCorrupt,
+      1001 => Self::ProbeUnsupportedFormat,
+      1002 => Self::ProbeNoVideoStream,
+      1003 => Self::ProbeNoAudioStream,
+      // --- Scene detection (2000s) ---
+      2000 => Self::SceneDetectionFailed,
+      2001 => Self::SceneDetectionModelError,
+      // --- Transcription (3000s) ---
+      3000 => Self::TranscriptionFailed,
+      3001 => Self::TranscriptionModelError,
+      // --- VLM (4000s) ---
+      4000 => Self::VlmFailed,
+      4001 => Self::VlmModelError,
+      // --- Apple Vision (5000s) ---
+      5000 => Self::AppleVisionFailed,
+      5001 => Self::AppleVisionRequestFailed,
+      // --- Embedding (6000s) ---
+      6000 => Self::EmbeddingFailed,
+      6001 => Self::EmbeddingModelError,
+      6002 => Self::EmbeddingModelLoadFailed,
+      6003 => Self::EmbeddingPreprocessFailed,
+      6004 => Self::EmbeddingInferenceFailed,
+      6005 => Self::EmbeddingOutputInvalid,
+      // --- Path / volume (7000s) ---
+      7000 => Self::PathNotFound,
+      7001 => Self::VolumeNotAvailable,
+      7002 => Self::MissingVolumeId,
+      7003 => Self::MalformedVolumeId,
+      7004 => Self::VolumeIdMismatch,
+      7005 => Self::LocalDatabaseError,
+      7006 => Self::FolderNotAvailable,
+      7007 => Self::LocalPermissionDenied,
+      // --- Remote (8000s) ---
+      8000 => Self::EndpointUnreachable,
+      8001 => Self::AuthenticationFailed,
+      8002 => Self::BucketNotFound,
+      8003 => Self::QuotaExceeded,
+      8004 => Self::RemoteDatabaseError,
+      8005 => Self::RemoteTimeout,
+      // --- Cancelled / resource (9000s) ---
+      9000 => Self::Cancelled,
+      9001 => Self::OutOfMemory,
+      // --- CED (10000s) ---
+      10000 => Self::CedFailed,
+      10001 => Self::CedRequestFailed,
+      10002 => Self::CedModelError,
+      // Wire value not enumerated — preserve it.
+      other => Self::Unknown(other),
+    }
+  }
+
+  /// Is this an `Unknown(_)` wire-preserved code (i.e. a producer used a
+  /// code newer than this `ErrorCode` enum knows about)?
+  pub const fn is_unknown(self) -> bool {
+    matches!(self, Self::Unknown(_))
+  }
 }
 
-impl Default for ErrorCode {
-    fn default() -> Self {
-        Self::InternalError
-    }
-}
+// Deliberately **no** `Default for ErrorCode`. There is no meaningful
+// default error — every error has a specific stage signal. `ErrorInfo`
+// must be constructed with an explicit code via `ErrorInfo::new` /
+// `ErrorInfo::code_only`.
 
 // ---------------------------------------------------------------------------
 // ErrorInfo — verified vs findit-proto::common::error_info
@@ -351,30 +578,33 @@ impl Default for ErrorCode {
 /// message: SmolStr }`. The `code` is the stage-coded id; `message` is the
 /// human-readable description (`""`=absent — no `Option` for strings, per
 /// the locked rule).
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
+///
+/// No `Default` impl — there is no meaningful "default error". Construct
+/// explicitly via [`ErrorInfo::new`] or [`ErrorInfo::code_only`].
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ErrorInfo {
-    pub code: ErrorCode,
-    pub message: SmolStr,
+  pub code: ErrorCode,
+  pub message: SmolStr,
 }
 
 impl ErrorInfo {
-    /// Construct an `ErrorInfo` with the given code and message.
-    #[inline]
-    pub fn new(code: ErrorCode, message: impl Into<SmolStr>) -> Self {
-        Self {
-            code,
-            message: message.into(),
-        }
+  /// Construct an `ErrorInfo` with the given code and message.
+  #[inline]
+  pub fn new(code: ErrorCode, message: impl Into<SmolStr>) -> Self {
+    Self {
+      code,
+      message: message.into(),
     }
+  }
 
-    /// Construct with just a code (empty message).
-    #[inline]
-    pub fn code_only(code: ErrorCode) -> Self {
-        Self {
-            code,
-            message: SmolStr::default(),
-        }
+  /// Construct with just a code (empty message).
+  #[inline]
+  pub fn code_only(code: ErrorCode) -> Self {
+    Self {
+      code,
+      message: SmolStr::default(),
     }
+  }
 }
 
 // ===========================================================================
@@ -383,128 +613,211 @@ impl ErrorInfo {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+  use super::*;
 
-    #[test]
-    fn uuid7_new_is_non_nil_and_unique() {
-        let a = Uuid7::new();
-        let b = Uuid7::new();
-        assert!(!a.is_nil());
-        assert!(!b.is_nil());
-        assert_ne!(a, b, "two fresh UUIDv7s must differ");
+  #[test]
+  fn uuid7_new_is_non_nil_and_unique() {
+    let a = Uuid7::new();
+    let b = Uuid7::new();
+    assert!(!a.is_nil());
+    assert!(!b.is_nil());
+    assert_ne!(a, b, "two fresh UUIDv7s must differ");
+  }
+
+  #[test]
+  fn uuid7_nil_sentinel_must_be_explicit() {
+    // `Default` is intentionally not derived, so this is the only way
+    // to spell the nil sentinel — and it requires a deliberate call.
+    let n = Uuid7::nil();
+    assert!(n.is_nil());
+    assert_eq!(n.as_bytes(), &[0; 16]);
+  }
+
+  #[test]
+  fn uuid7_string_roundtrip() {
+    let a = Uuid7::new();
+    let s = a.to_string();
+    let b: Uuid7 = s.parse().expect("parse roundtrip");
+    assert_eq!(a, b);
+  }
+
+  #[test]
+  fn uuid7_rejects_nil_via_validating_constructors() {
+    // try_from_bytes
+    assert_eq!(Uuid7::try_from_bytes([0; 16]), Err(Uuid7Error::Nil));
+    // TryFrom<Uuid>
+    assert_eq!(Uuid7::try_from(uuid::Uuid::nil()), Err(Uuid7Error::Nil));
+    // FromStr
+    assert_eq!(
+      "00000000-0000-0000-0000-000000000000".parse::<Uuid7>(),
+      Err(Uuid7Error::Nil)
+    );
+  }
+
+  #[test]
+  fn uuid7_rejects_non_v7_via_validating_constructors() {
+    // Hand-craft a non-nil v4-layout UUID: byte 6 high nibble = 4
+    // (RFC 9562 §4.2 version field), byte 8 high bits = 10 (variant).
+    let mut bytes = [0u8; 16];
+    bytes[0] = 0x01; // make sure it isn't nil
+    bytes[6] = 0x4a; // version nibble = 4
+    bytes[8] = 0x80; // variant = RFC 4122
+    let v4 = uuid::Uuid::from_bytes(bytes);
+    assert_eq!(v4.get_version_num(), 4);
+    let v4_str = v4.to_string();
+    match Uuid7::try_from(v4) {
+      Err(Uuid7Error::NotV7(4)) => {}
+      other => panic!("expected NotV7(4), got {other:?}"),
     }
-
-    #[test]
-    fn uuid7_nil_sentinel() {
-        let n = Uuid7::nil();
-        assert!(n.is_nil());
-        assert_eq!(n.as_bytes(), &[0; 16]);
+    match v4_str.parse::<Uuid7>() {
+      Err(Uuid7Error::NotV7(4)) => {}
+      other => panic!("expected NotV7(4), got {other:?}"),
     }
+  }
 
-    #[test]
-    fn uuid7_string_roundtrip() {
-        let a = Uuid7::new();
-        let s = a.to_string();
-        let b: Uuid7 = s.parse().expect("parse roundtrip");
-        assert_eq!(a, b);
+  #[test]
+  fn uuid7_invalid_string_returns_uuid_error() {
+    match "not-a-uuid".parse::<Uuid7>() {
+      Err(Uuid7Error::InvalidUuid(_)) => {}
+      other => panic!("expected InvalidUuid, got {other:?}"),
     }
+  }
 
-    #[test]
-    fn uuid7_distinct_from_filechecksum_type() {
-        // Compile-time guard: distinct newtypes (a poor stand-in is to check
-        // sizes / no implicit conversion exists; we rely on the type system).
-        let _u: Uuid7 = Uuid7::nil();
-        let _c: FileChecksum = FileChecksum::zero();
-        // (no `From<Uuid7> for FileChecksum` exists — that's the invariant)
+  #[test]
+  fn uuid7_from_bytes_unchecked_still_works_for_wire_roundtrip() {
+    // The escape hatch must remain available for wire codecs — the
+    // caller asserts the layout. Confirm it produces a usable v7.
+    let a = Uuid7::new();
+    let raw = *a.as_bytes();
+    let b = Uuid7::from_bytes_unchecked(raw);
+    assert_eq!(a, b);
+  }
+
+  #[test]
+  fn uuid7_distinct_from_filechecksum_type() {
+    // Compile-time guard: distinct newtypes (a poor stand-in is to check
+    // sizes / no implicit conversion exists; we rely on the type system).
+    let _u: Uuid7 = Uuid7::nil();
+    let _c: FileChecksum = FileChecksum::zero();
+    // (no `From<Uuid7> for FileChecksum` exists — that's the invariant)
+  }
+
+  #[test]
+  fn filechecksum_hex_display() {
+    let bytes = [0xde, 0xad, 0xbe, 0xef]
+      .into_iter()
+      .cycle()
+      .take(32)
+      .collect::<Vec<u8>>()
+      .try_into()
+      .unwrap();
+    let cs = FileChecksum::new(bytes);
+    let s = cs.to_string();
+    assert_eq!(s.len(), 64);
+    assert!(s.starts_with("deadbeef"));
+    assert!(s.chars().all(|c| matches!(c, '0'..='9' | 'a'..='f')));
+  }
+
+  #[test]
+  fn filechecksum_zero_sentinel() {
+    let z = FileChecksum::zero();
+    assert!(z.is_zero());
+    assert_eq!(z.to_string(), "0".repeat(64));
+  }
+
+  #[test]
+  fn rgba_pack_unpack() {
+    let c = Rgba::new(0x12, 0x34, 0x56, 0x78);
+    assert_eq!(c.0, 0x12_34_56_78);
+    assert_eq!(c.r(), 0x12);
+    assert_eq!(c.g(), 0x34);
+    assert_eq!(c.b(), 0x56);
+    assert_eq!(c.a(), 0x78);
+  }
+
+  // (Previously `location_local_default` — removed alongside the
+  // `impl Default for Location`. Absence is now expressed by
+  // `Option<Location>` at field boundaries; this is exercised by the
+  // `location_local_builder` test below and at every consumer site.)
+
+  #[test]
+  fn location_local_builder() {
+    let vol = Uuid7::new();
+    let l: Location = Location::local(vol, ["Movies", "Holiday"]);
+    match l {
+      Location::Local { volume, components } => {
+        assert_eq!(volume, vol);
+        assert_eq!(components, vec!["Movies", "Holiday"]);
+      }
     }
+  }
 
-    #[test]
-    fn filechecksum_hex_display() {
-        let bytes = [0xde, 0xad, 0xbe, 0xef]
-            .into_iter()
-            .cycle()
-            .take(32)
-            .collect::<Vec<u8>>()
-            .try_into()
-            .unwrap();
-        let cs = FileChecksum::new(bytes);
-        let s = cs.to_string();
-        assert_eq!(s.len(), 64);
-        assert!(s.starts_with("deadbeef"));
-        assert!(s.chars().all(|c| matches!(c, '0'..='9' | 'a'..='f')));
+  #[test]
+  fn error_code_unknown_round_trips_wire_value() {
+    // The Unknown(u32) variant preserves any code we don't enumerate,
+    // so wire→domain→wire is lossless across version skew.
+    for wire in [42_u32, 1234, 99_999, u32::MAX] {
+      let c = ErrorCode::from_u32(wire);
+      assert!(c.is_unknown(), "{wire} should land in Unknown");
+      assert_eq!(c.as_u32(), wire, "wire->domain->wire must be identity");
     }
+  }
 
-    #[test]
-    fn filechecksum_zero_sentinel() {
-        let z = FileChecksum::zero();
-        assert!(z.is_zero());
-        assert_eq!(z.to_string(), "0".repeat(64));
+  #[test]
+  fn error_code_known_round_trips_canonical_value() {
+    // Sample one code per bucket — every named variant must survive
+    // an as_u32() ↔ from_u32() round-trip.
+    for c in [
+      ErrorCode::BadRequest,
+      ErrorCode::NotFound,
+      ErrorCode::InternalError,
+      ErrorCode::ProbeCorrupt,
+      ErrorCode::SceneDetectionFailed,
+      ErrorCode::TranscriptionFailed,
+      ErrorCode::EmbeddingOutputInvalid,
+      ErrorCode::LocalPermissionDenied,
+      ErrorCode::EndpointUnreachable,
+      ErrorCode::Cancelled,
+      ErrorCode::CedModelError,
+    ] {
+      let n = c.as_u32();
+      let back = ErrorCode::from_u32(n);
+      assert_eq!(c, back, "{c:?} did not survive u32 round-trip");
+      assert!(!back.is_unknown());
     }
+  }
 
-    #[test]
-    fn rgba_pack_unpack() {
-        let c = Rgba::new(0x12, 0x34, 0x56, 0x78);
-        assert_eq!(c.0, 0x12_34_56_78);
-        assert_eq!(c.r(), 0x12);
-        assert_eq!(c.g(), 0x34);
-        assert_eq!(c.b(), 0x56);
-        assert_eq!(c.a(), 0x78);
-    }
+  #[test]
+  fn error_code_discriminants_match_findit_proto() {
+    // Spot-check the verified-vs-findit-proto values across each group.
+    assert_eq!(ErrorCode::BadRequest.as_u32(), 400);
+    assert_eq!(ErrorCode::NotFound.as_u32(), 404);
+    assert_eq!(ErrorCode::Timeout.as_u32(), 504);
+    assert_eq!(ErrorCode::ProbeCorrupt.as_u32(), 1000);
+    assert_eq!(ErrorCode::ProbeUnsupportedFormat.as_u32(), 1001);
+    assert_eq!(ErrorCode::SceneDetectionFailed.as_u32(), 2000);
+    assert_eq!(ErrorCode::TranscriptionFailed.as_u32(), 3000);
+    assert_eq!(ErrorCode::VlmFailed.as_u32(), 4000);
+    assert_eq!(ErrorCode::AppleVisionFailed.as_u32(), 5000);
+    assert_eq!(ErrorCode::EmbeddingFailed.as_u32(), 6000);
+    assert_eq!(ErrorCode::EmbeddingOutputInvalid.as_u32(), 6005);
+    assert_eq!(ErrorCode::PathNotFound.as_u32(), 7000);
+    assert_eq!(ErrorCode::LocalPermissionDenied.as_u32(), 7007);
+    assert_eq!(ErrorCode::EndpointUnreachable.as_u32(), 8000);
+    assert_eq!(ErrorCode::Cancelled.as_u32(), 9000);
+    assert_eq!(ErrorCode::OutOfMemory.as_u32(), 9001);
+    assert_eq!(ErrorCode::CedFailed.as_u32(), 10000);
+    assert_eq!(ErrorCode::CedModelError.as_u32(), 10002);
+  }
 
-    #[test]
-    fn location_local_default() {
-        let l: Location = Location::default();
-        match l {
-            Location::Local { volume, components } => {
-                assert!(volume.is_nil());
-                assert!(components.is_empty());
-            }
-        }
-    }
+  #[test]
+  fn error_info_construction() {
+    let e = ErrorInfo::new(ErrorCode::ProbeCorrupt, "bad container header");
+    assert_eq!(e.code, ErrorCode::ProbeCorrupt);
+    assert_eq!(e.message.as_str(), "bad container header");
 
-    #[test]
-    fn location_local_builder() {
-        let vol = Uuid7::new();
-        let l: Location = Location::local(vol, ["Movies", "Holiday"]);
-        match l {
-            Location::Local { volume, components } => {
-                assert_eq!(volume, vol);
-                assert_eq!(components, vec!["Movies", "Holiday"]);
-            }
-        }
-    }
-
-    #[test]
-    fn error_code_discriminants_match_findit_proto() {
-        // Spot-check the verified-vs-findit-proto values across each group.
-        assert_eq!(ErrorCode::BadRequest.as_u32(), 400);
-        assert_eq!(ErrorCode::NotFound.as_u32(), 404);
-        assert_eq!(ErrorCode::Timeout.as_u32(), 504);
-        assert_eq!(ErrorCode::ProbeCorrupt.as_u32(), 1000);
-        assert_eq!(ErrorCode::ProbeUnsupportedFormat.as_u32(), 1001);
-        assert_eq!(ErrorCode::SceneDetectionFailed.as_u32(), 2000);
-        assert_eq!(ErrorCode::TranscriptionFailed.as_u32(), 3000);
-        assert_eq!(ErrorCode::VlmFailed.as_u32(), 4000);
-        assert_eq!(ErrorCode::AppleVisionFailed.as_u32(), 5000);
-        assert_eq!(ErrorCode::EmbeddingFailed.as_u32(), 6000);
-        assert_eq!(ErrorCode::EmbeddingOutputInvalid.as_u32(), 6005);
-        assert_eq!(ErrorCode::PathNotFound.as_u32(), 7000);
-        assert_eq!(ErrorCode::LocalPermissionDenied.as_u32(), 7007);
-        assert_eq!(ErrorCode::EndpointUnreachable.as_u32(), 8000);
-        assert_eq!(ErrorCode::Cancelled.as_u32(), 9000);
-        assert_eq!(ErrorCode::OutOfMemory.as_u32(), 9001);
-        assert_eq!(ErrorCode::CedFailed.as_u32(), 10000);
-        assert_eq!(ErrorCode::CedModelError.as_u32(), 10002);
-    }
-
-    #[test]
-    fn error_info_construction() {
-        let e = ErrorInfo::new(ErrorCode::ProbeCorrupt, "bad container header");
-        assert_eq!(e.code, ErrorCode::ProbeCorrupt);
-        assert_eq!(e.message.as_str(), "bad container header");
-
-        let e2 = ErrorInfo::code_only(ErrorCode::Cancelled);
-        assert_eq!(e2.code, ErrorCode::Cancelled);
-        assert!(e2.message.is_empty());
-    }
+    let e2 = ErrorInfo::code_only(ErrorCode::Cancelled);
+    assert_eq!(e2.code, ErrorCode::Cancelled);
+    assert!(e2.message.is_empty());
+  }
 }

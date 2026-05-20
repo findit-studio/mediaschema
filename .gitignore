@@ -19,3 +19,4 @@ Cargo.lock
 
 # Internal superpowers brainstorm/spec/plan docs — keep local, do not upload
 docs/
+/.claude/

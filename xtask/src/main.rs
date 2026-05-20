@@ -7,22 +7,22 @@
 use std::path::PathBuf;
 
 fn main() {
-    let mut args = std::env::args().skip(1);
-    match args.next().as_deref() {
-        Some("gen") => gen(),
-        _ => {
-            eprintln!("usage: cargo run -p xtask -- gen");
-            std::process::exit(2);
-        }
+  let mut args = std::env::args().skip(1);
+  match args.next().as_deref() {
+    Some("gen") => gen(),
+    _ => {
+      eprintln!("usage: cargo run -p xtask -- gen");
+      std::process::exit(2);
     }
+  }
 }
 
 fn gen() {
-    // Crate root = mediaschema/ (xtask is a workspace member one level down).
-    let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let root = manifest.parent().expect("workspace root").to_path_buf();
+  // Crate root = mediaschema/ (xtask is a workspace member one level down).
+  let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+  let root = manifest.parent().expect("workspace root").to_path_buf();
 
-    buffa_build::Config::new()
+  buffa_build::Config::new()
         .files(&[root.join("proto/media/v1/types.proto")])
         .includes(&[root.join("proto")])
         .out_dir(root.join("src/generated"))
@@ -49,5 +49,5 @@ fn gen() {
         .compile()
         .expect("buffa codegen failed");
 
-    println!("generated -> {}", root.join("src/generated").display());
+  println!("generated -> {}", root.join("src/generated").display());
 }
