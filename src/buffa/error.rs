@@ -19,85 +19,45 @@ use crate::domain::primitives::{LocationError, Uuid7Error};
 /// Mixed enum (unit + newtype variants) → derives `IsVariant` plus
 /// `Unwrap` / `TryUnwrap` accessor families with ref + ref_mut flavours,
 /// matching the domain-layer convention.
-#[derive(Debug, Clone, PartialEq, Eq, IsVariant, Unwrap, TryUnwrap)]
+#[derive(Debug, Clone, PartialEq, Eq, IsVariant, Unwrap, TryUnwrap, thiserror::Error)]
 #[unwrap(ref, ref_mut)]
 #[try_unwrap(ref, ref_mut)]
 #[non_exhaustive]
 pub enum BuffaError {
   /// Wire `Id.value` did not contain exactly 16 bytes.
+  #[error("wire Id.value must be 16 bytes, got {0}")]
   IdWrongLength(usize),
   /// Wire `Id.value` parsed but failed the domain [`Uuid7`] invariant
   /// (nil / non-v7).
-  IdInvalid(Uuid7Error),
+  #[error("wire Id failed Uuid7 invariant: {0}")]
+  IdInvalid(#[from] Uuid7Error),
   /// Wire `FileChecksum.value` did not contain exactly 32 bytes.
+  #[error("wire FileChecksum.value must be 32 bytes, got {0}")]
   ChecksumWrongLength(usize),
   /// Wire `Local` had no `volume` set, or `Location.kind` had no arm
   /// when the domain requires one.
+  #[error("wire Local.volume is unset")]
   MissingLocationVolume,
   /// Wire `Local`'s components / volume failed the domain validating
   /// builder (empty path / nil volume).
-  Location(LocationError),
+  #[error("wire Local failed domain validation: {0}")]
+  Location(#[from] LocationError),
   /// Wire `Location.kind` was set to a variant not supported by the
   /// domain (currently only `Local` is modelled — placeholder for
   /// future `Object{…}` etc.).
+  #[error("wire Location.kind variant not supported by the domain")]
   UnsupportedLocationKind,
   /// Wire timestamp (ms-since-epoch i64) was outside the range jiff
   /// accepts (`jiff::Timestamp::MIN.as_millisecond()` ..=
   /// `jiff::Timestamp::MAX.as_millisecond()`).
+  #[error("wire timestamp {0} ms is outside jiff::Timestamp range")]
   TimestampOutOfRange(i64),
   /// Wire enum was `EnumValue::Unknown(i32)` for a domain enum that
   /// has no `Unknown` arm.
+  #[error("wire enum carries unknown value {0} for a closed domain enum")]
   UnknownEnumValue(i32),
   /// Required wire message field was unset where the domain demands a
   /// present value (e.g. `WatchedLocation.id`).
+  #[error("wire message is missing required field `{0}`")]
   MissingRequiredField(&'static str),
-}
-
-impl core::fmt::Display for BuffaError {
-  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-    match self {
-      Self::IdWrongLength(n) => write!(f, "wire Id.value must be 16 bytes, got {n}"),
-      Self::IdInvalid(e) => write!(f, "wire Id failed Uuid7 invariant: {e}"),
-      Self::ChecksumWrongLength(n) => {
-        write!(f, "wire FileChecksum.value must be 32 bytes, got {n}")
-      }
-      Self::MissingLocationVolume => f.write_str("wire Local.volume is unset"),
-      Self::Location(e) => write!(f, "wire Local failed domain validation: {e}"),
-      Self::UnsupportedLocationKind => {
-        f.write_str("wire Location.kind variant not supported by the domain")
-      }
-      Self::TimestampOutOfRange(n) => {
-        write!(f, "wire timestamp {n} ms is outside jiff::Timestamp range")
-      }
-      Self::UnknownEnumValue(v) => write!(
-        f,
-        "wire enum carries unknown value {v} for a closed domain enum"
-      ),
-      Self::MissingRequiredField(name) => {
-        write!(f, "wire message is missing required field `{name}`")
-      }
-    }
-  }
-}
-
-impl core::error::Error for BuffaError {
-  fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
-    match self {
-      Self::IdInvalid(e) => Some(e),
-      Self::Location(e) => Some(e),
-      _ => None,
-    }
-  }
-}
-
-impl From<Uuid7Error> for BuffaError {
-  fn from(e: Uuid7Error) -> Self {
-    Self::IdInvalid(e)
-  }
-}
-
-impl From<LocationError> for BuffaError {
-  fn from(e: LocationError) -> Self {
-    Self::Location(e)
-  }
 }
