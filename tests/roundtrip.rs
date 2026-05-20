@@ -1,3 +1,14 @@
+// The roundtrip suite has multiple `#[cfg(feature = "json")]`-gated test
+// functions, plus nested `use mediaschema::{...}` blocks inside many
+// batch functions. As a result, the *set* of top-level imports actually
+// referenced is feature-combo-dependent: under `--no-default-features`,
+// names like `FailedFile`/`MediaMeta`/`SubtitleTrackOriginSource` (used
+// only inside json-gated batches or via nested re-imports) read as
+// unused, while under `--all-features` they are needed. Sprinkling
+// per-name `#[cfg(...)]` on the import block would mirror every
+// downstream gate; allowing unused-imports is the small, correct fix.
+#![allow(unused_imports)]
+
 use buffa::Message;
 use core::num::NonZeroU32;
 use mediaschema::{

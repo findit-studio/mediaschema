@@ -739,8 +739,16 @@ impl ErrorInfo {
 // ===========================================================================
 // Tests
 // ===========================================================================
+//
+// Gated on `feature = "std"` because many of these exercise
+// [`Uuid7::new`] (which depends on `Uuid::now_v7()` ⇒ `SystemTime` ⇒
+// std). With `--no-default-features` the `Uuid7::new` ctor disappears
+// and these tests would fail to compile; meaningful coverage of the
+// validating ctors all flows through the `Uuid7::new` happy path, so
+// gating the whole module keeps the matrix green without sprinkling
+// per-test `#[cfg(feature = "std")]`s.
 
-#[cfg(test)]
+#[cfg(all(test, feature = "std"))]
 mod tests {
   use super::*;
 

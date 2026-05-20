@@ -15,7 +15,14 @@ rust-version = "1.85"
 default = ["std"]
 std = ["buffa/std", "buffa-types/std"]
 json = ["dep:serde", "dep:serde_json", "buffa/json", "buffa-types/json", "mediatime/serde"]
-arbitrary = ["dep:arbitrary", "buffa/arbitrary", "buffa-types/arbitrary", "mediatime/arbitrary"]
+# `arbitrary` / `quickcheck` imply `std`. Upstream `buffa-types 0.6.0`'s
+# `arbitrary` codegen references `std::RECURSIVE_COUNT_*` symbols
+# emitted by the `arbitrary` derive macro and won't compile without
+# `std` — `cargo hack test --each-feature` enabling `arbitrary` alone
+# would fail at the buffa-types layer. Property-based tests are also
+# inherently std-bound (`Unstructured`/`Gen` allocate, `Vec`/`String`
+# everywhere), so pinning the dependency just reflects reality.
+arbitrary = ["std", "dep:arbitrary", "buffa/arbitrary", "buffa-types/arbitrary", "mediatime/arbitrary"]
 quickcheck = ["arbitrary", "dep:quickcheck", "dep:mediaschema-derive"]
 
 [dependencies]
