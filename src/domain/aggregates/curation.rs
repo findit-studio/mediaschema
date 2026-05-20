@@ -56,7 +56,7 @@ impl UserTag<Uuid7> {
 impl<Id> UserTag<Id> {
   /// Canonical identity.
   #[inline]
-  pub fn id(&self) -> &Id {
+  pub const fn id(&self) -> &Id {
     &self.id
   }
 
@@ -176,13 +176,13 @@ impl SceneAnnotation<Uuid7> {
 impl<Id> SceneAnnotation<Id> {
   /// Canonical identity.
   #[inline]
-  pub fn id(&self) -> &Id {
+  pub const fn id(&self) -> &Id {
     &self.id
   }
 
   /// FK → `Scene.id`.
   #[inline]
-  pub fn scene(&self) -> &Id {
+  pub const fn scene(&self) -> &Id {
     &self.scene
   }
 
@@ -195,8 +195,10 @@ impl<Id> SceneAnnotation<Id> {
   /// References to `UserTag.id`s (not inline strings — supports
   /// rename / dedup via the tag aggregate).
   #[inline]
-  pub fn user_tags(&self) -> &[Id] {
-    &self.user_tags
+  pub const fn user_tags(&self) -> &[Id] {
+    // `Vec::as_slice` is const fn; deref-coercion (`&self.user_tags`)
+    // would require the non-const `Deref` impl.
+    self.user_tags.as_slice()
   }
 
   /// `None` = unrated; otherwise typically 0–5 (range enforced by the

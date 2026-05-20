@@ -76,13 +76,13 @@ impl Speaker<Uuid7> {
 impl<Id> Speaker<Id> {
   /// Canonical identity (also the LanceDB voiceprint key).
   #[inline]
-  pub fn id(&self) -> &Id {
+  pub const fn id(&self) -> &Id {
     &self.id
   }
 
   /// FK → `AudioTrack.id`.
   #[inline]
-  pub fn parent(&self) -> &Id {
+  pub const fn parent(&self) -> &Id {
     &self.parent
   }
 
@@ -100,7 +100,7 @@ impl<Id> Speaker<Id> {
 
   /// Total time this speaker spoke (`None` = not yet rolled up).
   #[inline]
-  pub fn speech_duration(&self) -> Option<&Timestamp> {
+  pub const fn speech_duration(&self) -> Option<&Timestamp> {
     self.speech_duration.as_ref()
   }
 

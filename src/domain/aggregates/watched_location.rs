@@ -75,14 +75,14 @@ impl WatchedLocation<Uuid7> {
 impl<Id> WatchedLocation<Id> {
   /// Canonical identity.
   #[inline]
-  pub fn id(&self) -> &Id {
+  pub const fn id(&self) -> &Id {
     &self.id
   }
 
   /// Watched root (`Local`-only for now; structured object-storage
   /// support is deferred).
   #[inline]
-  pub fn root(&self) -> &Location<Id> {
+  pub const fn root(&self) -> &Location<Id> {
     &self.root
   }
 
@@ -116,13 +116,13 @@ impl<Id> WatchedLocation<Id> {
   /// Last full reconcile sweep (bootstrap / after-downtime /
   /// volume-remount catch-up — events the monitor missed while offline).
   #[inline]
-  pub fn last_reconciled_at(&self) -> Option<&Timestamp> {
+  pub const fn last_reconciled_at(&self) -> Option<&Timestamp> {
     self.last_reconciled_at.as_ref()
   }
 
   /// Status of that sweep.
   #[inline]
-  pub fn last_reconcile_status(&self) -> Option<&ScanStatus> {
+  pub const fn last_reconcile_status(&self) -> Option<&ScanStatus> {
     self.last_reconcile_status.as_ref()
   }
 
@@ -130,7 +130,7 @@ impl<Id> WatchedLocation<Id> {
   /// `FolderNotAvailable`, `LocalPermissionDenied`). The non-track error
   /// case — `WatchedLocation` is config + monitor health, not media.
   #[inline]
-  pub fn last_error(&self) -> Option<&ErrorInfo> {
+  pub const fn last_error(&self) -> Option<&ErrorInfo> {
     self.last_error.as_ref()
   }
 
