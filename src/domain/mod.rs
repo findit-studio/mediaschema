@@ -10,12 +10,19 @@
 //! enums + bitflags, then the leaf aggregates, then the big container/track
 //! aggregates.
 
+pub mod bitflags;
+pub mod enums;
 pub mod primitives;
 #[cfg(any(feature = "std", feature = "alloc"))]
 #[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
 pub mod vo;
 
 // Always available (pure no-std no-alloc):
+pub use bitflags::{AudioIndexStatus, MediaErrorFlags, SubtitleIndexStatus, VideoIndexStatus};
+pub use enums::{
+  AudioContentKind, AudioIndexStage, KeyframeExtractor, MediaKind, ScanStatus, SceneDetector,
+  SubtitleIndexStage, SubtitleKind, VideoIndexStage,
+};
 pub use primitives::{ErrorCode, FileChecksum, Rgba, Uuid7};
 
 // `feature = "alloc"`-gated: types that reach `Vec` or `SmolStr`.
