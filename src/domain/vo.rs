@@ -291,6 +291,8 @@ impl Default for LocalizedText {
 // Tests
 // ===========================================================================
 
+// vo.rs itself is only compiled under `feature = "alloc"`, so the
+// test module is automatically alloc-gated. No separate gate needed.
 #[cfg(test)]
 mod tests {
   use super::*;

@@ -1,3 +1,9 @@
+// The roundtrip suite exercises the buffa-generated wire layer
+// (`mediaschema::Detection`, `mediaschema::AudioFormat`, …), which is
+// only compiled when `feature = "std"` is on (see `src/lib.rs`). Gate
+// the whole test file on `feature = "std"` so `--no-default-features`
+// and `--features alloc` builds skip it entirely.
+#![cfg(feature = "std")]
 // The roundtrip suite has multiple `#[cfg(feature = "json")]`-gated test
 // functions, plus nested `use mediaschema::{...}` blocks inside many
 // batch functions. As a result, the *set* of top-level imports actually

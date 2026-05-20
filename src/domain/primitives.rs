@@ -25,6 +25,7 @@
 use core::{fmt, str::FromStr};
 
 use derive_more::{IsVariant, TryUnwrap, Unwrap};
+#[cfg(feature = "alloc")]
 use smol_str::SmolStr;
 use uuid::Uuid;
 
@@ -409,12 +410,18 @@ impl core::error::Error for LocationError {}
 /// components. Identity is the volume's stable UUID (the old indexer
 /// writes it once to `<mount>/.findit_index/.id`), **not** the OS mount
 /// path (which is volatile across remounts).
+///
+/// **Requires `feature = "alloc"`** — the `components` field is a
+/// `Vec<SmolStr>` (heap).
+#[cfg(feature = "alloc")]
+#[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LocalLocation<Id = Uuid7> {
   volume: Id,
-  components: Vec<SmolStr>,
+  components: std::vec::Vec<SmolStr>,
 }
 
+#[cfg(feature = "alloc")]
 impl<Id> LocalLocation<Id> {
   /// **Internal** infallible builder — `pub(crate)` to keep
   /// [`Location::try_local`] the single public construction gate.
@@ -473,6 +480,11 @@ impl<Id> LocalLocation<Id> {
 /// volume rejected for the `Uuid7` specialisation). Combined with
 /// `Uuid7::nil()` being `pub(crate)`, "construct a fake local location"
 /// is unreachable from outside this crate.
+///
+/// **Requires `feature = "alloc"`** — wraps [`LocalLocation`] whose
+/// payload is a `Vec<SmolStr>`.
+#[cfg(feature = "alloc")]
+#[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
 #[derive(Debug, Clone, PartialEq, Eq, Hash, IsVariant, Unwrap, TryUnwrap)]
 #[unwrap(ref, ref_mut)]
 #[try_unwrap(ref, ref_mut)]
@@ -485,6 +497,7 @@ pub enum Location<Id = Uuid7> {
   // `Location` enum at that time.
 }
 
+#[cfg(feature = "alloc")]
 impl<Id> Location<Id> {
   /// Generic validating builder: requires a non-empty path.
   ///
@@ -495,7 +508,7 @@ impl<Id> Location<Id> {
     I: IntoIterator<Item = S>,
     S: Into<SmolStr>,
   {
-    let components: Vec<SmolStr> = components.into_iter().map(Into::into).collect();
+    let components: std::vec::Vec<SmolStr> = components.into_iter().map(Into::into).collect();
     if components.is_empty() {
       return Err(LocationError::EmptyPath);
     }
@@ -503,6 +516,7 @@ impl<Id> Location<Id> {
   }
 }
 
+#[cfg(feature = "alloc")]
 impl Location<Uuid7> {
   /// `Uuid7`-specialized validating builder: also rejects a nil volume id
   /// (the wire-codec sentinel is `pub(crate)`, so external callers can't
@@ -515,7 +529,7 @@ impl Location<Uuid7> {
     if volume.is_nil() {
       return Err(LocationError::NilVolume);
     }
-    let components: Vec<SmolStr> = components.into_iter().map(Into::into).collect();
+    let components: std::vec::Vec<SmolStr> = components.into_iter().map(Into::into).collect();
     if components.is_empty() {
       return Err(LocationError::EmptyPath);
     }
@@ -817,12 +831,18 @@ impl ErrorCode {
 /// No `Default` impl — there is no meaningful "default error". Construct
 /// explicitly via [`ErrorInfo::new`] or [`ErrorInfo::code_only`]. Fields
 /// are private; access via [`ErrorInfo::code`] / [`ErrorInfo::message`].
+///
+/// **Requires `feature = "alloc"`** — the `message` field is a
+/// `SmolStr` (which needs an allocator for non-inline-sized strings).
+#[cfg(feature = "alloc")]
+#[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ErrorInfo {
   code: ErrorCode,
   message: SmolStr,
 }
 
+#[cfg(feature = "alloc")]
 impl ErrorInfo {
   /// Construct an `ErrorInfo` with the given code and message.
   #[inline]

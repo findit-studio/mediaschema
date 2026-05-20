@@ -11,7 +11,15 @@
 //! aggregates.
 
 pub mod primitives;
+#[cfg(feature = "alloc")]
+#[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
 pub mod vo;
 
-pub use primitives::{ErrorCode, ErrorInfo, FileChecksum, Location, Rgba, Uuid7};
+// Always available (pure no-std no-alloc):
+pub use primitives::{ErrorCode, FileChecksum, Rgba, Uuid7};
+
+// `feature = "alloc"`-gated: types that reach `Vec` or `SmolStr`.
+#[cfg(feature = "alloc")]
+pub use primitives::{ErrorInfo, Location};
+#[cfg(feature = "alloc")]
 pub use vo::{LocalizedText, Provenance};
