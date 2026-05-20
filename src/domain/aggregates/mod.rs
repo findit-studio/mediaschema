@@ -15,6 +15,7 @@ pub mod audio;
 pub mod curation;
 pub mod media;
 pub mod speaker;
+pub mod subtitle;
 pub mod watched_location;
 
 #[cfg(any(feature = "std", feature = "alloc"))]
@@ -26,4 +27,5 @@ pub use audio::{
 pub use curation::{SceneAnnotation, UserTag};
 pub use media::{Media, MediaDevice, MediaGeoLocation};
 pub use speaker::Speaker;
+pub use subtitle::{IndexProgress, Subtitle, SubtitleCue, SubtitleTrack};
 pub use watched_location::WatchedLocation;
