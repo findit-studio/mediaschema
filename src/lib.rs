@@ -53,6 +53,18 @@ mod generated {
 /// specifications.
 pub mod domain;
 
+// Wire ⇄ domain conversion bridge. Requires `feature = "buffa"` (for
+// the wire types themselves) AND a heap tier (`std` or `alloc`) because
+// every domain type the bridge touches that has a wire counterpart
+// (`Location`, `ErrorInfo`, `WatchedLocation`, `Media`, …) is itself
+// `any(std, alloc)`-gated.
+#[cfg(all(feature = "buffa", any(feature = "std", feature = "alloc")))]
+#[cfg_attr(
+  docsrs,
+  doc(cfg(all(feature = "buffa", any(feature = "std", feature = "alloc"))))
+)]
+pub mod buffa;
+
 // Flatten the product-neutral `media.v1` package to the crate root so
 // consumers write `mediaschema::Detection`. Named (not glob) so buffa
 // internals (`__buffa`, `__*_JSON_ANY`) stay out of the public surface.
