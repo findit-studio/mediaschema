@@ -10,9 +10,11 @@
 //! the container/track aggregates (`Media`, the 3 facets, the 3 `*Track`s).
 
 pub mod curation;
+pub mod media;
 pub mod speaker;
 pub mod watched_location;
 
 pub use curation::{SceneAnnotation, UserTag};
+pub use media::{Media, MediaDevice, MediaGeoLocation};
 pub use speaker::Speaker;
 pub use watched_location::WatchedLocation;
