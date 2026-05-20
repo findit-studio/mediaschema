@@ -6,8 +6,9 @@
 //! [`GqlError`].
 //!
 //! The enum follows the project convention: `#[non_exhaustive]`,
-//! `derive(Debug, Clone, PartialEq, Eq, IsVariant)`, manual
-//! `core::fmt::Display`, and `core::error::Error` (not `std::`).
+//! `derive(Debug, Clone, PartialEq, Eq, IsVariant, thiserror::Error)`
+//! (the `thiserror` derive emits the `core::error::Error` impl directly,
+//! not `std::error::Error` — supports no-std + no-alloc out of the box).
 
 use derive_more::IsVariant;
 use smol_str::SmolStr;
@@ -15,11 +16,12 @@ use smol_str::SmolStr;
 use crate::domain::primitives::Uuid7Error;
 
 /// Backend-specific error for the GraphQL boundary.
-#[derive(Debug, Clone, PartialEq, Eq, IsVariant)]
+#[derive(Debug, Clone, PartialEq, Eq, IsVariant, thiserror::Error)]
 #[non_exhaustive]
 pub enum GqlError {
   /// A scalar value failed to parse from its string form. Carries the
   /// scalar type name and a short human reason.
+  #[error("{scalar}: parse failed: {reason}")]
   ScalarParse {
     /// Name of the scalar type (`"Uuid7"`, `"FileChecksum"`, …).
     scalar: &'static str,
@@ -27,9 +29,11 @@ pub enum GqlError {
     reason: SmolStr,
   },
   /// A `Uuid7` round-trip rejected its input.
-  Uuid7(Uuid7Error),
+  #[error("Uuid7 decode failed: {0}")]
+  Uuid7(#[from] Uuid7Error),
   /// A scalar `Int`/`Float` value was outside the destination integer's
   /// range (e.g. a negative `Int` decoded into `u64` bits).
+  #[error("field `{field}`: integer value {value} out of range")]
   IntOutOfRange {
     /// Name of the scalar / field.
     field: &'static str,
@@ -46,36 +50,6 @@ impl GqlError {
       scalar,
       reason: reason.into(),
     }
-  }
-}
-
-impl core::fmt::Display for GqlError {
-  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-    match self {
-      Self::ScalarParse { scalar, reason } => {
-        write!(f, "{scalar}: parse failed: {reason}")
-      }
-      Self::Uuid7(e) => write!(f, "Uuid7 decode failed: {e}"),
-      Self::IntOutOfRange { field, value } => {
-        write!(f, "field `{field}`: integer value {value} out of range")
-      }
-    }
-  }
-}
-
-impl core::error::Error for GqlError {
-  fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
-    match self {
-      Self::Uuid7(e) => Some(e),
-      _ => None,
-    }
-  }
-}
-
-impl From<Uuid7Error> for GqlError {
-  #[inline]
-  fn from(e: Uuid7Error) -> Self {
-    Self::Uuid7(e)
   }
 }
 
