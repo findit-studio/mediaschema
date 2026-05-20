@@ -10,6 +10,8 @@
 //! `ScanStatus`, the coarse `*IndexStage`s, `SubtitleKind`,
 //! `AudioContentKind`) are explicitly closed per the locked spec.
 
+use derive_more::IsVariant;
+
 use crate::domain::{
   bitflags::{AudioIndexStatus, SubtitleIndexStatus, VideoIndexStatus},
   primitives::{ErrorCode, ErrorInfo},
@@ -22,7 +24,7 @@ use crate::domain::{
 /// Top-level media classification. **Closed** — `kind` is set at probe and
 /// drives which facets (`Video`/`Audio`/`Subtitle`) the schema creates;
 /// pre-probe is a different lifecycle, not an `Unknown` arm here.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, IsVariant)]
 pub enum MediaKind {
   #[default]
   Video,
@@ -36,7 +38,7 @@ pub enum MediaKind {
 /// Which `scenesdetect` engine module raised a `Scene` boundary. Mirrors the
 /// 5 detection modules + a manual escape hatch. `#[non_exhaustive]` —
 /// `scenesdetect` may add detectors.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, IsVariant)]
 #[non_exhaustive]
 pub enum SceneDetector {
   Histogram,
@@ -57,7 +59,7 @@ pub enum SceneDetector {
 /// the dedicated keyframe-extractor variants. `#[non_exhaustive]`.
 ///
 /// Replaces the dropped closed `KeyframeKind` (locked `enums.md` r4).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, IsVariant)]
 #[non_exhaustive]
 pub enum KeyframeExtractor {
   // All SceneDetector variants — scene-boundary frames are also keyframes.
@@ -81,7 +83,7 @@ pub enum KeyframeExtractor {
 /// Subtitle role — *not* a raw stream property (those live in
 /// `::mediaframe`); a findit selection/search facet used for default-track
 /// picking and faceted UI.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, IsVariant)]
 pub enum SubtitleKind {
   #[default]
   FullDialogue,
@@ -98,7 +100,7 @@ pub enum SubtitleKind {
 /// Coarse audio-track content classification — drives whether to
 /// transcribe/diarize this track at all. Output of the audio `CLASSIFIED`
 /// stage; **closed** vocabulary.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, IsVariant)]
 pub enum AudioContentKind {
   #[default]
   Speech,
@@ -113,7 +115,7 @@ pub enum AudioContentKind {
 
 /// Status of a `WatchedLocation` reconcile sweep (bootstrap / after-downtime
 /// / volume-remount catch-up). Closed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, IsVariant)]
 pub enum ScanStatus {
   #[default]
   Ok,
@@ -132,7 +134,7 @@ pub enum ScanStatus {
 /// any non-empty `index_errors` short-circuits to `Failed`; otherwise the
 /// stage advances through the locked progression matching the verified
 /// 7-bit `VideoIndexStatus`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, IsVariant)]
 pub enum VideoIndexStage {
   /// No stage bits set yet.
   #[default]
@@ -192,7 +194,7 @@ impl VideoIndexStage {
   /// in `status` — i.e. a retry of that stage has since landed
   /// successfully.
   fn is_live(status: VideoIndexStatus, e: &ErrorInfo) -> bool {
-    match Self::error_stage_bit(e.code) {
+    match Self::error_stage_bit(e.code()) {
       // For OR'd masks, "stage succeeded" iff *any* of the bits are
       // set; this matches the OR semantics of the analyzed /
       // embedded stages where either producer satisfies the stage.
@@ -247,7 +249,7 @@ impl VideoIndexStage {
 ///
 /// Derived from [`AudioIndexStatus`] (the real 11-bit `ProcessingStage` from
 /// `findit-proto::database::audio`) + `index_errors`. `Failed` precedence.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, IsVariant)]
 pub enum AudioIndexStage {
   #[default]
   Pending,
@@ -291,7 +293,7 @@ impl AudioIndexStage {
   }
 
   fn is_live(status: AudioIndexStatus, e: &ErrorInfo) -> bool {
-    match Self::error_stage_bit(e.code) {
+    match Self::error_stage_bit(e.code()) {
       Some(bit) => !status.intersects(bit),
       None => true,
     }
@@ -339,7 +341,7 @@ impl AudioIndexStage {
 
 /// Coarse derived stage for a `SubtitleTrack`'s indexing lifecycle. Derived
 /// from [`SubtitleIndexStatus`] + `index_errors`; `Failed` precedence.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, IsVariant)]
 pub enum SubtitleIndexStage {
   #[default]
   Pending,
@@ -378,7 +380,7 @@ impl SubtitleIndexStage {
   }
 
   fn is_live(status: SubtitleIndexStatus, requires_ocr: bool, e: &ErrorInfo) -> bool {
-    match Self::error_stage_bit(e.code, requires_ocr) {
+    match Self::error_stage_bit(e.code(), requires_ocr) {
       Some(bit) => !status.intersects(bit),
       None => true,
     }
