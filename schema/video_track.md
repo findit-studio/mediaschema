@@ -1,4 +1,4 @@
-# `VideoTrack<Id>` — a video stream  *(rev 6 — LOCKED, user-approved; `error_status` removed)*
+# `VideoTrack<Id>` — a video stream  *(rev 7 — LOCKED, user-approved; `provenance` hoisted from `Scene`/`Keyframe`)*
 
 ## Domain meaning
 
@@ -46,6 +46,7 @@ WebCodecs only. Conversions deferred.
 | `scenes` | `Vec<Id>` | MS | refs → [scene.md](scene.md) (per-stream detection) |
 | `index_status` | `VideoIndexStatus` (bitflags!) | MS | per-kind pipeline stages (bit = stage succeeded) |
 | `index_errors` | `Vec<ErrorInfo>` | MS | per-track error truth (stage-coded `ErrorInfo.code`); → `Media.error_flags` rollup. **Error-state is derived from this + `index_status`** — no separate `error_status` field |
+| `provenance` | `Provenance` (shared VO) | MS | **analysis-run reproducibility (per track, not per `Scene`/`Keyframe`).** The indexer pins one model bundle per track-per-run; every `Scene` and `Keyframe` inside this track inherits its `{model_name, model_version, prompt_version, indexer_version}` from here. Matches `AudioTrack`/`SubtitleTrack`. Shared cross-cutting VO ([README.md](README.md)). |
 
 `ordinal` / `selection_reason` dropped. **`is_attached_pic` is NOT a stored
 field** — it is the `disposition` `ATTACHED_PIC` bit; expose it as a derived
@@ -100,7 +101,14 @@ schema review.)
   `index_errors` exposed (error-state/which-stage derived from it +
   `index_status`); `is_attached_pic` as a derived bool.
 
-**Status: LOCKED (rev 6) — user-approved.** *(rev 6: per-track `error_status`
+**Status: LOCKED (rev 7) — user-approved.** *(rev 6: per-track `error_status`
 removed — error-state derived from `index_errors` (stage-coded) + `index_status`;
 cross-cutting cleanup, user-authorized reopen of locked r5. `TrackDisposition`
-is `::mediaframe` per the descriptor re-scope — mechanical path-rename pending.)*
+is `::mediaframe` per the descriptor re-scope — mechanical path-rename pending.
+rev 7: `provenance: Provenance` added — hoisted from `Scene` and `Keyframe`,
+which dropped their own per-record `provenance` fields in rev 7 / rev 16
+respectively. Now matches `AudioTrack`/`SubtitleTrack`: every analysis row
+inside a track shares the track's `Provenance` because the indexer pins one
+model bundle per track-per-run. Storage win: ~10 GB → negligible at library
+scale; querying win: re-running just one track creates a new run, others
+unaffected.)*

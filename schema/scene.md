@@ -28,7 +28,13 @@ flatten/own, not extern). Conversions deferred.
 | `detector` | `SceneDetector` (enum) | — | which detector raised this scene (you asked) |
 | `keyframes` | `Vec<Id>` | — | refs → [keyframe.md](keyframe.md) — these **are** the thumbnails |
 | `description` | `SmolStr` | VLM text | e.g. `"Jane is eating"`; `""` = none |
-| `provenance` | `Provenance` (shared VO) | — | analysis-run reproducibility; shared cross-cutting VO ([README.md](README.md)) |
+
+**`Provenance` lives on `VideoTrack`, not here** — one model bundle pins
+all scene-detector + VLM runs for a track (per-track-per-run lock at the
+indexer). Storing `Provenance` per-`Scene` would duplicate the same
+`{model_name, model_version, prompt_version, indexer_version}` tuple
+across tens-to-hundreds of records per track. See
+`video_track.md`'s `provenance` field.
 
 **`SceneDetector`** (mediaschema-owned enum; the 5 scenesdetect detection
 modules + manual): `Histogram` · `Phash` · `Threshold` · `Content` ·
@@ -46,6 +52,13 @@ modules + manual): `Histogram` · `Phash` · `Threshold` · `Content` ·
   the scene-level smart-folder layer ([smart_folder.md](smart_folder.md)).
 - **Smart folders are scene-level** (not keyframe-level): `SceneAnnotation`
   targets `Scene.id`; `Scene` carries **no** curation field.
+- **rev 7 (user-authorised reopen):** `provenance` field **removed** —
+  hoisted up to `VideoTrack.provenance`. The indexer pins one model
+  bundle per track-per-run, so every `Scene` inside a `VideoTrack`
+  shares the same provenance tuple; storing it per-`Scene` duplicated
+  the same value across tens-to-hundreds of records per track. Audio +
+  Subtitle already lived at the track level — this brings video into
+  line. Same change applied to `keyframe.md`.
 
 ## Projection notes
 
@@ -56,7 +69,8 @@ modules + manual): `Histogram` · `Phash` · `Threshold` · `Content` ·
 - **graphql**: `description`/`span`/`keyframes`/`detector`;
   similarity = LanceDB endpoint keyed by `id`.
 
-**Status: LOCKED (rev 6) — user-approved.** Thin described-segment:
+**Status: LOCKED (rev 7) — user-approved.** Thin described-segment:
 `id`/`parent`(→VideoTrack)/`index`/`span`(mediatime)/`detector`(SceneDetector)/
-`keyframes`(=thumbnails)/`description`/`provenance`(shared VO). `labels`
-dropped; embeddings→LanceDB; curation = scene-level smart-folder layer.
+`keyframes`(=thumbnails)/`description`. `Provenance` lives on
+`VideoTrack` (per-track-per-run, not per-Scene); `labels` dropped;
+embeddings→LanceDB; curation = scene-level smart-folder layer.

@@ -125,10 +125,16 @@ DOMAIN / programming-types   ← application logic programs against THIS
 - **Shared `Provenance` VO (user decision).** Analysis-run reproducibility is
   **one cross-cutting VO**, not redefined per doc:
   `Provenance { model_name, model_version, prompt_version, indexer_version }`
-  (all `SmolStr`, `""`=absent). Carried by every analysis record —
-  `Keyframe`, `Scene`, `AudioSegment`/`AudioTrack` index-state, … — as a
-  `provenance` field. Supersedes the ad-hoc `asr_model`/`model_version`
-  recommendations in the audio docs.
+  (all `SmolStr`, `""`=absent). **Lives at the track level only** — one
+  `provenance` field per `VideoTrack` / `AudioTrack` / `SubtitleTrack`. The
+  indexer pins one model bundle per track-per-run, so every leaf analysis
+  record inside a track (`Keyframe`, `Scene`, `AudioSegment`, `SubtitleCue`)
+  inherits the track's `Provenance` rather than carrying its own. This
+  saves ~10 GB at library scale (100M keyframes × ~100 B) and is the
+  natural "one run = one provenance" granularity. Re-running just one
+  track creates a new track-level run, others unaffected.
+  Supersedes the ad-hoc `asr_model`/`model_version` recommendations in
+  the audio docs.
 - **Shared `LocalizedText` VO (user decision).** Free-text with an optional
   translation is **one cross-cutting VO**:
   `LocalizedText { src: SmolStr, translated: SmolStr }` (both `""`=absent;
