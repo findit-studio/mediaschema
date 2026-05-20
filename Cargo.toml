@@ -13,15 +13,79 @@ rust-version = "1.85"
 
 [features]
 default = ["std"]
-std = ["buffa/std", "buffa-types/std"]
-json = ["dep:serde", "dep:serde_json", "buffa/json", "buffa-types/json", "mediatime/serde"]
-arbitrary = ["dep:arbitrary", "buffa/arbitrary", "buffa-types/arbitrary", "mediatime/arbitrary"]
+# Three independent capability features plus an optional wire-layer.
+#
+# ## Capability tiers
+#
+# - `--no-default-features` ⇒ pure **no-std + no-alloc**. Only types
+#   whose entire transitive surface is stack-only (`Uuid7`, `Uuid7Error`,
+#   `FileChecksum`, `Rgba`, `ErrorCode`, `UnknownErrorCode`,
+#   `LocationError`, every unit-variant enum and `bitflags!` companion).
+# - `--no-default-features --features alloc` ⇒ **no-std + alloc**. Adds
+#   heap-using domain types (`Location` / `LocalLocation`, `ErrorInfo`,
+#   `Provenance`, `LocalizedText`) — anything reaching `Vec` / `SmolStr`.
+# - `--features std` (default) ⇒ **std**. Aggregates that use
+#   `jiff::Timestamp` (Speaker, WatchedLocation, UserTag,
+#   SceneAnnotation in PR #11) and the std-using ctors (`Uuid7::new` via
+#   `Uuid::now_v7`).
+#
+# `std` and `alloc` are **independent** features: heap-using items gate
+# on `cfg(any(feature = "std", feature = "alloc"))`, which expresses
+# "heap is available" — true when EITHER feature is on. This lets a
+# consumer pick `--features std` without also naming `--features alloc`
+# and still get the heap types (std implies heap at the language level).
+#
+# ## Optional dependency features
+#
+# - `--features buffa` ⇒ buffa-generated wire layer (`mediaschema::Detection`,
+#   `mediaschema::AudioFormat`, …). Off by default — consumers who only
+#   want the domain types don't pay for buffa. **Does NOT auto-enable
+#   `alloc` or `std`**; pair it explicitly with one of those (the
+#   wire codegen emits `Vec` / `String`, so a heap feature is required
+#   in practice).
+#
+# `smol_str` is also optional — it doesn't support no-std + no-alloc,
+# so it's pulled in only when either `alloc` or `std` is on (the
+# capability features that themselves require heap).
+alloc = ["dep:smol_str"]
+std = ["dep:smol_str", "smol_str/default", "uuid/default", "uuid/v7", "buffa?/default", "buffa-types?/default"]
+buffa = ["dep:buffa", "dep:buffa-types"]
+json = ["std", "buffa", "dep:serde", "dep:serde_json", "buffa?/json", "buffa-types?/json", "mediatime/serde"]
+# `arbitrary` / `quickcheck` imply `std` AND `buffa`. Upstream
+# `buffa-types 0.6.0`'s `arbitrary` codegen references
+# `std::RECURSIVE_COUNT_*` symbols emitted by the `arbitrary` derive
+# macro and won't compile without `std`; the property tests cover the
+# wire-codec round-trip so `buffa` is required too. Property-based
+# testing is inherently std-bound (`Unstructured`/`Gen` allocate;
+# `Vec`/`String` everywhere).
+arbitrary = ["std", "buffa", "dep:arbitrary", "buffa?/arbitrary", "buffa-types?/arbitrary", "mediatime/arbitrary"]
 quickcheck = ["arbitrary", "dep:quickcheck", "dep:mediaschema-derive"]
 
 [dependencies]
-buffa = { version = "0.6", default-features = false }
-buffa-types = { version = "0.6", default-features = false }
+# `buffa` + `buffa-types` are optional — the buffa-generated wire layer
+# (`mod generated` and the crate-root `pub use generated::media::v1::*`
+# re-exports) compiles only when `feature = "buffa"` is on. Off by
+# default; consumers who want the wire layer add `--features buffa`
+# (typically paired with `--features std` or `--features alloc` since
+# the codegen uses heap types).
+buffa = { version = "0.6", default-features = false, optional = true }
+buffa-types = { version = "0.6", default-features = false, optional = true }
 mediatime = { version = "0.1.6", default-features = false, features = ["buffa"] }
+# Domain layer (`src/domain/`): hand-written types programmed against by
+# downstream code. `smol_str` is optional — it requires `alloc` for
+# long strings, so it's pulled in only when the `alloc` or `std`
+# feature is on (which are the gates for heap-using domain types).
+smol_str = { version = "0.3", default-features = false, optional = true }
+# `uuid` features are gated on mediaschema's `std` feature (see above).
+# `v7` provides `Uuid::now_v7()` which requires `SystemTime` (std), so
+# under `--no-default-features` the bare `Uuid` type stays available
+# for parse / from_bytes / version inspection — which is all the
+# `Uuid7` validating ctors need.
+uuid = { version = "1", default-features = false }
+# Derives used across the domain layer: `IsVariant` (unit/newtype),
+# `Unwrap` / `TryUnwrap` (newtype) with `#[unwrap(ref, ref_mut)]
+# #[try_unwrap(ref, ref_mut)]` for shared-ref + mut-ref accessor flavours.
+derive_more = { version = "2", default-features = false, features = ["is_variant", "unwrap", "try_unwrap"] }
 serde = { version = "1", optional = true }
 serde_json = { version = "1", optional = true }
 arbitrary = { version = "1", optional = true, features = ["derive"] }
