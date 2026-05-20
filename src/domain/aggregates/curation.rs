@@ -139,7 +139,7 @@ pub struct SceneAnnotation<Id = Uuid7> {
   id: Id,
   scene: Id,
   favorite: bool,
-  user_tags: Vec<Id>,
+  user_tags: std::vec::Vec<Id>,
   rating: Option<u8>,
   note: SmolStr,
   updated_at: Timestamp,
@@ -165,7 +165,7 @@ impl SceneAnnotation<Uuid7> {
       id,
       scene,
       favorite: false,
-      user_tags: Vec::new(),
+      user_tags: std::vec::Vec::new(),
       rating: None,
       note: SmolStr::default(),
       updated_at,
@@ -227,7 +227,7 @@ impl<Id> SceneAnnotation<Id> {
 
   /// Builder: replace `user_tags`.
   #[inline]
-  pub fn with_user_tags(mut self, tags: impl Into<Vec<Id>>) -> Self {
+  pub fn with_user_tags(mut self, tags: impl Into<std::vec::Vec<Id>>) -> Self {
     self.user_tags = tags.into();
     self
   }
@@ -254,7 +254,7 @@ impl<Id> SceneAnnotation<Id> {
 
   /// In-place mutator for `user_tags`.
   #[inline]
-  pub fn set_user_tags(&mut self, tags: impl Into<Vec<Id>>) {
+  pub fn set_user_tags(&mut self, tags: impl Into<std::vec::Vec<Id>>) {
     self.user_tags = tags.into();
   }
 
@@ -360,7 +360,7 @@ mod tests {
     let a = SceneAnnotation::try_new(Uuid7::new(), scene, Timestamp::default())
       .unwrap()
       .with_favorite(true)
-      .with_user_tags(vec![t1, t2])
+      .with_user_tags(std::vec![t1, t2])
       .with_rating(Some(4))
       .with_note("great driving scene");
     assert_eq!(a.scene(), &scene);
