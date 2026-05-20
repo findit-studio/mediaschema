@@ -16,6 +16,7 @@
 // — same timebase as the track's `TimeRange.start`), which is the closest fit;
 // the schema doc's `Timestamp` reference should be read as `mediatime::Timestamp`
 // pending a doc-name fix.
+use derive_more::IsVariant;
 use mediatime::Timestamp;
 use smol_str::SmolStr;
 
@@ -25,35 +26,24 @@ use crate::domain::Uuid7;
 /// `AudioTrack.speakers: Vec<Id> → Speaker`; each `AudioSegment.speaker:
 /// Option<Id> → Speaker`.
 ///
-/// **No `Default`**: a `Speaker` with nil `id` and nil `parent` would
-/// be an orphan voice clustered as `SPEAKER_NN=0` — a real invalid
-/// state (Codex PR #11 finding #3). Construct explicitly via
-/// [`Speaker::try_new`] for the canonical `Uuid7` identity, or via the
-/// struct literal in projection adapters that supply backend-native
-/// ids.
+/// **No `Default`**: a `Speaker` with nil `id` and nil `parent` would be
+/// an orphan voice clustered as `SPEAKER_NN=0` — a real invalid state.
+/// Construct explicitly via [`Speaker::try_new`].
+///
+/// Fields are private per the encapsulation rule; access via `id()` /
+/// `parent()` / `cluster_id()` / `name()` / `speech_duration()` getters
+/// and `with_*` / `set_*` builders/mutators.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Speaker<Id = Uuid7> {
-  /// Canonical identity. Also the **LanceDB voiceprint key**.
-  pub id: Id,
-  /// FK → `AudioTrack.id`.
-  pub parent: Id,
-  /// The `dia` cluster label within this track
-  /// (`dia::DiarizedSpan.speaker_id`). Stable within the diarization run;
-  /// `"SPEAKER_NN"` display strings are derived from this, not stored.
-  pub cluster_id: u32,
-  /// Human-assigned identity label (`""` = unassigned).
-  pub name: SmolStr,
-  /// Total time this speaker spoke (Σ of their `AudioSegment.span`s).
-  /// Maintained rollup; truth = the segments.
-  ///
+  id: Id,
+  parent: Id,
+  cluster_id: u32,
+  name: SmolStr,
   /// **Semantically a non-negative duration in the track's timebase**,
   /// even though the type is `mediatime::Timestamp` (`mediatime` 0.1.6
-  /// has no dedicated `Duration`). Codex PR #11 finding #1 flagged the
-  /// type mismatch: a `Timestamp` is an instant/PTS and can carry
-  /// negative offsets, while a duration cannot. The `try_new`
-  /// constructor enforces `>= 0`; a proper `TrackDuration` newtype is
+  /// has no dedicated `Duration`). A proper `TrackDuration` newtype is
   /// a tracked follow-up in `mediatime`.
-  pub speech_duration: Option<Timestamp>,
+  speech_duration: Option<Timestamp>,
 }
 
 impl Speaker<Uuid7> {
@@ -83,9 +73,80 @@ impl Speaker<Uuid7> {
   }
 }
 
+impl<Id> Speaker<Id> {
+  /// Canonical identity (also the LanceDB voiceprint key).
+  #[inline]
+  pub fn id(&self) -> &Id {
+    &self.id
+  }
+
+  /// FK → `AudioTrack.id`.
+  #[inline]
+  pub fn parent(&self) -> &Id {
+    &self.parent
+  }
+
+  /// `dia` cluster label within this track.
+  #[inline]
+  pub const fn cluster_id(&self) -> u32 {
+    self.cluster_id
+  }
+
+  /// Human-assigned identity label (`""` = unassigned).
+  #[inline]
+  pub fn name(&self) -> &str {
+    self.name.as_str()
+  }
+
+  /// Total time this speaker spoke (`None` = not yet rolled up).
+  #[inline]
+  pub fn speech_duration(&self) -> Option<&Timestamp> {
+    self.speech_duration.as_ref()
+  }
+
+  /// Builder: replace `name` and return `self`.
+  #[inline]
+  pub fn with_name(mut self, name: impl Into<SmolStr>) -> Self {
+    self.name = name.into();
+    self
+  }
+
+  /// Builder: replace `speech_duration` and return `self`.
+  #[inline]
+  pub fn with_speech_duration(mut self, d: Option<Timestamp>) -> Self {
+    self.speech_duration = d;
+    self
+  }
+
+  /// Builder: replace `cluster_id` and return `self`.
+  #[inline]
+  pub const fn with_cluster_id(mut self, cluster_id: u32) -> Self {
+    self.cluster_id = cluster_id;
+    self
+  }
+
+  /// In-place mutator for `name`.
+  #[inline]
+  pub fn set_name(&mut self, name: impl Into<SmolStr>) {
+    self.name = name.into();
+  }
+
+  /// In-place mutator for `speech_duration`.
+  #[inline]
+  pub fn set_speech_duration(&mut self, d: Option<Timestamp>) {
+    self.speech_duration = d;
+  }
+
+  /// In-place mutator for `cluster_id`.
+  #[inline]
+  pub const fn set_cluster_id(&mut self, cluster_id: u32) {
+    self.cluster_id = cluster_id;
+  }
+}
+
 /// Error returned when [`Speaker::try_new`] cannot uphold the
-/// non-nil-id / non-nil-parent invariants.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// non-nil-id / non-nil-parent invariants. Unit-only enum.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant)]
 #[non_exhaustive]
 pub enum SpeakerError {
   /// Supplied `id` was the nil sentinel — would collide as a
@@ -105,8 +166,7 @@ impl core::fmt::Display for SpeakerError {
   }
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for SpeakerError {}
+impl core::error::Error for SpeakerError {}
 
 // ===========================================================================
 // Tests
@@ -121,29 +181,45 @@ mod tests {
     let parent = Uuid7::new();
     let s =
       Speaker::try_new(Uuid7::new(), parent, 2, "Jane").expect("valid construction must succeed");
-    assert_eq!(s.parent, parent);
-    assert_eq!(s.cluster_id, 2);
-    assert_eq!(s.name.as_str(), "Jane");
-    assert!(s.speech_duration.is_none());
+    assert_eq!(s.parent(), &parent);
+    assert_eq!(s.cluster_id(), 2);
+    assert_eq!(s.name(), "Jane");
+    assert!(s.speech_duration().is_none());
   }
 
   #[test]
   fn try_new_anonymous_diarization_uses_empty_name() {
-    // The locked rule: SmolStr "" = absent, not Option<SmolStr>.
     let s = Speaker::try_new(Uuid7::new(), Uuid7::new(), 0, "").unwrap();
-    assert!(s.name.is_empty());
-    assert_eq!(s.cluster_id, 0);
+    assert!(s.name().is_empty());
+    assert_eq!(s.cluster_id(), 0);
   }
 
   #[test]
   fn try_new_rejects_nil_id() {
     let r = Speaker::try_new(Uuid7::nil(), Uuid7::new(), 0, "");
     assert_eq!(r.err(), Some(SpeakerError::NilId));
+    assert!(SpeakerError::NilId.is_nil_id());
   }
 
   #[test]
   fn try_new_rejects_nil_parent() {
     let r = Speaker::try_new(Uuid7::new(), Uuid7::nil(), 0, "");
     assert_eq!(r.err(), Some(SpeakerError::NilParent));
+    assert!(SpeakerError::NilParent.is_nil_parent());
+  }
+
+  #[test]
+  fn builders_and_setters_chain() {
+    let s = Speaker::try_new(Uuid7::new(), Uuid7::new(), 0, "")
+      .unwrap()
+      .with_name("Jane")
+      .with_cluster_id(3);
+    assert_eq!(s.name(), "Jane");
+    assert_eq!(s.cluster_id(), 3);
+    let mut s = s;
+    s.set_name("");
+    s.set_cluster_id(0);
+    assert!(s.name().is_empty());
+    assert_eq!(s.cluster_id(), 0);
   }
 }
