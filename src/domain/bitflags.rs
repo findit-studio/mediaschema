@@ -27,13 +27,31 @@ bitflags! {
     /// > 0` — drill down via the kind facet → `Track.index_errors`.
     ///
     /// `u16` chosen for future media kinds. Locked `schema/bitflags.md` r4.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+    ///
+    /// **Default convention**: `Default::default()` calls
+    /// [`MediaErrorFlags::new`], which returns the empty flag set.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct MediaErrorFlags: u16 {
         const VIDEO_ERROR    = 0x0001;
         const AUDIO_ERROR    = 0x0002;
         const SUBTITLE_ERROR = 0x0004;
         // Reserved bits 0x0008 .. for future kinds.
     }
+}
+
+impl MediaErrorFlags {
+  /// Canonical no-arg constructor — the empty flag set.
+  #[inline]
+  pub const fn new() -> Self {
+    Self::empty()
+  }
+}
+
+impl Default for MediaErrorFlags {
+  #[inline]
+  fn default() -> Self {
+    Self::new()
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -52,7 +70,7 @@ bitflags! {
     /// producers — locked `keyframe.md` producer-distinct model); two
     /// embedding stages (`TEXT_EMBEDDING_FINISHED` = EmbeddingGemma,
     /// `SCENE_EMBEDDING_FINISHED` = SigLIP2). Bit `0x08` is reserved.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct VideoIndexStatus: u32 {
         const PROBED                    = 0x01;
         const SCENE_DETECTED            = 0x02;
@@ -66,6 +84,13 @@ bitflags! {
 }
 
 impl VideoIndexStatus {
+  /// Canonical no-arg constructor — the empty flag set.
+  /// [`Default::default`] is `Self::new()`.
+  #[inline]
+  pub const fn new() -> Self {
+    Self::empty()
+  }
+
   /// The "fully indexed" mask — every stage bit set.
   #[inline]
   pub const fn fully_indexed_mask() -> Self {
@@ -87,6 +112,13 @@ impl VideoIndexStatus {
   }
 }
 
+impl Default for VideoIndexStatus {
+  #[inline]
+  fn default() -> Self {
+    Self::new()
+  }
+}
+
 // ---------------------------------------------------------------------------
 // AudioIndexStatus — the verified real 11-bit `ProcessingStage`
 // ---------------------------------------------------------------------------
@@ -99,7 +131,7 @@ bitflags! {
     /// "VAD/STT/diarize/embed" 4-bit guess was wrong; this is the full
     /// pipeline (incl. CED sound-event detection, CLAP audio embedding,
     /// EBU-R128 loudness, chromaprint fingerprint).
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct AudioIndexStatus: u32 {
         const EXTRACTED     = 0x001;
         const CLASSIFIED    = 0x002;
@@ -116,6 +148,13 @@ bitflags! {
 }
 
 impl AudioIndexStatus {
+  /// Canonical no-arg constructor — the empty flag set.
+  /// [`Default::default`] is `Self::new()`.
+  #[inline]
+  pub const fn new() -> Self {
+    Self::empty()
+  }
+
   #[inline]
   pub const fn fully_indexed_mask() -> Self {
     Self::from_bits_truncate(
@@ -139,6 +178,13 @@ impl AudioIndexStatus {
   }
 }
 
+impl Default for AudioIndexStatus {
+  #[inline]
+  fn default() -> Self {
+    Self::new()
+  }
+}
+
 // ---------------------------------------------------------------------------
 // SubtitleIndexStatus — verified vs findit-proto::database::subtitle
 // ---------------------------------------------------------------------------
@@ -149,7 +195,7 @@ bitflags! {
     /// Authoritative names from `findit-proto::database::subtitle`
     /// (not the earlier doc-derived `PROBED/CUES_PARSED/...` guess).
     /// `OCR_DONE` only applies to image-based subs (PGS/DVBSUB).
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct SubtitleIndexStatus: u32 {
         const TRACKS_DISCOVERED = 0x01;
         const CUES_EXTRACTED    = 0x02;
@@ -159,6 +205,13 @@ bitflags! {
 }
 
 impl SubtitleIndexStatus {
+  /// Canonical no-arg constructor — the empty flag set.
+  /// [`Default::default`] is `Self::new()`.
+  #[inline]
+  pub const fn new() -> Self {
+    Self::empty()
+  }
+
   /// The "fully indexed" mask, parameterised by whether the track's
   /// codec **requires** OCR (i.e. `mediaframe::SubtitleCodec::is_image_based()`
   /// returns `Some(true)`).
@@ -190,6 +243,13 @@ impl SubtitleIndexStatus {
   #[inline]
   pub fn is_fully_indexed(&self, requires_ocr: bool) -> bool {
     self.contains(Self::fully_indexed_mask(requires_ocr))
+  }
+}
+
+impl Default for SubtitleIndexStatus {
+  #[inline]
+  fn default() -> Self {
+    Self::new()
   }
 }
 
