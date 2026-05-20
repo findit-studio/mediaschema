@@ -36,7 +36,6 @@ Conversions deferred.
 | `mime` · `size` | `SmolStr` · `u32` | artifact meta |
 | `dimensions` | `mediaframe::Dimensions` | thumbnail W×H (extern) |
 | `extractor` | `KeyframeExtractor` (enum) | which extractor produced it |
-| `provenance` | `Provenance` (nested VO) | analysis-run reproducibility (model/prompt/indexer) |
 | — *apple-vision structured detections (full depth)* — |
 | `classifications` | `Vec<Detection>` | image classification |
 | `objects` | `Vec<ObjectDetection>` | `Detection` + `Option<BoundingBox>` (apple-vision) |
@@ -108,10 +107,13 @@ lighting:Vec<LocalizedText> }`. (Struct namespace replaces the `vlm_` prefix —
 language). Only **controlled** labels stay plain: `shot_type` (small set,
 future enum).
 
-**`Provenance`** = the **shared cross-cutting VO** (defined once in
-[README.md](README.md) — `{model_name, model_version, prompt_version,
-indexer_version}`, all `SmolStr`/`""`=absent); not redefined here. Reused by
-`Scene`/`AudioSegment`/… too.
+**`Provenance` lives on `VideoTrack`, not here.** The indexer pins one
+model bundle per track-per-run, and every `Keyframe` / `Scene` inside a
+`VideoTrack` is produced by that same bundle — so a per-`Keyframe`
+provenance field would store the same `{model_name, model_version,
+prompt_version, indexer_version}` tuple millions of times across a
+library. See `video_track.md`'s `provenance` field; the shared VO is
+defined in [README.md](README.md).
 
 ## Resolved (your calls)
 
@@ -139,6 +141,14 @@ indexer_version}`, all `SmolStr`/`""`=absent); not redefined here. Reused by
   `Vec<LocalizedText>`. `shot_type` stays `SmolStr` (controlled).
 - **rev 15:** `tags` → `Vec<LocalizedText>` (your call); `shot_type` confirmed
   plain. **All resolved → user-LOCKED.**
+- **rev 16 (user-authorised reopen):** `provenance` field **removed** —
+  hoisted up to `VideoTrack.provenance`. The indexer pins one model bundle
+  per track-per-run, so every `Keyframe` inside a `VideoTrack` shares the
+  same `{model_name, model_version, prompt_version, indexer_version}`
+  tuple; storing it per-`Keyframe` was duplicating the same value across
+  hundreds-to-thousands of records per track (~10 GB at library scale).
+  Same change applied to `scene.md`. Audio + Subtitle already lived at
+  the track level — this brings video into line.
 - **E** `location` removed; image is inline `data: Bytes`.
 - **F** `KeyframeExtractor` (`#[non_exhaustive]`) = **all `SceneDetector`
   variants** `Histogram·Phash·Threshold·Content·Adaptive` (a scene-detector
@@ -159,7 +169,8 @@ indexer_version}`, all `SmolStr`/`""`=absent); not redefined here. Reused by
 - **graphql**: image via signed-URL endpoint (never raw `data` in lists) +
   detections/OCR/colours for search; similarity = LanceDB by `id`.
 
-**Status: LOCKED (rev 15) — user-approved.** Full apple-vision body-pose depth
+**Status: LOCKED (rev 16) — user-approved.** Full apple-vision body-pose depth
 (9-field `HumanAnalysis` + joint/mask VOs); `mood`/`emotion`/`lighting`→VLM;
 VLM grouped (`VlmAnalysis`) with all open-vocab output `Vec<LocalizedText>`;
-shared `Provenance`/`LocalizedText`; `feature_print`+embeddings→LanceDB.
+shared `LocalizedText` (per-record); `Provenance` hoisted to
+`VideoTrack` (per-track, not per-keyframe); `feature_print`+embeddings→LanceDB.
