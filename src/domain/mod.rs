@@ -31,7 +31,9 @@ pub use primitives::{ErrorCode, FileChecksum, Rgba, Uuid7};
 // Heap-tier (gate on `any(std, alloc)`): aggregates and types that reach
 // `Vec` / `SmolStr`.
 #[cfg(any(feature = "std", feature = "alloc"))]
-pub use aggregates::{SceneAnnotation, Speaker, UserTag, WatchedLocation};
+pub use aggregates::{
+  Keyframe, Scene, SceneAnnotation, Speaker, UserTag, Video, VideoTrack, WatchedLocation,
+};
 #[cfg(any(feature = "std", feature = "alloc"))]
 pub use primitives::{ErrorInfo, Location};
 #[cfg(any(feature = "std", feature = "alloc"))]
