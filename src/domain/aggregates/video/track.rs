@@ -989,26 +989,17 @@ impl<Id> VideoTrack<Id> {
 
 /// Error returned when [`VideoTrack::try_new`] cannot uphold the
 /// non-nil-id / non-nil-parent invariants. Unit-only enum.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant, thiserror::Error)]
 #[non_exhaustive]
 pub enum VideoTrackError {
   /// Supplied `id` was the nil sentinel.
+  #[error("VideoTrack id must not be the nil UUID")]
   NilId,
   /// Supplied `parent` was the nil sentinel — orphaned track with
   /// no `Video` facet.
+  #[error("VideoTrack parent (Video facet) must not be the nil UUID")]
   NilParent,
 }
-
-impl core::fmt::Display for VideoTrackError {
-  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-    match self {
-      Self::NilId => f.write_str("VideoTrack id must not be the nil UUID"),
-      Self::NilParent => f.write_str("VideoTrack parent (Video facet) must not be the nil UUID"),
-    }
-  }
-}
-
-impl core::error::Error for VideoTrackError {}
 
 // ===========================================================================
 // Tests

@@ -108,10 +108,11 @@ impl<Id> UserTag<Id> {
 
 /// Error returned when an aggregate's `id` is the nil sentinel — a real
 /// identity is always required at the domain edge.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant, thiserror::Error)]
 #[non_exhaustive]
 pub enum NilIdError {
   /// The only failure mode: nil id.
+  #[error("id must not be the nil UUID")]
   Nil,
 }
 
@@ -121,14 +122,6 @@ impl Default for NilIdError {
     Self::Nil
   }
 }
-
-impl core::fmt::Display for NilIdError {
-  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-    f.write_str("id must not be the nil UUID")
-  }
-}
-
-impl core::error::Error for NilIdError {}
 
 /// User curation of one `Scene`. Absence of any `SceneAnnotation` for a
 /// scene means default (not favourite, no tags, unrated, no note).
@@ -275,26 +268,17 @@ impl<Id> SceneAnnotation<Id> {
 
 /// Error returned when [`SceneAnnotation::try_new`] cannot uphold the
 /// non-nil-id / non-nil-scene invariants. Unit-only enum.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant, thiserror::Error)]
 #[non_exhaustive]
 pub enum SceneAnnotationError {
   /// Supplied `id` was the nil sentinel.
+  #[error("SceneAnnotation id must not be the nil UUID")]
   NilId,
   /// Supplied `scene` FK was nil — would be an orphan annotation with
   /// no `Scene` reference.
+  #[error("SceneAnnotation scene FK must not be the nil UUID")]
   NilScene,
 }
-
-impl core::fmt::Display for SceneAnnotationError {
-  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-    match self {
-      Self::NilId => f.write_str("SceneAnnotation id must not be the nil UUID"),
-      Self::NilScene => f.write_str("SceneAnnotation scene FK must not be the nil UUID"),
-    }
-  }
-}
-
-impl core::error::Error for SceneAnnotationError {}
 
 // ===========================================================================
 // Tests

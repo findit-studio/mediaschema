@@ -358,29 +358,20 @@ impl<Id> AudioSegment<Id> {
 
 /// Error returned when [`AudioSegment::try_new`] cannot uphold the
 /// non-nil-id / non-nil-parent / non-inverted-span invariants.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant, thiserror::Error)]
 #[non_exhaustive]
 pub enum AudioSegmentError {
   /// Supplied `id` was the nil sentinel.
+  #[error("AudioSegment id must not be the nil UUID")]
   NilId,
   /// Supplied `parent` was the nil sentinel — orphan segment with no
   /// `AudioTrack` reference.
+  #[error("AudioSegment parent (AudioTrack) must not be the nil UUID")]
   NilParent,
   /// `span.start > span.end` — inverted segment span (locked invariant).
+  #[error("AudioSegment span.start must be <= span.end")]
   InvertedSpan,
 }
-
-impl core::fmt::Display for AudioSegmentError {
-  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-    match self {
-      Self::NilId => f.write_str("AudioSegment id must not be the nil UUID"),
-      Self::NilParent => f.write_str("AudioSegment parent (AudioTrack) must not be the nil UUID"),
-      Self::InvertedSpan => f.write_str("AudioSegment span.start must be <= span.end"),
-    }
-  }
-}
-
-impl core::error::Error for AudioSegmentError {}
 
 // ===========================================================================
 // Tests

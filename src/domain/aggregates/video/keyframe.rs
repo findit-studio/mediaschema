@@ -429,32 +429,21 @@ impl<Id> Keyframe<Id> {
 
 /// Error returned when [`Keyframe::try_new`] cannot uphold a locked
 /// invariant. Unit-only enum.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant, thiserror::Error)]
 #[non_exhaustive]
 pub enum KeyframeError {
   /// Supplied `id` was the nil sentinel.
+  #[error("Keyframe id must not be the nil UUID")]
   NilId,
   /// Supplied `parent` was the nil sentinel — orphan keyframe with no
   /// `Scene` reference.
+  #[error("Keyframe parent (Scene) must not be the nil UUID")]
   NilParent,
   /// `dimensions_width == 0` or `dimensions_height == 0` — a
   /// zero-extent thumbnail is not a valid artifact (locked invariant).
+  #[error("Keyframe dimensions must be non-zero (locked invariant)")]
   ZeroDimensions,
 }
-
-impl core::fmt::Display for KeyframeError {
-  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-    match self {
-      Self::NilId => f.write_str("Keyframe id must not be the nil UUID"),
-      Self::NilParent => f.write_str("Keyframe parent (Scene) must not be the nil UUID"),
-      Self::ZeroDimensions => {
-        f.write_str("Keyframe dimensions must be non-zero (locked invariant)")
-      }
-    }
-  }
-}
-
-impl core::error::Error for KeyframeError {}
 
 // ===========================================================================
 // Tests
