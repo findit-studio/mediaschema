@@ -210,27 +210,18 @@ impl<Id> Subtitle<Id> {
 
 /// Error returned when [`Subtitle::try_new`] cannot uphold the
 /// non-nil-id / non-nil-parent invariants. Unit-only enum.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant, thiserror::Error)]
 #[non_exhaustive]
 pub enum SubtitleError {
   /// Supplied `id` was the nil sentinel — would shadow the parent
   /// `Media`'s real subtitle facet.
+  #[error("Subtitle id must not be the nil UUID")]
   NilId,
   /// Supplied `parent` was the nil sentinel — orphaned facet with no
   /// `Media` reference.
+  #[error("Subtitle parent (Media) must not be the nil UUID")]
   NilParent,
 }
-
-impl core::fmt::Display for SubtitleError {
-  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-    match self {
-      Self::NilId => f.write_str("Subtitle id must not be the nil UUID"),
-      Self::NilParent => f.write_str("Subtitle parent (Media) must not be the nil UUID"),
-    }
-  }
-}
-
-impl core::error::Error for SubtitleError {}
 
 // ===========================================================================
 // Tests

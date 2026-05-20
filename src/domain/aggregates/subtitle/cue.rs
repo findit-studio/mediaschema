@@ -238,27 +238,18 @@ impl<Id> SubtitleCue<Id> {
 
 /// Error returned when [`SubtitleCue::try_new`] cannot uphold the
 /// non-nil-id / non-nil-parent invariants. Unit-only enum.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant, thiserror::Error)]
 #[non_exhaustive]
 pub enum SubtitleCueError {
   /// Supplied `id` was the nil sentinel — would collide as a LanceDB
   /// embedding key.
+  #[error("SubtitleCue id must not be the nil UUID")]
   NilId,
   /// Supplied `parent` was the nil sentinel — orphan cue with no
   /// `SubtitleTrack` reference.
+  #[error("SubtitleCue parent (SubtitleTrack) must not be the nil UUID")]
   NilParent,
 }
-
-impl core::fmt::Display for SubtitleCueError {
-  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-    match self {
-      Self::NilId => f.write_str("SubtitleCue id must not be the nil UUID"),
-      Self::NilParent => f.write_str("SubtitleCue parent (SubtitleTrack) must not be the nil UUID"),
-    }
-  }
-}
-
-impl core::error::Error for SubtitleCueError {}
 
 // ===========================================================================
 // Tests

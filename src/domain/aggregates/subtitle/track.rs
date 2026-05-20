@@ -748,26 +748,17 @@ impl<Id> SubtitleTrack<Id> {
 
 /// Error returned when [`SubtitleTrack::try_new`] cannot uphold the
 /// non-nil-id / non-nil-parent invariants. Unit-only enum.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant, thiserror::Error)]
 #[non_exhaustive]
 pub enum SubtitleTrackError {
   /// Supplied `id` was the nil sentinel — cues FK would be orphaned.
+  #[error("SubtitleTrack id must not be the nil UUID")]
   NilId,
   /// Supplied `parent` was the nil sentinel — orphaned track with no
   /// `Subtitle` facet reference.
+  #[error("SubtitleTrack parent (Subtitle) must not be the nil UUID")]
   NilParent,
 }
-
-impl core::fmt::Display for SubtitleTrackError {
-  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-    match self {
-      Self::NilId => f.write_str("SubtitleTrack id must not be the nil UUID"),
-      Self::NilParent => f.write_str("SubtitleTrack parent (Subtitle) must not be the nil UUID"),
-    }
-  }
-}
-
-impl core::error::Error for SubtitleTrackError {}
 
 // ===========================================================================
 // Tests
