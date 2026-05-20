@@ -11,8 +11,10 @@
 
 pub mod curation;
 pub mod speaker;
+pub mod subtitle;
 pub mod watched_location;
 
 pub use curation::{SceneAnnotation, UserTag};
 pub use speaker::Speaker;
+pub use subtitle::{IndexProgress, Subtitle, SubtitleCue, SubtitleTrack};
 pub use watched_location::WatchedLocation;
