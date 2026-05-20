@@ -60,6 +60,13 @@ json = ["std", "buffa", "dep:serde", "dep:serde_json", "buffa?/json", "buffa-typ
 # `Vec`/`String` everywhere).
 arbitrary = ["std", "buffa", "dep:arbitrary", "buffa?/arbitrary", "buffa-types?/arbitrary", "mediatime/arbitrary"]
 quickcheck = ["arbitrary", "dep:quickcheck", "dep:mediaschema-derive"]
+# Optional GraphQL backend (`src/graphql/`). Mirrors the full domain
+# aggregate surface as `#[Object]` resolvers behind manual impls
+# (domain fields are private, so `SimpleObject`'s public-field path
+# does not apply). The dep pins async-graphql 7.x — the latest line
+# that does not raise MSRV above the crate's 1.95 floor. `std` is
+# required because the resolvers reach heap-tier domain types.
+async-graphql = ["std", "dep:async-graphql"]
 
 [dependencies]
 # `buffa` + `buffa-types` are optional — the buffa-generated wire layer
@@ -112,6 +119,11 @@ serde_json = { version = "1", optional = true }
 arbitrary = { version = "1", optional = true, features = ["derive"] }
 quickcheck = { version = "1", optional = true }
 mediaschema-derive = { path = "mediaschema-derive", optional = true }
+# Optional GraphQL backend dep. `default-features = false` strips the
+# graphiql / playground / handlebars / fast_chemail / tempfile bundle
+# (we only need the schema-builder + macros). 7.x is the latest line
+# whose own MSRV (1.89) sits at or below mediaschema's 1.95 floor.
+async-graphql = { version = "7", default-features = false, optional = true }
 
 [dev-dependencies]
 quickcheck = "1"

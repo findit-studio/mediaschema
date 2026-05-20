@@ -1,0 +1,795 @@
+type ActionDetection {
+	detection: Detection!
+}
+
+type Aesthetics {
+	overallScore: Float!
+	isUtility: Boolean!
+}
+
+type AnimalAnalysis {
+	subjects: [SubjectDetection!]!
+	bodyPoses: [BodyPoseDetection!]!
+}
+
+type Audio {
+	id: ID!
+	tracks: [ID!]!
+	totalSegments: Int!
+}
+
+"""
+GraphQL mirror of [`AudioContentKind`].
+"""
+enum AudioContentKind {
+	SPEECH
+	MUSIC
+	MIXED
+	SILENCE
+}
+
+type AudioCoverArt {
+	size: Int!
+	mime: String
+	"""
+	Base64-encoded image bytes (`null` when no data is set).
+	"""
+	dataBase64: String
+}
+
+type AudioFingerprint {
+	algo: String!
+	"""
+	Base64-encoded fingerprint bytes (`null` if empty).
+	"""
+	valueBase64: String
+	byteLen: Int!
+}
+
+"""
+GraphQL mirror of [`AudioIndexStage`].
+"""
+enum AudioIndexStage {
+	PENDING
+	EXTRACTED
+	ANALYZED
+	TRANSCRIBED
+	DIARIZED
+	EMBEDDED
+	DONE
+	FAILED
+}
+
+type AudioIndexStatus {
+	bits: Int!
+	flags: [String!]!
+	isFullyIndexed: Boolean!
+}
+
+type AudioSegment {
+	id: ID!
+	parent: ID!
+	index: Int!
+	span: MediaTimeRange!
+	speaker: ID
+	text: LocalizedText!
+	language: String
+	words: [Word!]!
+	noSpeechProb: Float
+	avgLogprob: Float
+	temperature: Float
+}
+
+type AudioTags {
+	title: String
+	artist: String
+	albumArtist: String
+	album: String
+	genre: String
+	composer: String
+	performer: String
+	date: String
+	trackNumber: Int!
+	totalTracks: Int!
+	discNumber: Int!
+	totalDiscs: Int!
+	comment: String
+	lyrics: String
+	tagTypes: [String!]!
+}
+
+type AudioTrack {
+	id: ID!
+	parent: ID!
+	streamIndex: Int
+	containerTrackId: String
+	codec: String
+	profile: String
+	sampleRate: Int!
+	channels: Int!
+	channelLayout: String
+	bitRate: String!
+	bitRateMode: String
+	bitsPerSample: Int
+	isLossless: Boolean!
+	duration: MediaTimestamp
+	startPts: MediaTimestamp
+	language: String
+	detectedLanguage: String
+	languageMismatch: Boolean!
+	disposition: Int!
+	isPrimary: Boolean!
+	autoSelected: Boolean!
+	content: AudioContentKind
+	speechRatio: Float
+	isSilent: Boolean!
+	loudness: Loudness
+	fingerprint: AudioFingerprint
+	isrc: String
+	acoustid: String
+	musicbrainzRecordingId: String
+	speakers: [ID!]!
+	tags: AudioTags
+	coverArt: AudioCoverArt
+	segments: [ID!]!
+	provenance: Provenance!
+	indexStatus: AudioIndexStatus!
+	indexErrors: [ErrorInfo!]!
+}
+
+type BarcodeDetection {
+	payload: String!
+	symbology: String!
+	confidence: Float!
+	bbox: BoundingBox!
+}
+
+type BodyPose3DDetection {
+	confidence: Float!
+	bodyHeight: Float!
+	heightEstimation: String!
+	joints: [BodyPose3DJoint!]!
+}
+
+type BodyPose3DJoint {
+	name: String!
+	x: Float!
+	y: Float!
+	z: Float!
+	confidence: Float!
+}
+
+type BodyPoseDetection {
+	bbox: BoundingBox!
+	confidence: Float!
+	joints: [BodyPoseJoint!]!
+}
+
+type BodyPoseJoint {
+	name: String!
+	x: Float!
+	y: Float!
+	confidence: Float!
+}
+
+type BoundingBox {
+	x: Float!
+	y: Float!
+	width: Float!
+	height: Float!
+}
+
+type ColorInfo {
+	primaries: Int!
+	transfer: Int!
+	matrix: Int!
+	range: Int!
+	chromaLocation: Int!
+}
+
+type Detection {
+	label: String!
+	confidence: Float!
+}
+
+type Dimensions {
+	width: Int!
+	height: Int!
+}
+
+type DocumentSegment {
+	topLeft: Point2D!
+	topRight: Point2D!
+	bottomRight: Point2D!
+	bottomLeft: Point2D!
+	confidence: Float!
+}
+
+type DolbyVisionConfig {
+	profile: Int!
+	level: Int!
+	rpuPresent: Boolean!
+	elPresent: Boolean!
+	blPresent: Boolean!
+	blSignalCompatibilityId: Int!
+}
+
+type DominantColor {
+	rgb: Rgba!
+	name: String!
+	percentage: Float!
+	population: Int!
+}
+
+type ErrorInfo {
+	code: Int!
+	codeName: String!
+	message: String
+}
+
+type FaceDetection {
+	bbox: BoundingBox!
+	confidence: Float!
+	captureQuality: Float!
+	roll: Float!
+	yaw: Float!
+	pitch: Float!
+}
+
+type FaceLandmarkRegion {
+	name: String!
+	points: [Point2D!]!
+}
+
+type FaceLandmarksDetection {
+	bbox: BoundingBox!
+	confidence: Float!
+	regions: [FaceLandmarkRegion!]!
+}
+
+scalar FileChecksum
+
+type FrameRate {
+	num: Int!
+	den: Int!
+	isVfr: Boolean!
+}
+
+type HandPoseDetection {
+	bbox: BoundingBox!
+	confidence: Float!
+	chirality: String!
+	joints: [BodyPoseJoint!]!
+}
+
+type HdrStaticMetadata {
+	maxCll: Int!
+	maxFall: Int!
+}
+
+type HorizonInfo {
+	angle: Float!
+	confidence: Float!
+}
+
+type HumanAnalysis {
+	subjects: [SubjectDetection!]!
+	faces: [FaceDetection!]!
+	bodyPoses: [BodyPoseDetection!]!
+	handPoses: [HandPoseDetection!]!
+	bodyPoses3D: [BodyPose3DDetection!]!
+	instanceMasks: [PersonInstanceMaskDetection!]!
+	faceRectangles: [FaceDetection!]!
+	faceLandmarks: [FaceLandmarksDetection!]!
+	segmentationMasks: [PersonSegmentationMask!]!
+}
+
+scalar JiffTimestamp
+
+type Keyframe {
+	id: ID!
+	parent: ID!
+	pts: MediaTimestamp!
+	mime: String
+	size: Int!
+	byteLen: Int!
+	dimensions: Dimensions!
+	extractor: KeyframeExtractor!
+	classifications: [Detection!]!
+	objects: [ObjectDetection!]!
+	humans: HumanAnalysis!
+	animals: AnimalAnalysis!
+	actions: [ActionDetection!]!
+	textDetections: [TextDetection!]!
+	barcodes: [BarcodeDetection!]!
+	attentionSaliency: [SaliencyRegion!]!
+	objectnessSaliency: [SaliencyRegion!]!
+	horizon: HorizonInfo!
+	documentSegments: [DocumentSegment!]!
+	aesthetics: Aesthetics!
+	colors: [DominantColor!]!
+	vlm: VlmAnalysis!
+}
+
+"""
+GraphQL mirror of [`KeyframeExtractor`].
+"""
+enum KeyframeExtractor {
+	HISTOGRAM
+	PHASH
+	THRESHOLD
+	CONTENT
+	ADAPTIVE
+	COMPOSITE_QUALITY
+	INTERVAL
+	I_FRAME
+	SCENE_REPRESENTATIVE
+	MANUAL
+}
+
+type LocalLocation {
+	volume: Uuid7!
+	components: [String!]!
+}
+
+type LocalizedText {
+	src: String
+	translated: String
+	display: String!
+}
+
+"""
+GraphQL Union mirror of [`Location<Uuid7>`].
+"""
+union Location = LocalLocation
+
+type Loudness {
+	integratedLufs: Float!
+	truePeakDbtp: Float!
+	loudnessRangeLu: Float!
+}
+
+type Media {
+	id: ID!
+	checksum: FileChecksum!
+	name: String!
+	format: String
+	size: String!
+	duration: MediaTimestamp
+	createdAt: JiffTimestamp!
+	kind: MediaKind!
+	video: ID
+	audio: ID
+	subtitle: ID
+	errorFlags: MediaErrorFlags!
+	probeError: ErrorInfo
+	captureDate: JiffTimestamp
+	device: MediaDevice
+	gps: MediaGeoLocation
+}
+
+type MediaDevice {
+	make: String
+	model: String
+	isEmpty: Boolean!
+}
+
+type MediaErrorFlags {
+	"""
+	Raw flag word — `u16` widened to `i32` for GraphQL's `Int`.
+	"""
+	bits: Int!
+	"""
+	Named flag set, sorted by bit value.
+	"""
+	flags: [String!]!
+}
+
+type MediaGeoLocation {
+	lat: Float!
+	lon: Float!
+	altitude: Float
+}
+
+"""
+GraphQL mirror of [`MediaKind`].
+"""
+enum MediaKind {
+	VIDEO
+	AUDIO
+}
+
+scalar MediaTimeRange
+
+scalar MediaTimestamp
+
+type ObjectDetection {
+	detection: Detection!
+	bbox: BoundingBox
+}
+
+type PersonInstanceMaskDetection {
+	bbox: BoundingBox!
+	confidence: Float!
+	instanceIndex: Int!
+	dimensions: Dimensions!
+	byteLen: Int!
+}
+
+type PersonSegmentationMask {
+	bbox: BoundingBox!
+	confidence: Float!
+	dimensions: Dimensions!
+	byteLen: Int!
+}
+
+type Point2D {
+	x: Float!
+	y: Float!
+}
+
+type Provenance {
+	modelName: String
+	modelVersion: String
+	promptVersion: String
+	indexerVersion: String
+	isEmpty: Boolean!
+}
+
+type Query {
+	media(id: ID!): Media
+	video(id: ID!): Video
+	videoTrack(id: ID!): VideoTrack
+	scene(id: ID!): Scene
+	keyframe(id: ID!): Keyframe
+	audio(id: ID!): Audio
+	audioTrack(id: ID!): AudioTrack
+	audioSegment(id: ID!): AudioSegment
+	subtitle(id: ID!): Subtitle
+	subtitleTrack(id: ID!): SubtitleTrack
+	subtitleCue(id: ID!): SubtitleCue
+	speaker(id: ID!): Speaker
+	watchedLocation(id: ID!): WatchedLocation
+	userTag(id: ID!): UserTag
+	sceneAnnotation(id: ID!): SceneAnnotation
+	mediaList: [Media!]!
+	watchedLocations: [WatchedLocation!]!
+	userTags: [UserTag!]!
+	"""
+	Derived coarse stage for the given video status / errors. The
+	real derivation runs on `VideoTrack` server-side; this is a
+	schema anchor so the enum is reachable in the SDL.
+	"""
+	videoIndexStageFor: VideoIndexStage
+	"""
+	Derived coarse stage for the given audio status / errors.
+	"""
+	audioIndexStageFor: AudioIndexStage
+	"""
+	Derived coarse stage for the given subtitle status / errors.
+	"""
+	subtitleIndexStageFor: SubtitleIndexStage
+}
+
+type Rational {
+	num: Int!
+	den: Int!
+}
+
+type Rect {
+	x: Int!
+	y: Int!
+	width: Int!
+	height: Int!
+}
+
+type Rgba {
+	r: Int!
+	g: Int!
+	b: Int!
+	a: Int!
+	bits: Int!
+}
+
+type SaliencyRegion {
+	bbox: BoundingBox!
+	confidence: Float!
+}
+
+"""
+GraphQL mirror of [`ScanStatus`].
+"""
+enum ScanStatus {
+	OK
+	PARTIAL
+	FAILED
+}
+
+type Scene {
+	id: ID!
+	parent: ID!
+	index: Int!
+	span: MediaTimeRange!
+	detector: SceneDetector!
+	keyframes: [ID!]!
+	description: String
+}
+
+type SceneAnnotation {
+	id: ID!
+	scene: ID!
+	isFavorite: Boolean!
+	userTags: [ID!]!
+	rating: Int
+	note: String
+	updatedAt: JiffTimestamp!
+}
+
+"""
+GraphQL mirror of [`SceneDetector`].
+
+Note: `SceneDetector` is `#[non_exhaustive]`. The `_NonExhaustive`
+wildcard arm in the From impl below catches any future variant — at
+which point the mirror must add the corresponding GraphQL variant.
+"""
+enum SceneDetector {
+	HISTOGRAM
+	PHASH
+	THRESHOLD
+	CONTENT
+	ADAPTIVE
+	MANUAL
+}
+
+type Speaker {
+	id: ID!
+	parent: ID!
+	clusterId: Int!
+	name: String
+	speechDuration: MediaTimestamp
+}
+
+type SubjectDetection {
+	detection: Detection!
+	bbox: BoundingBox!
+}
+
+type Subtitle {
+	id: ID!
+	parent: ID!
+	tracks: [ID!]!
+	trackProgress: SubtitleIndexProgress!
+}
+
+type SubtitleCue {
+	id: ID!
+	parent: ID!
+	index: Int!
+	span: MediaTimeRange!
+	text: LocalizedText!
+	styledText: String
+	imageByteLen: Int!
+	ocrText: LocalizedText!
+	isBlank: Boolean!
+}
+
+type SubtitleIndexProgress {
+	total: Int!
+	indexed: Int!
+	failed: Int!
+}
+
+"""
+GraphQL mirror of [`SubtitleIndexStage`].
+"""
+enum SubtitleIndexStage {
+	PENDING
+	TRACKS_DISCOVERED
+	CUES_EXTRACTED
+	OCR
+	SEARCH_INDEXED
+	DONE
+	FAILED
+}
+
+type SubtitleIndexStatus {
+	bits: Int!
+	flags: [String!]!
+	"""
+	`true` iff every stage bit in
+	`SubtitleIndexStatus::fully_indexed_mask(requires_ocr)` is set.
+	Pass `requires_ocr = true` for image-based codecs (PGS/DVBSUB).
+	"""
+	isFullyIndexed(requiresOcr: Boolean!): Boolean!
+}
+
+"""
+GraphQL mirror of [`SubtitleKind`].
+"""
+enum SubtitleKind {
+	FULL_DIALOGUE
+	FORCED_NARRATIVE
+	COMMENTARY_TEXT
+}
+
+type SubtitleTrack {
+	id: ID!
+	parent: ID!
+	streamIndex: Int
+	containerTrackId: String
+	codec: String
+	format: String
+	origin: String
+	language: String
+	title: String
+	isImageBased: Boolean!
+	disposition: Int!
+	isPrimary: Boolean!
+	autoSelected: Boolean!
+	duration: MediaTimestamp
+	cueCount: Int!
+	cues: [ID!]!
+	provenance: Provenance!
+	sourcePath: Location
+	sourceChecksum: FileChecksum
+	characterEncoding: String
+	bomPresent: Boolean!
+	isSdh: Boolean!
+	isClosedCaption: Boolean!
+	isTranslation: Boolean!
+	kind: SubtitleKind!
+	coverageRatio: Float
+	isEmpty: Boolean!
+	firstCue: MediaTimestamp
+	lastCue: MediaTimestamp
+	indexStatus: SubtitleIndexStatus!
+	indexErrors: [ErrorInfo!]!
+}
+
+type TextDetection {
+	text: String!
+	confidence: Float!
+	bbox: BoundingBox!
+}
+
+type UserTag {
+	id: ID!
+	name: String!
+	color: Rgba
+	createdAt: JiffTimestamp!
+}
+
+scalar Uuid7
+
+type Video {
+	id: ID!
+	totalScenes: Int!
+	tracks: [ID!]!
+	trackProgress: VideoIndexProgress!
+}
+
+type VideoCodec {
+	"""
+	Canonical variant tag (`H264`, `H265`, `OTHER`, …).
+	"""
+	tag: String!
+	"""
+	Wire-preserved slug for `OTHER`; `null` for named variants.
+	"""
+	other: String
+}
+
+type VideoIndexProgress {
+	total: Int!
+	indexed: Int!
+	failed: Int!
+	hasFailures: Boolean!
+}
+
+"""
+GraphQL mirror of [`VideoIndexStage`].
+"""
+enum VideoIndexStage {
+	PENDING
+	PROBED
+	SCENE_DETECTED
+	KEYFRAME_EXTRACTED
+	ANALYZED
+	EMBEDDED
+	DONE
+	FAILED
+}
+
+type VideoIndexStatus {
+	"""
+	Raw flag word.
+	"""
+	bits: Int!
+	"""
+	Named flag set, sorted by bit value.
+	"""
+	flags: [String!]!
+	"""
+	`true` iff every stage bit in `VideoIndexStatus::fully_indexed_mask()` is set.
+	"""
+	isFullyIndexed: Boolean!
+}
+
+type VideoTrack {
+	id: ID!
+	parent: ID!
+	streamIndex: Int
+	containerTrackId: String
+	startPts: MediaTimestamp
+	duration: MediaTimestamp
+	codec: VideoCodec!
+	profile: String
+	level: Int
+	bitRate: String!
+	nbFrames: String
+	hasBFrames: Boolean!
+	closedGop: Boolean
+	bitsPerRawSample: Int
+	dimensions: Dimensions!
+	visibleRect: Rect
+	sampleAspectRatio: Rational!
+	pixelFormat: Int!
+	color: ColorInfo!
+	hdrStatic: HdrStaticMetadata
+	rotation: Int!
+	frameRate: FrameRate!
+	fieldOrder: Int!
+	stereoMode: Int
+	dovi: DolbyVisionConfig
+	hasEmbeddedCaptions: Boolean!
+	disposition: Int!
+	isPrimary: Boolean!
+	autoSelected: Boolean!
+	scenes: [ID!]!
+	indexStatus: VideoIndexStatus!
+	indexErrors: [ErrorInfo!]!
+	provenance: Provenance!
+}
+
+type VlmAnalysis {
+	categories: [LocalizedText!]!
+	description: LocalizedText!
+	tags: [LocalizedText!]!
+	shotType: String
+	objects: [LocalizedText!]!
+	subjects: [LocalizedText!]!
+	mood: [LocalizedText!]!
+	emotion: [LocalizedText!]!
+	lighting: [LocalizedText!]!
+}
+
+type WatchedLocation {
+	id: ID!
+	root: Location!
+	isRecursive: Boolean!
+	isEnabled: Boolean!
+	isEjectable: Boolean!
+	addedAt: JiffTimestamp!
+	lastReconciledAt: JiffTimestamp
+	lastReconcileStatus: ScanStatus
+	lastError: ErrorInfo
+}
+
+type Word {
+	text: String!
+	span: MediaTimeRange!
+	score: Float!
+	language: String
+}
+
+"""
+Directs the executor to include this field or fragment only when the `if` argument is true.
+"""
+directive @include(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
+"""
+Directs the executor to skip this field or fragment when the `if` argument is true.
+"""
+directive @skip(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
+schema {
+	query: Query
+}
