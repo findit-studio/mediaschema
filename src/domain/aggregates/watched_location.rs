@@ -117,7 +117,7 @@ impl std::error::Error for WatchedLocationError {}
 // Tests
 // ===========================================================================
 
-#[cfg(test)]
+#[cfg(all(test, feature = "std"))]
 mod tests {
   use super::*;
   use crate::domain::ErrorCode;

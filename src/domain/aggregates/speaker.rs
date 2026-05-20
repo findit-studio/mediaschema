@@ -112,7 +112,7 @@ impl std::error::Error for SpeakerError {}
 // Tests
 // ===========================================================================
 
-#[cfg(test)]
+#[cfg(all(test, feature = "std"))]
 mod tests {
   use super::*;
 

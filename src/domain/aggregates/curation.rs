@@ -140,7 +140,7 @@ impl std::error::Error for SceneAnnotationError {}
 // Tests
 // ===========================================================================
 
-#[cfg(test)]
+#[cfg(all(test, feature = "std"))]
 mod tests {
   use super::*;
 
