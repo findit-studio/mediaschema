@@ -106,25 +106,16 @@ impl Default for IndexProgress {
 
 /// Error returned when [`IndexProgress::try_new`] cannot uphold the
 /// `indexed + failed <= total` invariant. Unit-only enum.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant, thiserror::Error)]
 #[non_exhaustive]
 pub enum IndexProgressError {
   /// `indexed + failed > total` — would overcount.
+  #[error("IndexProgress: indexed + failed must not exceed total")]
   SumExceedsTotal,
   /// `indexed + failed` overflows `u32` — definitely overcounts.
+  #[error("IndexProgress: indexed + failed overflows u32")]
   SumOverflows,
 }
-
-impl core::fmt::Display for IndexProgressError {
-  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-    match self {
-      Self::SumExceedsTotal => f.write_str("IndexProgress: indexed + failed must not exceed total"),
-      Self::SumOverflows => f.write_str("IndexProgress: indexed + failed overflows u32"),
-    }
-  }
-}
-
-impl core::error::Error for IndexProgressError {}
 
 // ---------------------------------------------------------------------------
 // Video — the thin facet aggregate
@@ -240,22 +231,13 @@ impl<Id> Video<Id> {
 
 /// Error returned when [`Video::try_new`] cannot uphold the non-nil-id
 /// invariant. Unit-only enum.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant, thiserror::Error)]
 #[non_exhaustive]
 pub enum VideoError {
   /// The supplied `id` was the nil sentinel — not a real identity.
+  #[error("Video facet id must not be the nil UUID")]
   NilId,
 }
-
-impl core::fmt::Display for VideoError {
-  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-    match self {
-      Self::NilId => f.write_str("Video facet id must not be the nil UUID"),
-    }
-  }
-}
-
-impl core::error::Error for VideoError {}
 
 // ===========================================================================
 // Tests

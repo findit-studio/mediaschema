@@ -169,26 +169,17 @@ impl<Id> Scene<Id> {
 /// (The `span.start <= span.end` invariant from the locked spec is
 /// enforced upstream by `mediatime::TimeRange`'s own constructors —
 /// not represented here.)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant, thiserror::Error)]
 #[non_exhaustive]
 pub enum SceneError {
   /// Supplied `id` was the nil sentinel.
+  #[error("Scene id must not be the nil UUID")]
   NilId,
   /// Supplied `parent` was the nil sentinel — orphan scene with no
   /// `VideoTrack`.
+  #[error("Scene parent (VideoTrack) must not be the nil UUID")]
   NilParent,
 }
-
-impl core::fmt::Display for SceneError {
-  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-    match self {
-      Self::NilId => f.write_str("Scene id must not be the nil UUID"),
-      Self::NilParent => f.write_str("Scene parent (VideoTrack) must not be the nil UUID"),
-    }
-  }
-}
-
-impl core::error::Error for SceneError {}
 
 // ===========================================================================
 // Tests
