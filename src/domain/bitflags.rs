@@ -66,25 +66,25 @@ bitflags! {
 }
 
 impl VideoIndexStatus {
-    /// The "fully indexed" mask — every stage bit set.
-    #[inline]
-    pub const fn fully_indexed_mask() -> Self {
-        Self::from_bits_truncate(
-            Self::PROBED.bits()
-                | Self::SCENE_DETECTED.bits()
-                | Self::KEYFRAME_EXTRACTED.bits()
-                | Self::VLM_ANALYZED.bits()
-                | Self::APPLE_VISION_ANALYZED.bits()
-                | Self::TEXT_EMBEDDING_FINISHED.bits()
-                | Self::SCENE_EMBEDDING_FINISHED.bits(),
-        )
-    }
+  /// The "fully indexed" mask — every stage bit set.
+  #[inline]
+  pub const fn fully_indexed_mask() -> Self {
+    Self::from_bits_truncate(
+      Self::PROBED.bits()
+        | Self::SCENE_DETECTED.bits()
+        | Self::KEYFRAME_EXTRACTED.bits()
+        | Self::VLM_ANALYZED.bits()
+        | Self::APPLE_VISION_ANALYZED.bits()
+        | Self::TEXT_EMBEDDING_FINISHED.bits()
+        | Self::SCENE_EMBEDDING_FINISHED.bits(),
+    )
+  }
 
-    /// True iff every stage bit is set.
-    #[inline]
-    pub fn is_fully_indexed(&self) -> bool {
-        self.contains(Self::fully_indexed_mask())
-    }
+  /// True iff every stage bit is set.
+  #[inline]
+  pub fn is_fully_indexed(&self) -> bool {
+    self.contains(Self::fully_indexed_mask())
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -116,27 +116,27 @@ bitflags! {
 }
 
 impl AudioIndexStatus {
-    #[inline]
-    pub const fn fully_indexed_mask() -> Self {
-        Self::from_bits_truncate(
-            Self::EXTRACTED.bits()
-                | Self::CLASSIFIED.bits()
-                | Self::VAD_DONE.bits()
-                | Self::STT_DONE.bits()
-                | Self::SPEAKER_DONE.bits()
-                | Self::LLM_DONE.bits()
-                | Self::TEXT_EMBED.bits()
-                | Self::CED_DONE.bits()
-                | Self::CLAP_DONE.bits()
-                | Self::EBUR128_DONE.bits()
-                | Self::FPRINT_DONE.bits(),
-        )
-    }
+  #[inline]
+  pub const fn fully_indexed_mask() -> Self {
+    Self::from_bits_truncate(
+      Self::EXTRACTED.bits()
+        | Self::CLASSIFIED.bits()
+        | Self::VAD_DONE.bits()
+        | Self::STT_DONE.bits()
+        | Self::SPEAKER_DONE.bits()
+        | Self::LLM_DONE.bits()
+        | Self::TEXT_EMBED.bits()
+        | Self::CED_DONE.bits()
+        | Self::CLAP_DONE.bits()
+        | Self::EBUR128_DONE.bits()
+        | Self::FPRINT_DONE.bits(),
+    )
+  }
 
-    #[inline]
-    pub fn is_fully_indexed(&self) -> bool {
-        self.contains(Self::fully_indexed_mask())
-    }
+  #[inline]
+  pub fn is_fully_indexed(&self) -> bool {
+    self.contains(Self::fully_indexed_mask())
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -159,20 +159,38 @@ bitflags! {
 }
 
 impl SubtitleIndexStatus {
-    #[inline]
-    pub const fn fully_indexed_mask() -> Self {
-        Self::from_bits_truncate(
-            Self::TRACKS_DISCOVERED.bits()
-                | Self::CUES_EXTRACTED.bits()
-                | Self::OCR_DONE.bits()
-                | Self::SEARCH_INDEXED.bits(),
-        )
+  /// The "fully indexed" mask, parameterised by whether the track's
+  /// codec **requires** OCR (i.e. `mediaframe::SubtitleCodec::is_image_based()`
+  /// returns `Some(true)`).
+  ///
+  /// - `requires_ocr = true`: `TRACKS_DISCOVERED | CUES_EXTRACTED |
+  ///   OCR_DONE | SEARCH_INDEXED` (the four-bit complete set).
+  /// - `requires_ocr = false`: `TRACKS_DISCOVERED | CUES_EXTRACTED |
+  ///   SEARCH_INDEXED` — OCR_DONE is irrelevant for text-based
+  ///   subtitles (SRT/VTT/ASS/…) and must NOT block completion.
+  ///
+  /// The prior unconditional inclusion of `OCR_DONE` meant every text
+  /// subtitle track stayed permanently incomplete, poisoning progress
+  /// rollups and re-index decisions.
+  #[inline]
+  pub const fn fully_indexed_mask(requires_ocr: bool) -> Self {
+    let base =
+      Self::TRACKS_DISCOVERED.bits() | Self::CUES_EXTRACTED.bits() | Self::SEARCH_INDEXED.bits();
+    if requires_ocr {
+      Self::from_bits_truncate(base | Self::OCR_DONE.bits())
+    } else {
+      Self::from_bits_truncate(base)
     }
+  }
 
-    #[inline]
-    pub fn is_fully_indexed(&self) -> bool {
-        self.contains(Self::fully_indexed_mask())
-    }
+  /// True iff every stage bit required by the effective mask is set.
+  /// Pass `requires_ocr = true` for image-based codecs (PGS/DVBSUB/
+  /// DVDSUB/XSUB per FFmpeg's `AV_CODEC_PROP_BITMAP_SUB`) and `false`
+  /// for text-based codecs (SRT/VTT/ASS/…).
+  #[inline]
+  pub fn is_fully_indexed(&self, requires_ocr: bool) -> bool {
+    self.contains(Self::fully_indexed_mask(requires_ocr))
+  }
 }
 
 // ===========================================================================
@@ -181,91 +199,115 @@ impl SubtitleIndexStatus {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+  use super::*;
 
-    #[test]
-    fn media_error_flags_bit_values() {
-        assert_eq!(MediaErrorFlags::VIDEO_ERROR.bits(), 0x0001);
-        assert_eq!(MediaErrorFlags::AUDIO_ERROR.bits(), 0x0002);
-        assert_eq!(MediaErrorFlags::SUBTITLE_ERROR.bits(), 0x0004);
-    }
+  #[test]
+  fn media_error_flags_bit_values() {
+    assert_eq!(MediaErrorFlags::VIDEO_ERROR.bits(), 0x0001);
+    assert_eq!(MediaErrorFlags::AUDIO_ERROR.bits(), 0x0002);
+    assert_eq!(MediaErrorFlags::SUBTITLE_ERROR.bits(), 0x0004);
+  }
 
-    #[test]
-    fn video_index_status_verified_vs_findit_proto() {
-        // Exact values from findit-proto::database::video::VideoIndexStatus.
-        assert_eq!(VideoIndexStatus::PROBED.bits(), 0x01);
-        assert_eq!(VideoIndexStatus::SCENE_DETECTED.bits(), 0x02);
-        assert_eq!(VideoIndexStatus::KEYFRAME_EXTRACTED.bits(), 0x04);
-        // 0x08 is a reserved gap.
-        assert_eq!(VideoIndexStatus::VLM_ANALYZED.bits(), 0x10);
-        assert_eq!(VideoIndexStatus::APPLE_VISION_ANALYZED.bits(), 0x20);
-        assert_eq!(VideoIndexStatus::TEXT_EMBEDDING_FINISHED.bits(), 0x40);
-        assert_eq!(VideoIndexStatus::SCENE_EMBEDDING_FINISHED.bits(), 0x80);
-        // Distinct stages (the schema-locked invariant):
-        assert_ne!(
-            VideoIndexStatus::VLM_ANALYZED,
-            VideoIndexStatus::APPLE_VISION_ANALYZED
-        );
-        assert_ne!(
-            VideoIndexStatus::TEXT_EMBEDDING_FINISHED,
-            VideoIndexStatus::SCENE_EMBEDDING_FINISHED
-        );
-    }
+  #[test]
+  fn video_index_status_verified_vs_findit_proto() {
+    // Exact values from findit-proto::database::video::VideoIndexStatus.
+    assert_eq!(VideoIndexStatus::PROBED.bits(), 0x01);
+    assert_eq!(VideoIndexStatus::SCENE_DETECTED.bits(), 0x02);
+    assert_eq!(VideoIndexStatus::KEYFRAME_EXTRACTED.bits(), 0x04);
+    // 0x08 is a reserved gap.
+    assert_eq!(VideoIndexStatus::VLM_ANALYZED.bits(), 0x10);
+    assert_eq!(VideoIndexStatus::APPLE_VISION_ANALYZED.bits(), 0x20);
+    assert_eq!(VideoIndexStatus::TEXT_EMBEDDING_FINISHED.bits(), 0x40);
+    assert_eq!(VideoIndexStatus::SCENE_EMBEDDING_FINISHED.bits(), 0x80);
+    // Distinct stages (the schema-locked invariant):
+    assert_ne!(
+      VideoIndexStatus::VLM_ANALYZED,
+      VideoIndexStatus::APPLE_VISION_ANALYZED
+    );
+    assert_ne!(
+      VideoIndexStatus::TEXT_EMBEDDING_FINISHED,
+      VideoIndexStatus::SCENE_EMBEDDING_FINISHED
+    );
+  }
 
-    #[test]
-    fn video_index_status_fully_indexed() {
-        let mask = VideoIndexStatus::fully_indexed_mask();
-        assert!(mask.is_fully_indexed());
-        // Bit 0x08 is reserved — the mask MUST NOT include it.
-        assert_eq!(mask.bits() & 0x08, 0);
-        // Every named bit is in the mask.
-        for bit in [
-            VideoIndexStatus::PROBED,
-            VideoIndexStatus::SCENE_DETECTED,
-            VideoIndexStatus::KEYFRAME_EXTRACTED,
-            VideoIndexStatus::VLM_ANALYZED,
-            VideoIndexStatus::APPLE_VISION_ANALYZED,
-            VideoIndexStatus::TEXT_EMBEDDING_FINISHED,
-            VideoIndexStatus::SCENE_EMBEDDING_FINISHED,
-        ] {
-            assert!(mask.contains(bit), "fully_indexed_mask must contain {bit:?}");
-        }
-        // An empty status is not fully indexed.
-        assert!(!VideoIndexStatus::empty().is_fully_indexed());
+  #[test]
+  fn video_index_status_fully_indexed() {
+    let mask = VideoIndexStatus::fully_indexed_mask();
+    assert!(mask.is_fully_indexed());
+    // Bit 0x08 is reserved — the mask MUST NOT include it.
+    assert_eq!(mask.bits() & 0x08, 0);
+    // Every named bit is in the mask.
+    for bit in [
+      VideoIndexStatus::PROBED,
+      VideoIndexStatus::SCENE_DETECTED,
+      VideoIndexStatus::KEYFRAME_EXTRACTED,
+      VideoIndexStatus::VLM_ANALYZED,
+      VideoIndexStatus::APPLE_VISION_ANALYZED,
+      VideoIndexStatus::TEXT_EMBEDDING_FINISHED,
+      VideoIndexStatus::SCENE_EMBEDDING_FINISHED,
+    ] {
+      assert!(
+        mask.contains(bit),
+        "fully_indexed_mask must contain {bit:?}"
+      );
     }
+    // An empty status is not fully indexed.
+    assert!(!VideoIndexStatus::empty().is_fully_indexed());
+  }
 
-    #[test]
-    fn audio_index_status_verified_11_bit_processing_stage() {
-        // The full 11-bit ProcessingStage from
-        // findit-proto::database::audio::ProcessingStage.
-        assert_eq!(AudioIndexStatus::EXTRACTED.bits(), 0x001);
-        assert_eq!(AudioIndexStatus::CLASSIFIED.bits(), 0x002);
-        assert_eq!(AudioIndexStatus::VAD_DONE.bits(), 0x004);
-        assert_eq!(AudioIndexStatus::STT_DONE.bits(), 0x008);
-        assert_eq!(AudioIndexStatus::SPEAKER_DONE.bits(), 0x010);
-        assert_eq!(AudioIndexStatus::LLM_DONE.bits(), 0x020);
-        assert_eq!(AudioIndexStatus::TEXT_EMBED.bits(), 0x040);
-        assert_eq!(AudioIndexStatus::CED_DONE.bits(), 0x080);
-        assert_eq!(AudioIndexStatus::CLAP_DONE.bits(), 0x100);
-        assert_eq!(AudioIndexStatus::EBUR128_DONE.bits(), 0x200);
-        assert_eq!(AudioIndexStatus::FPRINT_DONE.bits(), 0x400);
-        assert_eq!(AudioIndexStatus::fully_indexed_mask().bits(), 0x7FF);
-    }
+  #[test]
+  fn subtitle_fully_indexed_mask_branches_on_requires_ocr() {
+    // Text subtitles: OCR_DONE NOT required.
+    let text_mask = SubtitleIndexStatus::fully_indexed_mask(false);
+    assert_eq!(text_mask.bits(), 0x0B); // TRACKS|CUES|SEARCH (0x01|0x02|0x08)
+    assert!(!text_mask.contains(SubtitleIndexStatus::OCR_DONE));
+    // Image-based subtitles: OCR_DONE required.
+    let img_mask = SubtitleIndexStatus::fully_indexed_mask(true);
+    assert_eq!(img_mask.bits(), 0x0F); // TRACKS|CUES|OCR|SEARCH
+    assert!(img_mask.contains(SubtitleIndexStatus::OCR_DONE));
+    // A text-track status that's TRACKS|CUES|SEARCH must read as
+    // fully indexed for `requires_ocr = false`, NOT for `true`.
+    let text_status = SubtitleIndexStatus::TRACKS_DISCOVERED
+      | SubtitleIndexStatus::CUES_EXTRACTED
+      | SubtitleIndexStatus::SEARCH_INDEXED;
+    assert!(text_status.is_fully_indexed(false));
+    assert!(!text_status.is_fully_indexed(true));
+  }
 
-    #[test]
-    fn subtitle_index_status_verified_names_and_bits() {
-        assert_eq!(SubtitleIndexStatus::TRACKS_DISCOVERED.bits(), 0x01);
-        assert_eq!(SubtitleIndexStatus::CUES_EXTRACTED.bits(), 0x02);
-        assert_eq!(SubtitleIndexStatus::OCR_DONE.bits(), 0x04);
-        assert_eq!(SubtitleIndexStatus::SEARCH_INDEXED.bits(), 0x08);
-        assert_eq!(SubtitleIndexStatus::fully_indexed_mask().bits(), 0x0F);
-    }
+  #[test]
+  fn audio_index_status_verified_11_bit_processing_stage() {
+    // The full 11-bit ProcessingStage from
+    // findit-proto::database::audio::ProcessingStage.
+    assert_eq!(AudioIndexStatus::EXTRACTED.bits(), 0x001);
+    assert_eq!(AudioIndexStatus::CLASSIFIED.bits(), 0x002);
+    assert_eq!(AudioIndexStatus::VAD_DONE.bits(), 0x004);
+    assert_eq!(AudioIndexStatus::STT_DONE.bits(), 0x008);
+    assert_eq!(AudioIndexStatus::SPEAKER_DONE.bits(), 0x010);
+    assert_eq!(AudioIndexStatus::LLM_DONE.bits(), 0x020);
+    assert_eq!(AudioIndexStatus::TEXT_EMBED.bits(), 0x040);
+    assert_eq!(AudioIndexStatus::CED_DONE.bits(), 0x080);
+    assert_eq!(AudioIndexStatus::CLAP_DONE.bits(), 0x100);
+    assert_eq!(AudioIndexStatus::EBUR128_DONE.bits(), 0x200);
+    assert_eq!(AudioIndexStatus::FPRINT_DONE.bits(), 0x400);
+    assert_eq!(AudioIndexStatus::fully_indexed_mask().bits(), 0x7FF);
+  }
 
-    #[test]
-    fn bitflags_default_is_empty() {
-        assert_eq!(VideoIndexStatus::default(), VideoIndexStatus::empty());
-        assert_eq!(AudioIndexStatus::default(), AudioIndexStatus::empty());
-        assert_eq!(SubtitleIndexStatus::default(), SubtitleIndexStatus::empty());
-        assert_eq!(MediaErrorFlags::default(), MediaErrorFlags::empty());
-    }
+  #[test]
+  fn subtitle_index_status_verified_names_and_bits() {
+    assert_eq!(SubtitleIndexStatus::TRACKS_DISCOVERED.bits(), 0x01);
+    assert_eq!(SubtitleIndexStatus::CUES_EXTRACTED.bits(), 0x02);
+    assert_eq!(SubtitleIndexStatus::OCR_DONE.bits(), 0x04);
+    assert_eq!(SubtitleIndexStatus::SEARCH_INDEXED.bits(), 0x08);
+    // Both shapes of fully_indexed_mask:
+    assert_eq!(SubtitleIndexStatus::fully_indexed_mask(true).bits(), 0x0F);
+    assert_eq!(SubtitleIndexStatus::fully_indexed_mask(false).bits(), 0x0B);
+  }
+
+  #[test]
+  fn bitflags_default_is_empty() {
+    assert_eq!(VideoIndexStatus::default(), VideoIndexStatus::empty());
+    assert_eq!(AudioIndexStatus::default(), AudioIndexStatus::empty());
+    assert_eq!(SubtitleIndexStatus::default(), SubtitleIndexStatus::empty());
+    assert_eq!(MediaErrorFlags::default(), MediaErrorFlags::empty());
+  }
 }
