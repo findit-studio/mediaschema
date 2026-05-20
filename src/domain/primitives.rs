@@ -29,14 +29,15 @@ use uuid::Uuid;
 ///
 /// ## Construction
 ///
-/// Public construction goes through **validating** entry points only:
-/// [`Uuid7::new`] (fresh v7), [`Uuid7::try_from_bytes`], `TryFrom<Uuid>`,
-/// and `FromStr` — all of which reject nil and non-v7 values. There is no
-/// `Default` impl: a UUIDv7 has no meaningful zero, and the nil sentinel
-/// must be requested explicitly via [`Uuid7::nil`]. Unvalidated paths
-/// (`from_bytes_unchecked`) exist for wire-codec round-trips that have
-/// already established the byte sequence is a v7 — they are documented as
-/// caller-asserted and not part of the casual surface.
+/// Every *public* construction path is **validating**: [`Uuid7::new`]
+/// (fresh v7), [`Uuid7::try_from_bytes`], `TryFrom<Uuid>`, and `FromStr` —
+/// all of which reject nil and non-v7 values. There is no `Default` impl.
+/// The nil sentinel (`Uuid7::nil`) and the unchecked byte ctor
+/// (`Uuid7::from_bytes_unchecked`) are `pub(crate)`, reserved for the
+/// generated proto adapter's wire round-trip; the locked schema expresses
+/// "unassigned" via `Option<Uuid7>` at field boundaries, so external code
+/// has no need for either escape. This makes the locked invariant —
+/// non-nil + v7 — unreachable through the public API.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Uuid7(Uuid);
 
@@ -103,19 +104,26 @@ impl Uuid7 {
     Self(Uuid::now_v7())
   }
 
-  /// The nil UUID (all-zero bits). **Sentinel** for "never assigned" —
-  /// projection adapters / wire round-trips occasionally need an explicit
-  /// "unset" marker even though it is not a real identity. Constructing
-  /// the nil value requires calling this method explicitly (`Default` is
-  /// intentionally **not** implemented).
+  /// The nil UUID (all-zero bits) — `pub(crate)` sentinel reserved for
+  /// **wire-codec internals** (e.g. the generated proto adapter signalling
+  /// an unset oneof during round-trip). The locked schema represents
+  /// absence as `Option<Uuid7>` at every domain field boundary, so this is
+  /// deliberately unreachable from outside this crate.
+  ///
+  /// Currently only the internal test suite exercises this; the
+  /// `dead_code` allow is held for the upcoming proto adapter and the
+  /// `Location::try_local_uuid7` nil-rejection regression test.
   #[inline]
-  pub const fn nil() -> Self {
+  #[allow(dead_code)]
+  pub(crate) const fn nil() -> Self {
     Self(Uuid::nil())
   }
 
-  /// Is this the nil sentinel?
+  /// Is this the nil sentinel? Useful for the same wire-codec paths that
+  /// produce the sentinel; domain code should not test for it.
   #[inline]
-  pub fn is_nil(&self) -> bool {
+  #[allow(dead_code)]
+  pub(crate) fn is_nil(&self) -> bool {
     self.0.is_nil()
   }
 
@@ -138,15 +146,22 @@ impl Uuid7 {
     validate_v7(Uuid::from_bytes(bytes))
   }
 
-  /// **Unchecked** construction from raw 16 bytes — the caller asserts
-  /// the layout is a non-nil UUIDv7. The only legitimate use is wire
-  /// round-trips where the byte sequence has already been validated on
-  /// the producing side; everywhere else, use [`Uuid7::try_from_bytes`].
+  /// **Unchecked** construction from raw 16 bytes — `pub(crate)` and
+  /// reserved for the proto round-trip path, where the producing side
+  /// already validated the layout. External callers must use
+  /// [`Uuid7::try_from_bytes`] (validating) or `TryFrom<Uuid>` /
+  /// `FromStr` — making the unchecked path crate-private is what closes
+  /// off "construct a nil/v4 Uuid7 from arbitrary bytes" from the public
+  /// API.
   ///
   /// This is **safe** Rust (no memory-safety hazard), but it can violate
-  /// the locked invariant — callers carry that obligation.
+  /// the locked invariant — internal callers carry that obligation.
+  ///
+  /// Held with `#[allow(dead_code)]` for the upcoming proto adapter; the
+  /// in-crate test suite exercises the round-trip semantics.
   #[inline]
-  pub const fn from_bytes_unchecked(bytes: [u8; 16]) -> Self {
+  #[allow(dead_code)]
+  pub(crate) const fn from_bytes_unchecked(bytes: [u8; 16]) -> Self {
     Self(Uuid::from_bytes(bytes))
   }
 }
@@ -279,6 +294,31 @@ impl Rgba {
 // Location — structured oneof (copied from findit-proto::common::location)
 // ---------------------------------------------------------------------------
 
+/// Error returned when a [`Location`] cannot be constructed because the
+/// payload violates a real-file invariant.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum LocationError {
+  /// The path-components slice was empty (a volume root with no path
+  /// segments is not a file location).
+  EmptyPath,
+  /// The supplied volume id was the [`Uuid7`] nil sentinel — only valid
+  /// for the wire-codec unset path, not for a real local location.
+  NilVolume,
+}
+
+impl fmt::Display for LocationError {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    match self {
+      Self::EmptyPath => f.write_str("Location::Local requires a non-empty path"),
+      Self::NilVolume => f.write_str("Location::Local requires a non-nil volume id"),
+    }
+  }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for LocationError {}
+
 /// File location — a structured oneof, **not** an opaque path string.
 ///
 /// Copied verbatim from `findit-proto::common::location` per locked
@@ -286,8 +326,19 @@ impl Rgba {
 /// drives keep one stable identity across eject/replug + mount-point changes.
 /// Object-storage support (`Object { store, bucket, key }` + a
 /// `StorageProvider` aggregate) is deferred until a real S3/R2 consumer
-/// appears (the `mediaframe::Language`-style boundary applies — `#[non_exhaustive]`
-/// keeps it forward-compatible).
+/// appears (the `mediaframe::Language`-style boundary applies —
+/// `#[non_exhaustive]` keeps it forward-compatible).
+///
+/// ## Construction
+///
+/// The `Local` variant is itself `#[non_exhaustive]`, so external callers
+/// cannot use the `Location::Local { volume, components }` literal syntax.
+/// The only public path is [`Location::try_local`], which validates the
+/// payload and returns `Result<Self, LocationError>` — empty path is
+/// always rejected, and for the [`Location<Uuid7>`] specialization, a nil
+/// volume id is also rejected. Combined with `Uuid7::nil()` being
+/// `pub(crate)`, this makes "construct a fake local location"
+/// unreachable from outside this crate.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum Location<Id = Uuid7> {
@@ -295,6 +346,7 @@ pub enum Location<Id = Uuid7> {
   /// path components. Identity is the volume's stable UUID (the old
   /// indexer writes it once to `<mount>/.findit_index/.id`), **not** the
   /// OS mount path (which is volatile across remounts).
+  #[non_exhaustive]
   Local {
     volume: Id,
     components: Vec<SmolStr>,
@@ -305,9 +357,16 @@ pub enum Location<Id = Uuid7> {
 }
 
 impl<Id> Location<Id> {
-  /// Construct a local volume path from components.
+  /// **Internal** infallible builder — bypasses validation. Used by the
+  /// validating `try_local` paths after they've checked invariants, and
+  /// (eventually) by the wire-codec adapter when round-tripping a
+  /// pre-validated oneof. External callers must go through
+  /// [`Location::try_local`].
+  ///
+  /// Held with `#[allow(dead_code)]` for the upcoming proto adapter.
   #[inline]
-  pub fn local<I, S>(volume: Id, components: I) -> Self
+  #[allow(dead_code)]
+  pub(crate) fn local_unchecked<I, S>(volume: Id, components: I) -> Self
   where
     I: IntoIterator<Item = S>,
     S: Into<SmolStr>,
@@ -316,6 +375,44 @@ impl<Id> Location<Id> {
       volume,
       components: components.into_iter().map(Into::into).collect(),
     }
+  }
+}
+
+impl<Id> Location<Id> {
+  /// Generic validating builder: requires a non-empty path.
+  ///
+  /// (Volume-nil validation is type-dependent; see the
+  /// [`Location<Uuid7>`] specialization for the `Uuid7` case.)
+  pub fn try_local<I, S>(volume: Id, components: I) -> Result<Self, LocationError>
+  where
+    I: IntoIterator<Item = S>,
+    S: Into<SmolStr>,
+  {
+    let components: Vec<SmolStr> = components.into_iter().map(Into::into).collect();
+    if components.is_empty() {
+      return Err(LocationError::EmptyPath);
+    }
+    Ok(Self::Local { volume, components })
+  }
+}
+
+impl Location<Uuid7> {
+  /// `Uuid7`-specialized validating builder: also rejects a nil volume id
+  /// (the wire-codec sentinel is `pub(crate)`, so external callers can't
+  /// produce one anyway — this is belt-and-braces).
+  pub fn try_local_uuid7<I, S>(volume: Uuid7, components: I) -> Result<Self, LocationError>
+  where
+    I: IntoIterator<Item = S>,
+    S: Into<SmolStr>,
+  {
+    if volume.is_nil() {
+      return Err(LocationError::NilVolume);
+    }
+    let components: Vec<SmolStr> = components.into_iter().map(Into::into).collect();
+    if components.is_empty() {
+      return Err(LocationError::EmptyPath);
+    }
+    Ok(Self::Local { volume, components })
   }
 }
 
@@ -330,6 +427,30 @@ impl<Id> Location<Id> {
 // ErrorCode — structured error vocabulary (verified vs findit-proto)
 // ---------------------------------------------------------------------------
 
+/// Opaque payload of [`ErrorCode::Unknown`]. The inner `u32` is
+/// `pub(crate)` so external callers cannot construct
+/// `ErrorCode::Unknown(404)` directly — the *only* way to land in
+/// `Unknown` is [`ErrorCode::from_u32`] with a value outside the named
+/// catalog. This keeps `is_unknown()` consistent with `Unknown ⇔ not
+/// canonicalisable`, and prevents
+/// `from_u32(c.as_u32()) != c` ambiguities.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct UnknownErrorCode(pub(crate) u32);
+
+impl UnknownErrorCode {
+  /// The wire `u32` this `Unknown` carries.
+  #[inline]
+  pub const fn get(self) -> u32 {
+    self.0
+  }
+}
+
+impl fmt::Display for UnknownErrorCode {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "Unknown({})", self.0)
+  }
+}
+
 /// Stable error-code vocabulary used inside [`ErrorInfo`].
 ///
 /// HTTP-style codes (400–599) for general protocol errors; domain-specific
@@ -338,11 +459,15 @@ impl<Id> Location<Id> {
 /// wire-stable). `#[non_exhaustive]` — new codes may be added without
 /// breaking domain consumers.
 ///
-/// `Unknown(u32)` preserves any wire code not yet enumerated here so a
-/// future producer's stage signal survives an older mediaschema's
-/// wire→domain→wire round-trip lossless. (Without it, `#[non_exhaustive]`
-/// would only protect source compat, not wire compat — an unrecognised
-/// code would have nowhere to land.)
+/// `Unknown(UnknownErrorCode)` preserves any wire code not yet enumerated
+/// here so a future producer's stage signal survives an older
+/// mediaschema's wire→domain→wire round-trip lossless. The payload type
+/// has a `pub(crate)` field, so callers cannot fabricate
+/// `Unknown(404)` — the *only* path to construct `Unknown` is
+/// [`ErrorCode::from_u32`], which routes recognised codes to their named
+/// variant first. That guarantees: `from_u32(c.as_u32()) == c` for every
+/// publicly constructible `ErrorCode`, and `is_unknown()` is a stable
+/// statement about the code, not an artifact of how it was built.
 ///
 /// The domain error model uses `code` as the *stage-coded* signal in
 /// `index_errors: Vec<ErrorInfo>`; this replaces the dropped per-track
@@ -420,8 +545,10 @@ pub enum ErrorCode {
 
   /// A wire code not enumerated above — preserved verbatim so a wire
   /// → domain → wire round-trip retains the producer's exact stage
-  /// signal across version skew.
-  Unknown(u32),
+  /// signal across version skew. The inner payload is opaque; the only
+  /// way to land here is [`ErrorCode::from_u32`] with an unrecognised
+  /// value.
+  Unknown(UnknownErrorCode),
 }
 
 impl ErrorCode {
@@ -487,7 +614,7 @@ impl ErrorCode {
       Self::CedRequestFailed => 10001,
       Self::CedModelError => 10002,
       // --- Wire-preserved escape ---
-      Self::Unknown(n) => n,
+      Self::Unknown(u) => u.get(),
     }
   }
 
@@ -551,8 +678,10 @@ impl ErrorCode {
       10000 => Self::CedFailed,
       10001 => Self::CedRequestFailed,
       10002 => Self::CedModelError,
-      // Wire value not enumerated — preserve it.
-      other => Self::Unknown(other),
+      // Wire value not enumerated — preserve it. `UnknownErrorCode` has
+      // a `pub(crate)` payload, so this is the only path that can land
+      // in `Unknown`.
+      other => Self::Unknown(UnknownErrorCode(other)),
     }
   }
 
@@ -741,9 +870,9 @@ mod tests {
   // `location_local_builder` test below and at every consumer site.)
 
   #[test]
-  fn location_local_builder() {
+  fn location_try_local_uuid7_happy_path() {
     let vol = Uuid7::new();
-    let l: Location = Location::local(vol, ["Movies", "Holiday"]);
+    let l = Location::try_local_uuid7(vol, ["Movies", "Holiday"]).unwrap();
     match l {
       Location::Local { volume, components } => {
         assert_eq!(volume, vol);
@@ -753,13 +882,59 @@ mod tests {
   }
 
   #[test]
+  fn location_try_local_uuid7_rejects_nil_volume() {
+    // `Uuid7::nil()` is `pub(crate)`; this case can only be reached
+    // inside the crate, which is exactly what the validation guards.
+    let r = Location::try_local_uuid7(Uuid7::nil(), ["Movies"]);
+    assert_eq!(r, Err(LocationError::NilVolume));
+  }
+
+  #[test]
+  fn location_try_local_uuid7_rejects_empty_path() {
+    let vol = Uuid7::new();
+    let r = Location::try_local_uuid7::<core::iter::Empty<&str>, &str>(vol, core::iter::empty());
+    assert_eq!(r, Err(LocationError::EmptyPath));
+  }
+
+  #[test]
+  fn location_generic_try_local_rejects_empty_path() {
+    // For non-Uuid7 Id types the generic try_local still checks the
+    // path; volume-nil is the caller's responsibility.
+    let r = Location::<u32>::try_local::<core::iter::Empty<&str>, &str>(7, core::iter::empty());
+    assert_eq!(r, Err(LocationError::EmptyPath));
+  }
+
+  #[test]
   fn error_code_unknown_round_trips_wire_value() {
-    // The Unknown(u32) variant preserves any code we don't enumerate,
+    // The Unknown(_) variant preserves any code we don't enumerate,
     // so wire→domain→wire is lossless across version skew.
     for wire in [42_u32, 1234, 99_999, u32::MAX] {
       let c = ErrorCode::from_u32(wire);
       assert!(c.is_unknown(), "{wire} should land in Unknown");
       assert_eq!(c.as_u32(), wire, "wire->domain->wire must be identity");
+    }
+  }
+
+  #[test]
+  fn error_code_from_u32_normalises_known_codes() {
+    // Regression for Codex round-2 ambiguity worry: a known wire value
+    // (e.g. 404) must canonicalise to its named variant, never to
+    // Unknown(404). Combined with `UnknownErrorCode` having a
+    // `pub(crate)` payload, this means there is no public path that
+    // produces `Unknown(404)` — the round-trip is identity for every
+    // publicly constructible `ErrorCode`.
+    let canonical = ErrorCode::from_u32(404);
+    assert_eq!(canonical, ErrorCode::NotFound);
+    assert!(!canonical.is_unknown());
+
+    // And the identity round-trip:
+    for c in [
+      ErrorCode::BadRequest,
+      ErrorCode::NotFound,
+      ErrorCode::ProbeCorrupt,
+      ErrorCode::from_u32(99_999), // genuine Unknown
+    ] {
+      assert_eq!(ErrorCode::from_u32(c.as_u32()), c);
     }
   }
 
