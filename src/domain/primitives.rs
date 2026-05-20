@@ -5,9 +5,26 @@
 //! is the 256-bit content hash, **distinct** from `Id` (content ≠ identity).
 //! [`Location`] is the structured oneof copied from
 //! `findit-proto::common::location` (volume-aware).
+//!
+//! ## Encapsulation rules (apply across `domain/*`)
+//!
+//! - **No public fields.** Access goes through `field()` getters and
+//!   `with_field(...)` / `set_field(...)` builders / mutators. Builders are
+//!   `const fn` where possible.
+//! - **No structure variants in enums.** Extracted to a named struct and
+//!   wrapped in a newtype variant (`Local(LocalLocation<Id>)` not
+//!   `Local { volume, components }`).
+//! - **Enum derives.** Unit-only enums get [`derive_more::IsVariant`].
+//!   Enums with a newtype variant additionally get
+//!   `derive_more::{Unwrap, TryUnwrap}` with `#[unwrap(ref, ref_mut)]
+//!   #[try_unwrap(ref, ref_mut)]` so accessors flow as `unwrap_*` /
+//!   `unwrap_*_ref` / `unwrap_*_ref_mut` / `try_unwrap_*` variants.
+//! - **`core::error::Error`**, not `std::error::Error` — stable since
+//!   1.81, MSRV is 1.85.
 
 use core::{fmt, str::FromStr};
 
+use derive_more::{IsVariant, TryUnwrap, Unwrap};
 use smol_str::SmolStr;
 use uuid::Uuid;
 
@@ -43,14 +60,27 @@ pub struct Uuid7(Uuid);
 
 /// Error returned when a value fails the [`Uuid7`] invariants
 /// (non-nil + UUIDv7 layout).
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Unit + two newtype variants, so derives both [`IsVariant`] and the
+/// `Unwrap` / `TryUnwrap` accessor families with shared-ref + mut-ref
+/// flavours per the encapsulation rules.
+#[derive(Debug, Clone, PartialEq, Eq, IsVariant, Unwrap, TryUnwrap)]
+#[unwrap(ref, ref_mut)]
+#[try_unwrap(ref, ref_mut)]
 #[non_exhaustive]
 pub enum Uuid7Error {
   /// The input parsed as a UUID but its byte layout is the all-zero
   /// nil UUID — not a valid identity.
   Nil,
-  /// The input parsed as a UUID but its version field is not `7`.
-  NotV7(usize),
+  /// The input parsed as a UUID but its version field is not `7`. The
+  /// payload is the actual version nibble.
+  ///
+  /// (Variant intentionally not named `NotV7(usize)` — `derive_more`
+  /// snake-cases it through a digit boundary as `not_v_7`, which the
+  /// `Unwrap`/`TryUnwrap`/`IsVariant` accessors then carry verbatim
+  /// (`is_not_v_7`, `try_unwrap_not_v_7_ref`, …). `WrongVersion` gives
+  /// the cleaner accessor names.)
+  WrongVersion(usize),
   /// The input could not be parsed as a UUID at all (string form).
   InvalidUuid(uuid::Error),
 }
@@ -59,15 +89,14 @@ impl fmt::Display for Uuid7Error {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     match self {
       Self::Nil => f.write_str("nil UUID is not a valid Uuid7 identity"),
-      Self::NotV7(v) => write!(f, "expected UUIDv7, got UUIDv{v}"),
+      Self::WrongVersion(v) => write!(f, "expected UUIDv7, got UUIDv{v}"),
       Self::InvalidUuid(e) => write!(f, "invalid UUID: {e}"),
     }
   }
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for Uuid7Error {
-  fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+impl core::error::Error for Uuid7Error {
+  fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
     match self {
       Self::InvalidUuid(e) => Some(e),
       _ => None,
@@ -91,7 +120,7 @@ fn validate_v7(u: Uuid) -> Result<Uuid7, Uuid7Error> {
   // which is what RFC 9562 §4.2 calls out as the version discriminant.
   let v = u.get_version_num();
   if v != 7 {
-    return Err(Uuid7Error::NotV7(v));
+    return Err(Uuid7Error::WrongVersion(v));
   }
   Ok(Uuid7(u))
 }
@@ -129,13 +158,13 @@ impl Uuid7 {
 
   /// Underlying `uuid::Uuid` (read-only; conversion back is `TryFrom`).
   #[inline]
-  pub fn as_uuid(&self) -> Uuid {
+  pub const fn as_uuid(&self) -> Uuid {
     self.0
   }
 
   /// Raw 16-byte representation.
   #[inline]
-  pub fn as_bytes(&self) -> &[u8; 16] {
+  pub const fn as_bytes(&self) -> &[u8; 16] {
     self.0.as_bytes()
   }
 
@@ -207,8 +236,9 @@ impl From<Uuid7> for Uuid {
 /// Locked rule (`schema/primitives.md` r5): content hash **is not identity**.
 /// `FileChecksum` is the **unique index** across `Media`, *never* the primary
 /// key, and a **distinct** newtype — never interchangeable with [`Uuid7`].
+/// Inner bytes are private; access via [`FileChecksum::as_bytes`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
-pub struct FileChecksum(pub [u8; 32]);
+pub struct FileChecksum([u8; 32]);
 
 impl FileChecksum {
   /// Wrap a 32-byte hash.
@@ -261,9 +291,11 @@ impl From<[u8; 32]> for FileChecksum {
 ///
 /// Used by curation `UserTag.color` (smart-folder layer) and by colorthief
 /// `DominantColor.rgb` on `Keyframe`. Cheap-unambiguous redesign of the
-/// proto `Tag.color: u32`.
+/// proto `Tag.color: u32`. Inner `u32` is private; access component bytes
+/// via [`Rgba::r`] / [`Rgba::g`] / [`Rgba::b`] / [`Rgba::a`] or the raw
+/// pack via [`Rgba::bits`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-pub struct Rgba(pub u32);
+pub struct Rgba(u32);
 
 impl Rgba {
   /// Pack from RGBA components.
@@ -272,18 +304,34 @@ impl Rgba {
     Self(((r as u32) << 24) | ((g as u32) << 16) | ((b as u32) << 8) | (a as u32))
   }
 
+  /// Construct from a pre-packed `0xRRGGBBAA` value.
+  #[inline]
+  pub const fn from_bits(bits: u32) -> Self {
+    Self(bits)
+  }
+
+  /// Raw packed `0xRRGGBBAA` value.
+  #[inline]
+  pub const fn bits(self) -> u32 {
+    self.0
+  }
+
+  /// Red component.
   #[inline]
   pub const fn r(self) -> u8 {
     (self.0 >> 24) as u8
   }
+  /// Green component.
   #[inline]
   pub const fn g(self) -> u8 {
     (self.0 >> 16) as u8
   }
+  /// Blue component.
   #[inline]
   pub const fn b(self) -> u8 {
     (self.0 >> 8) as u8
   }
+  /// Alpha component.
   #[inline]
   pub const fn a(self) -> u8 {
     self.0 as u8
@@ -296,7 +344,9 @@ impl Rgba {
 
 /// Error returned when a [`Location`] cannot be constructed because the
 /// payload violates a real-file invariant.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// Unit-only enum → derives [`IsVariant`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant)]
 #[non_exhaustive]
 pub enum LocationError {
   /// The path-components slice was empty (a volume root with no path
@@ -316,8 +366,54 @@ impl fmt::Display for LocationError {
   }
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for LocationError {}
+impl core::error::Error for LocationError {}
+
+/// Payload of [`Location::Local`] — extracted to a named struct per the
+/// no-structure-variants rule. Fields are private; the only public
+/// construction paths are [`Location::try_local`] /
+/// [`Location::try_local_uuid7`], which validate the payload first.
+///
+/// A local volume path: stable `volume` identity + platform-agnostic path
+/// components. Identity is the volume's stable UUID (the old indexer
+/// writes it once to `<mount>/.findit_index/.id`), **not** the OS mount
+/// path (which is volatile across remounts).
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct LocalLocation<Id = Uuid7> {
+  volume: Id,
+  components: Vec<SmolStr>,
+}
+
+impl<Id> LocalLocation<Id> {
+  /// **Internal** infallible builder — `pub(crate)` to keep
+  /// [`Location::try_local`] the single public construction gate.
+  /// The validating ctors call this after checking invariants;
+  /// the proto wire adapter will call it when round-tripping a
+  /// pre-validated oneof.
+  #[inline]
+  pub(crate) fn new<I, S>(volume: Id, components: I) -> Self
+  where
+    I: IntoIterator<Item = S>,
+    S: Into<SmolStr>,
+  {
+    Self {
+      volume,
+      components: components.into_iter().map(Into::into).collect(),
+    }
+  }
+
+  /// Stable volume identity (the UUID written to
+  /// `<mount>/.findit_index/.id`).
+  #[inline]
+  pub fn volume(&self) -> &Id {
+    &self.volume
+  }
+
+  /// Platform-agnostic path components, relative to the volume root.
+  #[inline]
+  pub fn components(&self) -> &[SmolStr] {
+    &self.components
+  }
+}
 
 /// File location — a structured oneof, **not** an opaque path string.
 ///
@@ -329,53 +425,32 @@ impl std::error::Error for LocationError {}
 /// appears (the `mediaframe::Language`-style boundary applies —
 /// `#[non_exhaustive]` keeps it forward-compatible).
 ///
+/// ## Variant shape
+///
+/// Newtype variants only — `Local(LocalLocation<Id>)` follows the
+/// no-structure-variants rule. The enum derives `IsVariant` + `Unwrap` +
+/// `TryUnwrap` with shared/mut ref flavours, so consumers go through
+/// `loc.is_local()` / `loc.unwrap_local_ref()` / `loc.try_unwrap_local()`
+/// rather than ad-hoc `match`.
+///
 /// ## Construction
 ///
-/// The `Local` variant is itself `#[non_exhaustive]`, so external callers
-/// cannot use the `Location::Local { volume, components }` literal syntax.
-/// The only public path is [`Location::try_local`], which validates the
-/// payload and returns `Result<Self, LocationError>` — empty path is
-/// always rejected, and for the [`Location<Uuid7>`] specialization, a nil
-/// volume id is also rejected. Combined with `Uuid7::nil()` being
-/// `pub(crate)`, this makes "construct a fake local location"
-/// unreachable from outside this crate.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+/// `LocalLocation::new` is `pub(crate)`, so [`Location::try_local`] /
+/// [`Location::try_local_uuid7`] are the only **public** construction
+/// gates and both validate the payload (empty path always rejected, nil
+/// volume rejected for the `Uuid7` specialisation). Combined with
+/// `Uuid7::nil()` being `pub(crate)`, "construct a fake local location"
+/// is unreachable from outside this crate.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, IsVariant, Unwrap, TryUnwrap)]
+#[unwrap(ref, ref_mut)]
+#[try_unwrap(ref, ref_mut)]
 #[non_exhaustive]
 pub enum Location<Id = Uuid7> {
-  /// A local volume path: stable `volume` identity + platform-agnostic
-  /// path components. Identity is the volume's stable UUID (the old
-  /// indexer writes it once to `<mount>/.findit_index/.id`), **not** the
-  /// OS mount path (which is volatile across remounts).
-  #[non_exhaustive]
-  Local {
-    volume: Id,
-    components: Vec<SmolStr>,
-  },
-  // Future: `RemoteUrl(SmolStr)`, `Object { store, bucket, key }` —
-  // surfaced when a real consumer needs object-storage roots; reopens
-  // this `Location` enum at that time.
-}
-
-impl<Id> Location<Id> {
-  /// **Internal** infallible builder — bypasses validation. Used by the
-  /// validating `try_local` paths after they've checked invariants, and
-  /// (eventually) by the wire-codec adapter when round-tripping a
-  /// pre-validated oneof. External callers must go through
-  /// [`Location::try_local`].
-  ///
-  /// Held with `#[allow(dead_code)]` for the upcoming proto adapter.
-  #[inline]
-  #[allow(dead_code)]
-  pub(crate) fn local_unchecked<I, S>(volume: Id, components: I) -> Self
-  where
-    I: IntoIterator<Item = S>,
-    S: Into<SmolStr>,
-  {
-    Self::Local {
-      volume,
-      components: components.into_iter().map(Into::into).collect(),
-    }
-  }
+  /// A local volume path. See [`LocalLocation`].
+  Local(LocalLocation<Id>),
+  // Future: `RemoteUrl(SmolStr)`, `Object(ObjectLocation)` — surfaced
+  // when a real consumer needs object-storage roots; reopens this
+  // `Location` enum at that time.
 }
 
 impl<Id> Location<Id> {
@@ -392,7 +467,7 @@ impl<Id> Location<Id> {
     if components.is_empty() {
       return Err(LocationError::EmptyPath);
     }
-    Ok(Self::Local { volume, components })
+    Ok(Self::Local(LocalLocation::new(volume, components)))
   }
 }
 
@@ -412,7 +487,7 @@ impl Location<Uuid7> {
     if components.is_empty() {
       return Err(LocationError::EmptyPath);
     }
-    Ok(Self::Local { volume, components })
+    Ok(Self::Local(LocalLocation::new(volume, components)))
   }
 }
 
@@ -432,8 +507,8 @@ impl Location<Uuid7> {
 /// `ErrorCode::Unknown(404)` directly — the *only* way to land in
 /// `Unknown` is [`ErrorCode::from_u32`] with a value outside the named
 /// catalog. This keeps `is_unknown()` consistent with `Unknown ⇔ not
-/// canonicalisable`, and prevents
-/// `from_u32(c.as_u32()) != c` ambiguities.
+/// canonicalisable`, and prevents `from_u32(c.as_u32()) != c`
+/// ambiguities. Read the wire value via [`UnknownErrorCode::get`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct UnknownErrorCode(pub(crate) u32);
 
@@ -469,11 +544,16 @@ impl fmt::Display for UnknownErrorCode {
 /// publicly constructible `ErrorCode`, and `is_unknown()` is a stable
 /// statement about the code, not an artifact of how it was built.
 ///
+/// Mixed enum (unit + one newtype variant) → derives `IsVariant` plus
+/// `Unwrap` / `TryUnwrap` accessor families with ref + ref_mut flavours.
+///
 /// The domain error model uses `code` as the *stage-coded* signal in
 /// `index_errors: Vec<ErrorInfo>`; this replaces the dropped per-track
 /// `error_status` bitflags (error-state is now **derived** from the
 /// stage codes + `index_status`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, IsVariant, Unwrap, TryUnwrap)]
+#[unwrap(ref, ref_mut)]
+#[try_unwrap(ref, ref_mut)]
 #[non_exhaustive]
 pub enum ErrorCode {
   // --- HTTP-style protocol errors ---
@@ -619,7 +699,7 @@ impl ErrorCode {
   }
 
   /// Convert a wire `u32` into an [`ErrorCode`]. Unknown values land in
-  /// `Self::Unknown(n)` — never lossy, infallible.
+  /// `Self::Unknown(_)` — never lossy, infallible.
   pub const fn from_u32(n: u32) -> Self {
     match n {
       // --- HTTP-style protocol errors ---
@@ -684,12 +764,6 @@ impl ErrorCode {
       other => Self::Unknown(UnknownErrorCode(other)),
     }
   }
-
-  /// Is this an `Unknown(_)` wire-preserved code (i.e. a producer used a
-  /// code newer than this `ErrorCode` enum knows about)?
-  pub const fn is_unknown(self) -> bool {
-    matches!(self, Self::Unknown(_))
-  }
 }
 
 // Deliberately **no** `Default for ErrorCode`. There is no meaningful
@@ -709,11 +783,12 @@ impl ErrorCode {
 /// the locked rule).
 ///
 /// No `Default` impl — there is no meaningful "default error". Construct
-/// explicitly via [`ErrorInfo::new`] or [`ErrorInfo::code_only`].
+/// explicitly via [`ErrorInfo::new`] or [`ErrorInfo::code_only`]. Fields
+/// are private; access via [`ErrorInfo::code`] / [`ErrorInfo::message`].
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ErrorInfo {
-  pub code: ErrorCode,
-  pub message: SmolStr,
+  code: ErrorCode,
+  message: SmolStr,
 }
 
 impl ErrorInfo {
@@ -733,6 +808,44 @@ impl ErrorInfo {
       code,
       message: SmolStr::default(),
     }
+  }
+
+  /// Stage-coded error id (the wire-stable signal).
+  #[inline]
+  pub const fn code(&self) -> ErrorCode {
+    self.code
+  }
+
+  /// Human-readable description (`""` = absent).
+  #[inline]
+  pub fn message(&self) -> &str {
+    self.message.as_str()
+  }
+
+  /// Builder: replace the message and return `self`.
+  #[inline]
+  pub fn with_message(mut self, message: impl Into<SmolStr>) -> Self {
+    self.message = message.into();
+    self
+  }
+
+  /// Builder: replace the code and return `self`.
+  #[inline]
+  pub fn with_code(mut self, code: ErrorCode) -> Self {
+    self.code = code;
+    self
+  }
+
+  /// In-place setter for the message.
+  #[inline]
+  pub fn set_message(&mut self, message: impl Into<SmolStr>) {
+    self.message = message.into();
+  }
+
+  /// In-place setter for the code.
+  #[inline]
+  pub fn set_code(&mut self, code: ErrorCode) {
+    self.code = code;
   }
 }
 
@@ -763,8 +876,6 @@ mod tests {
 
   #[test]
   fn uuid7_nil_sentinel_must_be_explicit() {
-    // `Default` is intentionally not derived, so this is the only way
-    // to spell the nil sentinel — and it requires a deliberate call.
     let n = Uuid7::nil();
     assert!(n.is_nil());
     assert_eq!(n.as_bytes(), &[0; 16]);
@@ -780,15 +891,15 @@ mod tests {
 
   #[test]
   fn uuid7_rejects_nil_via_validating_constructors() {
-    // try_from_bytes
     assert_eq!(Uuid7::try_from_bytes([0; 16]), Err(Uuid7Error::Nil));
-    // TryFrom<Uuid>
     assert_eq!(Uuid7::try_from(uuid::Uuid::nil()), Err(Uuid7Error::Nil));
-    // FromStr
     assert_eq!(
       "00000000-0000-0000-0000-000000000000".parse::<Uuid7>(),
       Err(Uuid7Error::Nil)
     );
+    // IsVariant derive: `.is_nil()` reads on the error too.
+    assert!(Uuid7Error::Nil.is_nil());
+    assert!(!Uuid7Error::WrongVersion(4).is_nil());
   }
 
   #[test]
@@ -796,34 +907,29 @@ mod tests {
     // Hand-craft a non-nil v4-layout UUID: byte 6 high nibble = 4
     // (RFC 9562 §4.2 version field), byte 8 high bits = 10 (variant).
     let mut bytes = [0u8; 16];
-    bytes[0] = 0x01; // make sure it isn't nil
-    bytes[6] = 0x4a; // version nibble = 4
-    bytes[8] = 0x80; // variant = RFC 4122
+    bytes[0] = 0x01;
+    bytes[6] = 0x4a;
+    bytes[8] = 0x80;
     let v4 = uuid::Uuid::from_bytes(bytes);
     assert_eq!(v4.get_version_num(), 4);
-    let v4_str = v4.to_string();
-    match Uuid7::try_from(v4) {
-      Err(Uuid7Error::NotV7(4)) => {}
-      other => panic!("expected NotV7(4), got {other:?}"),
-    }
-    match v4_str.parse::<Uuid7>() {
-      Err(Uuid7Error::NotV7(4)) => {}
-      other => panic!("expected NotV7(4), got {other:?}"),
-    }
+    let err = Uuid7::try_from(v4).unwrap_err();
+    // TryUnwrap derive: shared-ref accessor returns Ok(&inner) for the
+    // matching variant; the `IsVariant` derive is the boolean flavour.
+    assert!(err.is_wrong_version());
+    assert_eq!(err.try_unwrap_wrong_version_ref(), Ok(&4_usize));
+    let parse_err = v4.to_string().parse::<Uuid7>().unwrap_err();
+    assert_eq!(parse_err.try_unwrap_wrong_version_ref(), Ok(&4_usize));
   }
 
   #[test]
   fn uuid7_invalid_string_returns_uuid_error() {
-    match "not-a-uuid".parse::<Uuid7>() {
-      Err(Uuid7Error::InvalidUuid(_)) => {}
-      other => panic!("expected InvalidUuid, got {other:?}"),
-    }
+    let err = "not-a-uuid".parse::<Uuid7>().unwrap_err();
+    assert!(err.is_invalid_uuid());
+    assert!(err.try_unwrap_invalid_uuid_ref().is_ok());
   }
 
   #[test]
   fn uuid7_from_bytes_unchecked_still_works_for_wire_roundtrip() {
-    // The escape hatch must remain available for wire codecs — the
-    // caller asserts the layout. Confirm it produces a usable v7.
     let a = Uuid7::new();
     let raw = *a.as_bytes();
     let b = Uuid7::from_bytes_unchecked(raw);
@@ -832,11 +938,8 @@ mod tests {
 
   #[test]
   fn uuid7_distinct_from_filechecksum_type() {
-    // Compile-time guard: distinct newtypes (a poor stand-in is to check
-    // sizes / no implicit conversion exists; we rely on the type system).
     let _u: Uuid7 = Uuid7::nil();
     let _c: FileChecksum = FileChecksum::zero();
-    // (no `From<Uuid7> for FileChecksum` exists — that's the invariant)
   }
 
   #[test]
@@ -860,41 +963,38 @@ mod tests {
     let z = FileChecksum::zero();
     assert!(z.is_zero());
     assert_eq!(z.to_string(), "0".repeat(64));
+    // Default matches the zero sentinel.
+    assert_eq!(FileChecksum::default(), z);
   }
 
   #[test]
   fn rgba_pack_unpack() {
     let c = Rgba::new(0x12, 0x34, 0x56, 0x78);
-    assert_eq!(c.0, 0x12_34_56_78);
+    assert_eq!(c.bits(), 0x12_34_56_78);
     assert_eq!(c.r(), 0x12);
     assert_eq!(c.g(), 0x34);
     assert_eq!(c.b(), 0x56);
     assert_eq!(c.a(), 0x78);
+    // from_bits is the inverse of bits().
+    assert_eq!(Rgba::from_bits(0x12_34_56_78), c);
   }
-
-  // (Previously `location_local_default` — removed alongside the
-  // `impl Default for Location`. Absence is now expressed by
-  // `Option<Location>` at field boundaries; this is exercised by the
-  // `location_local_builder` test below and at every consumer site.)
 
   #[test]
   fn location_try_local_uuid7_happy_path() {
     let vol = Uuid7::new();
     let l = Location::try_local_uuid7(vol, ["Movies", "Holiday"]).unwrap();
-    match l {
-      Location::Local { volume, components } => {
-        assert_eq!(volume, vol);
-        assert_eq!(components, vec!["Movies", "Holiday"]);
-      }
-    }
+    // IsVariant + Unwrap derives.
+    assert!(l.is_local());
+    let local = l.unwrap_local_ref();
+    assert_eq!(local.volume(), &vol);
+    assert_eq!(local.components(), &["Movies", "Holiday"]);
   }
 
   #[test]
   fn location_try_local_uuid7_rejects_nil_volume() {
-    // `Uuid7::nil()` is `pub(crate)`; this case can only be reached
-    // inside the crate, which is exactly what the validation guards.
     let r = Location::try_local_uuid7(Uuid7::nil(), ["Movies"]);
     assert_eq!(r, Err(LocationError::NilVolume));
+    assert!(LocationError::NilVolume.is_nil_volume());
   }
 
   #[test]
@@ -902,38 +1002,45 @@ mod tests {
     let vol = Uuid7::new();
     let r = Location::try_local_uuid7::<core::iter::Empty<&str>, &str>(vol, core::iter::empty());
     assert_eq!(r, Err(LocationError::EmptyPath));
+    assert!(LocationError::EmptyPath.is_empty_path());
   }
 
   #[test]
   fn location_generic_try_local_rejects_empty_path() {
-    // For non-Uuid7 Id types the generic try_local still checks the
-    // path; volume-nil is the caller's responsibility.
     let r = Location::<u32>::try_local::<core::iter::Empty<&str>, &str>(7, core::iter::empty());
     assert_eq!(r, Err(LocationError::EmptyPath));
   }
 
   #[test]
+  fn location_try_unwrap_local_returns_payload() {
+    let vol = Uuid7::new();
+    let l = Location::try_local_uuid7(vol, ["Movies"]).unwrap();
+    let local: LocalLocation<Uuid7> = l.try_unwrap_local().unwrap();
+    assert_eq!(local.volume(), &vol);
+    assert_eq!(local.components(), &["Movies"]);
+  }
+
+  #[test]
   fn error_code_unknown_round_trips_wire_value() {
-    // The Unknown(_) variant preserves any code we don't enumerate,
-    // so wire→domain→wire is lossless across version skew.
     for wire in [42_u32, 1234, 99_999, u32::MAX] {
       let c = ErrorCode::from_u32(wire);
       assert!(c.is_unknown(), "{wire} should land in Unknown");
       assert_eq!(c.as_u32(), wire, "wire->domain->wire must be identity");
+      // Unwrap derive gives a direct accessor for the payload.
+      let payload: UnknownErrorCode = c.unwrap_unknown();
+      assert_eq!(payload.get(), wire);
     }
   }
 
   #[test]
   fn error_code_from_u32_normalises_known_codes() {
-    // Regression for Codex round-2 ambiguity worry: a known wire value
-    // (e.g. 404) must canonicalise to its named variant, never to
-    // Unknown(404). Combined with `UnknownErrorCode` having a
-    // `pub(crate)` payload, this means there is no public path that
-    // produces `Unknown(404)` — the round-trip is identity for every
-    // publicly constructible `ErrorCode`.
+    // A known wire value (e.g. 404) must canonicalise to its named
+    // variant, never to Unknown(404).
     let canonical = ErrorCode::from_u32(404);
     assert_eq!(canonical, ErrorCode::NotFound);
     assert!(!canonical.is_unknown());
+    // try_unwrap_unknown_ref returns Err for non-unknown variants.
+    assert!(canonical.try_unwrap_unknown_ref().is_err());
 
     // And the identity round-trip:
     for c in [
@@ -948,8 +1055,6 @@ mod tests {
 
   #[test]
   fn error_code_known_round_trips_canonical_value() {
-    // Sample one code per bucket — every named variant must survive
-    // an as_u32() ↔ from_u32() round-trip.
     for c in [
       ErrorCode::BadRequest,
       ErrorCode::NotFound,
@@ -994,13 +1099,27 @@ mod tests {
   }
 
   #[test]
-  fn error_info_construction() {
+  fn error_info_construction_and_accessors() {
     let e = ErrorInfo::new(ErrorCode::ProbeCorrupt, "bad container header");
-    assert_eq!(e.code, ErrorCode::ProbeCorrupt);
-    assert_eq!(e.message.as_str(), "bad container header");
+    assert_eq!(e.code(), ErrorCode::ProbeCorrupt);
+    assert_eq!(e.message(), "bad container header");
 
     let e2 = ErrorInfo::code_only(ErrorCode::Cancelled);
-    assert_eq!(e2.code, ErrorCode::Cancelled);
-    assert!(e2.message.is_empty());
+    assert_eq!(e2.code(), ErrorCode::Cancelled);
+    assert!(e2.message().is_empty());
+
+    // Builders chain.
+    let e3 = ErrorInfo::code_only(ErrorCode::ProbeCorrupt)
+      .with_message("clip.mp4")
+      .with_code(ErrorCode::ProbeUnsupportedFormat);
+    assert_eq!(e3.code(), ErrorCode::ProbeUnsupportedFormat);
+    assert_eq!(e3.message(), "clip.mp4");
+
+    // Setters mutate in place.
+    let mut e4 = e.clone();
+    e4.set_message("");
+    e4.set_code(ErrorCode::Cancelled);
+    assert_eq!(e4.code(), ErrorCode::Cancelled);
+    assert!(e4.message().is_empty());
   }
 }

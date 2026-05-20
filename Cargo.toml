@@ -33,6 +33,10 @@ mediatime = { version = "0.1.6", default-features = false, features = ["buffa"] 
 # downstream code. The buffa-generated wire layer is the serialization edge.
 smol_str = { version = "0.3", default-features = false }
 uuid = { version = "1", default-features = false, features = ["v7", "std"] }
+# Derives used across the domain layer: `IsVariant` (unit/newtype),
+# `Unwrap` / `TryUnwrap` (newtype) with `#[unwrap(ref, ref_mut)]
+# #[try_unwrap(ref, ref_mut)]` for shared-ref + mut-ref accessor flavours.
+derive_more = { version = "2", default-features = false, features = ["is_variant", "unwrap", "try_unwrap"] }
 serde = { version = "1", optional = true }
 serde_json = { version = "1", optional = true }
 arbitrary = { version = "1", optional = true, features = ["derive"] }
