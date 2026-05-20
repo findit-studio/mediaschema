@@ -320,7 +320,7 @@ mod tests {
   fn user_tag_colour_via_builder_and_setter() {
     let t = UserTag::try_new(Uuid7::new(), "Vacation", Timestamp::default())
       .unwrap()
-      .with_color(Some(Rgba::new(0xff, 0x88, 0x00, 0xff)));
+      .with_color(Some(Rgba::from_components(0xff, 0x88, 0x00, 0xff)));
     let c = t.color().expect("colour");
     assert_eq!(c.r(), 0xff);
     assert_eq!(c.g(), 0x88);
