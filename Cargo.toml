@@ -61,6 +61,21 @@ json = ["std", "buffa", "dep:serde", "dep:serde_json", "buffa?/json", "buffa-typ
 arbitrary = ["std", "buffa", "dep:arbitrary", "buffa?/arbitrary", "buffa-types?/arbitrary", "mediatime/arbitrary"]
 quickcheck = ["arbitrary", "dep:quickcheck", "dep:mediaschema-derive"]
 
+# ---------------------------------------------------------------------------
+# Downstream backend: `sqlx` row-mapping (Postgres / MySQL / SQLite). Each
+# backend is its own feature so consumers pay only for the database driver
+# they want. **Off by default** — none of these are in the `default` set.
+#
+# All three depend on `std` (heap-using aggregates + `jiff::Timestamp`) and
+# `json` (the row mapping serialises nested VOs to JSON columns; see the
+# `src/sqlx/dto.rs` module's `//!` doc).
+#
+# Each backend additionally pulls in the matching `sqlx/<driver>` feature
+# so `sqlx::FromRow` is implemented for the per-backend row type alias.
+sqlx-postgres = ["std", "json", "dep:sqlx", "sqlx/postgres", "sqlx/uuid", "sqlx/json"]
+sqlx-mysql    = ["std", "json", "dep:sqlx", "sqlx/mysql",    "sqlx/uuid", "sqlx/json"]
+sqlx-sqlite   = ["std", "json", "dep:sqlx", "sqlx/sqlite",   "sqlx/uuid", "sqlx/json"]
+
 [dependencies]
 # `buffa` + `buffa-types` are optional — the buffa-generated wire layer
 # (`mod generated` and the crate-root `pub use generated::media::v1::*`
@@ -107,8 +122,15 @@ bitflags = { version = "2", default-features = false }
 # in the domain layer + the optional backends (buffa / sqlx / mongodb / graphql).
 thiserror = { version = "2", default-features = false }
 jiff = { version = "0.2", default-features = false, features = ["std"] }
-serde = { version = "1", optional = true }
+serde = { version = "1", optional = true, features = ["derive"] }
 serde_json = { version = "1", optional = true }
+# `sqlx` is optional and only enabled by one of the three `sqlx-<driver>`
+# features. `runtime-tokio` is needed because sqlx 0.8 requires a runtime
+# feature; `macros` enables `#[derive(sqlx::FromRow)]`. `default-features
+# = false` keeps us off the `native-tls` default so no OpenSSL dep is
+# pulled. The per-driver feature (`postgres` / `mysql` / `sqlite`) is
+# selected by the `sqlx-<driver>` umbrella feature.
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "macros"], optional = true }
 arbitrary = { version = "1", optional = true, features = ["derive"] }
 quickcheck = { version = "1", optional = true }
 mediaschema-derive = { path = "mediaschema-derive", optional = true }
