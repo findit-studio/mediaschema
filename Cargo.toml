@@ -1,5 +1,5 @@
 [workspace]
-resolver = "2"
+resolver = "3"
 members = ["mediaschema-derive", "xtask"]
 
 [package]
@@ -9,7 +9,7 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 description = "Product-agnostic media-primitive schema (buffa-generated)"
 publish = false
-rust-version = "1.85"
+rust-version = "1.95"
 
 [features]
 default = ["std"]
