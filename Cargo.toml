@@ -91,6 +91,11 @@ uuid = { version = "1", default-features = false }
 # #[try_unwrap(ref, ref_mut)]` for shared-ref + mut-ref accessor flavours.
 derive_more = { version = "2", default-features = false, features = ["is_variant", "unwrap", "try_unwrap"] }
 bitflags = { version = "2", default-features = false }
+# `thiserror` 2.x supports `no_std` + `no_alloc` when `default-features = false`
+# (it emits `core::error::Error` impls and uses only the `core::fmt::Formatter`
+# API — no heap allocation in the generated code). Used by every `*Error` enum
+# in the domain layer + the optional backends (buffa / sqlx / mongodb / graphql).
+thiserror = { version = "2", default-features = false }
 jiff = { version = "0.2", default-features = false, features = ["std"] }
 serde = { version = "1", optional = true }
 serde_json = { version = "1", optional = true }

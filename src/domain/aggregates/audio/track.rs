@@ -1235,26 +1235,17 @@ impl<Id> AudioTrack<Id> {
 
 /// Error returned when [`AudioTrack::try_new`] cannot uphold the
 /// non-nil-id / non-nil-parent invariants. Unit-only enum.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant, thiserror::Error)]
 #[non_exhaustive]
 pub enum AudioTrackError {
   /// Supplied `id` was the nil sentinel.
+  #[error("AudioTrack id must not be the nil UUID")]
   NilId,
   /// Supplied `parent` was the nil sentinel — orphaned track with no
   /// `Audio` facet reference.
+  #[error("AudioTrack parent (Audio) must not be the nil UUID")]
   NilParent,
 }
-
-impl core::fmt::Display for AudioTrackError {
-  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-    match self {
-      Self::NilId => f.write_str("AudioTrack id must not be the nil UUID"),
-      Self::NilParent => f.write_str("AudioTrack parent (Audio) must not be the nil UUID"),
-    }
-  }
-}
-
-impl core::error::Error for AudioTrackError {}
 
 // ===========================================================================
 // Tests
