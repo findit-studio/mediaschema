@@ -25,7 +25,12 @@ use smol_str::SmolStr;
 ///
 /// All four fields are `SmolStr` with `""`=absent. No `Option` — the locked
 /// rule reserves `Option` for structured/enum/numeric absence.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
+///
+/// **Default convention**: `Default::default()` calls [`Provenance::new`],
+/// which returns the all-empty record. Use [`Provenance::from_parts`] to
+/// supply all four fields in one call, or chain the `with_*` builders
+/// onto `Provenance::new()` to fill incrementally.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Provenance {
   model_name: SmolStr,
   model_version: SmolStr,
@@ -34,9 +39,24 @@ pub struct Provenance {
 }
 
 impl Provenance {
+  /// Canonical no-arg constructor — every field empty (`""`).
+  /// [`Default::default`] is `Self::new()`.
+  ///
+  /// (Not `const fn` — `SmolStr::default()` is not `const` in
+  /// `smol_str` 0.3.)
+  #[inline]
+  pub fn new() -> Self {
+    Self {
+      model_name: SmolStr::default(),
+      model_version: SmolStr::default(),
+      prompt_version: SmolStr::default(),
+      indexer_version: SmolStr::default(),
+    }
+  }
+
   /// Construct a `Provenance` from its four fields.
   #[inline]
-  pub fn new(
+  pub fn from_parts(
     model_name: impl Into<SmolStr>,
     model_version: impl Into<SmolStr>,
     prompt_version: impl Into<SmolStr>,
@@ -137,6 +157,13 @@ impl Provenance {
   }
 }
 
+impl Default for Provenance {
+  #[inline]
+  fn default() -> Self {
+    Self::new()
+  }
+}
+
 // ---------------------------------------------------------------------------
 // LocalizedText — free-text + optional translation
 // ---------------------------------------------------------------------------
@@ -154,16 +181,34 @@ impl Provenance {
 /// Both fields are `SmolStr` with `""`=absent. `pt-BR` ≠ `pt-PT` are
 /// distinct values; the language tag itself lives in `mediaframe::Language`
 /// (a separate field where present).
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
+///
+/// **Default convention**: `Default::default()` calls
+/// [`LocalizedText::new`], which returns the all-empty record. Use
+/// [`LocalizedText::from_src`] for source-only, or
+/// [`LocalizedText::from_src_translated`] for both fields in one call.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LocalizedText {
   src: SmolStr,
   translated: SmolStr,
 }
 
 impl LocalizedText {
+  /// Canonical no-arg constructor — both fields empty (`""`).
+  /// [`Default::default`] is `Self::new()`.
+  ///
+  /// (Not `const fn` — `SmolStr::default()` is not `const` in
+  /// `smol_str` 0.3.)
+  #[inline]
+  pub fn new() -> Self {
+    Self {
+      src: SmolStr::default(),
+      translated: SmolStr::default(),
+    }
+  }
+
   /// Construct from explicit source + translation.
   #[inline]
-  pub fn new(src: impl Into<SmolStr>, translated: impl Into<SmolStr>) -> Self {
+  pub fn from_src_translated(src: impl Into<SmolStr>, translated: impl Into<SmolStr>) -> Self {
     Self {
       src: src.into(),
       translated: translated.into(),
@@ -235,6 +280,13 @@ impl LocalizedText {
   }
 }
 
+impl Default for LocalizedText {
+  #[inline]
+  fn default() -> Self {
+    Self::new()
+  }
+}
+
 // ===========================================================================
 // Tests
 // ===========================================================================
@@ -244,18 +296,20 @@ mod tests {
   use super::*;
 
   #[test]
-  fn provenance_default_is_empty() {
-    let p = Provenance::default();
+  fn provenance_new_is_empty_and_default_delegates() {
+    // `Default::default()` calls `Self::new()` per the rule.
+    let p = Provenance::new();
     assert!(p.is_empty());
     assert_eq!(p.model_name(), "");
     assert_eq!(p.model_version(), "");
     assert_eq!(p.prompt_version(), "");
     assert_eq!(p.indexer_version(), "");
+    assert_eq!(Provenance::default(), p);
   }
 
   #[test]
   fn provenance_construction_and_emptiness() {
-    let p = Provenance::new(
+    let p = Provenance::from_parts(
       "qwen2-vl-7b",
       "v0.3.0",
       "vlm-prompt@2",
@@ -266,7 +320,7 @@ mod tests {
     assert_eq!(p.indexer_version(), "findit-indexer-0.1.0");
 
     // Even one non-empty field defeats is_empty.
-    let p2 = Provenance::new("", "", "", "x");
+    let p2 = Provenance::from_parts("", "", "", "x");
     assert!(!p2.is_empty());
   }
 
@@ -293,10 +347,11 @@ mod tests {
   }
 
   #[test]
-  fn localized_text_default_is_empty() {
-    let t = LocalizedText::default();
+  fn localized_text_new_is_empty_and_default_delegates() {
+    let t = LocalizedText::new();
     assert!(t.is_empty());
     assert_eq!(t.display(), "");
+    assert_eq!(LocalizedText::default(), t);
   }
 
   #[test]
@@ -311,7 +366,7 @@ mod tests {
 
   #[test]
   fn localized_text_display_prefers_translation() {
-    let t = LocalizedText::new("\u{4f60}\u{597d}", "Hello");
+    let t = LocalizedText::from_src_translated("\u{4f60}\u{597d}", "Hello");
     assert_eq!(t.src(), "\u{4f60}\u{597d}");
     assert_eq!(t.translated(), "Hello");
     // Translation present → display returns it.
@@ -320,7 +375,7 @@ mod tests {
 
   #[test]
   fn localized_text_translation_only_displays_translation() {
-    let t = LocalizedText::new("", "Hello");
+    let t = LocalizedText::from_src_translated("", "Hello");
     assert!(!t.is_empty());
     assert_eq!(t.display(), "Hello");
   }

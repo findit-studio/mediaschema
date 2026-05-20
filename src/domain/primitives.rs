@@ -237,20 +237,26 @@ impl From<Uuid7> for Uuid {
 /// `FileChecksum` is the **unique index** across `Media`, *never* the primary
 /// key, and a **distinct** newtype — never interchangeable with [`Uuid7`].
 /// Inner bytes are private; access via [`FileChecksum::as_bytes`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
+///
+/// **Default convention**: `Default::default()` calls
+/// [`FileChecksum::new`], which returns the all-zero sentinel
+/// ("not yet computed"). Use [`FileChecksum::from_bytes`] (or the
+/// `From<[u8; 32]>` impl) for an actual hash.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct FileChecksum([u8; 32]);
 
 impl FileChecksum {
-  /// Wrap a 32-byte hash.
+  /// All-zero sentinel for "not yet computed". The canonical no-arg
+  /// constructor — [`Default::default`] is `Self::new()`.
   #[inline]
-  pub const fn new(bytes: [u8; 32]) -> Self {
-    Self(bytes)
+  pub const fn new() -> Self {
+    Self([0; 32])
   }
 
-  /// All-zero sentinel for "not yet computed".
+  /// Wrap a 32-byte hash.
   #[inline]
-  pub const fn zero() -> Self {
-    Self([0; 32])
+  pub const fn from_bytes(bytes: [u8; 32]) -> Self {
+    Self(bytes)
   }
 
   /// Raw bytes.
@@ -259,10 +265,17 @@ impl FileChecksum {
     &self.0
   }
 
-  /// Is this the all-zero sentinel?
+  /// Is this the all-zero "not yet computed" sentinel?
   #[inline]
   pub fn is_zero(&self) -> bool {
     self.0 == [0; 32]
+  }
+}
+
+impl Default for FileChecksum {
+  #[inline]
+  fn default() -> Self {
+    Self::new()
   }
 }
 
@@ -294,13 +307,25 @@ impl From<[u8; 32]> for FileChecksum {
 /// proto `Tag.color: u32`. Inner `u32` is private; access component bytes
 /// via [`Rgba::r`] / [`Rgba::g`] / [`Rgba::b`] / [`Rgba::a`] or the raw
 /// pack via [`Rgba::bits`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+///
+/// **Default convention**: `Default::default()` calls [`Rgba::new`],
+/// which returns transparent black (`0x00000000`). Use
+/// [`Rgba::from_components`] (or [`Rgba::from_bits`]) to construct a
+/// specific colour.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Rgba(u32);
 
 impl Rgba {
+  /// Transparent black (`0x00000000`). The canonical no-arg constructor —
+  /// [`Default::default`] is `Self::new()`.
+  #[inline]
+  pub const fn new() -> Self {
+    Self(0)
+  }
+
   /// Pack from RGBA components.
   #[inline]
-  pub const fn new(r: u8, g: u8, b: u8, a: u8) -> Self {
+  pub const fn from_components(r: u8, g: u8, b: u8, a: u8) -> Self {
     Self(((r as u32) << 24) | ((g as u32) << 16) | ((b as u32) << 8) | (a as u32))
   }
 
@@ -335,6 +360,13 @@ impl Rgba {
   #[inline]
   pub const fn a(self) -> u8 {
     self.0 as u8
+  }
+}
+
+impl Default for Rgba {
+  #[inline]
+  fn default() -> Self {
+    Self::new()
   }
 }
 
@@ -939,7 +971,7 @@ mod tests {
   #[test]
   fn uuid7_distinct_from_filechecksum_type() {
     let _u: Uuid7 = Uuid7::nil();
-    let _c: FileChecksum = FileChecksum::zero();
+    let _c: FileChecksum = FileChecksum::new();
   }
 
   #[test]
@@ -951,7 +983,7 @@ mod tests {
       .collect::<Vec<u8>>()
       .try_into()
       .unwrap();
-    let cs = FileChecksum::new(bytes);
+    let cs = FileChecksum::from_bytes(bytes);
     let s = cs.to_string();
     assert_eq!(s.len(), 64);
     assert!(s.starts_with("deadbeef"));
@@ -959,17 +991,18 @@ mod tests {
   }
 
   #[test]
-  fn filechecksum_zero_sentinel() {
-    let z = FileChecksum::zero();
+  fn filechecksum_new_is_zero_sentinel() {
+    // `new()` is the canonical no-arg ctor — the all-zero "not yet
+    // computed" sentinel. `Default::default()` delegates to `new()`.
+    let z = FileChecksum::new();
     assert!(z.is_zero());
     assert_eq!(z.to_string(), "0".repeat(64));
-    // Default matches the zero sentinel.
     assert_eq!(FileChecksum::default(), z);
   }
 
   #[test]
   fn rgba_pack_unpack() {
-    let c = Rgba::new(0x12, 0x34, 0x56, 0x78);
+    let c = Rgba::from_components(0x12, 0x34, 0x56, 0x78);
     assert_eq!(c.bits(), 0x12_34_56_78);
     assert_eq!(c.r(), 0x12);
     assert_eq!(c.g(), 0x34);
@@ -977,6 +1010,15 @@ mod tests {
     assert_eq!(c.a(), 0x78);
     // from_bits is the inverse of bits().
     assert_eq!(Rgba::from_bits(0x12_34_56_78), c);
+  }
+
+  #[test]
+  fn rgba_new_is_transparent_black() {
+    // `new()` is the canonical no-arg ctor — `Default::default()` is
+    // `Self::new()` per the encapsulation rule.
+    let n = Rgba::new();
+    assert_eq!(n.bits(), 0);
+    assert_eq!(Rgba::default(), n);
   }
 
   #[test]
