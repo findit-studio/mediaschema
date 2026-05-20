@@ -9,11 +9,20 @@
 //! aggregates (`Scene`, `Keyframe`, `AudioSegment`, `SubtitleCue`), then
 //! the container/track aggregates (`Media`, the 3 facets, the 3 `*Track`s).
 
+#[cfg(any(feature = "std", feature = "alloc"))]
+#[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
+pub mod audio;
 pub mod curation;
 pub mod media;
 pub mod speaker;
 pub mod watched_location;
 
+#[cfg(any(feature = "std", feature = "alloc"))]
+#[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
+pub use audio::{
+  Audio, AudioCoverArt, AudioError, AudioFingerprint, AudioSegment, AudioSegmentError, AudioTags,
+  AudioTrack, AudioTrackError, Loudness, Word,
+};
 pub use curation::{SceneAnnotation, UserTag};
 pub use media::{Media, MediaDevice, MediaGeoLocation};
 pub use speaker::Speaker;
