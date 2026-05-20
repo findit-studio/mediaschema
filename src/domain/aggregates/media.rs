@@ -496,29 +496,18 @@ impl<Id> Media<Id> {
 
 /// Error returned when [`Media::try_new`] cannot uphold the
 /// non-nil-id / non-zero-checksum invariants. Unit-only enum.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant, thiserror::Error)]
 #[non_exhaustive]
 pub enum MediaError {
   /// Supplied `id` was the [`Uuid7`] nil sentinel — not a real identity.
+  #[error("Media id must not be the nil UUID")]
   NilId,
   /// Supplied `checksum` was the all-zero "not yet computed" sentinel
   /// — a `Media` reaches the domain layer only after probing, so the
   /// content hash should already be filled in.
+  #[error("Media checksum must not be the all-zero sentinel (file must be probed)")]
   ZeroChecksum,
 }
-
-impl core::fmt::Display for MediaError {
-  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-    match self {
-      Self::NilId => f.write_str("Media id must not be the nil UUID"),
-      Self::ZeroChecksum => {
-        f.write_str("Media checksum must not be the all-zero sentinel (file must be probed)")
-      }
-    }
-  }
-}
-
-impl core::error::Error for MediaError {}
 
 // ===========================================================================
 // Tests

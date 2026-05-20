@@ -65,13 +65,14 @@ pub struct Uuid7(Uuid);
 /// Unit + two newtype variants, so derives both [`IsVariant`] and the
 /// `Unwrap` / `TryUnwrap` accessor families with shared-ref + mut-ref
 /// flavours per the encapsulation rules.
-#[derive(Debug, Clone, PartialEq, Eq, IsVariant, Unwrap, TryUnwrap)]
+#[derive(Debug, Clone, PartialEq, Eq, IsVariant, Unwrap, TryUnwrap, thiserror::Error)]
 #[unwrap(ref, ref_mut)]
 #[try_unwrap(ref, ref_mut)]
 #[non_exhaustive]
 pub enum Uuid7Error {
   /// The input parsed as a UUID but its byte layout is the all-zero
   /// nil UUID — not a valid identity.
+  #[error("nil UUID is not a valid Uuid7 identity")]
   Nil,
   /// The input parsed as a UUID but its version field is not `7`. The
   /// payload is the actual version nibble.
@@ -81,34 +82,11 @@ pub enum Uuid7Error {
   /// `Unwrap`/`TryUnwrap`/`IsVariant` accessors then carry verbatim
   /// (`is_not_v_7`, `try_unwrap_not_v_7_ref`, …). `WrongVersion` gives
   /// the cleaner accessor names.)
+  #[error("expected UUIDv7, got UUIDv{0}")]
   WrongVersion(usize),
   /// The input could not be parsed as a UUID at all (string form).
-  InvalidUuid(uuid::Error),
-}
-
-impl fmt::Display for Uuid7Error {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    match self {
-      Self::Nil => f.write_str("nil UUID is not a valid Uuid7 identity"),
-      Self::WrongVersion(v) => write!(f, "expected UUIDv7, got UUIDv{v}"),
-      Self::InvalidUuid(e) => write!(f, "invalid UUID: {e}"),
-    }
-  }
-}
-
-impl core::error::Error for Uuid7Error {
-  fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
-    match self {
-      Self::InvalidUuid(e) => Some(e),
-      _ => None,
-    }
-  }
-}
-
-impl From<uuid::Error> for Uuid7Error {
-  fn from(e: uuid::Error) -> Self {
-    Self::InvalidUuid(e)
-  }
+  #[error("invalid UUID: {0}")]
+  InvalidUuid(#[from] uuid::Error),
 }
 
 /// Validate that `u` is a non-nil UUIDv7. Single source of truth for the
@@ -379,27 +357,18 @@ impl Default for Rgba {
 /// payload violates a real-file invariant.
 ///
 /// Unit-only enum → derives [`IsVariant`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant, thiserror::Error)]
 #[non_exhaustive]
 pub enum LocationError {
   /// The path-components slice was empty (a volume root with no path
   /// segments is not a file location).
+  #[error("Location::Local requires a non-empty path")]
   EmptyPath,
   /// The supplied volume id was the [`Uuid7`] nil sentinel — only valid
   /// for the wire-codec unset path, not for a real local location.
+  #[error("Location::Local requires a non-nil volume id")]
   NilVolume,
 }
-
-impl fmt::Display for LocationError {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    match self {
-      Self::EmptyPath => f.write_str("Location::Local requires a non-empty path"),
-      Self::NilVolume => f.write_str("Location::Local requires a non-nil volume id"),
-    }
-  }
-}
-
-impl core::error::Error for LocationError {}
 
 /// Payload of [`Location::Local`] — extracted to a named struct per the
 /// no-structure-variants rule. Fields are private; the only public

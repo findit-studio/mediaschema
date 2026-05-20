@@ -146,27 +146,18 @@ impl<Id> Speaker<Id> {
 
 /// Error returned when [`Speaker::try_new`] cannot uphold the
 /// non-nil-id / non-nil-parent invariants. Unit-only enum.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant, thiserror::Error)]
 #[non_exhaustive]
 pub enum SpeakerError {
   /// Supplied `id` was the nil sentinel — would collide as a
   /// LanceDB voiceprint key.
+  #[error("Speaker id must not be the nil UUID")]
   NilId,
   /// Supplied `parent` was the nil sentinel — orphaned voice with
   /// no `AudioTrack` reference.
+  #[error("Speaker parent (AudioTrack) must not be the nil UUID")]
   NilParent,
 }
-
-impl core::fmt::Display for SpeakerError {
-  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-    match self {
-      Self::NilId => f.write_str("Speaker id must not be the nil UUID"),
-      Self::NilParent => f.write_str("Speaker parent (AudioTrack) must not be the nil UUID"),
-    }
-  }
-}
-
-impl core::error::Error for SpeakerError {}
 
 // ===========================================================================
 // Tests

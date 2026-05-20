@@ -217,33 +217,17 @@ impl<Id> WatchedLocation<Id> {
 /// non-nil-id / valid-root invariants. Newtype variant wrapping
 /// [`LocationError`] for root validation; derives `IsVariant` plus
 /// `Unwrap`/`TryUnwrap` with shared-ref + mut-ref accessor flavours.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant, Unwrap, TryUnwrap)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant, Unwrap, TryUnwrap, thiserror::Error)]
 #[unwrap(ref, ref_mut)]
 #[try_unwrap(ref, ref_mut)]
 #[non_exhaustive]
 pub enum WatchedLocationError {
   /// The supplied `id` was the nil sentinel — not a real identity.
+  #[error("WatchedLocation id must not be the nil UUID")]
   NilId,
   /// Root construction failed; see the inner [`LocationError`].
-  Root(LocationError),
-}
-
-impl core::fmt::Display for WatchedLocationError {
-  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-    match self {
-      Self::NilId => f.write_str("WatchedLocation id must not be the nil UUID"),
-      Self::Root(e) => write!(f, "WatchedLocation root invalid: {e}"),
-    }
-  }
-}
-
-impl core::error::Error for WatchedLocationError {
-  fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
-    match self {
-      Self::Root(e) => Some(e),
-      _ => None,
-    }
-  }
+  #[error("WatchedLocation root invalid: {0}")]
+  Root(#[from] LocationError),
 }
 
 // ===========================================================================
