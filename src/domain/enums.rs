@@ -12,6 +12,12 @@
 
 use derive_more::IsVariant;
 
+// The bitflags imports + `ErrorCode` / `ErrorInfo` are referenced only
+// by the `{Video,Audio,Subtitle}IndexStage::from_status` impl blocks
+// below, which are themselves `any(std, alloc)`-gated (they take
+// `&[ErrorInfo]` and `ErrorInfo` is heap-tier). Gating the imports too
+// keeps `--no-default-features` warning-clean under `-D warnings`.
+#[cfg(any(feature = "std", feature = "alloc"))]
 use crate::domain::{
   bitflags::{AudioIndexStatus, SubtitleIndexStatus, VideoIndexStatus},
   primitives::{ErrorCode, ErrorInfo},
@@ -155,6 +161,12 @@ pub enum VideoIndexStage {
   Failed,
 }
 
+// The stage-derivation methods take `&[ErrorInfo]`, which is itself
+// `feature = "alloc"`-gated. Gate the whole impl block accordingly —
+// the bare `VideoIndexStage` enum + `IsVariant` predicates remain
+// available in pure no-std no-alloc.
+#[cfg(any(feature = "std", feature = "alloc"))]
+#[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
 impl VideoIndexStage {
   /// Map a video-pipeline `ErrorCode` to its stage success bit, so a
   /// retained error whose corresponding bit is now set can be filtered
@@ -268,6 +280,9 @@ pub enum AudioIndexStage {
   Failed,
 }
 
+// Alloc-gated for the same reason as `VideoIndexStage`'s impl block.
+#[cfg(any(feature = "std", feature = "alloc"))]
+#[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
 impl AudioIndexStage {
   /// Map an audio-pipeline `ErrorCode` to its stage success bit. Same
   /// stale-error filtering rationale as [`VideoIndexStage::error_stage_bit`].
@@ -358,6 +373,9 @@ pub enum SubtitleIndexStage {
   Failed,
 }
 
+// Alloc-gated for the same reason as `VideoIndexStage`'s impl block.
+#[cfg(any(feature = "std", feature = "alloc"))]
+#[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
 impl SubtitleIndexStage {
   /// Map a subtitle-pipeline `ErrorCode` to its stage success bit. Same
   /// stale-error filtering rationale as the video / audio mappings.
@@ -444,7 +462,9 @@ impl SubtitleIndexStage {
 // Tests
 // ===========================================================================
 
-#[cfg(test)]
+// Tests exercise the `from_status` methods (which take `&[ErrorInfo]`)
+// and therefore need heap-tier features. Gated on `any(std, alloc)`.
+#[cfg(all(test, any(feature = "std", feature = "alloc")))]
 mod tests {
   use super::*;
 
@@ -473,8 +493,8 @@ mod tests {
 
   /// One stale `ProbeCorrupt` error that should be filtered by the
   /// live-error check once `PROBED` succeeds.
-  fn probe_error() -> Vec<ErrorInfo> {
-    vec![ErrorInfo::code_only(ErrorCode::ProbeCorrupt)]
+  fn probe_error() -> std::vec::Vec<ErrorInfo> {
+    std::vec![ErrorInfo::code_only(ErrorCode::ProbeCorrupt)]
   }
 
   #[test]
@@ -564,7 +584,7 @@ mod tests {
       "successful retry must clear stale stage errors"
     );
     // Mix: stale ProbeCorrupt + live SceneDetectionFailed → Failed.
-    let mixed = vec![
+    let mixed = std::vec![
       ErrorInfo::code_only(ErrorCode::ProbeCorrupt),
       ErrorInfo::code_only(ErrorCode::SceneDetectionFailed),
     ];
