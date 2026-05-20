@@ -1,0 +1,267 @@
+//! Per-collection `IndexModel` constructors and the `all_indexes`
+//! aggregate.
+//!
+//! Each free function returns the canonical index set for one
+//! collection. [`all_indexes`] folds them into a single
+//! `Vec<(CollectionName, Vec<IndexModel>)>` so a deployer can iterate
+//! and `create_indexes` against a live cluster.
+
+use ::bson::{doc, Document};
+use ::mongodb::{options::IndexOptions, IndexModel};
+
+/// Canonical collection names. These match `schema.md`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CollectionName {
+  Media,
+  WatchedLocations,
+  Speakers,
+  UserTags,
+  SceneAnnotations,
+  AudioFacets,
+  AudioTracks,
+  AudioSegments,
+  VideoFacets,
+  VideoTracks,
+  Scenes,
+  Keyframes,
+  SubtitleFacets,
+  SubtitleTracks,
+  SubtitleCues,
+}
+
+impl CollectionName {
+  /// Default Mongo collection slug.
+  pub const fn as_str(self) -> &'static str {
+    match self {
+      Self::Media => "media",
+      Self::WatchedLocations => "watched_locations",
+      Self::Speakers => "speakers",
+      Self::UserTags => "user_tags",
+      Self::SceneAnnotations => "scene_annotations",
+      Self::AudioFacets => "audio_facets",
+      Self::AudioTracks => "audio_tracks",
+      Self::AudioSegments => "audio_segments",
+      Self::VideoFacets => "video_facets",
+      Self::VideoTracks => "video_tracks",
+      Self::Scenes => "scenes",
+      Self::Keyframes => "keyframes",
+      Self::SubtitleFacets => "subtitle_facets",
+      Self::SubtitleTracks => "subtitle_tracks",
+      Self::SubtitleCues => "subtitle_cues",
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+fn unique_on(keys: Document, name: &str) -> IndexModel {
+  IndexModel::builder()
+    .keys(keys)
+    .options(
+      IndexOptions::builder()
+        .unique(true)
+        .name(name.to_owned())
+        .build(),
+    )
+    .build()
+}
+
+fn index_on(keys: Document, name: &str) -> IndexModel {
+  IndexModel::builder()
+    .keys(keys)
+    .options(IndexOptions::builder().name(name.to_owned()).build())
+    .build()
+}
+
+// ---------------------------------------------------------------------------
+// Per-collection index sets
+// ---------------------------------------------------------------------------
+
+/// Indexes for the `media` collection. `_id` is implicit; we add a
+/// unique index on `checksum` (the locked unique-across-`Media`
+/// constraint) plus query-helper indexes on `kind`, `error_flags`, and
+/// `capture_date`.
+pub fn media_indexes() -> Vec<IndexModel> {
+  vec![
+    unique_on(doc! { "checksum": 1 }, "media_checksum_unique"),
+    index_on(doc! { "kind": 1 }, "media_kind"),
+    index_on(doc! { "error_flags": 1 }, "media_error_flags"),
+    index_on(doc! { "capture_date": 1 }, "media_capture_date"),
+  ]
+}
+
+/// `watched_locations` — primarily a config table. Index on the
+/// volume-id within the root document for "find watch by volume"
+/// queries, and on `enabled` for the monitor-startup sweep.
+pub fn watched_location_indexes() -> Vec<IndexModel> {
+  vec![
+    index_on(doc! { "root.volume": 1 }, "watched_root_volume"),
+    index_on(doc! { "enabled": 1 }, "watched_enabled"),
+  ]
+}
+
+/// `speakers` — FK index on `parent` (`AudioTrack.id`).
+pub fn speaker_indexes() -> Vec<IndexModel> {
+  vec![index_on(doc! { "parent": 1 }, "speakers_parent")]
+}
+
+/// `user_tags` — case-insensitive lookup is a projection concern;
+/// index on `name` for typeahead.
+pub fn user_tag_indexes() -> Vec<IndexModel> {
+  vec![index_on(doc! { "name": 1 }, "user_tags_name")]
+}
+
+/// `scene_annotations` — FK index on `scene`, plus `favorite` /
+/// `rating` for filter queries.
+pub fn scene_annotation_indexes() -> Vec<IndexModel> {
+  vec![
+    unique_on(doc! { "scene": 1 }, "scene_annotations_scene_unique"),
+    index_on(doc! { "favorite": 1 }, "scene_annotations_favorite"),
+    index_on(doc! { "rating": 1 }, "scene_annotations_rating"),
+  ]
+}
+
+/// `audio_facets` — referenced by `Media.audio`, so the `_id` index
+/// is enough; no extra indexes.
+pub fn audio_facet_indexes() -> Vec<IndexModel> {
+  vec![]
+}
+
+/// `audio_tracks` — FK on `parent`, plus `is_primary` / `content` for
+/// track-selection queries.
+pub fn audio_track_indexes() -> Vec<IndexModel> {
+  vec![
+    index_on(doc! { "parent": 1 }, "audio_tracks_parent"),
+    index_on(doc! { "is_primary": 1 }, "audio_tracks_primary"),
+    index_on(doc! { "content": 1 }, "audio_tracks_content"),
+    index_on(doc! { "language": 1 }, "audio_tracks_language"),
+  ]
+}
+
+/// `audio_segments` — FK on `parent` + composite `(parent, index)` for
+/// ordered enumeration.
+pub fn audio_segment_indexes() -> Vec<IndexModel> {
+  vec![
+    index_on(doc! { "parent": 1 }, "audio_segments_parent"),
+    unique_on(
+      doc! { "parent": 1, "index": 1 },
+      "audio_segments_parent_index_unique",
+    ),
+    index_on(doc! { "speaker": 1 }, "audio_segments_speaker"),
+  ]
+}
+
+/// `video_facets` — no extra indexes (referenced by `Media.video`).
+pub fn video_facet_indexes() -> Vec<IndexModel> {
+  vec![]
+}
+
+/// `video_tracks` — FK on `parent` + selection signals.
+pub fn video_track_indexes() -> Vec<IndexModel> {
+  vec![
+    index_on(doc! { "parent": 1 }, "video_tracks_parent"),
+    index_on(doc! { "is_primary": 1 }, "video_tracks_primary"),
+  ]
+}
+
+/// `scenes` — FK on `parent` (`VideoTrack.id`); composite
+/// `(parent, index)` for ordered enumeration.
+pub fn scene_indexes() -> Vec<IndexModel> {
+  vec![
+    index_on(doc! { "parent": 1 }, "scenes_parent"),
+    unique_on(
+      doc! { "parent": 1, "index": 1 },
+      "scenes_parent_index_unique",
+    ),
+  ]
+}
+
+/// `keyframes` — FK on `parent` (`Scene.id`).
+pub fn keyframe_indexes() -> Vec<IndexModel> {
+  vec![index_on(doc! { "parent": 1 }, "keyframes_parent")]
+}
+
+/// `subtitle_facets` — no extra indexes (referenced by `Media.subtitle`).
+pub fn subtitle_facet_indexes() -> Vec<IndexModel> {
+  vec![index_on(doc! { "parent": 1 }, "subtitle_facets_parent")]
+}
+
+/// `subtitle_tracks` — FK on `parent` + selection signals.
+pub fn subtitle_track_indexes() -> Vec<IndexModel> {
+  vec![
+    index_on(doc! { "parent": 1 }, "subtitle_tracks_parent"),
+    index_on(doc! { "is_primary": 1 }, "subtitle_tracks_primary"),
+    index_on(doc! { "language": 1 }, "subtitle_tracks_language"),
+  ]
+}
+
+/// `subtitle_cues` — FK on `parent` + composite `(parent, index)`.
+pub fn subtitle_cue_indexes() -> Vec<IndexModel> {
+  vec![
+    index_on(doc! { "parent": 1 }, "subtitle_cues_parent"),
+    unique_on(
+      doc! { "parent": 1, "index": 1 },
+      "subtitle_cues_parent_index_unique",
+    ),
+  ]
+}
+
+/// Every collection + its canonical index set, in one call. Iterate
+/// this list in the deployer to create the full schema.
+pub fn all_indexes() -> Vec<(CollectionName, Vec<IndexModel>)> {
+  vec![
+    (CollectionName::Media, media_indexes()),
+    (CollectionName::WatchedLocations, watched_location_indexes()),
+    (CollectionName::Speakers, speaker_indexes()),
+    (CollectionName::UserTags, user_tag_indexes()),
+    (CollectionName::SceneAnnotations, scene_annotation_indexes()),
+    (CollectionName::AudioFacets, audio_facet_indexes()),
+    (CollectionName::AudioTracks, audio_track_indexes()),
+    (CollectionName::AudioSegments, audio_segment_indexes()),
+    (CollectionName::VideoFacets, video_facet_indexes()),
+    (CollectionName::VideoTracks, video_track_indexes()),
+    (CollectionName::Scenes, scene_indexes()),
+    (CollectionName::Keyframes, keyframe_indexes()),
+    (CollectionName::SubtitleFacets, subtitle_facet_indexes()),
+    (CollectionName::SubtitleTracks, subtitle_track_indexes()),
+    (CollectionName::SubtitleCues, subtitle_cue_indexes()),
+  ]
+}
+
+// ===========================================================================
+// Tests
+// ===========================================================================
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn all_indexes_covers_every_collection() {
+    let v = all_indexes();
+    assert_eq!(v.len(), 15);
+    // No collection appears twice.
+    let mut names: Vec<_> = v.iter().map(|(c, _)| c.as_str()).collect();
+    names.sort();
+    let mut dedup = names.clone();
+    dedup.dedup();
+    assert_eq!(names, dedup);
+  }
+
+  #[test]
+  fn media_unique_checksum_present() {
+    let idx = media_indexes();
+    let names: Vec<_> = idx
+      .iter()
+      .map(|m| {
+        m.options
+          .as_ref()
+          .and_then(|o| o.name.clone())
+          .unwrap_or_default()
+      })
+      .collect();
+    assert!(names.iter().any(|n| n == "media_checksum_unique"));
+  }
+}

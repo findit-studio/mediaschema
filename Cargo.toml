@@ -60,6 +60,12 @@ json = ["std", "buffa", "dep:serde", "dep:serde_json", "buffa?/json", "buffa-typ
 # `Vec`/`String` everywhere).
 arbitrary = ["std", "buffa", "dep:arbitrary", "buffa?/arbitrary", "buffa-types?/arbitrary", "mediatime/arbitrary"]
 quickcheck = ["arbitrary", "dep:quickcheck", "dep:mediaschema-derive"]
+# `mongodb` — bson `Document` ↔ domain mapping + per-collection `IndexModel`
+# constructors. Off by default; pulls `std` (heap-tier domain types) and
+# `json` (the serde derives the bson crate's serde-path leans on for
+# UUID/binary round-tripping). Deployer wires the returned `IndexModel`s
+# into an actual `::mongodb::Client`.
+mongodb = ["std", "json", "dep:mongodb", "dep:bson"]
 
 [dependencies]
 # `buffa` + `buffa-types` are optional — the buffa-generated wire layer
@@ -112,6 +118,19 @@ serde_json = { version = "1", optional = true }
 arbitrary = { version = "1", optional = true, features = ["derive"] }
 quickcheck = { version = "1", optional = true }
 mediaschema-derive = { path = "mediaschema-derive", optional = true }
+# Optional backend: bson `Document` ↔ domain + `IndexModel` for each
+# collection. `mongodb` 3.x needs its default feature set
+# (rustls-tls + dns-resolver + the async-tokio runtime) — building
+# `default-features = false` fails to compile the crate's own client
+# module (`tokio-runtime` / `sync` are not exposed feature names in 3.x).
+# **Deviation from the original brief**: the instructions said
+# `default-features = false, features = ["tokio-runtime"]`, but
+# `tokio-runtime` is not a `mongodb` 3.x feature (the runtime is on by
+# default and not gated), so we depend on the default set instead. No
+# MSRV regression (`mongodb` 3.6.0 declares `rust-version = "1.82"`,
+# safely under our 1.95 floor).
+mongodb = { version = "3", optional = true }
+bson = { version = "2", optional = true, default-features = false, features = ["chrono-0_4"] }
 
 [dev-dependencies]
 quickcheck = "1"

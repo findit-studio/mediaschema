@@ -53,6 +53,16 @@ mod generated {
 /// specifications.
 pub mod domain;
 
+/// Optional MongoDB backend — `bson::Document` ↔ domain aggregates plus
+/// per-collection [`::mongodb::IndexModel`](mongodb::IndexModel)
+/// constructors. Off by default; enable with `--features mongodb`.
+/// Inside the module the external `::mongodb` crate is referenced via
+/// its absolute path so the `crate::mongodb` module name does not
+/// shadow it.
+#[cfg(feature = "mongodb")]
+#[cfg_attr(docsrs, doc(cfg(feature = "mongodb")))]
+pub mod mongodb;
+
 // Flatten the product-neutral `media.v1` package to the crate root so
 // consumers write `mediaschema::Detection`. Named (not glob) so buffa
 // internals (`__buffa`, `__*_JSON_ANY`) stay out of the public surface.
