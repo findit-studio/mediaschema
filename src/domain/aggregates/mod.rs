@@ -15,7 +15,12 @@ pub mod audio;
 pub mod curation;
 pub mod media;
 pub mod speaker;
+#[cfg(any(feature = "std", feature = "alloc"))]
+#[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
 pub mod subtitle;
+#[cfg(any(feature = "std", feature = "alloc"))]
+#[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
+pub mod video;
 pub mod watched_location;
 
 #[cfg(any(feature = "std", feature = "alloc"))]
@@ -27,5 +32,14 @@ pub use audio::{
 pub use curation::{SceneAnnotation, UserTag};
 pub use media::{Media, MediaDevice, MediaGeoLocation};
 pub use speaker::Speaker;
+// NOTE: both `subtitle` and `video` independently define an
+// `IndexProgress` type (the convention block told each subagent not to
+// touch `src/domain/vo.rs`). Tracked as a follow-up: lift to
+// `src/domain/vo.rs` as a shared cross-cutting VO. For now,
+// `IndexProgress` re-exported here is the subtitle copy; video's copy
+// is reachable as `video::IndexProgress`.
+#[cfg(any(feature = "std", feature = "alloc"))]
 pub use subtitle::{IndexProgress, Subtitle, SubtitleCue, SubtitleTrack};
+#[cfg(any(feature = "std", feature = "alloc"))]
+pub use video::{Keyframe, Scene, Video, VideoTrack};
 pub use watched_location::WatchedLocation;

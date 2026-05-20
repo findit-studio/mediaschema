@@ -32,8 +32,9 @@ pub use primitives::{ErrorCode, FileChecksum, Rgba, Uuid7};
 // `Vec` / `SmolStr`.
 #[cfg(any(feature = "std", feature = "alloc"))]
 pub use aggregates::{
-  IndexProgress, Media, MediaDevice, MediaGeoLocation, SceneAnnotation, Speaker, Subtitle,
-  SubtitleCue, SubtitleTrack, UserTag, WatchedLocation,
+  Audio, AudioCoverArt, AudioFingerprint, AudioSegment, AudioTags, AudioTrack, IndexProgress,
+  Keyframe, Loudness, Media, MediaDevice, MediaGeoLocation, Scene, SceneAnnotation, Speaker,
+  Subtitle, SubtitleCue, SubtitleTrack, UserTag, Video, VideoTrack, WatchedLocation, Word,
 };
 #[cfg(any(feature = "std", feature = "alloc"))]
 pub use primitives::{ErrorInfo, Location};
