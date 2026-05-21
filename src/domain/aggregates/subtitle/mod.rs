@@ -12,15 +12,13 @@
 //! Each aggregate is `Aggregate<Id = Uuid7>` and validated through a
 //! `try_new(...)` constructor that rejects nil ids and nil FK parents.
 //!
-//! ### mediaframe placeholder
-//!
-//! The locked schema doc references `mediaframe::Language`,
-//! `mediaframe::SubtitleCodec`, `mediaframe::SubtitleFormat`,
-//! `mediaframe::SubtitleTrackOrigin`, `mediaframe::TrackDisposition`,
-//! and `mediatime::TrackTime` — none of which are dependencies of
-//! `mediaschema` yet (see `schema/mediaframe-candidates.md`). Per-field
-//! `TODO(mediaframe)` notes mark the placeholders (`SmolStr` / `u32` /
-//! `u64` / `Option<…>`) that will be tightened once `mediaframe` is in.
+//! The per-track descriptor fields use the published `mediaframe` types
+//! ([`mediaframe::codec::SubtitleCodec`], [`mediaframe::subtitle::Format`]
+//! / [`mediaframe::subtitle::TrackOrigin`], [`mediaframe::lang::Language`],
+//! [`mediaframe::disposition::TrackDisposition`]) and the inline cue
+//! bitmap is [`bytes::Bytes`]. The one remaining placeholder is the
+//! per-track time (`mediatime::TrackTime` → `mediatime::Timestamp`)
+//! pending that type's release.
 
 pub mod cue;
 pub mod facet;
