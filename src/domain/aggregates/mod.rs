@@ -15,6 +15,6 @@ pub mod speaker;
 pub mod watched_location;
 
 pub use curation::{SceneAnnotation, UserTag};
-pub use media::{Media, MediaDevice, MediaGeoLocation};
+pub use media::Media;
 pub use speaker::Speaker;
 pub use watched_location::WatchedLocation;
