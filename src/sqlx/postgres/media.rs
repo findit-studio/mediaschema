@@ -1,16 +1,17 @@
 //! PostgreSQL row shape for the root `Media` aggregate.
 
+use mediaframe::{
+  capture::{Device, GeoLocation},
+  container::Format,
+};
 use uuid::Uuid;
 
 use crate::{
-  domain::{
-    aggregates::media::MediaError, ErrorInfo, Media, MediaDevice, MediaErrorFlags,
-    MediaGeoLocation, MediaKind, Uuid7,
-  },
+  domain::{aggregates::media::MediaError, ErrorInfo, Media, MediaErrorFlags, MediaKind, Uuid7},
   sqlx::{
     dto::{
       bytes_to_checksum, from_json_str, millis_to_timestamp, timestamp_to_millis, to_json_string,
-      uuid7_to_uuid, uuid_to_uuid7, ErrorInfoDto, MediaDeviceDto, MediaGeoLocationDto,
+      uuid7_to_uuid, uuid_to_uuid7, DeviceDto, ErrorInfoDto, GeoLocationDto,
     },
     SqlxError,
   },
@@ -59,7 +60,7 @@ impl From<&Media<Uuid7>> for PgMediaRow {
       id: uuid7_to_uuid(*m.id()),
       checksum: m.checksum().as_bytes().to_vec(),
       name: m.name().to_owned(),
-      format: m.format().to_owned(),
+      format: m.format().as_str().to_owned(),
       size: m.size() as i64,
       duration_raw: m.duration().and_then(|_| None::<i64>),
       created_at_ms: timestamp_to_millis(*m.created_at()),
@@ -74,10 +75,10 @@ impl From<&Media<Uuid7>> for PgMediaRow {
       capture_date_ms: m.capture_date().map(|t| timestamp_to_millis(*t)),
       device_json: m
         .device()
-        .map(|d| to_json_string(&MediaDeviceDto::from(d)).expect("MediaDeviceDto serialises")),
-      gps_json: m.gps().map(|g| {
-        to_json_string(&MediaGeoLocationDto::from(g)).expect("MediaGeoLocationDto serialises")
-      }),
+        .map(|d| to_json_string(&DeviceDto::from(d)).expect("DeviceDto serialises")),
+      gps_json: m
+        .gps()
+        .map(|g| to_json_string(&GeoLocationDto::from(g)).expect("GeoLocationDto serialises")),
     }
   }
 }
@@ -97,7 +98,9 @@ impl TryFrom<PgMediaRow> for Media<Uuid7> {
       .map_err(|e| SqlxError::UnknownDiscriminant(format!("Media.size: {e}")))?;
     let created_at = millis_to_timestamp(r.created_at_ms)?;
     let kind = media_kind_from_i16(r.kind)?;
-    let mut m = Media::try_new(id, checksum, r.name, r.format, size, created_at, kind)
+    // `Format::from_str` is infallible (unknown slugs → `Other`).
+    let format = r.format.parse::<Format>().unwrap_or_default();
+    let mut m = Media::try_new(id, checksum, r.name, format, size, created_at, kind)
       .map_err(|e: MediaError| SqlxError::DomainConstructorRejected(e.to_string()))?;
     if let Some(v) = r.video {
       m = m.with_video(Some(uuid_to_uuid7(v)?));
@@ -119,12 +122,12 @@ impl TryFrom<PgMediaRow> for Media<Uuid7> {
       m = m.with_capture_date(Some(millis_to_timestamp(ms)?));
     }
     if let Some(j) = r.device_json {
-      let dto: MediaDeviceDto = from_json_str(&j)?;
-      m = m.with_device(Some(MediaDevice::from(dto)));
+      let dto: DeviceDto = from_json_str(&j)?;
+      m = m.with_device(Some(Device::from(dto)));
     }
     if let Some(j) = r.gps_json {
-      let dto: MediaGeoLocationDto = from_json_str(&j)?;
-      m = m.with_gps(Some(MediaGeoLocation::from(dto)));
+      let dto: GeoLocationDto = from_json_str(&j)?;
+      m = m.with_gps(Some(GeoLocation::try_from(dto)?));
     }
     Ok(m)
   }
@@ -156,13 +159,13 @@ mod tests {
       Uuid7::new(),
       fake_checksum(),
       "f",
-      "mp4",
+      Format::Mp4,
       1,
       ts(),
       MediaKind::Video,
     )
     .unwrap()
-    .with_device(Some(MediaDevice::from_parts("Apple", "iPhone")));
+    .with_device(Some(Device::new().with_make("Apple").with_model("iPhone")));
     let row: PgMediaRow = (&m).into();
     let m2: Media<Uuid7> = row.try_into().unwrap();
     assert_eq!(m.id(), m2.id());

@@ -1,14 +1,16 @@
 //! SQLite row shape for the root `Media` aggregate.
 
+use mediaframe::{
+  capture::{Device, GeoLocation},
+  container::Format,
+};
+
 use crate::{
-  domain::{
-    aggregates::media::MediaError, ErrorInfo, Media, MediaDevice, MediaErrorFlags,
-    MediaGeoLocation, MediaKind, Uuid7,
-  },
+  domain::{aggregates::media::MediaError, ErrorInfo, Media, MediaErrorFlags, MediaKind, Uuid7},
   sqlx::{
     dto::{
       bytes_to_checksum, bytes_to_uuid7, from_json_str, millis_to_timestamp, timestamp_to_millis,
-      to_json_string, ErrorInfoDto, MediaDeviceDto, MediaGeoLocationDto,
+      to_json_string, DeviceDto, ErrorInfoDto, GeoLocationDto,
     },
     SqlxError,
   },
@@ -66,7 +68,7 @@ impl From<&Media<Uuid7>> for SqliteMediaRow {
       id: m.id().as_bytes().to_vec(),
       checksum: m.checksum().as_bytes().to_vec(),
       name: m.name().to_owned(),
-      format: m.format().to_owned(),
+      format: m.format().as_str().to_owned(),
       size: m.size() as i64,
       // `mediatime::Timestamp` doesn't expose a portable i64 accessor
       // in 0.1.6 — we treat duration as absent in the SQLite layer for
@@ -86,10 +88,10 @@ impl From<&Media<Uuid7>> for SqliteMediaRow {
       capture_date_ms: m.capture_date().map(|t| timestamp_to_millis(*t)),
       device_json: m
         .device()
-        .map(|d| to_json_string(&MediaDeviceDto::from(d)).expect("MediaDeviceDto serialises")),
-      gps_json: m.gps().map(|g| {
-        to_json_string(&MediaGeoLocationDto::from(g)).expect("MediaGeoLocationDto serialises")
-      }),
+        .map(|d| to_json_string(&DeviceDto::from(d)).expect("DeviceDto serialises")),
+      gps_json: m
+        .gps()
+        .map(|g| to_json_string(&GeoLocationDto::from(g)).expect("GeoLocationDto serialises")),
     }
   }
 }
@@ -109,7 +111,9 @@ impl TryFrom<SqliteMediaRow> for Media<Uuid7> {
       .map_err(|e| SqlxError::UnknownDiscriminant(format!("Media.size: {e}")))?;
     let created_at = millis_to_timestamp(r.created_at_ms)?;
     let kind = media_kind_from_i64(r.kind)?;
-    let mut m = Media::try_new(id, checksum, r.name, r.format, size, created_at, kind)
+    // `Format::from_str` is infallible (unknown slugs → `Other`).
+    let format = r.format.parse::<Format>().unwrap_or_default();
+    let mut m = Media::try_new(id, checksum, r.name, format, size, created_at, kind)
       .map_err(|e: MediaError| SqlxError::DomainConstructorRejected(e.to_string()))?;
 
     if let Some(v) = r.video {
@@ -134,12 +138,12 @@ impl TryFrom<SqliteMediaRow> for Media<Uuid7> {
       m = m.with_capture_date(Some(millis_to_timestamp(ms)?));
     }
     if let Some(j) = r.device_json {
-      let dto: MediaDeviceDto = from_json_str(&j)?;
-      m = m.with_device(Some(MediaDevice::from(dto)));
+      let dto: DeviceDto = from_json_str(&j)?;
+      m = m.with_device(Some(Device::from(dto)));
     }
     if let Some(j) = r.gps_json {
-      let dto: MediaGeoLocationDto = from_json_str(&j)?;
-      m = m.with_gps(Some(MediaGeoLocation::from(dto)));
+      let dto: GeoLocationDto = from_json_str(&j)?;
+      m = m.with_gps(Some(GeoLocation::try_from(dto)?));
     }
     Ok(m)
   }
@@ -171,7 +175,7 @@ mod tests {
       Uuid7::new(),
       fake_checksum(),
       "clip.mp4",
-      "mp4",
+      Format::Mp4,
       12_345,
       ts(),
       MediaKind::Video,
@@ -195,7 +199,7 @@ mod tests {
       Uuid7::new(),
       fake_checksum(),
       "clip.mp4",
-      "mp4",
+      Format::Mp4,
       12_345,
       ts(),
       MediaKind::Video,
@@ -205,8 +209,12 @@ mod tests {
     .with_audio(Some(audio_id))
     .with_error_flags(MediaErrorFlags::VIDEO_ERROR | MediaErrorFlags::AUDIO_ERROR)
     .with_capture_date(Some(ts()))
-    .with_device(Some(MediaDevice::from_parts("Apple", "iPhone 15 Pro")))
-    .with_gps(Some(MediaGeoLocation::new(37.7749, -122.4194, Some(20.0))))
+    .with_device(Some(
+      Device::new().with_make("Apple").with_model("iPhone 15 Pro"),
+    ))
+    .with_gps(Some(
+      GeoLocation::try_new(37.7749, -122.4194, Some(20.0)).unwrap(),
+    ))
     .with_probe_error(Some(ErrorInfo::new(ErrorCode::ProbeCorrupt, "bad header")));
     let row: SqliteMediaRow = (&m).into();
     let m2: Media<Uuid7> = row.try_into().unwrap();

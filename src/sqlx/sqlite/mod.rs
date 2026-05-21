@@ -1,5 +1,5 @@
 //! SQLite row mapping. `Uuid7` rides as a 16-byte `BLOB`, `FileChecksum`
-//! as a 32-byte `BLOB`. Nested VOs (`Provenance`, `MediaDevice`, etc.)
+//! as a 32-byte `BLOB`. Nested VOs (`Provenance`, capture `Device`, etc.)
 //! are stored as `TEXT` containing JSON.
 //!
 //! See the module-level [`super`] doc for the cross-backend mapping

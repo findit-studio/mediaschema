@@ -71,6 +71,8 @@ CREATE INDEX IF NOT EXISTS idx_scene_annotation_scene ON scene_annotation(scene)
 -- audio_track, video_track, subtitle_track, audio_segment, scene,
 -- keyframe, subtitle_cue) are tracked as a follow-up. Their schema
 -- shape is documented in the corresponding `schema/*.md` locked specs;
--- the row mapping is deferred until the mediaframe extern lands so the
--- placeholder VOs (`VideoCodec`, `ColorInfoPlaceholder`, …) don't have
--- to be re-flipped at the SQL boundary at the same time.
+-- the row mapping is deferred: the published mediaframe descriptor VOs
+-- (`VideoCodec`, `ChannelLayout`, `color::Info`, `PixelFormat`, …) carry
+-- no serde derives, so each needs a hand-rolled `*Dto` JSON bridge (as
+-- `DeviceDto` / `GeoLocationDto` do for the Media row) — tracked as a
+-- focused follow-up rather than landing alongside this revision.

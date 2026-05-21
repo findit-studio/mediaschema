@@ -9,16 +9,22 @@
 //! back through the domain constructors.
 //!
 //! Every nested value-object in the locked schema (`Provenance`,
-//! `LocalizedText`, `MediaDevice`, `MediaGeoLocation`, the structured
-//! `Location` oneof, `ErrorInfo`) gets a matching `*Dto` here, with
-//! `From<&Domain> for Dto` and `TryFrom<Dto> for Domain` impls.
+//! `LocalizedText`, capture `Device`, capture `GeoLocation`, the
+//! structured `Location` oneof, `ErrorInfo`) gets a matching `*Dto`
+//! here, with `From<&Domain> for Dto` and `TryFrom<Dto> for Domain`
+//! impls.
+//!
+//! The capture descriptors (`Device` / `GeoLocation`) are the published
+//! [`mediaframe`] types — they carry no serde derives of their own, so
+//! the DTOs below bridge them through their public accessors /
+//! constructors exactly as we do for the hand-written domain VOs.
 
+use mediaframe::capture::{Device, GeoLocation};
 use serde::{Deserialize, Serialize};
 use smol_str::SmolStr;
 
 use crate::domain::{
-  primitives::LocationError, ErrorCode, ErrorInfo, LocalizedText, Location, MediaDevice,
-  MediaGeoLocation, Provenance, Uuid7,
+  primitives::LocationError, ErrorCode, ErrorInfo, LocalizedText, Location, Provenance, Uuid7,
 };
 
 use super::error::SqlxError;
@@ -90,19 +96,22 @@ impl From<LocalizedTextDto> for LocalizedText {
 }
 
 // ---------------------------------------------------------------------------
-// MediaDeviceDto + MediaGeoLocationDto (EXIF placeholders)
+// DeviceDto + GeoLocationDto (EXIF capture metadata — mediaframe types)
 // ---------------------------------------------------------------------------
 
+/// Wire shape for [`mediaframe::capture::Device`]: `{ "make": "...",
+/// "model": "..." }`. Empty strings are the mediaframe "absent"
+/// sentinel (never `Option`), so they round-trip verbatim.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct MediaDeviceDto {
+pub struct DeviceDto {
   #[serde(default)]
   pub make: String,
   #[serde(default)]
   pub model: String,
 }
 
-impl From<&MediaDevice> for MediaDeviceDto {
-  fn from(d: &MediaDevice) -> Self {
+impl From<&Device> for DeviceDto {
+  fn from(d: &Device) -> Self {
     Self {
       make: d.make().to_owned(),
       model: d.model().to_owned(),
@@ -110,22 +119,26 @@ impl From<&MediaDevice> for MediaDeviceDto {
   }
 }
 
-impl From<MediaDeviceDto> for MediaDevice {
-  fn from(d: MediaDeviceDto) -> Self {
-    MediaDevice::from_parts(d.make, d.model)
+impl From<DeviceDto> for Device {
+  fn from(d: DeviceDto) -> Self {
+    Device::new().with_make(d.make).with_model(d.model)
   }
 }
 
+/// Wire shape for [`mediaframe::capture::GeoLocation`]: `{ "lat": …,
+/// "lon": …, "altitude": … }`. `altitude` is metres above the WGS84
+/// ellipsoid (`f32` per mediaframe; `None` = unknown). Reconstruction
+/// is fallible — `lat`/`lon` are range-validated by `GeoLocation::try_new`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct MediaGeoLocationDto {
+pub struct GeoLocationDto {
   pub lat: f64,
   pub lon: f64,
   #[serde(default)]
-  pub altitude: Option<f64>,
+  pub altitude: Option<f32>,
 }
 
-impl From<&MediaGeoLocation> for MediaGeoLocationDto {
-  fn from(g: &MediaGeoLocation) -> Self {
+impl From<&GeoLocation> for GeoLocationDto {
+  fn from(g: &GeoLocation) -> Self {
     Self {
       lat: g.lat(),
       lon: g.lon(),
@@ -134,9 +147,12 @@ impl From<&MediaGeoLocation> for MediaGeoLocationDto {
   }
 }
 
-impl From<MediaGeoLocationDto> for MediaGeoLocation {
-  fn from(d: MediaGeoLocationDto) -> Self {
-    MediaGeoLocation::new(d.lat, d.lon, d.altitude)
+impl TryFrom<GeoLocationDto> for GeoLocation {
+  type Error = SqlxError;
+
+  fn try_from(d: GeoLocationDto) -> Result<Self, Self::Error> {
+    GeoLocation::try_new(d.lat, d.lon, d.altitude)
+      .map_err(|e| SqlxError::DomainConstructorRejected(format!("GeoLocation: {e}")))
   }
 }
 
@@ -312,21 +328,31 @@ mod tests {
   }
 
   #[test]
-  fn media_device_roundtrip() {
-    let d = MediaDevice::from_parts("Apple", "iPhone 15 Pro");
-    let dto: MediaDeviceDto = (&d).into();
-    let d2: MediaDevice = dto.into();
+  fn device_roundtrip() {
+    let d = Device::new().with_make("Apple").with_model("iPhone 15 Pro");
+    let dto: DeviceDto = (&d).into();
+    let d2: Device = dto.into();
     assert_eq!(d, d2);
   }
 
   #[test]
-  fn media_geo_location_roundtrip() {
-    let g = MediaGeoLocation::new(37.7749, -122.4194, Some(20.0));
-    let dto: MediaGeoLocationDto = (&g).into();
-    let g2: MediaGeoLocation = dto.into();
+  fn geo_location_roundtrip() {
+    let g = GeoLocation::try_new(37.7749, -122.4194, Some(20.0)).unwrap();
+    let dto: GeoLocationDto = (&g).into();
+    let g2: GeoLocation = dto.try_into().unwrap();
     assert_eq!(g.lat(), g2.lat());
     assert_eq!(g.lon(), g2.lon());
     assert_eq!(g.altitude(), g2.altitude());
+  }
+
+  #[test]
+  fn geo_location_dto_rejects_out_of_range_lat() {
+    let dto = GeoLocationDto {
+      lat: 200.0,
+      lon: 0.0,
+      altitude: None,
+    };
+    assert!(GeoLocation::try_from(dto).is_err());
   }
 
   #[test]
