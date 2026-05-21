@@ -19,8 +19,7 @@ pub mod watched_location;
 #[cfg(any(feature = "std", feature = "alloc"))]
 #[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
 pub use audio::{
-  Audio, AudioCoverArt, AudioError, AudioFingerprint, AudioSegment, AudioSegmentError, AudioTags,
-  AudioTrack, AudioTrackError, Loudness, Word,
+  Audio, AudioError, AudioSegment, AudioSegmentError, AudioTrack, AudioTrackError, Word,
 };
 pub use curation::{SceneAnnotation, UserTag};
 pub use speaker::Speaker;
