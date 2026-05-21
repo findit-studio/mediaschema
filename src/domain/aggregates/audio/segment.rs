@@ -10,6 +10,7 @@
 //! `Provenance` is per-track (on `AudioTrack`), not per segment.
 
 use derive_more::IsVariant;
+use mediaframe::lang::Language;
 use mediatime::TimeRange;
 use smol_str::SmolStr;
 
@@ -23,16 +24,13 @@ use crate::domain::{vo::LocalizedText, Uuid7};
 ///
 /// Locked `audio_segments.md` §Nested value-objects. `score` ∈ `[0,1]`,
 /// **always present** (NaN-free per locked spec). Per-word `language`
-/// carries code-switch / multilingual cues.
-///
-/// TODO(mediaframe): `language: Option<mediaframe::Language>` (BCP-47).
-/// Placeholder = `Option<SmolStr>` (the raw BCP-47 string).
+/// (BCP-47) carries code-switch / multilingual cues.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Word {
   text: SmolStr,
   span: TimeRange,
   score: f32,
-  language: Option<SmolStr>,
+  language: Option<Language>,
 }
 
 impl Word {
@@ -54,7 +52,7 @@ impl Word {
     text: impl Into<SmolStr>,
     span: TimeRange,
     score: f32,
-    language: Option<SmolStr>,
+    language: Option<Language>,
   ) -> Self {
     Self {
       text: text.into(),
@@ -82,11 +80,10 @@ impl Word {
     self.score
   }
 
-  /// Per-word BCP-47 language tag placeholder (`None` = inherits segment).
-  /// TODO(mediaframe).
+  /// Per-word BCP-47 language tag (`None` = inherits segment).
   #[inline]
-  pub fn language(&self) -> Option<&str> {
-    self.language.as_deref()
+  pub const fn language(&self) -> Option<Language> {
+    self.language
   }
 
   /// Builder: replace `text`.
@@ -110,9 +107,9 @@ impl Word {
     self
   }
 
-  /// Builder: replace `language` placeholder. TODO(mediaframe).
+  /// Builder: replace `language`.
   #[inline]
-  pub fn with_language(mut self, v: Option<SmolStr>) -> Self {
+  pub const fn with_language(mut self, v: Option<Language>) -> Self {
     self.language = v;
     self
   }
@@ -138,9 +135,7 @@ pub struct AudioSegment<Id = Uuid7> {
   span: TimeRange,
   speaker: Option<Id>,
   text: LocalizedText,
-  // TODO(mediaframe): `language: Option<mediaframe::Language>` (BCP-47).
-  // Placeholder = `Option<SmolStr>`.
-  language: Option<SmolStr>,
+  language: Option<Language>,
   words: std::vec::Vec<Word>,
   no_speech_prob: Option<f32>,
   avg_logprob: Option<f32>,
@@ -229,11 +224,10 @@ impl<Id> AudioSegment<Id> {
     &self.text
   }
 
-  /// Chunk language placeholder (`asry::Transcript.language`).
-  /// TODO(mediaframe).
+  /// Chunk language (`asry::Transcript.language`; BCP-47).
   #[inline]
-  pub fn language(&self) -> Option<&str> {
-    self.language.as_deref()
+  pub const fn language(&self) -> Option<Language> {
+    self.language
   }
 
   /// Word-level timing + scores (`asry`). May be empty (= no word timing).
@@ -276,9 +270,9 @@ impl<Id> AudioSegment<Id> {
     self
   }
 
-  /// Builder: replace `language` placeholder. TODO(mediaframe).
+  /// Builder: replace `language`.
   #[inline]
-  pub fn with_language(mut self, v: Option<SmolStr>) -> Self {
+  pub const fn with_language(mut self, v: Option<Language>) -> Self {
     self.language = v;
     self
   }
@@ -325,9 +319,9 @@ impl<Id> AudioSegment<Id> {
     self.text = v;
   }
 
-  /// In-place mutator for `language`. TODO(mediaframe).
+  /// In-place mutator for `language`.
   #[inline]
-  pub fn set_language(&mut self, v: Option<SmolStr>) {
+  pub const fn set_language(&mut self, v: Option<Language>) {
     self.language = v;
   }
 
@@ -449,28 +443,31 @@ mod tests {
   #[test]
   fn builders_attach_speaker_and_text() {
     let speaker = Uuid7::new();
+    let es = Language::from_bcp47("es").unwrap();
     let s = AudioSegment::try_new(Uuid7::new(), Uuid7::new(), 2, span(1000, 2000))
       .unwrap()
       .with_speaker(Some(speaker))
       .with_text(LocalizedText::from_src_translated("hola", "hello"))
-      .with_language(Some(SmolStr::from("es")));
+      .with_language(Some(es));
     assert_eq!(s.speaker(), Some(&speaker));
     assert_eq!(s.text().src(), "hola");
     assert_eq!(s.text().translated(), "hello");
-    assert_eq!(s.language(), Some("es"));
+    assert_eq!(s.language(), Some(es));
+    assert_eq!(s.language().unwrap().language(), "es");
   }
 
   #[test]
   fn words_attach_and_carry_per_word_language() {
-    let w1 = Word::new("bon", span(0, 200), 0.95).with_language(Some(SmolStr::from("fr")));
-    let w2 = Word::from_parts("jour", span(200, 400), 0.92, Some(SmolStr::from("fr")));
+    let fr = Language::from_bcp47("fr").unwrap();
+    let w1 = Word::new("bon", span(0, 200), 0.95).with_language(Some(fr));
+    let w2 = Word::from_parts("jour", span(200, 400), 0.92, Some(fr));
     let s = AudioSegment::try_new(Uuid7::new(), Uuid7::new(), 0, span(0, 400))
       .unwrap()
       .with_words(std::vec![w1.clone(), w2.clone()]);
     assert_eq!(s.words().len(), 2);
     assert_eq!(s.words()[0].text(), "bon");
     assert!((s.words()[0].score() - 0.95).abs() < f32::EPSILON);
-    assert_eq!(s.words()[1].language(), Some("fr"));
+    assert_eq!(s.words()[1].language(), Some(fr));
   }
 
   #[test]
