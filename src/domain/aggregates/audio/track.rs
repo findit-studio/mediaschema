@@ -7,18 +7,22 @@
 //! state + provenance, the diarized-speaker set, and (A-loc per-track) the
 //! per-track segments refs → `AudioSegment`.
 //!
-//! ## mediaframe placeholders
+//! ## mediaframe types
 //!
 //! The locked spec types several fields as `mediaframe::*` externs
-//! (`AudioCodec`, `ChannelLayout`, `Language`, `TrackDisposition`,
-//! `BitRateMode`, `Dimensions`). `mediaframe` is not yet a dependency of
-//! `mediaschema` (see `schema/mediaframe-candidates.md`). Until that crate
-//! is on crates.io we model those fields as wire-layer-compatible
-//! placeholders (`SmolStr` / `u32` / `u64` / `Option<…>`) and flag each
-//! site with `TODO(mediaframe)` so the substitution is mechanical when
-//! the crate lands.
+//! (`codec::AudioCodec`, `audio::ChannelLayout`, `lang::Language`,
+//! `disposition::TrackDisposition`, `audio::BitRateMode`); the
+//! per-recording signal/metadata VOs (`audio::Loudness`,
+//! `audio::Fingerprint`, `audio::Tags`, `audio::CoverArt`) likewise live
+//! in `mediaframe`. These are wired through directly.
 
 use derive_more::IsVariant;
+use mediaframe::{
+  audio::{BitRateMode, ChannelLayout, CoverArt, Fingerprint, Loudness, Tags},
+  codec::AudioCodec,
+  disposition::TrackDisposition,
+  lang::Language,
+};
 use mediatime::Timestamp;
 use smol_str::SmolStr;
 
@@ -27,430 +31,13 @@ use crate::domain::{
 };
 
 // ---------------------------------------------------------------------------
-// Nested value objects (per locked spec §Nested value-objects)
-// ---------------------------------------------------------------------------
-
-/// Per-recording music tags (~16 flat ID3/Vorbis-style fields, grouped).
-///
-/// Locked `audio_track.md` §Nested value-objects. Free-text fields use
-/// `SmolStr` (`""` = absent, never `Option`). Numeric counts use `u32`
-/// (`0` = absent).
-///
-/// **Default convention**: `Default::default()` calls [`AudioTags::new`]
-/// (the all-empty record).
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct AudioTags {
-  title: SmolStr,
-  artist: SmolStr,
-  album_artist: SmolStr,
-  album: SmolStr,
-  genre: SmolStr,
-  composer: SmolStr,
-  performer: SmolStr,
-  date: SmolStr,
-  track_number: u32,
-  total_tracks: u32,
-  disc_number: u32,
-  total_discs: u32,
-  comment: SmolStr,
-  lyrics: SmolStr,
-  tag_types: std::vec::Vec<SmolStr>,
-}
-
-impl AudioTags {
-  /// Canonical no-arg constructor — every field empty/zero.
-  /// [`Default::default`] is `Self::new()`.
-  #[inline]
-  pub fn new() -> Self {
-    Self {
-      title: SmolStr::default(),
-      artist: SmolStr::default(),
-      album_artist: SmolStr::default(),
-      album: SmolStr::default(),
-      genre: SmolStr::default(),
-      composer: SmolStr::default(),
-      performer: SmolStr::default(),
-      date: SmolStr::default(),
-      track_number: 0,
-      total_tracks: 0,
-      disc_number: 0,
-      total_discs: 0,
-      comment: SmolStr::default(),
-      lyrics: SmolStr::default(),
-      tag_types: std::vec::Vec::new(),
-    }
-  }
-
-  /// Track title (`""` = absent).
-  #[inline]
-  pub fn title(&self) -> &str {
-    self.title.as_str()
-  }
-
-  /// Performing artist (`""` = absent).
-  #[inline]
-  pub fn artist(&self) -> &str {
-    self.artist.as_str()
-  }
-
-  /// Album artist (`""` = absent).
-  #[inline]
-  pub fn album_artist(&self) -> &str {
-    self.album_artist.as_str()
-  }
-
-  /// Album name (`""` = absent).
-  #[inline]
-  pub fn album(&self) -> &str {
-    self.album.as_str()
-  }
-
-  /// Genre (`""` = absent).
-  #[inline]
-  pub fn genre(&self) -> &str {
-    self.genre.as_str()
-  }
-
-  /// Composer (`""` = absent).
-  #[inline]
-  pub fn composer(&self) -> &str {
-    self.composer.as_str()
-  }
-
-  /// Performer (`""` = absent).
-  #[inline]
-  pub fn performer(&self) -> &str {
-    self.performer.as_str()
-  }
-
-  /// Release date / year (`""` = absent).
-  #[inline]
-  pub fn date(&self) -> &str {
-    self.date.as_str()
-  }
-
-  /// Track number on disc (`0` = absent).
-  #[inline]
-  pub const fn track_number(&self) -> u32 {
-    self.track_number
-  }
-
-  /// Total tracks on disc (`0` = absent).
-  #[inline]
-  pub const fn total_tracks(&self) -> u32 {
-    self.total_tracks
-  }
-
-  /// Disc number in set (`0` = absent).
-  #[inline]
-  pub const fn disc_number(&self) -> u32 {
-    self.disc_number
-  }
-
-  /// Total discs in set (`0` = absent).
-  #[inline]
-  pub const fn total_discs(&self) -> u32 {
-    self.total_discs
-  }
-
-  /// Free-text comment (`""` = absent).
-  #[inline]
-  pub fn comment(&self) -> &str {
-    self.comment.as_str()
-  }
-
-  /// Lyrics (`""` = absent).
-  #[inline]
-  pub fn lyrics(&self) -> &str {
-    self.lyrics.as_str()
-  }
-
-  /// Tag schemas seen in the source container (e.g. `ID3v2`, `Vorbis`).
-  #[inline]
-  pub fn tag_types(&self) -> &[SmolStr] {
-    self.tag_types.as_slice()
-  }
-
-  /// Builder: replace `title`.
-  #[inline]
-  pub fn with_title(mut self, v: impl Into<SmolStr>) -> Self {
-    self.title = v.into();
-    self
-  }
-
-  /// Builder: replace `artist`.
-  #[inline]
-  pub fn with_artist(mut self, v: impl Into<SmolStr>) -> Self {
-    self.artist = v.into();
-    self
-  }
-
-  /// Builder: replace `album_artist`.
-  #[inline]
-  pub fn with_album_artist(mut self, v: impl Into<SmolStr>) -> Self {
-    self.album_artist = v.into();
-    self
-  }
-
-  /// Builder: replace `album`.
-  #[inline]
-  pub fn with_album(mut self, v: impl Into<SmolStr>) -> Self {
-    self.album = v.into();
-    self
-  }
-
-  /// Builder: replace `genre`.
-  #[inline]
-  pub fn with_genre(mut self, v: impl Into<SmolStr>) -> Self {
-    self.genre = v.into();
-    self
-  }
-
-  /// Builder: replace `composer`.
-  #[inline]
-  pub fn with_composer(mut self, v: impl Into<SmolStr>) -> Self {
-    self.composer = v.into();
-    self
-  }
-
-  /// Builder: replace `performer`.
-  #[inline]
-  pub fn with_performer(mut self, v: impl Into<SmolStr>) -> Self {
-    self.performer = v.into();
-    self
-  }
-
-  /// Builder: replace `date`.
-  #[inline]
-  pub fn with_date(mut self, v: impl Into<SmolStr>) -> Self {
-    self.date = v.into();
-    self
-  }
-
-  /// Builder: replace `track_number`.
-  #[inline]
-  pub const fn with_track_number(mut self, v: u32) -> Self {
-    self.track_number = v;
-    self
-  }
-
-  /// Builder: replace `total_tracks`.
-  #[inline]
-  pub const fn with_total_tracks(mut self, v: u32) -> Self {
-    self.total_tracks = v;
-    self
-  }
-
-  /// Builder: replace `disc_number`.
-  #[inline]
-  pub const fn with_disc_number(mut self, v: u32) -> Self {
-    self.disc_number = v;
-    self
-  }
-
-  /// Builder: replace `total_discs`.
-  #[inline]
-  pub const fn with_total_discs(mut self, v: u32) -> Self {
-    self.total_discs = v;
-    self
-  }
-
-  /// Builder: replace `comment`.
-  #[inline]
-  pub fn with_comment(mut self, v: impl Into<SmolStr>) -> Self {
-    self.comment = v.into();
-    self
-  }
-
-  /// Builder: replace `lyrics`.
-  #[inline]
-  pub fn with_lyrics(mut self, v: impl Into<SmolStr>) -> Self {
-    self.lyrics = v.into();
-    self
-  }
-
-  /// Builder: replace `tag_types`.
-  #[inline]
-  pub fn with_tag_types(mut self, v: impl Into<std::vec::Vec<SmolStr>>) -> Self {
-    self.tag_types = v.into();
-    self
-  }
-}
-
-impl Default for AudioTags {
-  #[inline]
-  fn default() -> Self {
-    Self::new()
-  }
-}
-
-/// Per-recording embedded cover art (inline `Bytes`).
-///
-/// Locked `audio_track.md` §Nested value-objects. Mirrors locked
-/// `Keyframe.data` (inline, no `Location`). `size` is dropped — derived
-/// from `data.len()`.
-///
-/// TODO(mediaframe): `dimensions: Option<mediaframe::Dimensions>` — until
-/// `mediaframe` ships, the field is dropped from the placeholder. Add it
-/// back when `mediaframe::Dimensions` is available.
-///
-/// TODO(mediaframe): the locked spec types `data: Bytes`
-/// (`bytes::Bytes` — currently only reachable via `buffa`'s re-export).
-/// We use `std::vec::Vec<u8>` as the no-extra-dep placeholder; the
-/// substitution is mechanical when a shared `bytes` dependency lands.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct AudioCoverArt {
-  data: std::vec::Vec<u8>,
-  mime: SmolStr,
-}
-
-impl AudioCoverArt {
-  /// Canonical no-arg constructor — empty payload.
-  #[inline]
-  pub fn new() -> Self {
-    Self {
-      data: std::vec::Vec::new(),
-      mime: SmolStr::default(),
-    }
-  }
-
-  /// Construct from explicit data + MIME type.
-  #[inline]
-  pub fn from_parts(data: impl Into<std::vec::Vec<u8>>, mime: impl Into<SmolStr>) -> Self {
-    Self {
-      data: data.into(),
-      mime: mime.into(),
-    }
-  }
-
-  /// Raw image bytes (inline; mirrors `Keyframe.data`).
-  #[inline]
-  pub fn data(&self) -> &[u8] {
-    self.data.as_slice()
-  }
-
-  /// IANA MIME type (`""` = absent / unknown).
-  #[inline]
-  pub fn mime(&self) -> &str {
-    self.mime.as_str()
-  }
-
-  /// Convenience: `data.len()` (the locked spec drops the explicit `size`
-  /// field — derived).
-  #[inline]
-  pub const fn size(&self) -> usize {
-    self.data.len()
-  }
-
-  /// Builder: replace `data`.
-  #[inline]
-  pub fn with_data(mut self, data: impl Into<std::vec::Vec<u8>>) -> Self {
-    self.data = data.into();
-    self
-  }
-
-  /// Builder: replace `mime`.
-  #[inline]
-  pub fn with_mime(mut self, mime: impl Into<SmolStr>) -> Self {
-    self.mime = mime.into();
-    self
-  }
-}
-
-impl Default for AudioCoverArt {
-  #[inline]
-  fn default() -> Self {
-    Self::new()
-  }
-}
-
-/// EBU R128 loudness measurements (integrated LUFS + true peak + range LU).
-///
-/// Locked `audio_track.md` §Nested value-objects. All three values are
-/// always present together when the EBU R128 stage has run; whole-VO
-/// absence is modelled at the `AudioTrack` site via `Option<Loudness>`.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Loudness {
-  integrated_lufs: f32,
-  true_peak_dbtp: f32,
-  loudness_range_lu: f32,
-}
-
-impl Loudness {
-  /// Construct from the three EBU R128 values.
-  #[inline]
-  pub const fn new(integrated_lufs: f32, true_peak_dbtp: f32, loudness_range_lu: f32) -> Self {
-    Self {
-      integrated_lufs,
-      true_peak_dbtp,
-      loudness_range_lu,
-    }
-  }
-
-  /// Integrated LUFS (program loudness).
-  #[inline]
-  pub const fn integrated_lufs(&self) -> f32 {
-    self.integrated_lufs
-  }
-
-  /// True peak (dBTP).
-  #[inline]
-  pub const fn true_peak_dbtp(&self) -> f32 {
-    self.true_peak_dbtp
-  }
-
-  /// Loudness range (LU).
-  #[inline]
-  pub const fn loudness_range_lu(&self) -> f32 {
-    self.loudness_range_lu
-  }
-}
-
-/// Acoustic fingerprint (chromaprint) for recording dedup / AcoustID
-/// lookup.
-///
-/// Locked `audio_track.md` §Nested value-objects. `duration_s` is dropped
-/// (locked: redundant with `AudioTrack.duration`).
-///
-/// TODO(mediaframe): the locked spec types `value: Bytes` (`bytes::Bytes`).
-/// We use `std::vec::Vec<u8>` as the no-extra-dep placeholder.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct AudioFingerprint {
-  algo: SmolStr,
-  value: std::vec::Vec<u8>,
-}
-
-impl AudioFingerprint {
-  /// Construct from explicit algo + value.
-  #[inline]
-  pub fn from_parts(algo: impl Into<SmolStr>, value: impl Into<std::vec::Vec<u8>>) -> Self {
-    Self {
-      algo: algo.into(),
-      value: value.into(),
-    }
-  }
-
-  /// Algorithm name (e.g. `"chromaprint"`).
-  #[inline]
-  pub fn algo(&self) -> &str {
-    self.algo.as_str()
-  }
-
-  /// Raw fingerprint bytes.
-  #[inline]
-  pub fn value(&self) -> &[u8] {
-    self.value.as_slice()
-  }
-}
-
-// ---------------------------------------------------------------------------
 // AudioTrack
 // ---------------------------------------------------------------------------
 
 /// One audio stream of an `Audio` facet (`parent → Audio.id`).
 ///
 /// Generic over `Id` (default [`Uuid7`]). See module docs for the
-/// `mediaframe`-extern placeholders.
+/// `mediaframe` descriptor / VO types used by its fields.
 ///
 /// **No `Default`** — defaulting to a nil id + nil parent is an orphan
 /// state. Use [`AudioTrack::try_new`].
@@ -460,19 +47,13 @@ pub struct AudioTrack<Id = Uuid7> {
   parent: Id,
   stream_index: Option<u32>,
   container_track_id: Option<u64>,
-  // TODO(mediaframe): `codec: mediaframe::AudioCodec` extern. Use `SmolStr`
-  // placeholder (`""` = absent / `Other`-style fallback). Replace when
-  // `mediaframe::AudioCodec` lands.
-  codec: SmolStr,
+  codec: AudioCodec,
   profile: SmolStr,
   sample_rate: u32,
   channels: u16,
-  // TODO(mediaframe): `channel_layout: mediaframe::ChannelLayout` extern.
-  channel_layout: SmolStr,
+  channel_layout: ChannelLayout,
   bit_rate: u64,
-  // TODO(mediaframe): `bit_rate_mode: Option<mediaframe::BitRateMode>` —
-  // `Cbr`/`Vbr`/`Abr`. Placeholder = `Option<SmolStr>`.
-  bit_rate_mode: Option<SmolStr>,
+  bit_rate_mode: Option<BitRateMode>,
   bits_per_sample: Option<u16>,
   is_lossless: bool,
   // TODO(mediaframe): `duration: Option<mediatime::TrackTime>` — `mediatime`
@@ -481,28 +62,23 @@ pub struct AudioTrack<Id = Uuid7> {
   // `mediatime::Timestamp` treated as a track-relative offset/duration.
   duration: Option<Timestamp>,
   start_pts: Option<Timestamp>,
-  // TODO(mediaframe): `language: Option<mediaframe::Language>` (BCP-47).
-  // Placeholder = `Option<SmolStr>` (the raw BCP-47 string).
-  language: Option<SmolStr>,
-  // TODO(mediaframe): `detected_language: Option<mediaframe::Language>`.
-  detected_language: Option<SmolStr>,
+  language: Option<Language>,
+  detected_language: Option<Language>,
   language_mismatch: bool,
-  // TODO(mediaframe): `disposition: mediaframe::TrackDisposition` (bitflags).
-  // Placeholder = raw `u32` bits.
-  disposition: u32,
+  disposition: TrackDisposition,
   is_primary: bool,
   auto_selected: bool,
   content: Option<AudioContentKind>,
   speech_ratio: Option<f32>,
   is_silent: bool,
   loudness: Option<Loudness>,
-  fingerprint: Option<AudioFingerprint>,
+  fingerprint: Option<Fingerprint>,
   isrc: SmolStr,
   acoustid: SmolStr,
   musicbrainz_recording_id: SmolStr,
   speakers: std::vec::Vec<Id>,
-  tags: Option<AudioTags>,
-  cover_art: Option<AudioCoverArt>,
+  tags: Option<Tags>,
+  cover_art: Option<CoverArt>,
   segments: std::vec::Vec<Id>,
   provenance: Provenance,
   index_status: AudioIndexStatus,
@@ -528,11 +104,11 @@ impl AudioTrack<Uuid7> {
       parent,
       stream_index: None,
       container_track_id: None,
-      codec: SmolStr::default(),
+      codec: AudioCodec::Other(SmolStr::default()),
       profile: SmolStr::default(),
       sample_rate: 0,
       channels: 0,
-      channel_layout: SmolStr::default(),
+      channel_layout: ChannelLayout::default(),
       bit_rate: 0,
       bit_rate_mode: None,
       bits_per_sample: None,
@@ -542,7 +118,7 @@ impl AudioTrack<Uuid7> {
       language: None,
       detected_language: None,
       language_mismatch: false,
-      disposition: 0,
+      disposition: TrackDisposition::empty(),
       is_primary: false,
       auto_selected: false,
       content: None,
@@ -589,10 +165,10 @@ impl<Id> AudioTrack<Id> {
     self.container_track_id
   }
 
-  /// Codec name placeholder (`""` = absent). TODO(mediaframe).
+  /// Codec (`AudioCodec::Other("")` = absent).
   #[inline]
-  pub fn codec(&self) -> &str {
-    self.codec.as_str()
+  pub const fn codec(&self) -> &AudioCodec {
+    &self.codec
   }
 
   /// Codec profile (e.g. `LC` / `HE-AACv2`; `""` = absent).
@@ -613,10 +189,10 @@ impl<Id> AudioTrack<Id> {
     self.channels
   }
 
-  /// Channel-layout placeholder (`""` = absent). TODO(mediaframe).
+  /// Channel layout (`ChannelLayout::Other("")` = absent).
   #[inline]
-  pub fn channel_layout(&self) -> &str {
-    self.channel_layout.as_str()
+  pub const fn channel_layout(&self) -> &ChannelLayout {
+    &self.channel_layout
   }
 
   /// Bit rate (bits/s; `0` = unknown).
@@ -625,11 +201,10 @@ impl<Id> AudioTrack<Id> {
     self.bit_rate
   }
 
-  /// Bit-rate mode placeholder (`Cbr`/`Vbr`/`Abr`; `None` = unknown).
-  /// TODO(mediaframe).
+  /// Bit-rate mode (`Cbr`/`Vbr`/`Abr`; `None` = unknown).
   #[inline]
-  pub fn bit_rate_mode(&self) -> Option<&str> {
-    self.bit_rate_mode.as_deref()
+  pub const fn bit_rate_mode(&self) -> Option<BitRateMode> {
+    self.bit_rate_mode
   }
 
   /// PCM/lossless sample depth.
@@ -657,16 +232,16 @@ impl<Id> AudioTrack<Id> {
     self.start_pts.as_ref()
   }
 
-  /// Declared language (BCP-47 placeholder string). TODO(mediaframe).
+  /// Declared language (BCP-47; `None` = absent).
   #[inline]
-  pub fn language(&self) -> Option<&str> {
-    self.language.as_deref()
+  pub const fn language(&self) -> Option<Language> {
+    self.language
   }
 
-  /// Whisper-LID detected language (BCP-47 placeholder). TODO(mediaframe).
+  /// Whisper-LID detected language (BCP-47; `None` = absent).
   #[inline]
-  pub fn detected_language(&self) -> Option<&str> {
-    self.detected_language.as_deref()
+  pub const fn detected_language(&self) -> Option<Language> {
+    self.detected_language
   }
 
   /// `detected ≠ declared` (derived).
@@ -675,10 +250,9 @@ impl<Id> AudioTrack<Id> {
     self.language_mismatch
   }
 
-  /// Disposition flag bits (`mediaframe::TrackDisposition` placeholder).
-  /// TODO(mediaframe).
+  /// Disposition flags (`AV_DISPOSITION_*` bitflags).
   #[inline]
-  pub const fn disposition(&self) -> u32 {
+  pub const fn disposition(&self) -> TrackDisposition {
     self.disposition
   }
 
@@ -720,7 +294,7 @@ impl<Id> AudioTrack<Id> {
 
   /// Chromaprint fingerprint (`None` = stage not run yet).
   #[inline]
-  pub const fn fingerprint(&self) -> Option<&AudioFingerprint> {
+  pub const fn fingerprint(&self) -> Option<&Fingerprint> {
     self.fingerprint.as_ref()
   }
 
@@ -751,13 +325,13 @@ impl<Id> AudioTrack<Id> {
 
   /// Per-recording music tags (`None` = no tags read yet).
   #[inline]
-  pub const fn tags(&self) -> Option<&AudioTags> {
+  pub const fn tags(&self) -> Option<&Tags> {
     self.tags.as_ref()
   }
 
   /// Per-recording embedded cover art (`None` = no art).
   #[inline]
-  pub const fn cover_art(&self) -> Option<&AudioCoverArt> {
+  pub const fn cover_art(&self) -> Option<&CoverArt> {
     self.cover_art.as_ref()
   }
 
@@ -802,10 +376,10 @@ impl<Id> AudioTrack<Id> {
     self
   }
 
-  /// Builder: replace `codec` placeholder. TODO(mediaframe).
+  /// Builder: replace `codec`.
   #[inline]
-  pub fn with_codec(mut self, v: impl Into<SmolStr>) -> Self {
-    self.codec = v.into();
+  pub fn with_codec(mut self, v: AudioCodec) -> Self {
+    self.codec = v;
     self
   }
 
@@ -830,10 +404,10 @@ impl<Id> AudioTrack<Id> {
     self
   }
 
-  /// Builder: replace `channel_layout` placeholder. TODO(mediaframe).
+  /// Builder: replace `channel_layout`.
   #[inline]
-  pub fn with_channel_layout(mut self, v: impl Into<SmolStr>) -> Self {
-    self.channel_layout = v.into();
+  pub fn with_channel_layout(mut self, v: ChannelLayout) -> Self {
+    self.channel_layout = v;
     self
   }
 
@@ -844,9 +418,9 @@ impl<Id> AudioTrack<Id> {
     self
   }
 
-  /// Builder: replace `bit_rate_mode` placeholder. TODO(mediaframe).
+  /// Builder: replace `bit_rate_mode`.
   #[inline]
-  pub fn with_bit_rate_mode(mut self, v: Option<SmolStr>) -> Self {
+  pub const fn with_bit_rate_mode(mut self, v: Option<BitRateMode>) -> Self {
     self.bit_rate_mode = v;
     self
   }
@@ -879,16 +453,16 @@ impl<Id> AudioTrack<Id> {
     self
   }
 
-  /// Builder: replace `language` placeholder. TODO(mediaframe).
+  /// Builder: replace `language`.
   #[inline]
-  pub fn with_language(mut self, v: Option<SmolStr>) -> Self {
+  pub const fn with_language(mut self, v: Option<Language>) -> Self {
     self.language = v;
     self
   }
 
-  /// Builder: replace `detected_language` placeholder. TODO(mediaframe).
+  /// Builder: replace `detected_language`.
   #[inline]
-  pub fn with_detected_language(mut self, v: Option<SmolStr>) -> Self {
+  pub const fn with_detected_language(mut self, v: Option<Language>) -> Self {
     self.detected_language = v;
     self
   }
@@ -900,10 +474,10 @@ impl<Id> AudioTrack<Id> {
     self
   }
 
-  /// Builder: replace `disposition` bits. TODO(mediaframe).
+  /// Builder: replace `disposition` flags.
   #[inline]
-  pub const fn with_disposition(mut self, bits: u32) -> Self {
-    self.disposition = bits;
+  pub const fn with_disposition(mut self, v: TrackDisposition) -> Self {
+    self.disposition = v;
     self
   }
 
@@ -951,7 +525,7 @@ impl<Id> AudioTrack<Id> {
 
   /// Builder: replace `fingerprint`.
   #[inline]
-  pub fn with_fingerprint(mut self, v: Option<AudioFingerprint>) -> Self {
+  pub fn with_fingerprint(mut self, v: Option<Fingerprint>) -> Self {
     self.fingerprint = v;
     self
   }
@@ -986,14 +560,14 @@ impl<Id> AudioTrack<Id> {
 
   /// Builder: replace `tags`.
   #[inline]
-  pub fn with_tags(mut self, v: Option<AudioTags>) -> Self {
+  pub fn with_tags(mut self, v: Option<Tags>) -> Self {
     self.tags = v;
     self
   }
 
   /// Builder: replace `cover_art`.
   #[inline]
-  pub fn with_cover_art(mut self, v: Option<AudioCoverArt>) -> Self {
+  pub fn with_cover_art(mut self, v: Option<CoverArt>) -> Self {
     self.cover_art = v;
     self
   }
@@ -1040,10 +614,10 @@ impl<Id> AudioTrack<Id> {
     self.container_track_id = v;
   }
 
-  /// In-place mutator for `codec`. TODO(mediaframe).
+  /// In-place mutator for `codec`.
   #[inline]
-  pub fn set_codec(&mut self, v: impl Into<SmolStr>) {
-    self.codec = v.into();
+  pub fn set_codec(&mut self, v: AudioCodec) {
+    self.codec = v;
   }
 
   /// In-place mutator for `profile`.
@@ -1064,10 +638,10 @@ impl<Id> AudioTrack<Id> {
     self.channels = channels;
   }
 
-  /// In-place mutator for `channel_layout`. TODO(mediaframe).
+  /// In-place mutator for `channel_layout`.
   #[inline]
-  pub fn set_channel_layout(&mut self, v: impl Into<SmolStr>) {
-    self.channel_layout = v.into();
+  pub fn set_channel_layout(&mut self, v: ChannelLayout) {
+    self.channel_layout = v;
   }
 
   /// In-place mutator for `bit_rate`.
@@ -1076,9 +650,9 @@ impl<Id> AudioTrack<Id> {
     self.bit_rate = bps;
   }
 
-  /// In-place mutator for `bit_rate_mode`. TODO(mediaframe).
+  /// In-place mutator for `bit_rate_mode`.
   #[inline]
-  pub fn set_bit_rate_mode(&mut self, v: Option<SmolStr>) {
+  pub const fn set_bit_rate_mode(&mut self, v: Option<BitRateMode>) {
     self.bit_rate_mode = v;
   }
 
@@ -1106,15 +680,15 @@ impl<Id> AudioTrack<Id> {
     self.start_pts = v;
   }
 
-  /// In-place mutator for `language`. TODO(mediaframe).
+  /// In-place mutator for `language`.
   #[inline]
-  pub fn set_language(&mut self, v: Option<SmolStr>) {
+  pub const fn set_language(&mut self, v: Option<Language>) {
     self.language = v;
   }
 
-  /// In-place mutator for `detected_language`. TODO(mediaframe).
+  /// In-place mutator for `detected_language`.
   #[inline]
-  pub fn set_detected_language(&mut self, v: Option<SmolStr>) {
+  pub const fn set_detected_language(&mut self, v: Option<Language>) {
     self.detected_language = v;
   }
 
@@ -1124,10 +698,10 @@ impl<Id> AudioTrack<Id> {
     self.language_mismatch = v;
   }
 
-  /// In-place mutator for `disposition`. TODO(mediaframe).
+  /// In-place mutator for `disposition`.
   #[inline]
-  pub const fn set_disposition(&mut self, bits: u32) {
-    self.disposition = bits;
+  pub const fn set_disposition(&mut self, v: TrackDisposition) {
+    self.disposition = v;
   }
 
   /// In-place mutator for `is_primary`.
@@ -1168,7 +742,7 @@ impl<Id> AudioTrack<Id> {
 
   /// In-place mutator for `fingerprint`.
   #[inline]
-  pub fn set_fingerprint(&mut self, v: Option<AudioFingerprint>) {
+  pub fn set_fingerprint(&mut self, v: Option<Fingerprint>) {
     self.fingerprint = v;
   }
 
@@ -1198,13 +772,13 @@ impl<Id> AudioTrack<Id> {
 
   /// In-place mutator for `tags`.
   #[inline]
-  pub fn set_tags(&mut self, v: Option<AudioTags>) {
+  pub fn set_tags(&mut self, v: Option<Tags>) {
     self.tags = v;
   }
 
   /// In-place mutator for `cover_art`.
   #[inline]
-  pub fn set_cover_art(&mut self, v: Option<AudioCoverArt>) {
+  pub fn set_cover_art(&mut self, v: Option<CoverArt>) {
     self.cover_art = v;
   }
 
@@ -1263,7 +837,7 @@ mod tests {
     assert_eq!(t.parent(), &parent);
     assert_eq!(t.sample_rate(), 0);
     assert_eq!(t.channels(), 0);
-    assert!(t.codec().is_empty());
+    assert!(t.codec().as_str().is_empty());
     assert!(t.tags().is_none());
     assert!(t.cover_art().is_none());
     assert!(t.speakers().is_empty());
@@ -1290,19 +864,21 @@ mod tests {
   fn descriptor_builders_chain() {
     let t = AudioTrack::try_new(Uuid7::new(), Uuid7::new())
       .unwrap()
-      .with_codec("aac")
+      .with_codec(AudioCodec::Aac)
       .with_profile("LC")
       .with_sample_rate(48_000)
       .with_channels(2)
-      .with_channel_layout("stereo")
+      .with_channel_layout(ChannelLayout::Stereo)
       .with_bit_rate(192_000)
       .with_lossless(false)
       .with_primary(true);
-    assert_eq!(t.codec(), "aac");
+    assert_eq!(t.codec(), &AudioCodec::Aac);
+    assert_eq!(t.codec().as_str(), "aac");
     assert_eq!(t.profile(), "LC");
     assert_eq!(t.sample_rate(), 48_000);
     assert_eq!(t.channels(), 2);
-    assert_eq!(t.channel_layout(), "stereo");
+    assert_eq!(t.channel_layout(), &ChannelLayout::Stereo);
+    assert_eq!(t.channel_layout().as_str(), "stereo");
     assert_eq!(t.bit_rate(), 192_000);
     assert!(!t.is_lossless());
     assert!(t.is_primary());
@@ -1310,14 +886,13 @@ mod tests {
 
   #[test]
   fn tags_and_cover_art_attach() {
-    let tags = AudioTags::new()
+    let tags = Tags::new()
       .with_title("Track 1")
       .with_artist("Artist A")
       .with_album("Album X")
       .with_track_number(1)
-      .with_total_tracks(12)
-      .with_tag_types(std::vec![SmolStr::from("ID3v2")]);
-    let cover = AudioCoverArt::from_parts(std::vec![0xFFu8, 0xD8, 0xFF], "image/jpeg");
+      .with_track_total(12);
+    let cover = CoverArt::try_new("image/jpeg", std::vec![0xFFu8, 0xD8, 0xFF]).unwrap();
     let t = AudioTrack::try_new(Uuid7::new(), Uuid7::new())
       .unwrap()
       .with_tags(Some(tags))
@@ -1325,11 +900,10 @@ mod tests {
     let tags = t.tags().expect("tags attached");
     assert_eq!(tags.title(), "Track 1");
     assert_eq!(tags.artist(), "Artist A");
-    assert_eq!(tags.track_number(), 1);
-    assert_eq!(tags.tag_types(), &[SmolStr::from("ID3v2")]);
+    assert_eq!(tags.track_number(), Some(1));
+    assert_eq!(tags.track_total(), Some(12));
     let cover = t.cover_art().expect("cover attached");
     assert_eq!(cover.mime(), "image/jpeg");
-    assert_eq!(cover.size(), 3);
     assert_eq!(cover.data(), &[0xFFu8, 0xD8, 0xFF]);
   }
 
@@ -1337,17 +911,16 @@ mod tests {
   fn loudness_and_fingerprint_attach() {
     let t = AudioTrack::try_new(Uuid7::new(), Uuid7::new())
       .unwrap()
-      .with_loudness(Some(Loudness::new(-23.0, -1.0, 7.5)))
-      .with_fingerprint(Some(AudioFingerprint::from_parts(
-        "chromaprint",
-        std::vec![1u8, 2, 3, 4],
-      )));
+      .with_loudness(Some(Loudness::new(-23.0, 7.5, -1.0, -3.0)))
+      .with_fingerprint(Some(
+        Fingerprint::try_new("chromaprint", std::vec![1u8, 2, 3, 4]).unwrap(),
+      ));
     let l = t.loudness().expect("loudness present");
     assert!((l.integrated_lufs() - -23.0).abs() < f32::EPSILON);
     assert!((l.true_peak_dbtp() - -1.0).abs() < f32::EPSILON);
-    assert!((l.loudness_range_lu() - 7.5).abs() < f32::EPSILON);
+    assert!((l.range_lu() - 7.5).abs() < f32::EPSILON);
     let fp = t.fingerprint().expect("fingerprint present");
-    assert_eq!(fp.algo(), "chromaprint");
+    assert_eq!(fp.algorithm(), "chromaprint");
     assert_eq!(fp.value(), &[1u8, 2, 3, 4]);
   }
 
@@ -1389,14 +962,14 @@ mod tests {
   #[test]
   fn setters_mutate_in_place() {
     let mut t = AudioTrack::try_new(Uuid7::new(), Uuid7::new()).unwrap();
-    t.set_codec("opus");
+    t.set_codec(AudioCodec::Opus);
     t.set_sample_rate(48_000);
     t.set_channels(2);
     t.set_lossless(false);
     t.set_silent(true);
     t.set_content(Some(AudioContentKind::Music));
     t.set_index_status(AudioIndexStatus::EXTRACTED);
-    assert_eq!(t.codec(), "opus");
+    assert_eq!(t.codec(), &AudioCodec::Opus);
     assert_eq!(t.sample_rate(), 48_000);
     assert_eq!(t.channels(), 2);
     assert!(!t.is_lossless());
