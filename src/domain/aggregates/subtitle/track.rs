@@ -4,30 +4,22 @@
 //! per-track stream/codec descriptor, language/role/origin, the
 //! parsed-cue aggregate refs, and per-track indexing state.
 //!
-//! ### mediaframe placeholders
-//!
-//! The locked doc references several types that live in the (not-yet-a-
-//! dependency) `mediaframe` crate. For now they're represented by neutral
-//! placeholder types so the domain compiles ahead of `mediaframe`
-//! integration. Each is marked `TODO(mediaframe)`:
-//!
-//! - `mediaframe::SubtitleCodec` → `SmolStr` (free-text codec name).
-//! - `mediaframe::SubtitleFormat` → `SmolStr` (text-vs-bitmap container form).
-//! - `mediaframe::SubtitleTrackOrigin` → `SmolStr`
-//!   (`"external"` / `"embedded"` / `"generated"`).
-//! - `mediaframe::Language` (`LanguageCode`) → `SmolStr` (BCP-47 tag;
-//!   `""` = absent — `Option` reserved for the future structured type).
-//! - `mediaframe::TrackDisposition` (bitflags) → `u32` (raw FFmpeg
-//!   `AV_DISPOSITION_*` bits).
-//! - `mediatime::TrackTime` (per-track duration / cue positions) →
-//!   `mediatime::Timestamp` (same path used by the locked `Speaker`).
-//!
-//! Once `mediaframe` is a `mediaschema` dep, these fields tighten in a
-//! follow-up PR. `is_image_based` similarly stays as a stored `bool`
-//! until the future `SubtitleCodec::is_image_based()` exists — at that
-//! point the field becomes a derived helper.
+//! The per-track codec / format / origin / language / disposition
+//! descriptors are the published `mediaframe` types
+//! ([`mediaframe::codec::SubtitleCodec`], [`mediaframe::subtitle::Format`],
+//! [`mediaframe::subtitle::TrackOrigin`], [`mediaframe::lang::Language`],
+//! [`mediaframe::disposition::TrackDisposition`]). The one remaining
+//! placeholder is the per-track duration / cue positions:
+//! `mediatime::TrackTime` (per-track time) → `mediatime::Timestamp`
+//! (same path used by the locked `Speaker`) until that type exists.
 
 use derive_more::IsVariant;
+use mediaframe::{
+  codec::SubtitleCodec,
+  disposition::TrackDisposition,
+  lang::Language,
+  subtitle::{Format, TrackOrigin},
+};
 use mediatime::Timestamp;
 use smol_str::SmolStr;
 
@@ -56,26 +48,13 @@ pub struct SubtitleTrack<Id = Uuid7> {
   container_track_id: Option<u64>,
 
   // Codec / format / origin / language / title.
-  // TODO(mediaframe): codec → `mediaframe::SubtitleCodec`.
-  codec: SmolStr,
-  // TODO(mediaframe): format → `mediaframe::SubtitleFormat`.
-  format: SmolStr,
-  // TODO(mediaframe): origin → `mediaframe::SubtitleTrackOrigin`.
-  origin: SmolStr,
-  // TODO(mediaframe): language → `mediaframe::Language` (BCP-47 newtype).
-  // `""` = absent (string-rule: never `Option<SmolStr>`).
-  language: SmolStr,
+  codec: SubtitleCodec,
+  format: Format,
+  origin: TrackOrigin,
+  language: Language,
   title: SmolStr,
 
-  /// TODO(mediaframe): once `mediaframe::SubtitleCodec` exists this
-  /// becomes a derived helper (`codec.is_image_based()`); stored as a
-  /// bool for now per the doc's "store derived or compute — open"
-  /// resolution.
-  is_image_based: bool,
-
-  // TODO(mediaframe): disposition → `mediaframe::TrackDisposition`
-  // (bitflags). Stored as raw `u32` of `AV_DISPOSITION_*` bits.
-  disposition: u32,
+  disposition: TrackDisposition,
 
   // Selection signals.
   is_primary: bool,
@@ -132,13 +111,14 @@ impl SubtitleTrack<Uuid7> {
       parent,
       stream_index: None,
       container_track_id: None,
-      codec: SmolStr::default(),
-      format: SmolStr::default(),
-      origin: SmolStr::default(),
-      language: SmolStr::default(),
+      // `SubtitleCodec` has no `Default`; the lossless "absent" value is
+      // the empty `Other("")` escape (mirrors the `""` = absent rule).
+      codec: SubtitleCodec::Other(SmolStr::default()),
+      format: Format::default(),
+      origin: TrackOrigin::default(),
+      language: Language::default(),
       title: SmolStr::default(),
-      is_image_based: false,
-      disposition: 0,
+      disposition: TrackDisposition::default(),
       is_primary: false,
       auto_selected: false,
       duration: None,
@@ -189,32 +169,28 @@ impl<Id> SubtitleTrack<Id> {
     self.container_track_id
   }
 
-  /// Codec (`""` = absent). TODO(mediaframe): tighten to
-  /// `mediaframe::SubtitleCodec`.
+  /// Subtitle codec (`Other("")` = absent).
   #[inline]
-  pub fn codec(&self) -> &str {
-    self.codec.as_str()
+  pub const fn codec(&self) -> &SubtitleCodec {
+    &self.codec
   }
 
-  /// Text vs bitmap container form (`""` = absent).
-  /// TODO(mediaframe): tighten to `mediaframe::SubtitleFormat`.
+  /// Text vs bitmap container form ([`Format::default`] = absent).
   #[inline]
-  pub fn format(&self) -> &str {
-    self.format.as_str()
+  pub const fn format(&self) -> &Format {
+    &self.format
   }
 
-  /// `"external"` / `"embedded"` / `"generated"` (`""` = absent).
-  /// TODO(mediaframe): tighten to `mediaframe::SubtitleTrackOrigin`.
+  /// Where the bytes came from (embedded / sidecar / external).
   #[inline]
-  pub fn origin(&self) -> &str {
-    self.origin.as_str()
+  pub const fn origin(&self) -> &TrackOrigin {
+    &self.origin
   }
 
-  /// Language tag (`""` = absent). TODO(mediaframe): tighten to
-  /// `mediaframe::Language` (BCP-47 newtype).
+  /// Language tag ([`Language::default`] = `und` / undetermined).
   #[inline]
-  pub fn language(&self) -> &str {
-    self.language.as_str()
+  pub const fn language(&self) -> &Language {
+    &self.language
   }
 
   /// Track title/label (`""` = absent — string-rule, no `Option`).
@@ -223,17 +199,17 @@ impl<Id> SubtitleTrack<Id> {
     self.title.as_str()
   }
 
-  /// Whether this codec requires OCR (PGS/DVBSUB/…). TODO(mediaframe):
-  /// becomes a derived helper on `mediaframe::SubtitleCodec`.
+  /// Whether this track's container form requires OCR (PGS/DVBSUB/…).
+  /// Derived from [`Format::is_image_based`]; an unknown / unclassified
+  /// `Other` format degrades to `false`.
   #[inline]
-  pub const fn is_image_based(&self) -> bool {
-    self.is_image_based
+  pub fn is_image_based(&self) -> bool {
+    self.format.is_image_based().unwrap_or(false)
   }
 
-  /// Raw FFmpeg `AV_DISPOSITION_*` bits. TODO(mediaframe): tighten to
-  /// `mediaframe::TrackDisposition` (bitflags).
+  /// FFmpeg `AV_DISPOSITION_*` bits as a [`TrackDisposition`] bitflags.
   #[inline]
-  pub const fn disposition(&self) -> u32 {
+  pub const fn disposition(&self) -> TrackDisposition {
     self.disposition
   }
 
@@ -380,29 +356,29 @@ impl<Id> SubtitleTrack<Id> {
 
   /// Builder: replace `codec`.
   #[inline]
-  pub fn with_codec(mut self, v: impl Into<SmolStr>) -> Self {
-    self.codec = v.into();
+  pub fn with_codec(mut self, v: SubtitleCodec) -> Self {
+    self.codec = v;
     self
   }
 
   /// Builder: replace `format`.
   #[inline]
-  pub fn with_format(mut self, v: impl Into<SmolStr>) -> Self {
-    self.format = v.into();
+  pub fn with_format(mut self, v: Format) -> Self {
+    self.format = v;
     self
   }
 
   /// Builder: replace `origin`.
   #[inline]
-  pub fn with_origin(mut self, v: impl Into<SmolStr>) -> Self {
-    self.origin = v.into();
+  pub const fn with_origin(mut self, v: TrackOrigin) -> Self {
+    self.origin = v;
     self
   }
 
   /// Builder: replace `language`.
   #[inline]
-  pub fn with_language(mut self, v: impl Into<SmolStr>) -> Self {
-    self.language = v.into();
+  pub const fn with_language(mut self, v: Language) -> Self {
+    self.language = v;
     self
   }
 
@@ -413,16 +389,9 @@ impl<Id> SubtitleTrack<Id> {
     self
   }
 
-  /// Builder: replace `is_image_based`.
-  #[inline]
-  pub const fn with_image_based(mut self, v: bool) -> Self {
-    self.is_image_based = v;
-    self
-  }
-
   /// Builder: replace `disposition`.
   #[inline]
-  pub const fn with_disposition(mut self, v: u32) -> Self {
+  pub const fn with_disposition(mut self, v: TrackDisposition) -> Self {
     self.disposition = v;
     self
   }
@@ -585,26 +554,26 @@ impl<Id> SubtitleTrack<Id> {
 
   /// In-place mutator for `codec`.
   #[inline]
-  pub fn set_codec(&mut self, v: impl Into<SmolStr>) {
-    self.codec = v.into();
+  pub fn set_codec(&mut self, v: SubtitleCodec) {
+    self.codec = v;
   }
 
   /// In-place mutator for `format`.
   #[inline]
-  pub fn set_format(&mut self, v: impl Into<SmolStr>) {
-    self.format = v.into();
+  pub fn set_format(&mut self, v: Format) {
+    self.format = v;
   }
 
   /// In-place mutator for `origin`.
   #[inline]
-  pub fn set_origin(&mut self, v: impl Into<SmolStr>) {
-    self.origin = v.into();
+  pub fn set_origin(&mut self, v: TrackOrigin) {
+    self.origin = v;
   }
 
   /// In-place mutator for `language`.
   #[inline]
-  pub fn set_language(&mut self, v: impl Into<SmolStr>) {
-    self.language = v.into();
+  pub fn set_language(&mut self, v: Language) {
+    self.language = v;
   }
 
   /// In-place mutator for `title`.
@@ -613,15 +582,9 @@ impl<Id> SubtitleTrack<Id> {
     self.title = v.into();
   }
 
-  /// In-place mutator for `is_image_based`.
-  #[inline]
-  pub const fn set_image_based(&mut self, v: bool) {
-    self.is_image_based = v;
-  }
-
   /// In-place mutator for `disposition`.
   #[inline]
-  pub const fn set_disposition(&mut self, v: u32) {
+  pub fn set_disposition(&mut self, v: TrackDisposition) {
     self.disposition = v;
   }
 
@@ -774,13 +737,13 @@ mod tests {
     let parent = Uuid7::new();
     let t = SubtitleTrack::try_new(Uuid7::new(), parent).expect("valid construction must succeed");
     assert_eq!(t.parent(), &parent);
-    assert!(t.codec().is_empty());
-    assert!(t.format().is_empty());
-    assert!(t.origin().is_empty());
-    assert!(t.language().is_empty());
+    assert_eq!(t.codec(), &SubtitleCodec::Other(SmolStr::default()));
+    assert_eq!(t.format(), &Format::default());
+    assert_eq!(t.origin(), &TrackOrigin::default());
+    assert_eq!(t.language(), &Language::default());
     assert!(t.title().is_empty());
     assert!(!t.is_image_based());
-    assert_eq!(t.disposition(), 0);
+    assert_eq!(t.disposition(), TrackDisposition::default());
     assert!(!t.is_primary());
     assert!(!t.auto_selected());
     assert!(t.duration().is_none());
@@ -810,26 +773,27 @@ mod tests {
 
   #[test]
   fn descriptor_builders_chain() {
+    let lang = Language::from_bcp47("en").unwrap();
     let t = SubtitleTrack::try_new(Uuid7::new(), Uuid7::new())
       .unwrap()
-      .with_codec("subrip")
-      .with_format("text")
-      .with_origin("external")
-      .with_language("en")
+      .with_codec(SubtitleCodec::Subrip)
+      .with_format(Format::Srt)
+      .with_origin(TrackOrigin::External)
+      .with_language(lang)
       .with_title("English (SDH)")
-      .with_image_based(false)
-      .with_disposition(0x0040)
+      .with_disposition(TrackDisposition::from_u32(0x0040))
       .with_primary(true)
       .with_auto_selected(true)
       .with_kind(SubtitleKind::ForcedNarrative)
       .with_sdh(true);
-    assert_eq!(t.codec(), "subrip");
-    assert_eq!(t.format(), "text");
-    assert_eq!(t.origin(), "external");
-    assert_eq!(t.language(), "en");
+    assert_eq!(t.codec(), &SubtitleCodec::Subrip);
+    assert_eq!(t.format(), &Format::Srt);
+    assert_eq!(t.origin(), &TrackOrigin::External);
+    assert_eq!(t.language(), &lang);
     assert_eq!(t.title(), "English (SDH)");
+    // `Format::Srt` is a text format → not image-based.
     assert!(!t.is_image_based());
-    assert_eq!(t.disposition(), 0x0040);
+    assert_eq!(t.disposition(), TrackDisposition::from_u32(0x0040));
     assert!(t.is_primary());
     assert!(t.auto_selected());
     assert!(t.kind().is_forced_narrative());
@@ -875,22 +839,23 @@ mod tests {
 
   #[test]
   fn setters_mutate_in_place() {
+    let lang = Language::from_bcp47("ja").unwrap();
     let mut t = SubtitleTrack::try_new(Uuid7::new(), Uuid7::new()).unwrap();
-    t.set_codec("ass");
-    t.set_format("text");
-    t.set_origin("embedded");
-    t.set_language("ja");
+    t.set_codec(SubtitleCodec::Ass);
+    t.set_format(Format::Ass);
+    t.set_origin(TrackOrigin::Embedded);
+    t.set_language(lang);
     t.set_title("Japanese");
-    t.set_disposition(0x0001);
+    t.set_disposition(TrackDisposition::from_u32(0x0001));
     t.set_primary(true);
     t.set_kind(SubtitleKind::CommentaryText);
     t.set_index_status(SubtitleIndexStatus::CUES_EXTRACTED);
-    assert_eq!(t.codec(), "ass");
-    assert_eq!(t.format(), "text");
-    assert_eq!(t.origin(), "embedded");
-    assert_eq!(t.language(), "ja");
+    assert_eq!(t.codec(), &SubtitleCodec::Ass);
+    assert_eq!(t.format(), &Format::Ass);
+    assert_eq!(t.origin(), &TrackOrigin::Embedded);
+    assert_eq!(t.language(), &lang);
     assert_eq!(t.title(), "Japanese");
-    assert_eq!(t.disposition(), 0x0001);
+    assert_eq!(t.disposition(), TrackDisposition::from_u32(0x0001));
     assert!(t.is_primary());
     assert!(t.kind().is_commentary_text());
     assert!(t
