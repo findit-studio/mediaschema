@@ -1,6 +1,7 @@
 //! Audio media-kind cluster: the [`Audio`] facet, the [`AudioTrack`] track
-//! aggregate (with its per-recording tag / cover-art / loudness /
-//! fingerprint VOs), and the [`AudioSegment`] heavy segmented-ML analog of
+//! aggregate (per-recording metadata + signal analysis carried via
+//! `mediaframe::audio` VOs — `Tags` / `CoverArt` / `Loudness` /
+//! `Fingerprint`), and the [`AudioSegment`] heavy segmented-ML analog of
 //! `Scene` (with its `Word`-level timing VO).
 //!
 //! Locked specs:
@@ -19,6 +20,4 @@ pub mod track;
 
 pub use facet::{Audio, AudioError};
 pub use segment::{AudioSegment, AudioSegmentError, Word};
-pub use track::{
-  AudioCoverArt, AudioFingerprint, AudioTags, AudioTrack, AudioTrackError, Loudness,
-};
+pub use track::{AudioTrack, AudioTrackError};
