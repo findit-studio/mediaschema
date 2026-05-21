@@ -7,7 +7,9 @@
 //! `""` means absent; where it is open-vocab VLM natural-language output,
 //! the type is `LocalizedText` (locked rev 14/15 rule).
 
+use bytes::Bytes;
 use derive_more::IsVariant;
+use mediaframe::frame::Dimensions;
 use smol_str::SmolStr;
 
 use crate::domain::{vo::LocalizedText, Rgba};
@@ -800,18 +802,15 @@ impl FaceLandmarksDetection {
 
 /// Apple-vision person-instance segmentation mask.
 ///
-/// TODO(mediaframe): `dimensions` should be `mediaframe::Dimensions`
-/// once the mediaframe extern lands; for now keep the `(w, h)` u32 pair
-/// matching the wire shape. `data` is the raw mask bytes (alpha 8 by
-/// convention, but apple-vision exposes it via `CVPixelBuffer`).
+/// `data` is the raw mask bytes (alpha 8 by convention, but
+/// apple-vision exposes it via `CVPixelBuffer`).
 #[derive(Debug, Clone, PartialEq)]
 pub struct PersonInstanceMaskDetection {
   bbox: BoundingBox,
   confidence: f32,
   instance_index: u32,
-  dimensions_width: u32,
-  dimensions_height: u32,
-  data: std::vec::Vec<u8>,
+  dimensions: Dimensions,
+  data: Bytes,
 }
 
 impl PersonInstanceMaskDetection {
@@ -821,16 +820,14 @@ impl PersonInstanceMaskDetection {
     bbox: BoundingBox,
     confidence: f32,
     instance_index: u32,
-    dimensions_width: u32,
-    dimensions_height: u32,
-    data: impl Into<std::vec::Vec<u8>>,
+    dimensions: Dimensions,
+    data: impl Into<Bytes>,
   ) -> Self {
     Self {
       bbox,
       confidence,
       instance_index,
-      dimensions_width,
-      dimensions_height,
+      dimensions,
       data: data.into(),
     }
   }
@@ -850,12 +847,12 @@ impl PersonInstanceMaskDetection {
   pub const fn instance_index(&self) -> u32 {
     self.instance_index
   }
-  /// Mask dimensions `(w, h)`. TODO(mediaframe): `mediaframe::Dimensions`.
+  /// Mask dimensions (`mediaframe::frame::Dimensions`).
   #[inline]
-  pub const fn dimensions(&self) -> (u32, u32) {
-    (self.dimensions_width, self.dimensions_height)
+  pub const fn dimensions(&self) -> Dimensions {
+    self.dimensions
   }
-  /// Raw mask bytes. TODO(mediaframe): mediaschema-or-mediaframe `Bytes`.
+  /// Raw mask bytes (`bytes::Bytes`).
   #[inline]
   pub fn data(&self) -> &[u8] {
     &self.data
@@ -867,9 +864,8 @@ impl PersonInstanceMaskDetection {
 pub struct PersonSegmentationMask {
   bbox: BoundingBox,
   confidence: f32,
-  dimensions_width: u32,
-  dimensions_height: u32,
-  data: std::vec::Vec<u8>,
+  dimensions: Dimensions,
+  data: Bytes,
 }
 
 impl PersonSegmentationMask {
@@ -878,15 +874,13 @@ impl PersonSegmentationMask {
   pub fn new(
     bbox: BoundingBox,
     confidence: f32,
-    dimensions_width: u32,
-    dimensions_height: u32,
-    data: impl Into<std::vec::Vec<u8>>,
+    dimensions: Dimensions,
+    data: impl Into<Bytes>,
   ) -> Self {
     Self {
       bbox,
       confidence,
-      dimensions_width,
-      dimensions_height,
+      dimensions,
       data: data.into(),
     }
   }
@@ -901,12 +895,12 @@ impl PersonSegmentationMask {
   pub const fn confidence(&self) -> f32 {
     self.confidence
   }
-  /// Mask dimensions `(w, h)`. TODO(mediaframe): `mediaframe::Dimensions`.
+  /// Mask dimensions (`mediaframe::frame::Dimensions`).
   #[inline]
-  pub const fn dimensions(&self) -> (u32, u32) {
-    (self.dimensions_width, self.dimensions_height)
+  pub const fn dimensions(&self) -> Dimensions {
+    self.dimensions
   }
-  /// Raw mask bytes. TODO(mediaframe): mediaschema-or-mediaframe `Bytes`.
+  /// Raw mask bytes (`bytes::Bytes`).
   #[inline]
   pub fn data(&self) -> &[u8] {
     &self.data
