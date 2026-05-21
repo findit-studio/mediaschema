@@ -7,13 +7,14 @@
 
 use async_graphql::{Object, ID};
 
-use crate::domain::{
-  aggregates::audio::segment::Word, Audio, AudioCoverArt, AudioFingerprint, AudioSegment,
-  AudioTags, AudioTrack, Loudness, Uuid7,
+use mediaframe::audio::{
+  CoverArt as AudioCoverArt, Fingerprint as AudioFingerprint, Loudness, Tags as AudioTags,
 };
 
+use crate::domain::{aggregates::audio::segment::Word, Audio, AudioSegment, AudioTrack, Uuid7};
+
 use super::{
-  bitflags::GqlAudioIndexStatus,
+  bitflags::{disposition_flag_names, GqlAudioIndexStatus},
   enums::GqlAudioContentKind,
   media::{GqlErrorInfo, GqlLocalizedText, GqlProvenance},
   scalars::{empty_as_none, GqlMediaTimeRange, GqlMediaTimestamp},
@@ -52,7 +53,7 @@ impl GqlWord {
     self.0.score()
   }
   async fn language(&self) -> Option<String> {
-    self.0.language().map(|s| s.to_string())
+    self.0.language().map(|l| l.to_bcp47())
   }
 }
 
@@ -91,38 +92,32 @@ impl GqlAudioTags {
   async fn album(&self) -> Option<String> {
     empty_as_none(self.0.album())
   }
-  async fn genre(&self) -> Option<String> {
-    empty_as_none(self.0.genre())
-  }
   async fn composer(&self) -> Option<String> {
     empty_as_none(self.0.composer())
   }
-  async fn performer(&self) -> Option<String> {
-    empty_as_none(self.0.performer())
-  }
-  async fn date(&self) -> Option<String> {
-    empty_as_none(self.0.date())
-  }
-  async fn track_number(&self) -> u32 {
-    self.0.track_number()
-  }
-  async fn total_tracks(&self) -> u32 {
-    self.0.total_tracks()
-  }
-  async fn disc_number(&self) -> u32 {
-    self.0.disc_number()
-  }
-  async fn total_discs(&self) -> u32 {
-    self.0.total_discs()
+  async fn genre(&self) -> Option<String> {
+    empty_as_none(self.0.genre())
   }
   async fn comment(&self) -> Option<String> {
     empty_as_none(self.0.comment())
   }
-  async fn lyrics(&self) -> Option<String> {
-    empty_as_none(self.0.lyrics())
+  async fn year(&self) -> Option<u32> {
+    self.0.year().map(u32::from)
   }
-  async fn tag_types(&self) -> std::vec::Vec<String> {
-    self.0.tag_types().iter().map(|s| s.to_string()).collect()
+  async fn track_number(&self) -> Option<u32> {
+    self.0.track_number().map(u32::from)
+  }
+  async fn track_total(&self) -> Option<u32> {
+    self.0.track_total().map(u32::from)
+  }
+  async fn disc_number(&self) -> Option<u32> {
+    self.0.disc_number().map(u32::from)
+  }
+  async fn disc_total(&self) -> Option<u32> {
+    self.0.disc_total().map(u32::from)
+  }
+  async fn language(&self) -> Option<String> {
+    self.0.language().map(|s| s.to_string())
   }
 }
 
@@ -150,7 +145,7 @@ impl From<GqlAudioCoverArt> for AudioCoverArt {
 #[Object(name = "AudioCoverArt")]
 impl GqlAudioCoverArt {
   async fn size(&self) -> usize {
-    self.0.size()
+    self.0.data().len()
   }
   async fn mime(&self) -> Option<String> {
     empty_as_none(self.0.mime())
@@ -229,11 +224,14 @@ impl GqlLoudness {
   async fn integrated_lufs(&self) -> f32 {
     self.0.integrated_lufs()
   }
+  async fn loudness_range_lu(&self) -> f32 {
+    self.0.range_lu()
+  }
   async fn true_peak_dbtp(&self) -> f32 {
     self.0.true_peak_dbtp()
   }
-  async fn loudness_range_lu(&self) -> f32 {
-    self.0.loudness_range_lu()
+  async fn sample_peak_dbfs(&self) -> f32 {
+    self.0.sample_peak_dbfs()
   }
 }
 
@@ -261,7 +259,7 @@ impl From<GqlAudioFingerprint> for AudioFingerprint {
 #[Object(name = "AudioFingerprint")]
 impl GqlAudioFingerprint {
   async fn algo(&self) -> String {
-    self.0.algo().to_string()
+    self.0.algorithm().to_string()
   }
   /// Base64-encoded fingerprint bytes (`null` if empty).
   async fn value_base64(&self) -> Option<String> {
@@ -350,8 +348,10 @@ impl GqlAudioTrack {
   async fn container_track_id(&self) -> Option<String> {
     self.0.container_track_id().map(|v| v.to_string())
   }
+  /// FFmpeg codec short name (`as_str()`); `null` when the `Other("")`
+  /// absent sentinel.
   async fn codec(&self) -> Option<String> {
-    empty_as_none(self.0.codec())
+    empty_as_none(self.0.codec().as_str())
   }
   async fn profile(&self) -> Option<String> {
     empty_as_none(self.0.profile())
@@ -362,14 +362,17 @@ impl GqlAudioTrack {
   async fn channels(&self) -> u32 {
     u32::from(self.0.channels())
   }
+  /// Channel-layout short name (`as_str()`); `null` when the
+  /// `Other("")` absent sentinel.
   async fn channel_layout(&self) -> Option<String> {
-    empty_as_none(self.0.channel_layout())
+    empty_as_none(self.0.channel_layout().as_str())
   }
   async fn bit_rate(&self) -> String {
     self.0.bit_rate().to_string()
   }
+  /// Bit-rate mode tag (`as_str()`, e.g. `"cbr"` / `"vbr"`).
   async fn bit_rate_mode(&self) -> Option<String> {
-    self.0.bit_rate_mode().map(|s| s.to_string())
+    self.0.bit_rate_mode().map(|m| m.as_str().to_string())
   }
   async fn bits_per_sample(&self) -> Option<u32> {
     self.0.bits_per_sample().map(u32::from)
@@ -383,17 +386,24 @@ impl GqlAudioTrack {
   async fn start_pts(&self) -> Option<GqlMediaTimestamp> {
     self.0.start_pts().copied().map(GqlMediaTimestamp)
   }
+  /// Declared language as a BCP-47 tag; `null` when absent.
   async fn language(&self) -> Option<String> {
-    self.0.language().map(|s| s.to_string())
+    self.0.language().map(|l| l.to_bcp47())
   }
+  /// LID-detected language as a BCP-47 tag; `null` when absent.
   async fn detected_language(&self) -> Option<String> {
-    self.0.detected_language().map(|s| s.to_string())
+    self.0.detected_language().map(|l| l.to_bcp47())
   }
   async fn language_mismatch(&self) -> bool {
     self.0.language_mismatch()
   }
+  /// Disposition flag word (`AV_DISPOSITION_*` bits via `to_u32()`).
   async fn disposition(&self) -> u32 {
-    self.0.disposition()
+    self.0.disposition().to_u32()
+  }
+  /// Named disposition flags currently set.
+  async fn disposition_flags(&self) -> std::vec::Vec<String> {
+    disposition_flag_names(self.0.disposition())
   }
   async fn is_primary(&self) -> bool {
     self.0.is_primary()
@@ -506,7 +516,7 @@ impl GqlAudioSegment {
     GqlLocalizedText(self.0.text().clone())
   }
   async fn language(&self) -> Option<String> {
-    self.0.language().map(|s| s.to_string())
+    self.0.language().map(|l| l.to_bcp47())
   }
   async fn words(&self) -> std::vec::Vec<GqlWord> {
     self.0.words().iter().cloned().map(GqlWord).collect()

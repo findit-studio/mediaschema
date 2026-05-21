@@ -2,6 +2,12 @@
 
 use async_graphql::{Object, ID};
 
+use mediaframe::{
+  codec::VideoCodec,
+  color::{DolbyVisionConfig, HdrStaticMetadata, Info as ColorInfo},
+  frame::Rect,
+};
+
 use crate::domain::{
   aggregates::video::{
     detections::{
@@ -13,16 +19,12 @@ use crate::domain::{
       SubjectDetection, TextDetection, VlmAnalysis,
     },
     facet::IndexProgress as VideoIndexProgress,
-    track::{
-      ColorInfoPlaceholder, DolbyVisionConfigPlaceholder, HdrStaticMetadataPlaceholder,
-      RectPlaceholder, VideoCodec,
-    },
   },
   Keyframe, Scene, Uuid7, Video, VideoTrack,
 };
 
 use super::{
-  bitflags::GqlVideoIndexStatus,
+  bitflags::{disposition_flag_names, GqlVideoIndexStatus},
   enums::{GqlKeyframeExtractor, GqlSceneDetector},
   media::{GqlErrorInfo, GqlLocalizedText, GqlProvenance, GqlRgba},
   scalars::{empty_as_none, GqlMediaTimeRange, GqlMediaTimestamp},
@@ -66,10 +68,14 @@ impl GqlVideoIndexProgress {
 }
 
 // ===========================================================================
-// VideoCodec — mixed enum (unit + Other(SmolStr))
+// VideoCodec — `mediaframe::codec::VideoCodec` (full FFmpeg set + `Other`)
 // ===========================================================================
 
-/// GraphQL wrapper for [`VideoCodec`]. Exposed as `{ tag, other }`.
+/// GraphQL wrapper for [`VideoCodec`]. The flipped type is the full
+/// FFmpeg codec enum (`#[non_exhaustive]`, hundreds of named variants
+/// plus an `Other(SmolStr)` escape), so it is exposed as a single
+/// canonical-name `String` (its `as_str()` — the `ffmpeg -codecs`
+/// short name; lossless for `Other`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GqlVideoCodec(pub VideoCodec);
 
@@ -88,52 +94,34 @@ impl From<GqlVideoCodec> for VideoCodec {
 
 #[Object(name = "VideoCodec")]
 impl GqlVideoCodec {
-  /// Canonical variant tag (`H264`, `H265`, `OTHER`, …).
-  async fn tag(&self) -> String {
-    match &self.0 {
-      VideoCodec::H264 => "H264",
-      VideoCodec::H265 => "H265",
-      VideoCodec::H266 => "H266",
-      VideoCodec::Vp8 => "VP8",
-      VideoCodec::Vp9 => "VP9",
-      VideoCodec::Av1 => "AV1",
-      VideoCodec::Mpeg2 => "MPEG2",
-      VideoCodec::Mpeg4 => "MPEG4",
-      VideoCodec::ProRes => "PRORES",
-      VideoCodec::Dnxhd => "DNXHD",
-      VideoCodec::Theora => "THEORA",
-      VideoCodec::Other(_) => "OTHER",
-      // `VideoCodec` is `#[non_exhaustive]`. Unreachable today.
-      #[allow(unreachable_patterns)]
-      _ => "OTHER",
-    }
-    .into()
+  /// Canonical FFmpeg short name (`h264`, `hevc`, `av1`, …); the wire
+  /// slug verbatim for `Other`.
+  async fn name(&self) -> String {
+    self.0.as_str().to_string()
   }
-  /// Wire-preserved slug for `OTHER`; `null` for named variants.
-  async fn other(&self) -> Option<String> {
-    match &self.0 {
-      VideoCodec::Other(s) => Some(s.to_string()),
-      _ => None,
-    }
+  /// `true` when the codec is the lossless `Other(_)` escape (a codec
+  /// not yet named in the mediaframe enum).
+  async fn is_other(&self) -> bool {
+    self.0.is_other()
   }
 }
 
 // ===========================================================================
-// mediaframe-placeholder VOs
+// mediaframe frame / colour VOs (flipped from the old placeholders)
 // ===========================================================================
 
-/// GraphQL wrapper for the placeholder rect VO on `VideoTrack`. Will
-/// be replaced by `mediaframe::Rect` post-`0.1.0`.
+/// GraphQL wrapper for [`mediaframe::frame::Rect`] (clean-aperture /
+/// crop rectangle).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct GqlRect(pub RectPlaceholder);
+pub struct GqlRect(pub Rect);
 
-impl From<RectPlaceholder> for GqlRect {
+impl From<Rect> for GqlRect {
   #[inline]
-  fn from(v: RectPlaceholder) -> Self {
+  fn from(v: Rect) -> Self {
     Self(v)
   }
 }
-impl From<GqlRect> for RectPlaceholder {
+impl From<GqlRect> for Rect {
   #[inline]
   fn from(v: GqlRect) -> Self {
     v.0
@@ -156,17 +144,21 @@ impl GqlRect {
   }
 }
 
-/// GraphQL wrapper for the placeholder colour-info VO.
+/// GraphQL wrapper for [`mediaframe::color::Info`]. The colour
+/// descriptor enums (`primaries` / `transfer` / `matrix` / `range` /
+/// `chroma_location`) are each exposed as their canonical `String`
+/// (`as_str()`); the matching FFmpeg integer code is available via the
+/// `*_code` fields.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct GqlColorInfo(pub ColorInfoPlaceholder);
+pub struct GqlColorInfo(pub ColorInfo);
 
-impl From<ColorInfoPlaceholder> for GqlColorInfo {
+impl From<ColorInfo> for GqlColorInfo {
   #[inline]
-  fn from(v: ColorInfoPlaceholder) -> Self {
+  fn from(v: ColorInfo) -> Self {
     Self(v)
   }
 }
-impl From<GqlColorInfo> for ColorInfoPlaceholder {
+impl From<GqlColorInfo> for ColorInfo {
   #[inline]
   fn from(v: GqlColorInfo) -> Self {
     v.0
@@ -175,34 +167,50 @@ impl From<GqlColorInfo> for ColorInfoPlaceholder {
 
 #[Object(name = "ColorInfo")]
 impl GqlColorInfo {
-  async fn primaries(&self) -> u32 {
-    self.0.primaries()
+  async fn primaries(&self) -> String {
+    self.0.primaries().as_str().to_string()
   }
-  async fn transfer(&self) -> u32 {
-    self.0.transfer()
+  async fn primaries_code(&self) -> u32 {
+    self.0.primaries().to_u32()
   }
-  async fn matrix(&self) -> u32 {
-    self.0.matrix()
+  async fn transfer(&self) -> String {
+    self.0.transfer().as_str().to_string()
   }
-  async fn range(&self) -> u32 {
-    self.0.range()
+  async fn transfer_code(&self) -> u32 {
+    self.0.transfer().to_u32()
   }
-  async fn chroma_location(&self) -> u32 {
-    self.0.chroma_location()
+  async fn matrix(&self) -> String {
+    self.0.matrix().as_str().to_string()
+  }
+  async fn matrix_code(&self) -> u32 {
+    self.0.matrix().to_u32()
+  }
+  async fn range(&self) -> String {
+    self.0.range().as_str().to_string()
+  }
+  async fn range_code(&self) -> u32 {
+    self.0.range().to_u32()
+  }
+  async fn chroma_location(&self) -> String {
+    self.0.chroma_location().as_str().to_string()
+  }
+  async fn chroma_location_code(&self) -> u32 {
+    self.0.chroma_location().to_u32()
   }
 }
 
-/// GraphQL wrapper for the placeholder HDR-static VO.
+/// GraphQL wrapper for [`mediaframe::color::HdrStaticMetadata`] (HDR10
+/// static metadata: mastering-display + content-light-level).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct GqlHdrStaticMetadata(pub HdrStaticMetadataPlaceholder);
+pub struct GqlHdrStaticMetadata(pub HdrStaticMetadata);
 
-impl From<HdrStaticMetadataPlaceholder> for GqlHdrStaticMetadata {
+impl From<HdrStaticMetadata> for GqlHdrStaticMetadata {
   #[inline]
-  fn from(v: HdrStaticMetadataPlaceholder) -> Self {
+  fn from(v: HdrStaticMetadata) -> Self {
     Self(v)
   }
 }
-impl From<GqlHdrStaticMetadata> for HdrStaticMetadataPlaceholder {
+impl From<GqlHdrStaticMetadata> for HdrStaticMetadata {
   #[inline]
   fn from(v: GqlHdrStaticMetadata) -> Self {
     v.0
@@ -211,25 +219,37 @@ impl From<GqlHdrStaticMetadata> for HdrStaticMetadataPlaceholder {
 
 #[Object(name = "HdrStaticMetadata")]
 impl GqlHdrStaticMetadata {
-  async fn max_cll(&self) -> u32 {
-    self.0.max_cll()
+  /// CTA-861.3 MaxCLL (cd/m²), if a content-light-level block is set.
+  async fn max_cll(&self) -> Option<u32> {
+    self.0.content_light().map(|c| c.max_cll())
   }
-  async fn max_fall(&self) -> u32 {
-    self.0.max_fall()
+  /// CTA-861.3 MaxFALL (cd/m²), if a content-light-level block is set.
+  async fn max_fall(&self) -> Option<u32> {
+    self.0.content_light().map(|c| c.max_fall())
+  }
+  /// SMPTE ST 2086 max display luminance (0.0001 cd/m² units), if a
+  /// mastering-display block is set.
+  async fn max_luminance(&self) -> Option<u32> {
+    self.0.mastering().map(|m| m.max_luminance())
+  }
+  /// SMPTE ST 2086 min display luminance (0.0001 cd/m² units), if a
+  /// mastering-display block is set.
+  async fn min_luminance(&self) -> Option<u32> {
+    self.0.mastering().map(|m| m.min_luminance())
   }
 }
 
-/// GraphQL wrapper for the placeholder Dolby-Vision-config VO.
+/// GraphQL wrapper for [`mediaframe::color::DolbyVisionConfig`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct GqlDolbyVisionConfig(pub DolbyVisionConfigPlaceholder);
+pub struct GqlDolbyVisionConfig(pub DolbyVisionConfig);
 
-impl From<DolbyVisionConfigPlaceholder> for GqlDolbyVisionConfig {
+impl From<DolbyVisionConfig> for GqlDolbyVisionConfig {
   #[inline]
-  fn from(v: DolbyVisionConfigPlaceholder) -> Self {
+  fn from(v: DolbyVisionConfig) -> Self {
     Self(v)
   }
 }
-impl From<GqlDolbyVisionConfig> for DolbyVisionConfigPlaceholder {
+impl From<GqlDolbyVisionConfig> for DolbyVisionConfig {
   #[inline]
   fn from(v: GqlDolbyVisionConfig) -> Self {
     v.0
@@ -250,11 +270,8 @@ impl GqlDolbyVisionConfig {
   async fn el_present(&self) -> bool {
     self.0.el_present()
   }
-  async fn bl_present(&self) -> bool {
-    self.0.bl_present()
-  }
   async fn bl_signal_compatibility_id(&self) -> u32 {
-    u32::from(self.0.bl_signal_compatibility_id())
+    u32::from(self.0.bl_signal_compat_id())
   }
 }
 
@@ -442,18 +459,29 @@ impl GqlVideoTrack {
     self.0.bits_per_raw_sample().map(u32::from)
   }
   async fn dimensions(&self) -> GqlDimensions {
-    let (width, height) = self.0.dimensions();
-    GqlDimensions { width, height }
+    let d = self.0.dimensions();
+    GqlDimensions {
+      width: d.width(),
+      height: d.height(),
+    }
   }
   async fn visible_rect(&self) -> Option<GqlRect> {
-    self.0.visible_rect().copied().map(GqlRect)
+    self.0.visible_rect().map(GqlRect)
   }
   async fn sample_aspect_ratio(&self) -> GqlRational {
-    let (num, den) = self.0.sample_aspect_ratio();
-    GqlRational { num, den }
+    let sar = self.0.sample_aspect_ratio();
+    GqlRational {
+      num: sar.num(),
+      den: sar.den().get(),
+    }
   }
-  async fn pixel_format(&self) -> u32 {
-    self.0.pixel_format()
+  /// FFmpeg pixel-format short name (`as_str()`).
+  async fn pixel_format(&self) -> String {
+    self.0.pixel_format().as_str().to_string()
+  }
+  /// FFmpeg pixel-format integer code (`to_u32()`).
+  async fn pixel_format_code(&self) -> u32 {
+    self.0.pixel_format().to_u32()
   }
   async fn color(&self) -> GqlColorInfo {
     GqlColorInfo(*self.0.color())
@@ -461,27 +489,48 @@ impl GqlVideoTrack {
   async fn hdr_static(&self) -> Option<GqlHdrStaticMetadata> {
     self.0.hdr_static().copied().map(GqlHdrStaticMetadata)
   }
-  async fn rotation(&self) -> u32 {
-    self.0.rotation()
+  /// Display rotation as a degrees-style tag (`as_str()`, e.g. `"90"`).
+  async fn rotation(&self) -> String {
+    self.0.rotation().as_str().to_string()
+  }
+  /// Display rotation as its FFmpeg integer code (`to_u32()`).
+  async fn rotation_code(&self) -> u32 {
+    self.0.rotation().to_u32()
   }
   async fn frame_rate(&self) -> GqlFrameRate {
-    let (num, den, is_vfr) = self.0.frame_rate();
-    GqlFrameRate { num, den, is_vfr }
+    let fr = self.0.frame_rate();
+    let rate = fr.rate();
+    GqlFrameRate {
+      num: rate.num(),
+      den: rate.den().get(),
+      is_vfr: fr.is_vfr(),
+    }
   }
-  async fn field_order(&self) -> u32 {
-    self.0.field_order()
+  /// Field order tag (`as_str()`, e.g. `"progressive"`).
+  async fn field_order(&self) -> String {
+    self.0.field_order().as_str().to_string()
   }
-  async fn stereo_mode(&self) -> Option<u32> {
-    self.0.stereo_mode()
+  /// Field order FFmpeg integer code (`to_u32()`).
+  async fn field_order_code(&self) -> u32 {
+    self.0.field_order().to_u32()
+  }
+  /// Stereo / 3D packing tag (`as_str()`); `null` when 2D.
+  async fn stereo_mode(&self) -> Option<String> {
+    self.0.stereo_mode().map(|m| m.as_str().to_string())
   }
   async fn dovi(&self) -> Option<GqlDolbyVisionConfig> {
-    self.0.dovi().copied().map(GqlDolbyVisionConfig)
+    self.0.dovi().map(GqlDolbyVisionConfig)
   }
   async fn has_embedded_captions(&self) -> bool {
     self.0.has_embedded_captions()
   }
+  /// Disposition flag word (`AV_DISPOSITION_*` bits via `to_u32()`).
   async fn disposition(&self) -> u32 {
-    self.0.disposition()
+    self.0.disposition().to_u32()
+  }
+  /// Named disposition flags currently set.
+  async fn disposition_flags(&self) -> std::vec::Vec<String> {
+    disposition_flag_names(self.0.disposition())
   }
   async fn is_primary(&self) -> bool {
     self.0.is_primary()
@@ -1196,8 +1245,11 @@ impl GqlPersonInstanceMaskDetection {
     self.0.instance_index()
   }
   async fn dimensions(&self) -> GqlDimensions {
-    let (width, height) = self.0.dimensions();
-    GqlDimensions { width, height }
+    let d = self.0.dimensions();
+    GqlDimensions {
+      width: d.width(),
+      height: d.height(),
+    }
   }
   async fn byte_len(&self) -> usize {
     self.0.data().len()
@@ -1230,8 +1282,11 @@ impl GqlPersonSegmentationMask {
     self.0.confidence()
   }
   async fn dimensions(&self) -> GqlDimensions {
-    let (width, height) = self.0.dimensions();
-    GqlDimensions { width, height }
+    let d = self.0.dimensions();
+    GqlDimensions {
+      width: d.width(),
+      height: d.height(),
+    }
   }
   async fn byte_len(&self) -> usize {
     self.0.data().len()
@@ -1571,8 +1626,11 @@ impl GqlKeyframe {
     self.0.data().len()
   }
   async fn dimensions(&self) -> GqlDimensions {
-    let (width, height) = self.0.dimensions();
-    GqlDimensions { width, height }
+    let d = self.0.dimensions();
+    GqlDimensions {
+      width: d.width(),
+      height: d.height(),
+    }
   }
   async fn extractor(&self) -> GqlKeyframeExtractor {
     self.0.extractor().into()
@@ -1701,8 +1759,7 @@ mod tests {
       id,
       parent,
       pts,
-      64,
-      64,
+      mediaframe::frame::Dimensions::new(64, 64),
       crate::domain::KeyframeExtractor::Manual,
     )
     .unwrap();

@@ -10,10 +10,11 @@
 
 use async_graphql::{Object, Union, ID};
 
+use mediaframe::capture::{Device as MediaDevice, GeoLocation as MediaGeoLocation};
+
 use crate::domain::{
   primitives::{ErrorCode, LocalLocation, Location, UnknownErrorCode},
-  ErrorInfo, FileChecksum, LocalizedText, Media, MediaDevice, MediaGeoLocation, Provenance, Rgba,
-  Uuid7,
+  ErrorInfo, FileChecksum, LocalizedText, Media, Provenance, Rgba, Uuid7,
 };
 
 use super::{
@@ -345,7 +346,7 @@ impl GqlMediaGeoLocation {
     self.0.lon()
   }
   async fn altitude(&self) -> Option<f64> {
-    self.0.altitude()
+    self.0.altitude().map(f64::from)
   }
 }
 
@@ -381,8 +382,10 @@ impl GqlMedia {
   async fn name(&self) -> String {
     self.0.name().to_string()
   }
+  /// Container format short name (`as_str()`); `null` when the
+  /// `Other("")` absent sentinel.
   async fn format(&self) -> Option<String> {
-    empty_as_none(self.0.format())
+    empty_as_none(self.0.format().as_str())
   }
   async fn size(&self) -> String {
     self.0.size().to_string()
@@ -426,6 +429,7 @@ impl GqlMedia {
 mod tests {
   use super::*;
   use crate::domain::{MediaKind, Uuid7};
+  use mediaframe::container::Format;
 
   #[test]
   fn provenance_wrapper_roundtrips() {
@@ -453,7 +457,7 @@ mod tests {
       id,
       cs,
       "clip.mp4",
-      "mp4",
+      Format::Mp4,
       1_234,
       jiff::Timestamp::default(),
       MediaKind::Video,

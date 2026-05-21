@@ -85,17 +85,15 @@ type AudioTags {
 	artist: String
 	albumArtist: String
 	album: String
-	genre: String
 	composer: String
-	performer: String
-	date: String
-	trackNumber: Int!
-	totalTracks: Int!
-	discNumber: Int!
-	totalDiscs: Int!
+	genre: String
 	comment: String
-	lyrics: String
-	tagTypes: [String!]!
+	year: Int
+	trackNumber: Int
+	trackTotal: Int
+	discNumber: Int
+	discTotal: Int
+	language: String
 }
 
 type AudioTrack {
@@ -103,21 +101,45 @@ type AudioTrack {
 	parent: ID!
 	streamIndex: Int
 	containerTrackId: String
+	"""
+	FFmpeg codec short name (`as_str()`); `null` when the `Other("")`
+	absent sentinel.
+	"""
 	codec: String
 	profile: String
 	sampleRate: Int!
 	channels: Int!
+	"""
+	Channel-layout short name (`as_str()`); `null` when the
+	`Other("")` absent sentinel.
+	"""
 	channelLayout: String
 	bitRate: String!
+	"""
+	Bit-rate mode tag (`as_str()`, e.g. `"cbr"` / `"vbr"`).
+	"""
 	bitRateMode: String
 	bitsPerSample: Int
 	isLossless: Boolean!
 	duration: MediaTimestamp
 	startPts: MediaTimestamp
+	"""
+	Declared language as a BCP-47 tag; `null` when absent.
+	"""
 	language: String
+	"""
+	LID-detected language as a BCP-47 tag; `null` when absent.
+	"""
 	detectedLanguage: String
 	languageMismatch: Boolean!
+	"""
+	Disposition flag word (`AV_DISPOSITION_*` bits via `to_u32()`).
+	"""
 	disposition: Int!
+	"""
+	Named disposition flags currently set.
+	"""
+	dispositionFlags: [String!]!
 	isPrimary: Boolean!
 	autoSelected: Boolean!
 	content: AudioContentKind
@@ -180,11 +202,16 @@ type BoundingBox {
 }
 
 type ColorInfo {
-	primaries: Int!
-	transfer: Int!
-	matrix: Int!
-	range: Int!
-	chromaLocation: Int!
+	primaries: String!
+	primariesCode: Int!
+	transfer: String!
+	transferCode: Int!
+	matrix: String!
+	matrixCode: Int!
+	range: String!
+	rangeCode: Int!
+	chromaLocation: String!
+	chromaLocationCode: Int!
 }
 
 type Detection {
@@ -210,7 +237,6 @@ type DolbyVisionConfig {
 	level: Int!
 	rpuPresent: Boolean!
 	elPresent: Boolean!
-	blPresent: Boolean!
 	blSignalCompatibilityId: Int!
 }
 
@@ -263,8 +289,24 @@ type HandPoseDetection {
 }
 
 type HdrStaticMetadata {
-	maxCll: Int!
-	maxFall: Int!
+	"""
+	CTA-861.3 MaxCLL (cd/m²), if a content-light-level block is set.
+	"""
+	maxCll: Int
+	"""
+	CTA-861.3 MaxFALL (cd/m²), if a content-light-level block is set.
+	"""
+	maxFall: Int
+	"""
+	SMPTE ST 2086 max display luminance (0.0001 cd/m² units), if a
+	mastering-display block is set.
+	"""
+	maxLuminance: Int
+	"""
+	SMPTE ST 2086 min display luminance (0.0001 cd/m² units), if a
+	mastering-display block is set.
+	"""
+	minLuminance: Int
 }
 
 type HorizonInfo {
@@ -345,14 +387,19 @@ union Location = LocalLocation
 
 type Loudness {
 	integratedLufs: Float!
-	truePeakDbtp: Float!
 	loudnessRangeLu: Float!
+	truePeakDbtp: Float!
+	samplePeakDbfs: Float!
 }
 
 type Media {
 	id: ID!
 	checksum: FileChecksum!
 	name: String!
+	"""
+	Container format short name (`as_str()`); `null` when the
+	`Other("")` absent sentinel.
+	"""
 	format: String
 	size: String!
 	duration: MediaTimestamp
@@ -617,13 +664,34 @@ type SubtitleTrack {
 	parent: ID!
 	streamIndex: Int
 	containerTrackId: String
+	"""
+	Subtitle codec short name (`as_str()`); `null` when the
+	`Other("")` absent sentinel.
+	"""
 	codec: String
+	"""
+	Container form short name (`as_str()`, text vs bitmap); `null`
+	when the `Other("")` absent sentinel.
+	"""
 	format: String
-	origin: String
+	"""
+	Track origin tag (`as_str()`, embedded / sidecar / external).
+	"""
+	origin: String!
+	"""
+	Language as a BCP-47 tag; `null` when undetermined (`und`).
+	"""
 	language: String
 	title: String
 	isImageBased: Boolean!
+	"""
+	Disposition flag word (`AV_DISPOSITION_*` bits via `to_u32()`).
+	"""
 	disposition: Int!
+	"""
+	Named disposition flags currently set.
+	"""
+	dispositionFlags: [String!]!
 	isPrimary: Boolean!
 	autoSelected: Boolean!
 	duration: MediaTimestamp
@@ -670,13 +738,15 @@ type Video {
 
 type VideoCodec {
 	"""
-	Canonical variant tag (`H264`, `H265`, `OTHER`, …).
+	Canonical FFmpeg short name (`h264`, `hevc`, `av1`, …); the wire
+	slug verbatim for `Other`.
 	"""
-	tag: String!
+	name: String!
 	"""
-	Wire-preserved slug for `OTHER`; `null` for named variants.
+	`true` when the codec is the lossless `Other(_)` escape (a codec
+	not yet named in the mediaframe enum).
 	"""
-	other: String
+	isOther: Boolean!
 }
 
 type VideoIndexProgress {
@@ -733,16 +803,47 @@ type VideoTrack {
 	dimensions: Dimensions!
 	visibleRect: Rect
 	sampleAspectRatio: Rational!
-	pixelFormat: Int!
+	"""
+	FFmpeg pixel-format short name (`as_str()`).
+	"""
+	pixelFormat: String!
+	"""
+	FFmpeg pixel-format integer code (`to_u32()`).
+	"""
+	pixelFormatCode: Int!
 	color: ColorInfo!
 	hdrStatic: HdrStaticMetadata
-	rotation: Int!
+	"""
+	Display rotation as a degrees-style tag (`as_str()`, e.g. `"90"`).
+	"""
+	rotation: String!
+	"""
+	Display rotation as its FFmpeg integer code (`to_u32()`).
+	"""
+	rotationCode: Int!
 	frameRate: FrameRate!
-	fieldOrder: Int!
-	stereoMode: Int
+	"""
+	Field order tag (`as_str()`, e.g. `"progressive"`).
+	"""
+	fieldOrder: String!
+	"""
+	Field order FFmpeg integer code (`to_u32()`).
+	"""
+	fieldOrderCode: Int!
+	"""
+	Stereo / 3D packing tag (`as_str()`); `null` when 2D.
+	"""
+	stereoMode: String
 	dovi: DolbyVisionConfig
 	hasEmbeddedCaptions: Boolean!
+	"""
+	Disposition flag word (`AV_DISPOSITION_*` bits via `to_u32()`).
+	"""
 	disposition: Int!
+	"""
+	Named disposition flags currently set.
+	"""
+	dispositionFlags: [String!]!
 	isPrimary: Boolean!
 	autoSelected: Boolean!
 	scenes: [ID!]!

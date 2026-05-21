@@ -9,7 +9,17 @@
 
 use async_graphql::Object;
 
+use mediaframe::disposition::TrackDisposition;
+
 use crate::domain::{AudioIndexStatus, MediaErrorFlags, SubtitleIndexStatus, VideoIndexStatus};
+
+/// Named flags currently set on a [`TrackDisposition`] (the shared
+/// `mediaframe` FFmpeg `AV_DISPOSITION_*` bitflags). Shared by the
+/// video / audio / subtitle track resolvers so each can expose the
+/// disposition both as its raw `u32` and as a human-readable flag list.
+pub(crate) fn disposition_flag_names(d: TrackDisposition) -> std::vec::Vec<String> {
+  d.iter_names().map(|(name, _)| name.to_string()).collect()
+}
 
 // ---------------------------------------------------------------------------
 // MediaErrorFlags

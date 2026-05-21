@@ -5,7 +5,7 @@ use async_graphql::{Object, ID};
 use crate::domain::{FileChecksum, Subtitle, SubtitleCue, SubtitleTrack, Uuid7};
 
 use super::{
-  bitflags::GqlSubtitleIndexStatus,
+  bitflags::{disposition_flag_names, GqlSubtitleIndexStatus},
   enums::GqlSubtitleKind,
   media::{GqlErrorInfo, GqlLocalizedText, GqlLocation, GqlProvenance},
   scalars::{empty_as_none, GqlMediaTimeRange, GqlMediaTimestamp},
@@ -123,17 +123,28 @@ impl GqlSubtitleTrack {
   async fn container_track_id(&self) -> Option<String> {
     self.0.container_track_id().map(|v| v.to_string())
   }
+  /// Subtitle codec short name (`as_str()`); `null` when the
+  /// `Other("")` absent sentinel.
   async fn codec(&self) -> Option<String> {
-    empty_as_none(self.0.codec())
+    empty_as_none(self.0.codec().as_str())
   }
+  /// Container form short name (`as_str()`, text vs bitmap); `null`
+  /// when the `Other("")` absent sentinel.
   async fn format(&self) -> Option<String> {
-    empty_as_none(self.0.format())
+    empty_as_none(self.0.format().as_str())
   }
-  async fn origin(&self) -> Option<String> {
-    empty_as_none(self.0.origin())
+  /// Track origin tag (`as_str()`, embedded / sidecar / external).
+  async fn origin(&self) -> String {
+    self.0.origin().as_str().to_string()
   }
+  /// Language as a BCP-47 tag; `null` when undetermined (`und`).
   async fn language(&self) -> Option<String> {
-    empty_as_none(self.0.language())
+    let lang = self.0.language();
+    if lang.is_undetermined() {
+      None
+    } else {
+      Some(lang.to_bcp47())
+    }
   }
   async fn title(&self) -> Option<String> {
     empty_as_none(self.0.title())
@@ -141,8 +152,13 @@ impl GqlSubtitleTrack {
   async fn is_image_based(&self) -> bool {
     self.0.is_image_based()
   }
+  /// Disposition flag word (`AV_DISPOSITION_*` bits via `to_u32()`).
   async fn disposition(&self) -> u32 {
-    self.0.disposition()
+    self.0.disposition().to_u32()
+  }
+  /// Named disposition flags currently set.
+  async fn disposition_flags(&self) -> std::vec::Vec<String> {
+    disposition_flag_names(self.0.disposition())
   }
   async fn is_primary(&self) -> bool {
     self.0.is_primary()
