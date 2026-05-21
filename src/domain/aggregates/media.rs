@@ -23,11 +23,10 @@
 //!   tracks (`*Track.index_errors`).
 //! - `probe_error` is the **one** non-track error case — file unprobeable
 //!   ⇒ no tracks were created.
-//! - `device` / `gps` are documented as `::mediaframe` externs (EXIF /
-//!   capture-metadata charter). Mediaframe is **not** a dependency of
-//!   mediaschema yet — we use local placeholder types
-//!   ([`MediaDevice`] / [`MediaGeoLocation`]) marked with
-//!   `TODO(mediaframe)` until the post-`0.1.0` mediaframe minor lands.
+//! - `device` / `gps` are the published `mediaframe` capture-metadata
+//!   types ([`mediaframe::capture::Device`] /
+//!   [`mediaframe::capture::GeoLocation`]; EXIF / capture-metadata
+//!   charter).
 //!
 //! ## Encapsulation
 //!
@@ -38,150 +37,14 @@
 
 use derive_more::IsVariant;
 use jiff::Timestamp as JiffTimestamp;
+use mediaframe::{
+  capture::{Device, GeoLocation},
+  container::Format,
+};
 use mediatime::Timestamp as MediaTimestamp;
 use smol_str::SmolStr;
 
 use crate::domain::{ErrorInfo, FileChecksum, MediaErrorFlags, MediaKind, Uuid7};
-
-/// File-level **device** capture metadata (camera / phone make + model)
-/// — placeholder until the post-`0.1.0` mediaframe minor ships
-/// `mediaframe::Device` (EXIF / capture-metadata charter; locked
-/// `media.md` r8). Two `SmolStr` fields, `""`=absent per the locked
-/// free-text rule.
-///
-/// TODO(mediaframe): replace this with `mediaframe::Device` once the
-/// mediaframe extern lands (tracked in
-/// `schema/mediaframe-candidates.md`).
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct MediaDevice {
-  make: SmolStr,
-  model: SmolStr,
-}
-
-impl MediaDevice {
-  /// Empty device record (both fields `""`). The canonical no-arg
-  /// constructor.
-  #[inline]
-  pub fn new() -> Self {
-    Self {
-      make: SmolStr::default(),
-      model: SmolStr::default(),
-    }
-  }
-
-  /// Construct from explicit `make` + `model`.
-  #[inline]
-  pub fn from_parts(make: impl Into<SmolStr>, model: impl Into<SmolStr>) -> Self {
-    Self {
-      make: make.into(),
-      model: model.into(),
-    }
-  }
-
-  /// Manufacturer / make (`""` = absent).
-  #[inline]
-  pub fn make(&self) -> &str {
-    self.make.as_str()
-  }
-
-  /// Model name (`""` = absent).
-  #[inline]
-  pub fn model(&self) -> &str {
-    self.model.as_str()
-  }
-
-  /// Builder: replace `make`.
-  #[inline]
-  pub fn with_make(mut self, v: impl Into<SmolStr>) -> Self {
-    self.make = v.into();
-    self
-  }
-
-  /// Builder: replace `model`.
-  #[inline]
-  pub fn with_model(mut self, v: impl Into<SmolStr>) -> Self {
-    self.model = v.into();
-    self
-  }
-
-  /// In-place mutator for `make`.
-  #[inline]
-  pub fn set_make(&mut self, v: impl Into<SmolStr>) {
-    self.make = v.into();
-  }
-
-  /// In-place mutator for `model`.
-  #[inline]
-  pub fn set_model(&mut self, v: impl Into<SmolStr>) {
-    self.model = v.into();
-  }
-
-  /// Both fields `""`?
-  #[inline]
-  pub fn is_empty(&self) -> bool {
-    self.make.is_empty() && self.model.is_empty()
-  }
-}
-
-impl Default for MediaDevice {
-  #[inline]
-  fn default() -> Self {
-    Self::new()
-  }
-}
-
-/// File-level **GPS** capture metadata (decimal lat / lon / optional
-/// altitude) — placeholder until `mediaframe::GeoLocation` lands
-/// (EXIF / capture-metadata charter; ISO-6709 parse/format will live in
-/// mediaframe). Locked `media.md` r8.
-///
-/// TODO(mediaframe): replace with `mediaframe::GeoLocation` once the
-/// mediaframe extern lands.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct MediaGeoLocation {
-  lat: f64,
-  lon: f64,
-  altitude: Option<f64>,
-}
-
-impl MediaGeoLocation {
-  /// Construct a GPS reading.
-  #[inline]
-  pub const fn new(lat: f64, lon: f64, altitude: Option<f64>) -> Self {
-    Self { lat, lon, altitude }
-  }
-
-  /// Latitude (decimal degrees, WGS84).
-  #[inline]
-  pub const fn lat(&self) -> f64 {
-    self.lat
-  }
-
-  /// Longitude (decimal degrees, WGS84).
-  #[inline]
-  pub const fn lon(&self) -> f64 {
-    self.lon
-  }
-
-  /// Altitude in metres above ellipsoid (`None` = not recorded).
-  #[inline]
-  pub const fn altitude(&self) -> Option<f64> {
-    self.altitude
-  }
-
-  /// Builder: replace altitude.
-  #[inline]
-  pub const fn with_altitude(mut self, altitude: Option<f64>) -> Self {
-    self.altitude = altitude;
-    self
-  }
-
-  /// In-place mutator for altitude.
-  #[inline]
-  pub const fn set_altitude(&mut self, altitude: Option<f64>) {
-    self.altitude = altitude;
-  }
-}
 
 /// The indexed media file — the architectural root of the domain.
 ///
@@ -197,11 +60,8 @@ pub struct Media<Id = Uuid7> {
   id: Id,
   checksum: FileChecksum,
   name: SmolStr,
-  /// **Container** format slug (MP4/MKV/MKA/…). Codec is per-track.
-  ///
-  /// TODO(mediaframe): replace `SmolStr` with `mediaframe::ContainerFormat`
-  /// enum once the mediaframe extern lands.
-  format: SmolStr,
+  /// **Container** format (MP4/MKV/MKA/…). Codec is per-track.
+  format: Format,
   size: u64,
   duration: Option<MediaTimestamp>,
   created_at: JiffTimestamp,
@@ -221,11 +81,10 @@ pub struct Media<Id = Uuid7> {
   /// EXIF capture date (wall-clock; `None` = not recorded; wire encodes
   /// `0` as `None`).
   capture_date: Option<JiffTimestamp>,
-  /// EXIF device info (camera / phone make+model). Placeholder until
-  /// `mediaframe::Device`.
-  device: Option<MediaDevice>,
-  /// EXIF GPS reading. Placeholder until `mediaframe::GeoLocation`.
-  gps: Option<MediaGeoLocation>,
+  /// EXIF device info (camera / phone make+model).
+  device: Option<Device>,
+  /// EXIF GPS reading.
+  gps: Option<GeoLocation>,
 }
 
 impl Media<Uuid7> {
@@ -241,7 +100,7 @@ impl Media<Uuid7> {
     id: Uuid7,
     checksum: FileChecksum,
     name: impl Into<SmolStr>,
-    format: impl Into<SmolStr>,
+    format: Format,
     size: u64,
     created_at: JiffTimestamp,
     kind: MediaKind,
@@ -256,7 +115,7 @@ impl Media<Uuid7> {
       id,
       checksum,
       name: name.into(),
-      format: format.into(),
+      format,
       size,
       duration: None,
       created_at,
@@ -292,12 +151,10 @@ impl<Id> Media<Id> {
     self.name.as_str()
   }
 
-  /// Container format slug (MP4/MKV/MKA/…).
-  ///
-  /// TODO(mediaframe): future `mediaframe::ContainerFormat` enum.
+  /// Container format (MP4/MKV/MKA/…).
   #[inline]
-  pub fn format(&self) -> &str {
-    self.format.as_str()
+  pub const fn format(&self) -> &Format {
+    &self.format
   }
 
   /// File size in bytes.
@@ -362,13 +219,13 @@ impl<Id> Media<Id> {
 
   /// EXIF device info.
   #[inline]
-  pub const fn device(&self) -> Option<&MediaDevice> {
+  pub const fn device(&self) -> Option<&Device> {
     self.device.as_ref()
   }
 
   /// EXIF GPS reading.
   #[inline]
-  pub const fn gps(&self) -> Option<&MediaGeoLocation> {
+  pub const fn gps(&self) -> Option<&GeoLocation> {
     self.gps.as_ref()
   }
 
@@ -425,14 +282,14 @@ impl<Id> Media<Id> {
 
   /// Builder: replace `device`.
   #[inline]
-  pub fn with_device(mut self, d: Option<MediaDevice>) -> Self {
+  pub fn with_device(mut self, d: Option<Device>) -> Self {
     self.device = d;
     self
   }
 
   /// Builder: replace `gps`.
   #[inline]
-  pub const fn with_gps(mut self, g: Option<MediaGeoLocation>) -> Self {
+  pub const fn with_gps(mut self, g: Option<GeoLocation>) -> Self {
     self.gps = g;
     self
   }
@@ -483,13 +340,13 @@ impl<Id> Media<Id> {
 
   /// In-place mutator for `device`.
   #[inline]
-  pub fn set_device(&mut self, d: Option<MediaDevice>) {
+  pub fn set_device(&mut self, d: Option<Device>) {
     self.device = d;
   }
 
   /// In-place mutator for `gps`.
   #[inline]
-  pub const fn set_gps(&mut self, g: Option<MediaGeoLocation>) {
+  pub const fn set_gps(&mut self, g: Option<GeoLocation>) {
     self.gps = g;
   }
 }
@@ -531,12 +388,20 @@ mod tests {
   fn try_new_happy_path() {
     let id = Uuid7::new();
     let cs = fake_checksum();
-    let m = Media::try_new(id, cs, "clip.mp4", "mp4", 12_345, ts(), MediaKind::Video)
-      .expect("valid construction must succeed");
+    let m = Media::try_new(
+      id,
+      cs,
+      "clip.mp4",
+      Format::Mp4,
+      12_345,
+      ts(),
+      MediaKind::Video,
+    )
+    .expect("valid construction must succeed");
     assert_eq!(m.id(), &id);
     assert_eq!(m.checksum(), &cs);
     assert_eq!(m.name(), "clip.mp4");
-    assert_eq!(m.format(), "mp4");
+    assert_eq!(m.format(), &Format::Mp4);
     assert_eq!(m.size(), 12_345);
     assert!(m.kind().is_video());
     assert!(m.video().is_none());
@@ -556,7 +421,7 @@ mod tests {
       Uuid7::nil(),
       fake_checksum(),
       "x",
-      "mp4",
+      Format::Mp4,
       0,
       ts(),
       MediaKind::Video,
@@ -571,7 +436,7 @@ mod tests {
       Uuid7::new(),
       FileChecksum::new(),
       "x",
-      "mp4",
+      Format::Mp4,
       0,
       ts(),
       MediaKind::Video,
@@ -585,11 +450,12 @@ mod tests {
     let id = Uuid7::new();
     let video_id = Uuid7::new();
     let audio_id = Uuid7::new();
+    let gps = GeoLocation::try_new(37.7749, -122.4194, Some(20.0)).expect("valid coordinates");
     let m = Media::try_new(
       id,
       fake_checksum(),
       "clip.mp4",
-      "mp4",
+      Format::Mp4,
       12_345,
       ts(),
       MediaKind::Video,
@@ -599,8 +465,10 @@ mod tests {
     .with_audio(Some(audio_id))
     .with_error_flags(MediaErrorFlags::VIDEO_ERROR)
     .with_capture_date(Some(ts()))
-    .with_device(Some(MediaDevice::from_parts("Apple", "iPhone 15 Pro")))
-    .with_gps(Some(MediaGeoLocation::new(37.7749, -122.4194, Some(20.0))));
+    .with_device(Some(
+      Device::new().with_make("Apple").with_model("iPhone 15 Pro"),
+    ))
+    .with_gps(Some(gps));
 
     assert_eq!(m.video(), Some(&video_id));
     assert_eq!(m.audio(), Some(&audio_id));
@@ -622,7 +490,7 @@ mod tests {
       Uuid7::new(),
       fake_checksum(),
       "clip.mp4",
-      "mp4",
+      Format::Mp4,
       0,
       ts(),
       MediaKind::Video,
@@ -630,34 +498,13 @@ mod tests {
     .unwrap();
     m.set_video(Some(Uuid7::new()));
     m.set_error_flags(MediaErrorFlags::AUDIO_ERROR | MediaErrorFlags::SUBTITLE_ERROR);
-    m.set_gps(Some(MediaGeoLocation::new(0.0, 0.0, None)));
+    m.set_gps(Some(
+      GeoLocation::try_new(0.0, 0.0, None).expect("valid coordinates"),
+    ));
     assert!(m.video().is_some());
     assert!(m
       .error_flags()
       .contains(MediaErrorFlags::AUDIO_ERROR | MediaErrorFlags::SUBTITLE_ERROR));
-    assert_eq!(m.gps().map(MediaGeoLocation::altitude), Some(None));
-  }
-
-  #[test]
-  fn media_device_default_is_empty_and_builders_work() {
-    let d = MediaDevice::default();
-    assert!(d.is_empty());
-    let d = d.with_make("Sony").with_model("A7R V");
-    assert_eq!(d.make(), "Sony");
-    assert_eq!(d.model(), "A7R V");
-    assert!(!d.is_empty());
-    let mut d = d;
-    d.set_make("");
-    d.set_model("");
-    assert!(d.is_empty());
-  }
-
-  #[test]
-  fn media_geolocation_builder_and_setter() {
-    let g = MediaGeoLocation::new(0.0, 0.0, None).with_altitude(Some(42.0));
-    assert_eq!(g.altitude(), Some(42.0));
-    let mut g = g;
-    g.set_altitude(None);
-    assert!(g.altitude().is_none());
+    assert_eq!(m.gps().map(GeoLocation::altitude), Some(None));
   }
 }

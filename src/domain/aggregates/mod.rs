@@ -30,7 +30,7 @@ pub use audio::{
   AudioTrack, AudioTrackError, Loudness, Word,
 };
 pub use curation::{SceneAnnotation, UserTag};
-pub use media::{Media, MediaDevice, MediaGeoLocation};
+pub use media::Media;
 pub use speaker::Speaker;
 // NOTE: both `subtitle` and `video` independently define an
 // `IndexProgress` type (the convention block told each subagent not to
