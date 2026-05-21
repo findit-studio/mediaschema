@@ -5,12 +5,13 @@
 //! VOs, and the [`MediaKind`] / [`MediaErrorFlags`] discriminants.
 
 use ::bson::{Bson, Document};
-
-use crate::domain::{
-  aggregates::media::{Media, MediaDevice, MediaGeoLocation},
-  enums::MediaKind,
-  MediaErrorFlags, Uuid7,
+use core::str::FromStr;
+use mediaframe::{
+  capture::{Device, GeoLocation},
+  container::Format,
 };
+
+use crate::domain::{aggregates::media::Media, enums::MediaKind, MediaErrorFlags, Uuid7};
 
 use super::{error::MongoError, util::*};
 
@@ -37,44 +38,50 @@ fn media_kind_from_i64(v: i64, field: &'static str) -> Result<MediaKind, MongoEr
 }
 
 // ---------------------------------------------------------------------------
-// MediaDevice
+// `mediaframe::capture::Device` ↔ `{ make, model }`
 // ---------------------------------------------------------------------------
 
-fn media_device_to_bson(d: &MediaDevice) -> Bson {
+fn device_to_bson(d: &Device) -> Bson {
   let mut doc = Document::new();
   doc.insert("make", Bson::String(d.make().to_owned()));
   doc.insert("model", Bson::String(d.model().to_owned()));
   Bson::Document(doc)
 }
 
-fn media_device_from_bson(b: Bson, field: &'static str) -> Result<MediaDevice, MongoError> {
+fn device_from_bson(b: Bson, field: &'static str) -> Result<Device, MongoError> {
   let mut d = as_doc(b, field)?;
   let make = as_smol(take(&mut d, "make")?, "make")?;
   let model = as_smol(take(&mut d, "model")?, "model")?;
-  Ok(MediaDevice::from_parts(make, model))
+  Ok(Device::new().with_make(make).with_model(model))
 }
 
 // ---------------------------------------------------------------------------
-// MediaGeoLocation
+// `mediaframe::capture::GeoLocation` ↔ `{ lat, lon, altitude }`
 // ---------------------------------------------------------------------------
+//
+// `altitude` is now `Option<f32>` (was `Option<f64>`); persisted as a
+// bson `Double`, narrowed to `f32` on the way back in. `try_new`
+// re-enforces the lat/lon range invariants at the bson edge.
 
-fn media_geo_to_bson(g: &MediaGeoLocation) -> Bson {
+fn geo_to_bson(g: &GeoLocation) -> Bson {
   let mut doc = Document::new();
   doc.insert("lat", Bson::Double(g.lat()));
   doc.insert("lon", Bson::Double(g.lon()));
   doc.insert(
     "altitude",
-    g.altitude().map(Bson::Double).unwrap_or(Bson::Null),
+    g.altitude()
+      .map(|a| Bson::Double(a as f64))
+      .unwrap_or(Bson::Null),
   );
   Bson::Document(doc)
 }
 
-fn media_geo_from_bson(b: Bson, field: &'static str) -> Result<MediaGeoLocation, MongoError> {
+fn geo_from_bson(b: Bson, field: &'static str) -> Result<GeoLocation, MongoError> {
   let mut d = as_doc(b, field)?;
   let lat = as_f64(take(&mut d, "lat")?, "lat")?;
   let lon = as_f64(take(&mut d, "lon")?, "lon")?;
-  let altitude = opt(take_opt(&mut d, "altitude"), |bb| as_f64(bb, "altitude"))?;
-  Ok(MediaGeoLocation::new(lat, lon, altitude))
+  let altitude = opt(take_opt(&mut d, "altitude"), |bb| as_f32(bb, "altitude"))?;
+  Ok(GeoLocation::try_new(lat, lon, altitude)?)
 }
 
 // ---------------------------------------------------------------------------
@@ -87,7 +94,7 @@ impl From<&Media<Uuid7>> for Document {
     d.insert("_id", uuid7_to_bson(*m.id()));
     d.insert("checksum", checksum_to_bson(m.checksum()));
     d.insert("name", Bson::String(m.name().to_owned()));
-    d.insert("format", Bson::String(m.format().to_owned()));
+    d.insert("format", Bson::String(m.format().as_str().to_owned()));
     d.insert("size", Bson::Int64(m.size() as i64));
     d.insert(
       "duration",
@@ -126,9 +133,9 @@ impl From<&Media<Uuid7>> for Document {
     );
     d.insert(
       "device",
-      m.device().map(media_device_to_bson).unwrap_or(Bson::Null),
+      m.device().map(device_to_bson).unwrap_or(Bson::Null),
     );
-    d.insert("gps", m.gps().map(media_geo_to_bson).unwrap_or(Bson::Null));
+    d.insert("gps", m.gps().map(geo_to_bson).unwrap_or(Bson::Null));
     d
   }
 }
@@ -140,7 +147,9 @@ impl TryFrom<Document> for Media<Uuid7> {
     let id = uuid7_from_bson(take(&mut d, "_id")?, "_id")?;
     let checksum = checksum_from_bson(take(&mut d, "checksum")?, "checksum")?;
     let name = as_smol(take(&mut d, "name")?, "name")?;
-    let format = as_smol(take(&mut d, "format")?, "format")?;
+    // `Format: FromStr<Err = Infallible>` — unknown slugs land in
+    // `Other`, so the parse is total.
+    let Ok(format) = Format::from_str(&as_str(take(&mut d, "format")?, "format")?);
     let size = as_u64(take(&mut d, "size")?, "size")?;
     let created_at = jiff_from_bson(take(&mut d, "created_at")?, "created_at")?;
     let kind = media_kind_from_i64(as_i64(take(&mut d, "kind")?, "kind")?, "kind")?;
@@ -173,10 +182,10 @@ impl TryFrom<Document> for Media<Uuid7> {
       m.set_capture_date(Some(jiff_from_bson(b, "capture_date")?));
     }
     if let Some(b) = take_opt(&mut d, "device") {
-      m.set_device(Some(media_device_from_bson(b, "device")?));
+      m.set_device(Some(device_from_bson(b, "device")?));
     }
     if let Some(b) = take_opt(&mut d, "gps") {
-      m.set_gps(Some(media_geo_from_bson(b, "gps")?));
+      m.set_gps(Some(geo_from_bson(b, "gps")?));
     }
     Ok(m)
   }
@@ -194,6 +203,10 @@ mod tests {
   use jiff::Timestamp as JiffTimestamp;
   use mediatime::{Timebase, Timestamp as MediaTimestamp};
 
+  fn mp4() -> Format {
+    Format::Mp4
+  }
+
   fn cs() -> FileChecksum {
     let mut b = [0u8; 32];
     b[0] = 1;
@@ -210,7 +223,7 @@ mod tests {
       Uuid7::new(),
       cs(),
       "clip.mp4",
-      "mp4",
+      mp4(),
       12_345,
       JiffTimestamp::default(),
       MediaKind::Video,
@@ -227,7 +240,7 @@ mod tests {
       Uuid7::new(),
       cs(),
       "clip.mp4",
-      "mp4",
+      mp4(),
       999_999,
       JiffTimestamp::default(),
       MediaKind::Audio,
@@ -240,8 +253,12 @@ mod tests {
     .with_error_flags(MediaErrorFlags::AUDIO_ERROR | MediaErrorFlags::SUBTITLE_ERROR)
     .with_probe_error(Some(ErrorInfo::new(ErrorCode::ProbeCorrupt, "bad header")))
     .with_capture_date(Some(JiffTimestamp::default()))
-    .with_device(Some(MediaDevice::from_parts("Apple", "iPhone 15 Pro")))
-    .with_gps(Some(MediaGeoLocation::new(37.7749, -122.4194, Some(20.0))));
+    .with_device(Some(
+      Device::new().with_make("Apple").with_model("iPhone 15 Pro"),
+    ))
+    .with_gps(Some(
+      GeoLocation::try_new(37.7749, -122.4194, Some(20.0)).unwrap(),
+    ));
     let doc: Document = (&m).into();
     let m2: Media<Uuid7> = doc.try_into().unwrap();
     assert_eq!(m, m2);

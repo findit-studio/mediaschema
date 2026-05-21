@@ -359,6 +359,43 @@ pub(super) fn rgba_from_bson(b: Bson, field: &'static str) -> Result<Rgba, Mongo
 }
 
 // ---------------------------------------------------------------------------
+// `mediaframe::lang::Language` ↔ BCP-47 `String`
+// ---------------------------------------------------------------------------
+
+pub(super) fn language_to_bson(l: &::mediaframe::lang::Language) -> Bson {
+  Bson::String(l.to_bcp47())
+}
+
+pub(super) fn language_from_bson(
+  b: Bson,
+  field: &'static str,
+) -> Result<::mediaframe::lang::Language, MongoError> {
+  let s = as_str(b, field)?;
+  Ok(::mediaframe::lang::Language::from_bcp47(&s)?)
+}
+
+// ---------------------------------------------------------------------------
+// `mediaframe::frame::Dimensions` ↔ `{ w, h }`
+// ---------------------------------------------------------------------------
+
+pub(super) fn dimensions_to_bson(d: ::mediaframe::frame::Dimensions) -> Bson {
+  let mut doc = Document::new();
+  doc.insert("w", Bson::Int64(d.width() as i64));
+  doc.insert("h", Bson::Int64(d.height() as i64));
+  Bson::Document(doc)
+}
+
+pub(super) fn dimensions_from_bson(
+  b: Bson,
+  field: &'static str,
+) -> Result<::mediaframe::frame::Dimensions, MongoError> {
+  let mut d = as_doc(b, field)?;
+  let w = as_u32(take(&mut d, "w")?, "w")?;
+  let h = as_u32(take(&mut d, "h")?, "h")?;
+  Ok(::mediaframe::frame::Dimensions::new(w, h))
+}
+
+// ---------------------------------------------------------------------------
 // `Provenance` ↔ document with 4 string fields
 // ---------------------------------------------------------------------------
 
@@ -516,16 +553,8 @@ pub(super) fn uuid7_vec_from_bson(b: Bson, field: &'static str) -> Result<Vec<Uu
 }
 
 // ---------------------------------------------------------------------------
-// SmolStr vec helpers (round-trippable Vec<SmolStr> ↔ Array of String)
+// SmolStr vec helpers (round-trippable Array of String → Vec<SmolStr>)
 // ---------------------------------------------------------------------------
-
-pub(super) fn smolstr_vec_to_bson(v: &[SmolStr]) -> Bson {
-  Bson::Array(
-    v.iter()
-      .map(|s| Bson::String(s.as_str().to_owned()))
-      .collect(),
-  )
-}
 
 pub(super) fn smolstr_vec_from_bson(
   b: Bson,

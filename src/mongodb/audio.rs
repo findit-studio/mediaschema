@@ -4,13 +4,18 @@
 //! `Loudness`, `AudioFingerprint`) and the per-segment `Word` VO.
 
 use ::bson::{Bson, Document};
+use core::str::FromStr;
+use mediaframe::{
+  audio::{ChannelLayout, CoverArt, Fingerprint, Loudness, Tags},
+  codec::AudioCodec,
+};
 use smol_str::SmolStr;
 
 use crate::domain::{
   aggregates::audio::{
     facet::Audio,
     segment::{AudioSegment, Word},
-    track::{AudioCoverArt, AudioFingerprint, AudioTags, AudioTrack, Loudness},
+    track::AudioTrack,
   },
   bitflags::AudioIndexStatus,
   enums::AudioContentKind,
@@ -79,67 +84,104 @@ impl TryFrom<Document> for Audio<Uuid7> {
 // AudioTags
 // ---------------------------------------------------------------------------
 
-fn tags_to_bson(t: &AudioTags) -> Bson {
+// `mediaframe::audio::Tags` field set (rev: narrower than the old local
+// `AudioTags`): string fields use `""`-means-absent; numeric / language
+// fields are `Option`, persisted as `Null` when absent.
+fn tags_to_bson(t: &Tags) -> Bson {
   let mut d = Document::new();
   d.insert("title", Bson::String(t.title().to_owned()));
   d.insert("artist", Bson::String(t.artist().to_owned()));
   d.insert("album_artist", Bson::String(t.album_artist().to_owned()));
   d.insert("album", Bson::String(t.album().to_owned()));
-  d.insert("genre", Bson::String(t.genre().to_owned()));
   d.insert("composer", Bson::String(t.composer().to_owned()));
-  d.insert("performer", Bson::String(t.performer().to_owned()));
-  d.insert("date", Bson::String(t.date().to_owned()));
-  d.insert("track_number", Bson::Int64(t.track_number() as i64));
-  d.insert("total_tracks", Bson::Int64(t.total_tracks() as i64));
-  d.insert("disc_number", Bson::Int64(t.disc_number() as i64));
-  d.insert("total_discs", Bson::Int64(t.total_discs() as i64));
+  d.insert("genre", Bson::String(t.genre().to_owned()));
   d.insert("comment", Bson::String(t.comment().to_owned()));
-  d.insert("lyrics", Bson::String(t.lyrics().to_owned()));
-  d.insert("tag_types", smolstr_vec_to_bson(t.tag_types()));
+  d.insert(
+    "year",
+    t.year()
+      .map(|v| Bson::Int32(v as i32))
+      .unwrap_or(Bson::Null),
+  );
+  d.insert(
+    "track_number",
+    t.track_number()
+      .map(|v| Bson::Int32(v as i32))
+      .unwrap_or(Bson::Null),
+  );
+  d.insert(
+    "track_total",
+    t.track_total()
+      .map(|v| Bson::Int32(v as i32))
+      .unwrap_or(Bson::Null),
+  );
+  d.insert(
+    "disc_number",
+    t.disc_number()
+      .map(|v| Bson::Int32(v as i32))
+      .unwrap_or(Bson::Null),
+  );
+  d.insert(
+    "disc_total",
+    t.disc_total()
+      .map(|v| Bson::Int32(v as i32))
+      .unwrap_or(Bson::Null),
+  );
+  d.insert(
+    "language",
+    t.language()
+      .map(|s| Bson::String(s.to_owned()))
+      .unwrap_or(Bson::Null),
+  );
   Bson::Document(d)
 }
 
-fn tags_from_bson(b: Bson, field: &'static str) -> Result<AudioTags, MongoError> {
+fn tags_from_bson(b: Bson, field: &'static str) -> Result<Tags, MongoError> {
   let mut d = as_doc(b, field)?;
-  Ok(
-    AudioTags::new()
-      .with_title(as_smol(take(&mut d, "title")?, "title")?)
-      .with_artist(as_smol(take(&mut d, "artist")?, "artist")?)
-      .with_album_artist(as_smol(take(&mut d, "album_artist")?, "album_artist")?)
-      .with_album(as_smol(take(&mut d, "album")?, "album")?)
-      .with_genre(as_smol(take(&mut d, "genre")?, "genre")?)
-      .with_composer(as_smol(take(&mut d, "composer")?, "composer")?)
-      .with_performer(as_smol(take(&mut d, "performer")?, "performer")?)
-      .with_date(as_smol(take(&mut d, "date")?, "date")?)
-      .with_track_number(as_u32(take(&mut d, "track_number")?, "track_number")?)
-      .with_total_tracks(as_u32(take(&mut d, "total_tracks")?, "total_tracks")?)
-      .with_disc_number(as_u32(take(&mut d, "disc_number")?, "disc_number")?)
-      .with_total_discs(as_u32(take(&mut d, "total_discs")?, "total_discs")?)
-      .with_comment(as_smol(take(&mut d, "comment")?, "comment")?)
-      .with_lyrics(as_smol(take(&mut d, "lyrics")?, "lyrics")?)
-      .with_tag_types(smolstr_vec_from_bson(
-        take(&mut d, "tag_types")?,
-        "tag_types",
-      )?),
-  )
+  let mut t = Tags::new()
+    .with_title(as_smol(take(&mut d, "title")?, "title")?)
+    .with_artist(as_smol(take(&mut d, "artist")?, "artist")?)
+    .with_album_artist(as_smol(take(&mut d, "album_artist")?, "album_artist")?)
+    .with_album(as_smol(take(&mut d, "album")?, "album")?)
+    .with_composer(as_smol(take(&mut d, "composer")?, "composer")?)
+    .with_genre(as_smol(take(&mut d, "genre")?, "genre")?)
+    .with_comment(as_smol(take(&mut d, "comment")?, "comment")?);
+  if let Some(b) = take_opt(&mut d, "year") {
+    t = t.with_year(as_u16(b, "year")?);
+  }
+  if let Some(b) = take_opt(&mut d, "track_number") {
+    t = t.with_track_number(as_u16(b, "track_number")?);
+  }
+  if let Some(b) = take_opt(&mut d, "track_total") {
+    t = t.with_track_total(as_u16(b, "track_total")?);
+  }
+  if let Some(b) = take_opt(&mut d, "disc_number") {
+    t = t.with_disc_number(as_u16(b, "disc_number")?);
+  }
+  if let Some(b) = take_opt(&mut d, "disc_total") {
+    t = t.with_disc_total(as_u16(b, "disc_total")?);
+  }
+  if let Some(b) = take_opt(&mut d, "language") {
+    t = t.with_language(as_smol(b, "language")?);
+  }
+  Ok(t)
 }
 
 // ---------------------------------------------------------------------------
 // AudioCoverArt
 // ---------------------------------------------------------------------------
 
-fn cover_art_to_bson(c: &AudioCoverArt) -> Bson {
+fn cover_art_to_bson(c: &CoverArt) -> Bson {
   let mut d = Document::new();
   d.insert("data", bytes_to_bson(c.data()));
   d.insert("mime", Bson::String(c.mime().to_owned()));
   Bson::Document(d)
 }
 
-fn cover_art_from_bson(b: Bson, field: &'static str) -> Result<AudioCoverArt, MongoError> {
+fn cover_art_from_bson(b: Bson, field: &'static str) -> Result<CoverArt, MongoError> {
   let mut d = as_doc(b, field)?;
   let data = as_binary(take(&mut d, "data")?, "data")?;
   let mime = as_smol(take(&mut d, "mime")?, "mime")?;
-  Ok(AudioCoverArt::from_parts(data, mime))
+  Ok(CoverArt::try_new(mime, data)?)
 }
 
 // ---------------------------------------------------------------------------
@@ -149,10 +191,11 @@ fn cover_art_from_bson(b: Bson, field: &'static str) -> Result<AudioCoverArt, Mo
 fn loudness_to_bson(l: &Loudness) -> Bson {
   let mut d = Document::new();
   d.insert("integrated_lufs", Bson::Double(l.integrated_lufs() as f64));
+  d.insert("range_lu", Bson::Double(l.range_lu() as f64));
   d.insert("true_peak_dbtp", Bson::Double(l.true_peak_dbtp() as f64));
   d.insert(
-    "loudness_range_lu",
-    Bson::Double(l.loudness_range_lu() as f64),
+    "sample_peak_dbfs",
+    Bson::Double(l.sample_peak_dbfs() as f64),
   );
   Bson::Document(d)
 }
@@ -160,27 +203,28 @@ fn loudness_to_bson(l: &Loudness) -> Bson {
 fn loudness_from_bson(b: Bson, field: &'static str) -> Result<Loudness, MongoError> {
   let mut d = as_doc(b, field)?;
   let i = as_f32(take(&mut d, "integrated_lufs")?, "integrated_lufs")?;
+  let r = as_f32(take(&mut d, "range_lu")?, "range_lu")?;
   let p = as_f32(take(&mut d, "true_peak_dbtp")?, "true_peak_dbtp")?;
-  let r = as_f32(take(&mut d, "loudness_range_lu")?, "loudness_range_lu")?;
-  Ok(Loudness::new(i, p, r))
+  let s = as_f32(take(&mut d, "sample_peak_dbfs")?, "sample_peak_dbfs")?;
+  Ok(Loudness::new(i, r, p, s))
 }
 
 // ---------------------------------------------------------------------------
 // AudioFingerprint
 // ---------------------------------------------------------------------------
 
-fn fingerprint_to_bson(fp: &AudioFingerprint) -> Bson {
+fn fingerprint_to_bson(fp: &Fingerprint) -> Bson {
   let mut d = Document::new();
-  d.insert("algo", Bson::String(fp.algo().to_owned()));
+  d.insert("algorithm", Bson::String(fp.algorithm().to_owned()));
   d.insert("value", bytes_to_bson(fp.value()));
   Bson::Document(d)
 }
 
-fn fingerprint_from_bson(b: Bson, field: &'static str) -> Result<AudioFingerprint, MongoError> {
+fn fingerprint_from_bson(b: Bson, field: &'static str) -> Result<Fingerprint, MongoError> {
   let mut d = as_doc(b, field)?;
-  let algo = as_smol(take(&mut d, "algo")?, "algo")?;
+  let algorithm = as_smol(take(&mut d, "algorithm")?, "algorithm")?;
   let value = as_binary(take(&mut d, "value")?, "value")?;
-  Ok(AudioFingerprint::from_parts(algo, value))
+  Ok(Fingerprint::try_new(algorithm, value)?)
 }
 
 // ---------------------------------------------------------------------------
@@ -204,19 +248,19 @@ impl From<&AudioTrack<Uuid7>> for Document {
         .map(|v| Bson::Int64(v as i64))
         .unwrap_or(Bson::Null),
     );
-    d.insert("codec", Bson::String(t.codec().to_owned()));
+    d.insert("codec", Bson::String(t.codec().as_str().to_owned()));
     d.insert("profile", Bson::String(t.profile().to_owned()));
     d.insert("sample_rate", Bson::Int64(t.sample_rate() as i64));
     d.insert("channels", Bson::Int32(t.channels() as i32));
     d.insert(
       "channel_layout",
-      Bson::String(t.channel_layout().to_owned()),
+      Bson::String(t.channel_layout().as_str().to_owned()),
     );
     d.insert("bit_rate", Bson::Int64(t.bit_rate() as i64));
     d.insert(
       "bit_rate_mode",
       t.bit_rate_mode()
-        .map(|s| Bson::String(s.to_owned()))
+        .map(|m| Bson::Int32(m.to_u32() as i32))
         .unwrap_or(Bson::Null),
     );
     d.insert(
@@ -241,17 +285,17 @@ impl From<&AudioTrack<Uuid7>> for Document {
     d.insert(
       "language",
       t.language()
-        .map(|s| Bson::String(s.to_owned()))
+        .map(|l| language_to_bson(&l))
         .unwrap_or(Bson::Null),
     );
     d.insert(
       "detected_language",
       t.detected_language()
-        .map(|s| Bson::String(s.to_owned()))
+        .map(|l| language_to_bson(&l))
         .unwrap_or(Bson::Null),
     );
     d.insert("language_mismatch", Bson::Boolean(t.language_mismatch()));
-    d.insert("disposition", Bson::Int64(t.disposition() as i64));
+    d.insert("disposition", Bson::Int64(t.disposition().to_u32() as i64));
     d.insert("is_primary", Bson::Boolean(t.is_primary()));
     d.insert("auto_selected", Bson::Boolean(t.auto_selected()));
     d.insert(
@@ -312,7 +356,11 @@ impl TryFrom<Document> for AudioTrack<Uuid7> {
       t.set_container_track_id(Some(as_u64(b, "container_track_id")?));
     }
     if let Some(b) = take_opt(&mut d, "codec") {
-      t.set_codec(as_smol(b, "codec")?);
+      // `AudioCodec: FromStr<Err = Infallible>` — unknown slugs land in
+      // `Other`, so the parse is total (the `unwrap` cannot panic).
+      let s = as_str(b, "codec")?;
+      let Ok(codec) = AudioCodec::from_str(&s);
+      t.set_codec(codec);
     }
     if let Some(b) = take_opt(&mut d, "profile") {
       t.set_profile(as_smol(b, "profile")?);
@@ -324,13 +372,19 @@ impl TryFrom<Document> for AudioTrack<Uuid7> {
       t.set_channels(as_u16(b, "channels")?);
     }
     if let Some(b) = take_opt(&mut d, "channel_layout") {
-      t.set_channel_layout(as_smol(b, "channel_layout")?);
+      // `ChannelLayout: FromStr<Err = Infallible>` (lossless via `Other`).
+      let s = as_str(b, "channel_layout")?;
+      let Ok(layout) = ChannelLayout::from_str(&s);
+      t.set_channel_layout(layout);
     }
     if let Some(b) = take_opt(&mut d, "bit_rate") {
       t.set_bit_rate(as_u64(b, "bit_rate")?);
     }
     if let Some(b) = take_opt(&mut d, "bit_rate_mode") {
-      t.set_bit_rate_mode(Some(as_smol(b, "bit_rate_mode")?));
+      t.set_bit_rate_mode(Some(mediaframe::audio::BitRateMode::from_u32(as_u32(
+        b,
+        "bit_rate_mode",
+      )?)));
     }
     if let Some(b) = take_opt(&mut d, "bits_per_sample") {
       t.set_bits_per_sample(Some(as_u16(b, "bits_per_sample")?));
@@ -345,16 +399,19 @@ impl TryFrom<Document> for AudioTrack<Uuid7> {
       t.set_start_pts(Some(media_ts_from_bson(b, "start_pts")?));
     }
     if let Some(b) = take_opt(&mut d, "language") {
-      t.set_language(Some(as_smol(b, "language")?));
+      t.set_language(Some(language_from_bson(b, "language")?));
     }
     if let Some(b) = take_opt(&mut d, "detected_language") {
-      t.set_detected_language(Some(as_smol(b, "detected_language")?));
+      t.set_detected_language(Some(language_from_bson(b, "detected_language")?));
     }
     if let Some(b) = take_opt(&mut d, "language_mismatch") {
       t.set_language_mismatch(as_bool(b, "language_mismatch")?);
     }
     if let Some(b) = take_opt(&mut d, "disposition") {
-      t.set_disposition(as_u32(b, "disposition")?);
+      t.set_disposition(mediaframe::disposition::TrackDisposition::from_u32(as_u32(
+        b,
+        "disposition",
+      )?));
     }
     if let Some(b) = take_opt(&mut d, "is_primary") {
       t.set_primary(as_bool(b, "is_primary")?);
@@ -431,7 +488,7 @@ fn word_to_bson(w: &Word) -> Bson {
   d.insert(
     "language",
     w.language()
-      .map(|s| Bson::String(s.to_owned()))
+      .map(|l| language_to_bson(&l))
       .unwrap_or(Bson::Null),
   );
   Bson::Document(d)
@@ -442,7 +499,9 @@ fn word_from_bson(b: Bson, field: &'static str) -> Result<Word, MongoError> {
   let text = as_smol(take(&mut d, "text")?, "text")?;
   let span = time_range_from_bson(take(&mut d, "span")?, "span")?;
   let score = as_f32(take(&mut d, "score")?, "score")?;
-  let language = opt(take_opt(&mut d, "language"), |bb| as_smol(bb, "language"))?;
+  let language = opt(take_opt(&mut d, "language"), |bb| {
+    language_from_bson(bb, "language")
+  })?;
   Ok(Word::from_parts(text, span, score, language))
 }
 
@@ -465,7 +524,7 @@ impl From<&AudioSegment<Uuid7>> for Document {
     d.insert(
       "language",
       s.language()
-        .map(|s| Bson::String(s.to_owned()))
+        .map(|l| language_to_bson(&l))
         .unwrap_or(Bson::Null),
     );
     d.insert(
@@ -511,7 +570,7 @@ impl TryFrom<Document> for AudioSegment<Uuid7> {
       s.set_text(loc_text_from_bson(b, "text")?);
     }
     if let Some(b) = take_opt(&mut d, "language") {
-      s.set_language(Some(as_smol(b, "language")?));
+      s.set_language(Some(language_from_bson(b, "language")?));
     }
     if let Some(b) = take_opt(&mut d, "words") {
       let arr = as_array(b, "words")?;
@@ -545,6 +604,7 @@ mod tests {
     primitives::{ErrorCode, ErrorInfo},
     vo::{LocalizedText, Provenance},
   };
+  use ::mediaframe::{audio::BitRateMode, disposition::TrackDisposition, lang::Language};
   use core::num::NonZeroU32;
   use mediatime::{TimeRange, Timebase};
 
@@ -572,42 +632,41 @@ mod tests {
     let t = AudioTrack::try_new(Uuid7::new(), Uuid7::new())
       .unwrap()
       .with_stream_index(Some(0))
-      .with_codec("aac")
+      .with_codec(AudioCodec::Aac)
       .with_profile("LC")
       .with_sample_rate(48_000)
       .with_channels(2)
-      .with_channel_layout("stereo")
+      .with_channel_layout(ChannelLayout::Stereo)
       .with_bit_rate(192_000)
-      .with_bit_rate_mode(Some(SmolStr::from("CBR")))
+      .with_bit_rate_mode(Some(BitRateMode::Cbr))
       .with_bits_per_sample(Some(16))
       .with_lossless(false)
-      .with_language(Some(SmolStr::from("en")))
-      .with_detected_language(Some(SmolStr::from("en")))
-      .with_disposition(0x21)
+      .with_language(Some(Language::from_bcp47("en").unwrap()))
+      .with_detected_language(Some(Language::from_bcp47("en").unwrap()))
+      .with_disposition(TrackDisposition::from_u32(0x21))
       .with_primary(true)
       .with_content(Some(AudioContentKind::Music))
       .with_speech_ratio(Some(0.42))
       .with_silent(false)
-      .with_loudness(Some(Loudness::new(-23.0, -1.0, 7.5)))
-      .with_fingerprint(Some(AudioFingerprint::from_parts(
-        "chromaprint",
-        vec![1u8, 2, 3, 4],
-      )))
+      .with_loudness(Some(Loudness::new(-23.0, 7.5, -1.0, -3.0)))
+      .with_fingerprint(Some(
+        Fingerprint::try_new("chromaprint", vec![1u8, 2, 3, 4]).unwrap(),
+      ))
       .with_isrc("ISRC123")
       .with_acoustid("acoust-xyz")
       .with_musicbrainz_recording_id("mb-abc")
       .with_speakers(vec![Uuid7::new()])
       .with_tags(Some(
-        AudioTags::new()
+        Tags::new()
           .with_title("Song")
           .with_artist("X")
           .with_track_number(1)
-          .with_tag_types(vec![SmolStr::from("ID3v2")]),
+          .with_year(2024)
+          .with_language("en"),
       ))
-      .with_cover_art(Some(AudioCoverArt::from_parts(
-        vec![0xFFu8, 0xD8, 0xFF],
-        "image/jpeg",
-      )))
+      .with_cover_art(Some(
+        CoverArt::try_new("image/jpeg", vec![0xFFu8, 0xD8, 0xFF]).unwrap(),
+      ))
       .with_segments(vec![Uuid7::new()])
       .with_provenance(Provenance::from_parts("asry", "1.0", "p", "idx"))
       .with_index_status(AudioIndexStatus::EXTRACTED | AudioIndexStatus::VAD_DONE)
@@ -623,12 +682,12 @@ mod tests {
       .unwrap()
       .with_speaker(Some(Uuid7::new()))
       .with_text(LocalizedText::from_src_translated("hola", "hello"))
-      .with_language(Some(SmolStr::from("es")))
+      .with_language(Some(Language::from_bcp47("es").unwrap()))
       .with_words(vec![Word::from_parts(
         "hola",
         sp(0, 500),
         0.95,
-        Some(SmolStr::from("es")),
+        Some(Language::from_bcp47("es").unwrap()),
       )])
       .with_no_speech_prob(Some(0.05))
       .with_avg_logprob(Some(-0.4))

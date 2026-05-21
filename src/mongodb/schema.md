@@ -168,9 +168,14 @@ Indexes: `_id` only.
 ### `video_tracks`
 
 Full per-stream descriptor from `schema/video_track.md` r7 (see
-`video.rs`'s `From`/`TryFrom`); the mediaframe placeholders surface as
-their wire-numbered `u32`/structured `RectPlaceholder` /
-`ColorInfoPlaceholder` etc.
+`video.rs`'s `From`/`TryFrom`). The `mediaframe` descriptor types map per
+the table in `mongodb/mod.rs`: `codec` → `String` slug; `pixel_format` /
+`rotation` / `field_order` / `stereo_mode` → `Int32` codes; `disposition`
+→ `Int64` bits; `dimensions` → `{ w, h }`; `sample_aspect_ratio` /
+`frame_rate` → `{ num, den[, is_vfr] }`; `visible_rect` →
+`{ x, y, width, height }`; `color` → 5 `Int32` enum codes; `hdr_static` →
+`{ mastering?, content_light? }`; `dovi` →
+`{ profile, level, rpu_present, el_present, bl_signal_compat_id }`.
 
 Indexes: `parent`, `is_primary`.
 

@@ -26,7 +26,11 @@ use crate::domain::{
 /// Backend-specific error returned when a `bson::Document` cannot be
 /// decoded into a domain aggregate (missing required field, wrong
 /// bson-type, invariant rejection from the underlying `try_new`, …).
-#[derive(Debug, Clone, PartialEq, Eq, IsVariant, thiserror::Error)]
+// `Eq` is intentionally not derived: the `GeoLocation` variant wraps
+// `mediaframe::capture::GeoLocationError`, which carries the rejected
+// `f64` lat/lon and so is only `PartialEq` (NaN ≠ NaN). `PartialEq` is
+// enough for the test-suite's `assert_eq!`-on-`unwrap_err()` patterns.
+#[derive(Debug, Clone, PartialEq, IsVariant, thiserror::Error)]
 #[non_exhaustive]
 pub enum MongoError {
   /// A required bson field was absent from the document.
@@ -54,6 +58,26 @@ pub enum MongoError {
   /// A `Uuid7` round-trip rejected the binary payload (nil / non-v7).
   #[error("Uuid7 decode failed: {0}")]
   Uuid7(#[from] Uuid7Error),
+
+  // `mediaframe` value-object rejections surfaced at the bson edge —
+  // these flow up from the typed descriptor / VO decoders (`Language`
+  // from a BCP-47 string, `GeoLocation` lat/lon ranges, `Fingerprint`
+  // empty-algorithm, `CoverArt` empty mime/data).
+  /// A BCP-47 string failed to decode into a [`mediaframe::lang::Language`].
+  #[error("Language decode failed: {0}")]
+  Language(#[from] ::mediaframe::lang::LanguageError),
+  /// A `{lat, lon, altitude}` document violated a
+  /// [`mediaframe::capture::GeoLocation`] invariant.
+  #[error("GeoLocation decode failed: {0}")]
+  GeoLocation(#[from] ::mediaframe::capture::GeoLocationError),
+  /// An `{algorithm, value}` document violated a
+  /// [`mediaframe::audio::Fingerprint`] invariant (empty algorithm).
+  #[error("audio Fingerprint decode failed: {0}")]
+  Fingerprint(#[from] ::mediaframe::audio::FingerprintError),
+  /// A `{mime, data}` document violated a
+  /// [`mediaframe::audio::CoverArt`] invariant (empty mime / data).
+  #[error("audio CoverArt decode failed: {0}")]
+  CoverArt(#[from] ::mediaframe::audio::CoverArtError),
 
   // Domain-aggregate `try_new` rejections (one variant per aggregate).
   #[error("Media try_new rejected: {0}")]

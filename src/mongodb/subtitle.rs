@@ -1,6 +1,12 @@
 //! `Subtitle` + `SubtitleTrack` + `SubtitleCue` ↔ bson `Document` mapping.
 
 use ::bson::{Bson, Document};
+use core::str::FromStr;
+use mediaframe::{
+  codec::SubtitleCodec,
+  disposition::TrackDisposition,
+  subtitle::{Format, TrackOrigin},
+};
 use smol_str::SmolStr;
 
 use crate::domain::{
@@ -116,13 +122,16 @@ impl From<&SubtitleTrack<Uuid7>> for Document {
         .map(|v| Bson::Int64(v as i64))
         .unwrap_or(Bson::Null),
     );
-    d.insert("codec", Bson::String(t.codec().to_owned()));
-    d.insert("format", Bson::String(t.format().to_owned()));
-    d.insert("origin", Bson::String(t.origin().to_owned()));
-    d.insert("language", Bson::String(t.language().to_owned()));
+    d.insert("codec", Bson::String(t.codec().as_str().to_owned()));
+    d.insert("format", Bson::String(t.format().as_str().to_owned()));
+    // `TrackOrigin` is a closed enum (no `FromStr`) — wire it as its
+    // stable `to_u32`/`from_u32` code, Int32.
+    d.insert("origin", Bson::Int32(t.origin().to_u32() as i32));
+    d.insert("language", language_to_bson(t.language()));
     d.insert("title", Bson::String(t.title().to_owned()));
-    d.insert("is_image_based", Bson::Boolean(t.is_image_based()));
-    d.insert("disposition", Bson::Int64(t.disposition() as i64));
+    // `is_image_based` is derived from `format` (no setter); not
+    // persisted — it round-trips for free once `format` is restored.
+    d.insert("disposition", Bson::Int64(t.disposition().to_u32() as i64));
     d.insert("is_primary", Bson::Boolean(t.is_primary()));
     d.insert("auto_selected", Bson::Boolean(t.auto_selected()));
     d.insert(
@@ -193,25 +202,27 @@ impl TryFrom<Document> for SubtitleTrack<Uuid7> {
       t.set_container_track_id(Some(as_u64(b, "container_track_id")?));
     }
     if let Some(b) = take_opt(&mut d, "codec") {
-      t.set_codec(as_smol(b, "codec")?);
+      // `SubtitleCodec: FromStr<Err = Infallible>` (lossless via `Other`).
+      let Ok(codec) = SubtitleCodec::from_str(&as_str(b, "codec")?);
+      t.set_codec(codec);
     }
     if let Some(b) = take_opt(&mut d, "format") {
-      t.set_format(as_smol(b, "format")?);
+      // `Format: FromStr<Err = Infallible>` (lossless via `Other`).
+      // `is_image_based` is derived from this and needs no separate field.
+      let Ok(format) = Format::from_str(&as_str(b, "format")?);
+      t.set_format(format);
     }
     if let Some(b) = take_opt(&mut d, "origin") {
-      t.set_origin(as_smol(b, "origin")?);
+      t.set_origin(TrackOrigin::from_u32(as_u32(b, "origin")?));
     }
     if let Some(b) = take_opt(&mut d, "language") {
-      t.set_language(as_smol(b, "language")?);
+      t.set_language(language_from_bson(b, "language")?);
     }
     if let Some(b) = take_opt(&mut d, "title") {
       t.set_title(as_smol(b, "title")?);
     }
-    if let Some(b) = take_opt(&mut d, "is_image_based") {
-      t.set_image_based(as_bool(b, "is_image_based")?);
-    }
     if let Some(b) = take_opt(&mut d, "disposition") {
-      t.set_disposition(as_u32(b, "disposition")?);
+      t.set_disposition(TrackDisposition::from_u32(as_u32(b, "disposition")?));
     }
     if let Some(b) = take_opt(&mut d, "is_primary") {
       t.set_primary(as_bool(b, "is_primary")?);
@@ -339,6 +350,7 @@ mod tests {
     vo::{LocalizedText, Provenance},
     Location,
   };
+  use ::mediaframe::lang::Language;
   use core::num::NonZeroU32;
   use mediatime::{TimeRange, Timebase, Timestamp as MediaTimestamp};
 
@@ -372,13 +384,12 @@ mod tests {
     let vol = Uuid7::new();
     let t = SubtitleTrack::try_new(Uuid7::new(), Uuid7::new())
       .unwrap()
-      .with_codec("subrip")
-      .with_format("text")
-      .with_origin("external")
-      .with_language("en")
+      .with_codec(SubtitleCodec::Subrip)
+      .with_format(Format::Srt)
+      .with_origin(TrackOrigin::External)
+      .with_language(Language::from_bcp47("en").unwrap())
       .with_title("English (CC)")
-      .with_image_based(false)
-      .with_disposition(0x04)
+      .with_disposition(TrackDisposition::from_u32(0x04))
       .with_primary(true)
       .with_auto_selected(false)
       .with_duration(Some(MediaTimestamp::new(60_000, tb())))

@@ -5,6 +5,17 @@
 //! pattern used in the other backends.
 
 use ::bson::{Bson, Document};
+use core::{num::NonZeroU32, str::FromStr};
+use mediaframe::{
+  codec::VideoCodec,
+  color::{
+    ChromaCoord, ChromaLocation, ContentLightLevel, DolbyVisionConfig, DynamicRange,
+    HdrStaticMetadata, Info as ColorInfo, MasteringDisplay, Matrix, Primaries, Transfer,
+  },
+  disposition::TrackDisposition,
+  frame::{FieldOrder, FrameRate, Rational, Rect, Rotation, SampleAspectRatio, StereoMode},
+  pixel_format::PixelFormat,
+};
 use smol_str::SmolStr;
 
 use crate::domain::{
@@ -13,10 +24,7 @@ use crate::domain::{
     facet::{IndexProgress as VIndexProgress, Video},
     keyframe::Keyframe,
     scene::Scene,
-    track::{
-      ColorInfoPlaceholder, DolbyVisionConfigPlaceholder, HdrStaticMetadataPlaceholder,
-      RectPlaceholder, VideoCodec, VideoTrack,
-    },
+    track::VideoTrack,
   },
   bitflags::VideoIndexStatus,
   enums::{KeyframeExtractor, SceneDetector},
@@ -157,62 +165,25 @@ impl TryFrom<Document> for Video<Uuid7> {
 }
 
 // ---------------------------------------------------------------------------
-// VideoCodec ↔ document `{ kind: String, other: String }`
+// VideoCodec ↔ FFmpeg short-name `String`
 // ---------------------------------------------------------------------------
+// `VideoCodec: FromStr<Err = Infallible>` (unknown slugs → `Other`), so
+// `as_str` / `FromStr` is a total, lossless String round-trip.
 
 fn codec_to_bson(c: &VideoCodec) -> Bson {
-  let (kind, other) = match c {
-    VideoCodec::H264 => ("h264", ""),
-    VideoCodec::H265 => ("h265", ""),
-    VideoCodec::H266 => ("h266", ""),
-    VideoCodec::Vp8 => ("vp8", ""),
-    VideoCodec::Vp9 => ("vp9", ""),
-    VideoCodec::Av1 => ("av1", ""),
-    VideoCodec::Mpeg2 => ("mpeg2", ""),
-    VideoCodec::Mpeg4 => ("mpeg4", ""),
-    VideoCodec::ProRes => ("prores", ""),
-    VideoCodec::Dnxhd => ("dnxhd", ""),
-    VideoCodec::Theora => ("theora", ""),
-    VideoCodec::Other(s) => ("other", s.as_str()),
-  };
-  let mut d = Document::new();
-  d.insert("kind", Bson::String(kind.to_owned()));
-  d.insert("other", Bson::String(other.to_owned()));
-  Bson::Document(d)
+  Bson::String(c.as_str().to_owned())
 }
 
 fn codec_from_bson(b: Bson, field: &'static str) -> Result<VideoCodec, MongoError> {
-  let mut d = as_doc(b, field)?;
-  let kind = as_str(take(&mut d, "kind")?, "kind")?;
-  let other = as_smol(take(&mut d, "other")?, "other")?;
-  Ok(match kind.as_str() {
-    "h264" => VideoCodec::H264,
-    "h265" => VideoCodec::H265,
-    "h266" => VideoCodec::H266,
-    "vp8" => VideoCodec::Vp8,
-    "vp9" => VideoCodec::Vp9,
-    "av1" => VideoCodec::Av1,
-    "mpeg2" => VideoCodec::Mpeg2,
-    "mpeg4" => VideoCodec::Mpeg4,
-    "prores" => VideoCodec::ProRes,
-    "dnxhd" => VideoCodec::Dnxhd,
-    "theora" => VideoCodec::Theora,
-    "other" => VideoCodec::Other(other),
-    _ => {
-      return Err(MongoError::type_mismatch(
-        field,
-        "known VideoCodec kind",
-        "other",
-      ))
-    }
-  })
+  let Ok(codec) = VideoCodec::from_str(&as_str(b, field)?);
+  Ok(codec)
 }
 
 // ---------------------------------------------------------------------------
-// Placeholder VOs ↔ Document
+// `mediaframe` frame / colour VOs ↔ Document
 // ---------------------------------------------------------------------------
 
-fn rect_to_bson(r: &RectPlaceholder) -> Bson {
+fn rect_to_bson(r: &Rect) -> Bson {
   let mut d = Document::new();
   d.insert("x", Bson::Int64(r.x() as i64));
   d.insert("y", Bson::Int64(r.y() as i64));
@@ -221,81 +192,200 @@ fn rect_to_bson(r: &RectPlaceholder) -> Bson {
   Bson::Document(d)
 }
 
-fn rect_from_bson(b: Bson, field: &'static str) -> Result<RectPlaceholder, MongoError> {
+fn rect_from_bson(b: Bson, field: &'static str) -> Result<Rect, MongoError> {
   let mut d = as_doc(b, field)?;
   let x = as_u32(take(&mut d, "x")?, "x")?;
   let y = as_u32(take(&mut d, "y")?, "y")?;
   let w = as_u32(take(&mut d, "width")?, "width")?;
   let h = as_u32(take(&mut d, "height")?, "height")?;
-  Ok(RectPlaceholder::new(x, y, w, h))
+  Ok(Rect::new(x, y, w, h))
 }
 
-fn color_info_to_bson(c: &ColorInfoPlaceholder) -> Bson {
+// Shared `(num, den)` decode for the two `Rational`-backed VOs below.
+fn rational_from_doc(d: &mut Document) -> Result<Rational, MongoError> {
+  let num = as_u32(take(d, "num")?, "num")?;
+  let den_v = as_u32(take(d, "den")?, "den")?;
+  let den = NonZeroU32::new(den_v).ok_or_else(|| MongoError::IntOutOfRange {
+    field: SmolStr::from("den"),
+    value: 0,
+  })?;
+  Ok(Rational::new(num, den))
+}
+
+// `SampleAspectRatio` ↔ `{ num, den }` (newtype over `Rational`).
+fn sar_to_bson(s: SampleAspectRatio) -> Bson {
   let mut d = Document::new();
-  d.insert("primaries", Bson::Int64(c.primaries() as i64));
-  d.insert("transfer", Bson::Int64(c.transfer() as i64));
-  d.insert("matrix", Bson::Int64(c.matrix() as i64));
-  d.insert("range", Bson::Int64(c.range() as i64));
-  d.insert("chroma_location", Bson::Int64(c.chroma_location() as i64));
+  d.insert("num", Bson::Int64(s.num() as i64));
+  d.insert("den", Bson::Int64(s.den().get() as i64));
   Bson::Document(d)
 }
 
-fn color_info_from_bson(b: Bson, field: &'static str) -> Result<ColorInfoPlaceholder, MongoError> {
+fn sar_from_bson(b: Bson, field: &'static str) -> Result<SampleAspectRatio, MongoError> {
   let mut d = as_doc(b, field)?;
-  let p = as_u32(take(&mut d, "primaries")?, "primaries")?;
-  let t = as_u32(take(&mut d, "transfer")?, "transfer")?;
-  let m = as_u32(take(&mut d, "matrix")?, "matrix")?;
-  let r = as_u32(take(&mut d, "range")?, "range")?;
-  let c = as_u32(take(&mut d, "chroma_location")?, "chroma_location")?;
-  Ok(ColorInfoPlaceholder::new(p, t, m, r, c))
+  let r = rational_from_doc(&mut d)?;
+  Ok(SampleAspectRatio::new(r.num(), r.den()))
 }
 
-fn hdr_static_to_bson(h: &HdrStaticMetadataPlaceholder) -> Bson {
+// `FrameRate` ↔ `{ num, den, is_vfr }` (a `Rational` rate + VFR flag).
+fn frame_rate_to_bson(f: FrameRate) -> Bson {
+  let r = f.rate();
   let mut d = Document::new();
-  d.insert("max_cll", Bson::Int64(h.max_cll() as i64));
-  d.insert("max_fall", Bson::Int64(h.max_fall() as i64));
+  d.insert("num", Bson::Int64(r.num() as i64));
+  d.insert("den", Bson::Int64(r.den().get() as i64));
+  d.insert("is_vfr", Bson::Boolean(f.is_vfr()));
   Bson::Document(d)
 }
 
-fn hdr_static_from_bson(
-  b: Bson,
-  field: &'static str,
-) -> Result<HdrStaticMetadataPlaceholder, MongoError> {
+fn frame_rate_from_bson(b: Bson, field: &'static str) -> Result<FrameRate, MongoError> {
   let mut d = as_doc(b, field)?;
-  let c = as_u32(take(&mut d, "max_cll")?, "max_cll")?;
-  let f = as_u32(take(&mut d, "max_fall")?, "max_fall")?;
-  Ok(HdrStaticMetadataPlaceholder::new(c, f))
+  let is_vfr = as_bool(take(&mut d, "is_vfr")?, "is_vfr")?;
+  let r = rational_from_doc(&mut d)?;
+  Ok(FrameRate::new(r, is_vfr))
 }
 
-fn dovi_to_bson(c: &DolbyVisionConfigPlaceholder) -> Bson {
+// `color::Info` carries five typed enums, each `to_u32`/`from_u32`-coded;
+// persisted as Int32 sub-fields.
+fn color_info_to_bson(c: &ColorInfo) -> Bson {
+  let mut d = Document::new();
+  d.insert("primaries", Bson::Int64(c.primaries().to_u32() as i64));
+  d.insert("transfer", Bson::Int64(c.transfer().to_u32() as i64));
+  d.insert("matrix", Bson::Int64(c.matrix().to_u32() as i64));
+  d.insert("range", Bson::Int64(c.range().to_u32() as i64));
+  d.insert(
+    "chroma_location",
+    Bson::Int64(c.chroma_location().to_u32() as i64),
+  );
+  Bson::Document(d)
+}
+
+fn color_info_from_bson(b: Bson, field: &'static str) -> Result<ColorInfo, MongoError> {
+  let mut d = as_doc(b, field)?;
+  let p = Primaries::from_u32(as_u32(take(&mut d, "primaries")?, "primaries")?);
+  let t = Transfer::from_u32(as_u32(take(&mut d, "transfer")?, "transfer")?);
+  let m = Matrix::from_u32(as_u32(take(&mut d, "matrix")?, "matrix")?);
+  let r = DynamicRange::from_u32(as_u32(take(&mut d, "range")?, "range")?);
+  let c = ChromaLocation::from_u32(as_u32(take(&mut d, "chroma_location")?, "chroma_location")?);
+  Ok(ColorInfo::new(p, t, m, r, c))
+}
+
+// `ChromaCoord` ↔ `{ x, y }`.
+fn chroma_coord_to_bson(c: ChromaCoord) -> Bson {
+  let mut d = Document::new();
+  d.insert("x", Bson::Int64(c.x() as i64));
+  d.insert("y", Bson::Int64(c.y() as i64));
+  Bson::Document(d)
+}
+
+fn chroma_coord_from_bson(b: Bson, field: &'static str) -> Result<ChromaCoord, MongoError> {
+  let mut d = as_doc(b, field)?;
+  let x = as_u32(take(&mut d, "x")?, "x")?;
+  let y = as_u32(take(&mut d, "y")?, "y")?;
+  Ok(ChromaCoord::new(x, y))
+}
+
+// `MasteringDisplay` ↔ `{ primaries: [coord; 3], white_point, max_lum, min_lum }`.
+fn mastering_to_bson(m: &MasteringDisplay) -> Bson {
+  let mut d = Document::new();
+  let prims = m.display_primaries();
+  d.insert(
+    "primaries",
+    Bson::Array(prims.iter().map(|c| chroma_coord_to_bson(*c)).collect()),
+  );
+  d.insert("white_point", chroma_coord_to_bson(m.white_point()));
+  d.insert("max_luminance", Bson::Int64(m.max_luminance() as i64));
+  d.insert("min_luminance", Bson::Int64(m.min_luminance() as i64));
+  Bson::Document(d)
+}
+
+fn mastering_from_bson(b: Bson, field: &'static str) -> Result<MasteringDisplay, MongoError> {
+  let mut d = as_doc(b, field)?;
+  let arr = as_array(take(&mut d, "primaries")?, "primaries")?;
+  if arr.len() != 3 {
+    return Err(MongoError::type_mismatch(
+      field,
+      "3-element primaries array",
+      "other",
+    ));
+  }
+  let mut it = arr.into_iter();
+  let prims = [
+    chroma_coord_from_bson(it.next().unwrap(), "primaries[0]")?,
+    chroma_coord_from_bson(it.next().unwrap(), "primaries[1]")?,
+    chroma_coord_from_bson(it.next().unwrap(), "primaries[2]")?,
+  ];
+  let white = chroma_coord_from_bson(take(&mut d, "white_point")?, "white_point")?;
+  let max_lum = as_u32(take(&mut d, "max_luminance")?, "max_luminance")?;
+  let min_lum = as_u32(take(&mut d, "min_luminance")?, "min_luminance")?;
+  Ok(MasteringDisplay::new(prims, white, max_lum, min_lum))
+}
+
+// `ContentLightLevel` ↔ `{ max_cll, max_fall }`.
+fn content_light_to_bson(c: ContentLightLevel) -> Bson {
+  let mut d = Document::new();
+  d.insert("max_cll", Bson::Int64(c.max_cll() as i64));
+  d.insert("max_fall", Bson::Int64(c.max_fall() as i64));
+  Bson::Document(d)
+}
+
+fn content_light_from_bson(b: Bson, field: &'static str) -> Result<ContentLightLevel, MongoError> {
+  let mut d = as_doc(b, field)?;
+  let cll = as_u32(take(&mut d, "max_cll")?, "max_cll")?;
+  let fall = as_u32(take(&mut d, "max_fall")?, "max_fall")?;
+  Ok(ContentLightLevel::new(cll, fall))
+}
+
+// `HdrStaticMetadata` ↔ `{ mastering?, content_light? }` — both halves
+// optional (the rev that wraps `Option<MasteringDisplay>` +
+// `Option<ContentLightLevel>` rather than flat MaxCLL/MaxFALL).
+fn hdr_static_to_bson(h: &HdrStaticMetadata) -> Bson {
+  let mut d = Document::new();
+  d.insert(
+    "mastering",
+    h.mastering()
+      .map(|m| mastering_to_bson(&m))
+      .unwrap_or(Bson::Null),
+  );
+  d.insert(
+    "content_light",
+    h.content_light()
+      .map(content_light_to_bson)
+      .unwrap_or(Bson::Null),
+  );
+  Bson::Document(d)
+}
+
+fn hdr_static_from_bson(b: Bson, field: &'static str) -> Result<HdrStaticMetadata, MongoError> {
+  let mut d = as_doc(b, field)?;
+  let mastering = opt(take_opt(&mut d, "mastering"), |bb| {
+    mastering_from_bson(bb, "mastering")
+  })?;
+  let content_light = opt(take_opt(&mut d, "content_light"), |bb| {
+    content_light_from_bson(bb, "content_light")
+  })?;
+  Ok(HdrStaticMetadata::new(mastering, content_light))
+}
+
+fn dovi_to_bson(c: &DolbyVisionConfig) -> Bson {
   let mut d = Document::new();
   d.insert("profile", Bson::Int32(c.profile() as i32));
   d.insert("level", Bson::Int32(c.level() as i32));
   d.insert("rpu_present", Bson::Boolean(c.rpu_present()));
   d.insert("el_present", Bson::Boolean(c.el_present()));
-  d.insert("bl_present", Bson::Boolean(c.bl_present()));
   d.insert(
-    "bl_signal_compatibility_id",
-    Bson::Int32(c.bl_signal_compatibility_id() as i32),
+    "bl_signal_compat_id",
+    Bson::Int32(c.bl_signal_compat_id() as i32),
   );
   Bson::Document(d)
 }
 
-fn dovi_from_bson(
-  b: Bson,
-  field: &'static str,
-) -> Result<DolbyVisionConfigPlaceholder, MongoError> {
+fn dovi_from_bson(b: Bson, field: &'static str) -> Result<DolbyVisionConfig, MongoError> {
   let mut d = as_doc(b, field)?;
   let p = as_u8(take(&mut d, "profile")?, "profile")?;
   let l = as_u8(take(&mut d, "level")?, "level")?;
   let rpu = as_bool(take(&mut d, "rpu_present")?, "rpu_present")?;
   let el = as_bool(take(&mut d, "el_present")?, "el_present")?;
-  let bl = as_bool(take(&mut d, "bl_present")?, "bl_present")?;
-  let bl_sig = as_u8(
-    take(&mut d, "bl_signal_compatibility_id")?,
-    "bl_signal_compatibility_id",
-  )?;
-  Ok(DolbyVisionConfigPlaceholder::new(p, l, rpu, el, bl, bl_sig))
+  let bl_sig = as_u8(take(&mut d, "bl_signal_compat_id")?, "bl_signal_compat_id")?;
+  Ok(DolbyVisionConfig::new(p, l, rpu, el, bl_sig))
 }
 
 // ---------------------------------------------------------------------------
@@ -362,40 +452,41 @@ impl From<&VideoTrack<Uuid7>> for Document {
         .map(|v| Bson::Int32(v as i32))
         .unwrap_or(Bson::Null),
     );
-    let (w, h) = t.dimensions();
-    d.insert("dimensions_width", Bson::Int64(w as i64));
-    d.insert("dimensions_height", Bson::Int64(h as i64));
+    d.insert("dimensions", dimensions_to_bson(t.dimensions()));
     d.insert(
       "visible_rect",
-      t.visible_rect().map(rect_to_bson).unwrap_or(Bson::Null),
+      t.visible_rect()
+        .map(|r| rect_to_bson(&r))
+        .unwrap_or(Bson::Null),
     );
-    let (sn, sd) = t.sample_aspect_ratio();
-    d.insert("sample_aspect_ratio_num", Bson::Int64(sn as i64));
-    d.insert("sample_aspect_ratio_den", Bson::Int64(sd as i64));
-    d.insert("pixel_format", Bson::Int64(t.pixel_format() as i64));
+    d.insert("sample_aspect_ratio", sar_to_bson(t.sample_aspect_ratio()));
+    d.insert(
+      "pixel_format",
+      Bson::Int64(t.pixel_format().to_u32() as i64),
+    );
     d.insert("color", color_info_to_bson(t.color()));
     d.insert(
       "hdr_static",
       t.hdr_static().map(hdr_static_to_bson).unwrap_or(Bson::Null),
     );
-    d.insert("rotation", Bson::Int64(t.rotation() as i64));
-    let (fr_n, fr_d, fr_vfr) = t.frame_rate();
-    d.insert("frame_rate_num", Bson::Int64(fr_n as i64));
-    d.insert("frame_rate_den", Bson::Int64(fr_d as i64));
-    d.insert("frame_rate_is_vfr", Bson::Boolean(fr_vfr));
-    d.insert("field_order", Bson::Int64(t.field_order() as i64));
+    d.insert("rotation", Bson::Int64(t.rotation().to_u32() as i64));
+    d.insert("frame_rate", frame_rate_to_bson(t.frame_rate()));
+    d.insert("field_order", Bson::Int64(t.field_order().to_u32() as i64));
     d.insert(
       "stereo_mode",
       t.stereo_mode()
-        .map(|v| Bson::Int64(v as i64))
+        .map(|v| Bson::Int64(v.to_u32() as i64))
         .unwrap_or(Bson::Null),
     );
-    d.insert("dovi", t.dovi().map(dovi_to_bson).unwrap_or(Bson::Null));
+    d.insert(
+      "dovi",
+      t.dovi().map(|c| dovi_to_bson(&c)).unwrap_or(Bson::Null),
+    );
     d.insert(
       "has_embedded_captions",
       Bson::Boolean(t.has_embedded_captions()),
     );
-    d.insert("disposition", Bson::Int64(t.disposition() as i64));
+    d.insert("disposition", Bson::Int64(t.disposition().to_u32() as i64));
     d.insert("is_primary", Bson::Boolean(t.is_primary()));
     d.insert("auto_selected", Bson::Boolean(t.auto_selected()));
     d.insert("scenes", uuid7_vec_to_bson(t.scenes()));
@@ -450,29 +541,17 @@ impl TryFrom<Document> for VideoTrack<Uuid7> {
     if let Some(b) = take_opt(&mut d, "bits_per_raw_sample") {
       t.set_bits_per_raw_sample(Some(as_u8(b, "bits_per_raw_sample")?));
     }
-    let w = match take_opt(&mut d, "dimensions_width") {
-      Some(b) => as_u32(b, "dimensions_width")?,
-      None => 0,
-    };
-    let h = match take_opt(&mut d, "dimensions_height") {
-      Some(b) => as_u32(b, "dimensions_height")?,
-      None => 0,
-    };
-    t.set_dimensions(w, h);
+    if let Some(b) = take_opt(&mut d, "dimensions") {
+      t.set_dimensions(dimensions_from_bson(b, "dimensions")?);
+    }
     if let Some(b) = take_opt(&mut d, "visible_rect") {
       t.set_visible_rect(Some(rect_from_bson(b, "visible_rect")?));
     }
-    let san = match take_opt(&mut d, "sample_aspect_ratio_num") {
-      Some(b) => as_u32(b, "sample_aspect_ratio_num")?,
-      None => 1,
-    };
-    let sad = match take_opt(&mut d, "sample_aspect_ratio_den") {
-      Some(b) => as_u32(b, "sample_aspect_ratio_den")?,
-      None => 1,
-    };
-    t.set_sample_aspect_ratio(san, sad);
+    if let Some(b) = take_opt(&mut d, "sample_aspect_ratio") {
+      t.set_sample_aspect_ratio(sar_from_bson(b, "sample_aspect_ratio")?);
+    }
     if let Some(b) = take_opt(&mut d, "pixel_format") {
-      t.set_pixel_format(as_u32(b, "pixel_format")?);
+      t.set_pixel_format(PixelFormat::from_u32(as_u32(b, "pixel_format")?));
     }
     if let Some(b) = take_opt(&mut d, "color") {
       t.set_color(color_info_from_bson(b, "color")?);
@@ -481,26 +560,16 @@ impl TryFrom<Document> for VideoTrack<Uuid7> {
       t.set_hdr_static(Some(hdr_static_from_bson(b, "hdr_static")?));
     }
     if let Some(b) = take_opt(&mut d, "rotation") {
-      t.set_rotation(as_u32(b, "rotation")?);
+      t.set_rotation(Rotation::from_u32(as_u32(b, "rotation")?));
     }
-    let fr_n = match take_opt(&mut d, "frame_rate_num") {
-      Some(b) => as_u32(b, "frame_rate_num")?,
-      None => 0,
-    };
-    let fr_d = match take_opt(&mut d, "frame_rate_den") {
-      Some(b) => as_u32(b, "frame_rate_den")?,
-      None => 1,
-    };
-    let fr_vfr = match take_opt(&mut d, "frame_rate_is_vfr") {
-      Some(b) => as_bool(b, "frame_rate_is_vfr")?,
-      None => false,
-    };
-    t.set_frame_rate(fr_n, fr_d, fr_vfr);
+    if let Some(b) = take_opt(&mut d, "frame_rate") {
+      t.set_frame_rate(frame_rate_from_bson(b, "frame_rate")?);
+    }
     if let Some(b) = take_opt(&mut d, "field_order") {
-      t.set_field_order(as_u32(b, "field_order")?);
+      t.set_field_order(FieldOrder::from_u32(as_u32(b, "field_order")?));
     }
     if let Some(b) = take_opt(&mut d, "stereo_mode") {
-      t.set_stereo_mode(Some(as_u32(b, "stereo_mode")?));
+      t.set_stereo_mode(Some(StereoMode::from_u32(as_u32(b, "stereo_mode")?)));
     }
     if let Some(b) = take_opt(&mut d, "dovi") {
       t.set_dovi(Some(dovi_from_bson(b, "dovi")?));
@@ -509,7 +578,7 @@ impl TryFrom<Document> for VideoTrack<Uuid7> {
       t.set_has_embedded_captions(as_bool(b, "has_embedded_captions")?);
     }
     if let Some(b) = take_opt(&mut d, "disposition") {
-      t.set_disposition(as_u32(b, "disposition")?);
+      t.set_disposition(TrackDisposition::from_u32(as_u32(b, "disposition")?));
     }
     if let Some(b) = take_opt(&mut d, "is_primary") {
       t.set_is_primary(as_bool(b, "is_primary")?);
@@ -993,9 +1062,7 @@ fn person_instance_mask_to_bson(m: &PersonInstanceMaskDetection) -> Bson {
   d.insert("bbox", bbox_to_bson(m.bbox()));
   d.insert("confidence", Bson::Double(m.confidence() as f64));
   d.insert("instance_index", Bson::Int64(m.instance_index() as i64));
-  let (w, h) = m.dimensions();
-  d.insert("dimensions_width", Bson::Int64(w as i64));
-  d.insert("dimensions_height", Bson::Int64(h as i64));
+  d.insert("dimensions", dimensions_to_bson(m.dimensions()));
   d.insert("data", bytes_to_bson(m.data()));
   Bson::Document(d)
 }
@@ -1008,19 +1075,16 @@ fn person_instance_mask_from_bson(
   let bbox = bbox_from_bson(take(&mut d, "bbox")?, "bbox")?;
   let c = as_f32(take(&mut d, "confidence")?, "confidence")?;
   let idx = as_u32(take(&mut d, "instance_index")?, "instance_index")?;
-  let w = as_u32(take(&mut d, "dimensions_width")?, "dimensions_width")?;
-  let h = as_u32(take(&mut d, "dimensions_height")?, "dimensions_height")?;
+  let dims = dimensions_from_bson(take(&mut d, "dimensions")?, "dimensions")?;
   let data = as_binary(take(&mut d, "data")?, "data")?;
-  Ok(PersonInstanceMaskDetection::new(bbox, c, idx, w, h, data))
+  Ok(PersonInstanceMaskDetection::new(bbox, c, idx, dims, data))
 }
 
 fn person_seg_mask_to_bson(m: &PersonSegmentationMask) -> Bson {
   let mut d = Document::new();
   d.insert("bbox", bbox_to_bson(m.bbox()));
   d.insert("confidence", Bson::Double(m.confidence() as f64));
-  let (w, h) = m.dimensions();
-  d.insert("dimensions_width", Bson::Int64(w as i64));
-  d.insert("dimensions_height", Bson::Int64(h as i64));
+  d.insert("dimensions", dimensions_to_bson(m.dimensions()));
   d.insert("data", bytes_to_bson(m.data()));
   Bson::Document(d)
 }
@@ -1032,10 +1096,9 @@ fn person_seg_mask_from_bson(
   let mut d = as_doc(b, field)?;
   let bbox = bbox_from_bson(take(&mut d, "bbox")?, "bbox")?;
   let c = as_f32(take(&mut d, "confidence")?, "confidence")?;
-  let w = as_u32(take(&mut d, "dimensions_width")?, "dimensions_width")?;
-  let h = as_u32(take(&mut d, "dimensions_height")?, "dimensions_height")?;
+  let dims = dimensions_from_bson(take(&mut d, "dimensions")?, "dimensions")?;
   let data = as_binary(take(&mut d, "data")?, "data")?;
-  Ok(PersonSegmentationMask::new(bbox, c, w, h, data))
+  Ok(PersonSegmentationMask::new(bbox, c, dims, data))
 }
 
 fn human_to_bson(h: &HumanAnalysis) -> Bson {
@@ -1244,9 +1307,7 @@ impl From<&Keyframe<Uuid7>> for Document {
     d.insert("data", bytes_to_bson(k.data()));
     d.insert("mime", Bson::String(k.mime().to_owned()));
     d.insert("size", Bson::Int64(k.size() as i64));
-    let (w, h) = k.dimensions();
-    d.insert("dimensions_width", Bson::Int64(w as i64));
-    d.insert("dimensions_height", Bson::Int64(h as i64));
+    d.insert("dimensions", dimensions_to_bson(k.dimensions()));
     d.insert(
       "extractor",
       Bson::Int32(keyframe_extractor_to_i32(k.extractor())),
@@ -1323,13 +1384,12 @@ impl TryFrom<Document> for Keyframe<Uuid7> {
     let id = uuid7_from_bson(take(&mut d, "_id")?, "_id")?;
     let parent = uuid7_from_bson(take(&mut d, "parent")?, "parent")?;
     let pts = media_ts_from_bson(take(&mut d, "pts")?, "pts")?;
-    let w = as_u32(take(&mut d, "dimensions_width")?, "dimensions_width")?;
-    let h = as_u32(take(&mut d, "dimensions_height")?, "dimensions_height")?;
+    let dimensions = dimensions_from_bson(take(&mut d, "dimensions")?, "dimensions")?;
     let extractor = keyframe_extractor_from_i64(
       as_i64(take(&mut d, "extractor")?, "extractor")?,
       "extractor",
     )?;
-    let mut k = Keyframe::try_new(id, parent, pts, w, h, extractor)?;
+    let mut k = Keyframe::try_new(id, parent, pts, dimensions, extractor)?;
 
     if let Some(b) = take_opt(&mut d, "data") {
       k.set_data(as_binary(b, "data")?);
@@ -1434,6 +1494,7 @@ mod tests {
     vo::{LocalizedText, Provenance},
     Rgba,
   };
+  use ::mediaframe::frame::Dimensions;
   use core::num::NonZeroU32;
   use mediatime::{TimeRange, Timebase, Timestamp as MediaTimestamp};
 
@@ -1482,7 +1543,7 @@ mod tests {
       .with_container_track_id(Some(7))
       .with_start_pts(Some(MediaTimestamp::new(0, tb())))
       .with_duration(Some(MediaTimestamp::new(60_000, tb())))
-      .with_codec(VideoCodec::H265)
+      .with_codec(VideoCodec::Hevc)
       .with_profile(Some(SmolStr::from("Main10")))
       .with_level(Some(150))
       .with_bit_rate(8_000_000)
@@ -1490,21 +1551,40 @@ mod tests {
       .with_has_b_frames(true)
       .with_closed_gop(Some(true))
       .with_bits_per_raw_sample(Some(10))
-      .with_dimensions(3840, 2160)
-      .with_visible_rect(Some(RectPlaceholder::new(0, 0, 3840, 2160)))
-      .with_sample_aspect_ratio(1, 1)
-      .with_pixel_format(0x10)
-      .with_color(ColorInfoPlaceholder::new(9, 16, 9, 1, 2))
-      .with_hdr_static(Some(HdrStaticMetadataPlaceholder::new(4000, 400)))
-      .with_rotation(0)
-      .with_frame_rate(24_000, 1001, false)
-      .with_field_order(0)
-      .with_stereo_mode(Some(0))
-      .with_dovi(Some(DolbyVisionConfigPlaceholder::new(
-        8, 9, true, false, true, 1,
+      .with_dimensions(Dimensions::new(3840, 2160))
+      .with_visible_rect(Some(Rect::new(0, 0, 3840, 2160)))
+      .with_sample_aspect_ratio(SampleAspectRatio::new(1, NonZeroU32::new(1).unwrap()))
+      .with_pixel_format(PixelFormat::from_u32(0x0a))
+      .with_color(ColorInfo::new(
+        Primaries::from_u32(9),
+        Transfer::from_u32(16),
+        Matrix::from_u32(9),
+        DynamicRange::from_u32(1),
+        ChromaLocation::from_u32(2),
+      ))
+      .with_hdr_static(Some(HdrStaticMetadata::new(
+        Some(MasteringDisplay::new(
+          [
+            ChromaCoord::new(34000, 16000),
+            ChromaCoord::new(13250, 34500),
+            ChromaCoord::new(7500, 3000),
+          ],
+          ChromaCoord::new(15635, 16450),
+          10_000_000,
+          50,
+        )),
+        Some(ContentLightLevel::new(4000, 400)),
       )))
+      .with_rotation(Rotation::from_u32(0))
+      .with_frame_rate(FrameRate::new(
+        Rational::new(24_000, NonZeroU32::new(1001).unwrap()),
+        false,
+      ))
+      .with_field_order(FieldOrder::from_u32(0))
+      .with_stereo_mode(Some(StereoMode::from_u32(0)))
+      .with_dovi(Some(DolbyVisionConfig::new(8, 9, true, false, 1)))
       .with_has_embedded_captions(true)
-      .with_disposition(0x21)
+      .with_disposition(TrackDisposition::from_u32(0x21))
       .with_is_primary(true)
       .with_auto_selected(false)
       .with_scenes(vec![Uuid7::new()])
@@ -1522,8 +1602,7 @@ mod tests {
       Uuid7::new(),
       Uuid7::new(),
       MediaTimestamp::new(1234, tb()),
-      320,
-      180,
+      Dimensions::new(320, 180),
       KeyframeExtractor::CompositeQuality,
     )
     .unwrap()
@@ -1585,8 +1664,7 @@ mod tests {
     d.insert("_id", uuid7_to_bson(Uuid7::new()));
     d.insert("parent", uuid7_to_bson(Uuid7::new()));
     d.insert("pts", media_ts_to_bson(MediaTimestamp::new(0, tb())));
-    d.insert("dimensions_width", Bson::Int64(0));
-    d.insert("dimensions_height", Bson::Int64(0));
+    d.insert("dimensions", dimensions_to_bson(Dimensions::new(0, 0)));
     d.insert("extractor", Bson::Int32(9));
     let err = Keyframe::<Uuid7>::try_from(d).unwrap_err();
     assert!(err.is_keyframe());

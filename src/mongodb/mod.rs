@@ -29,8 +29,29 @@
 //! | [`crate::domain::ErrorCode`] | `Int64` (its `as_u32()` wire value — `Unknown(_)` preserved) |
 //! | [`crate::domain::Location`] | nested document `{ kind: "local", volume: Binary, components: [String] }` |
 //! | [`crate::domain::MediaErrorFlags`] etc. | `Int64` (raw `.bits()` value) |
-//! | `Vec<u8>` (inline bytes) | [`bson::Binary`] with `subtype = 0` |
+//! | `bytes::Bytes` / `Vec<u8>` (inline bytes) | [`bson::Binary`] with `subtype = 0` |
 //! | Domain enums | `Int32` (cast from their `u8`/`u32` backing) |
+//!
+//! ### `mediaframe` descriptor / VO types
+//!
+//! | `mediaframe` type | bson representation |
+//! | --- | --- |
+//! | `codec::{Video,Audio,Subtitle}Codec`, `audio::ChannelLayout`, `container::Format` | `String` (their `as_str()` slug; `FromStr` is total — unknown values round-trip via `Other`) |
+//! | `audio::BitRateMode`, `subtitle::TrackOrigin`, `pixel_format::PixelFormat`, `frame::{Rotation,FieldOrder,StereoMode}`, `color::{Primaries,Transfer,Matrix,DynamicRange,ChromaLocation}` | `Int32` (their stable `to_u32`/`from_u32` code) |
+//! | `disposition::TrackDisposition` | `Int64` (its `to_u32()` bits) |
+//! | `lang::Language` | `String` (BCP-47 via `to_bcp47`/`from_bcp47`) |
+//! | `frame::Dimensions` | nested `{ w: i64, h: i64 }` |
+//! | `frame::Rect` | nested `{ x, y, width, height }` |
+//! | `frame::SampleAspectRatio`, `frame::FrameRate` | nested `{ num, den }` (FrameRate adds `is_vfr`) |
+//! | `color::Info` | nested `{ primaries, transfer, matrix, range, chroma_location }` (Int32 codes) |
+//! | `color::HdrStaticMetadata` | nested `{ mastering?, content_light? }` (mastering = primaries `[{x,y};3]` + white point + max/min luminance; content_light = `{max_cll, max_fall}`) |
+//! | `color::DolbyVisionConfig` | nested `{ profile, level, rpu_present, el_present, bl_signal_compat_id }` |
+//! | `audio::Loudness` | nested `{ integrated_lufs, range_lu, true_peak_dbtp, sample_peak_dbfs }` |
+//! | `audio::Fingerprint` | nested `{ algorithm: String, value: Binary }` |
+//! | `audio::Tags` | nested doc (string fields `""`-means-absent; numeric / `language` fields `Null`-means-absent) |
+//! | `audio::CoverArt` | nested `{ mime: String, data: Binary }` |
+//! | `capture::Device` | nested `{ make, model }` |
+//! | `capture::GeoLocation` | nested `{ lat: f64, lon: f64, altitude?: f64 }` |
 //!
 //! ## Collections + indexes
 //!
