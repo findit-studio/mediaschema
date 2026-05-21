@@ -2,56 +2,25 @@
 //! (locked `schema/video_track.md` r7).
 //!
 //! Owns stream/codec descriptors, the frame/pixel/colour vocabulary
-//! (`::mediaframe` extern — currently **placeholders** pending the
-//! batched post-`0.1.0` mediaframe minor; tagged `TODO(mediaframe)`),
-//! the per-stream `Scene` id-list, the per-track indexing state, and
-//! the per-track `Provenance` (rev 7 hoist — replaces per-`Scene`/
-//! per-`Keyframe` provenance).
+//! (the `::mediaframe` extern — `codec` / `pixel_format` / `color` /
+//! `frame` / `disposition` descriptor types), the per-stream `Scene`
+//! id-list, the per-track indexing state, and the per-track
+//! `Provenance` (rev 7 hoist — replaces per-`Scene`/per-`Keyframe`
+//! provenance).
 
-use derive_more::{IsVariant, TryUnwrap, Unwrap};
+use derive_more::IsVariant;
 use mediatime::Timestamp;
 use smol_str::SmolStr;
 
+use mediaframe::{
+  codec::VideoCodec,
+  color::{DolbyVisionConfig, HdrStaticMetadata, Info as ColorInfo},
+  disposition::TrackDisposition,
+  frame::{Dimensions, FieldOrder, FrameRate, Rect, Rotation, SampleAspectRatio, StereoMode},
+  pixel_format::PixelFormat,
+};
+
 use crate::domain::{bitflags::VideoIndexStatus, primitives::ErrorInfo, vo::Provenance, Uuid7};
-
-// ===========================================================================
-// VideoCodec — mediaschema-owned (per task instructions)
-// ===========================================================================
-//
-// NOTE: per the locked `schema/enums.md` r4 boundary, codec/profile/
-// disposition descriptor enums move to `::mediaframe` (the post-`0.1.0`
-// batched minor). The task instructions for this PR specify `VideoCodec`
-// as mediaschema-owned for now; defining the type here (under the video
-// cluster) keeps the scope tight pending the cross-cutting hoist /
-// mediaframe rename. `Other(SmolStr)` is the open-vocab escape so any
-// FFmpeg codec name survives the wire round-trip.
-
-/// Video codec family. Locked open-vocab list (`schema/enums.md` r4 —
-/// "VideoCodec + Other(SmolStr) escape"); `profile` and `level` live as
-/// **separate** `VideoTrack` fields, not encoded into this enum.
-///
-/// Mixed enum (unit + one newtype variant) → derives `IsVariant` plus
-/// `Unwrap` / `TryUnwrap` accessor families with shared/mut-ref flavours.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, IsVariant, Unwrap, TryUnwrap)]
-#[unwrap(ref, ref_mut)]
-#[try_unwrap(ref, ref_mut)]
-#[non_exhaustive]
-pub enum VideoCodec {
-  H264,
-  H265,
-  H266,
-  Vp8,
-  Vp9,
-  Av1,
-  Mpeg2,
-  Mpeg4,
-  ProRes,
-  Dnxhd,
-  Theora,
-  /// Unrecognised codec; preserves the wire string verbatim so a
-  /// future codec value round-trips losslessly.
-  Other(SmolStr),
-}
 
 // ===========================================================================
 // VideoTrack
@@ -99,48 +68,37 @@ pub struct VideoTrack<Id = Uuid7> {
   closed_gop: Option<bool>,
   bits_per_raw_sample: Option<u8>,
 
-  // --- frame / pixel / colour vocabulary (mediaframe placeholders) ---
-  // TODO(mediaframe): `mediaframe::Dimensions` — width × height.
-  // Coded W×H; deduplicates mediaschema's own once mediaframe lands.
-  dimensions_width: u32,
-  dimensions_height: u32,
-  // TODO(mediaframe): `Option<mediaframe::Rect>` — clean-aperture / crop.
-  visible_rect: Option<RectPlaceholder>,
-  // TODO(mediaframe): `mediaframe::SampleAspectRatio` — display aspect /
-  // anamorphic. Currently the rational num/den pair the wire carries.
-  sample_aspect_ratio_num: u32,
-  sample_aspect_ratio_den: u32,
-  // TODO(mediaframe): `mediaframe::PixelFormat` — FFmpeg pixfmt (bit
-  // depth encoded here).
-  pixel_format: u32,
-  // TODO(mediaframe): `mediaframe::ColorInfo` — primaries / transfer /
-  // matrix / range / chroma_location. Currently the five wire `u32`s.
-  color: ColorInfoPlaceholder,
-  // TODO(mediaframe): `Option<mediaframe::HdrStaticMetadata>` —
-  // MaxCLL / MaxFALL + mastering-display side-data.
-  hdr_static: Option<HdrStaticMetadataPlaceholder>,
-  // TODO(mediaframe): `mediaframe::Rotation` — display rotation.
-  rotation: u32,
-  // TODO(mediaframe): `mediaframe::FrameRate` (`{num,den,is_vfr}`).
-  frame_rate_num: u32,
-  frame_rate_den: u32,
-  frame_rate_is_vfr: bool,
-  // TODO(mediaframe): `mediaframe::FieldOrder` enum (progressive /
-  // tff / bff).
-  field_order: u32,
-  // TODO(mediaframe): `Option<mediaframe::StereoMode>` — 3D / stereo
-  // packing.
-  stereo_mode: Option<u32>,
-  // TODO(mediaframe): `Option<mediaframe::DolbyVisionConfig>` —
-  // profile / level / rpu / el / bl-compat. **Not** the same as HDR10
-  // static metadata.
-  dovi: Option<DolbyVisionConfigPlaceholder>,
+  // --- frame / pixel / colour vocabulary (`::mediaframe`) ---
+  /// Coded width × height (`mediaframe::frame::Dimensions`).
+  dimensions: Dimensions,
+  /// Clean-aperture / crop (`mediaframe::frame::Rect`).
+  visible_rect: Option<Rect>,
+  /// Display aspect / anamorphic (`mediaframe::frame::SampleAspectRatio`).
+  sample_aspect_ratio: SampleAspectRatio,
+  /// FFmpeg pixfmt (`mediaframe::pixel_format::PixelFormat`).
+  pixel_format: PixelFormat,
+  /// Primaries / transfer / matrix / range / chroma_location
+  /// (`mediaframe::color::Info`).
+  color: ColorInfo,
+  /// HDR10 static metadata (`mediaframe::color::HdrStaticMetadata`).
+  hdr_static: Option<HdrStaticMetadata>,
+  /// Display rotation (`mediaframe::frame::Rotation`).
+  rotation: Rotation,
+  /// Frame rate (`mediaframe::frame::FrameRate`).
+  frame_rate: FrameRate,
+  /// Field order (`mediaframe::frame::FieldOrder`).
+  field_order: FieldOrder,
+  /// 3D / stereo packing (`mediaframe::frame::StereoMode`).
+  stereo_mode: Option<StereoMode>,
+  /// Dolby Vision config (`mediaframe::color::DolbyVisionConfig`).
+  /// **Not** the same as HDR10 static metadata.
+  dovi: Option<DolbyVisionConfig>,
 
   // --- findit signals ---
   has_embedded_captions: bool,
-  // TODO(mediaframe): `mediaframe::TrackDisposition` bitflags — the
-  // shared FFmpeg `AV_DISPOSITION_*` set. Currently the bare wire u32.
-  disposition: u32,
+  /// Disposition flags (`mediaframe::disposition::TrackDisposition`) —
+  /// the shared FFmpeg `AV_DISPOSITION_*` set.
+  disposition: TrackDisposition,
   is_primary: bool,
   auto_selected: bool,
 
@@ -153,217 +111,6 @@ pub struct VideoTrack<Id = Uuid7> {
 
   // --- analysis-run reproducibility (rev 7 hoist) ---
   provenance: Provenance,
-}
-
-// ---------------------------------------------------------------------------
-// mediaframe placeholder VOs — tiny private structs so the field shape
-// is honest about the wire components (the locked spec is "ColorInfo =
-// primaries/transfer/matrix/range/chroma", "HdrStaticMetadata = MaxCLL +
-// MaxFALL + mastering display", "DolbyVisionConfig = profile/level/rpu/
-// el/bl-compat"). Each one is TODO(mediaframe) — replaced wholesale by
-// the mediaframe extern once it ships.
-// ---------------------------------------------------------------------------
-
-/// TODO(mediaframe): replace with `mediaframe::Rect` — clean-aperture /
-/// crop rectangle within the coded frame.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-pub struct RectPlaceholder {
-  pub(crate) x: u32,
-  pub(crate) y: u32,
-  pub(crate) width: u32,
-  pub(crate) height: u32,
-}
-
-impl RectPlaceholder {
-  /// Construct from `(x, y, w, h)`.
-  #[inline]
-  pub const fn new(x: u32, y: u32, width: u32, height: u32) -> Self {
-    Self {
-      x,
-      y,
-      width,
-      height,
-    }
-  }
-
-  /// `x` origin.
-  #[inline]
-  pub const fn x(&self) -> u32 {
-    self.x
-  }
-  /// `y` origin.
-  #[inline]
-  pub const fn y(&self) -> u32 {
-    self.y
-  }
-  /// Width.
-  #[inline]
-  pub const fn width(&self) -> u32 {
-    self.width
-  }
-  /// Height.
-  #[inline]
-  pub const fn height(&self) -> u32 {
-    self.height
-  }
-}
-
-/// TODO(mediaframe): replace with `mediaframe::ColorInfo` (primaries /
-/// transfer / matrix / range / chroma_location enums).
-///
-/// Wire shape: five `u32` discriminants exactly as ffmpeg / WebCodecs
-/// reports them; the mediaframe types layer typed enums + an
-/// `Unknown(u32)` escape on top of these wire ids.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-pub struct ColorInfoPlaceholder {
-  pub(crate) primaries: u32,
-  pub(crate) transfer: u32,
-  pub(crate) matrix: u32,
-  pub(crate) range: u32,
-  pub(crate) chroma_location: u32,
-}
-
-impl ColorInfoPlaceholder {
-  /// Construct from the five wire-numbered components.
-  #[inline]
-  pub const fn new(
-    primaries: u32,
-    transfer: u32,
-    matrix: u32,
-    range: u32,
-    chroma_location: u32,
-  ) -> Self {
-    Self {
-      primaries,
-      transfer,
-      matrix,
-      range,
-      chroma_location,
-    }
-  }
-
-  /// Colour primaries (FFmpeg `AVCOL_PRI_*`).
-  #[inline]
-  pub const fn primaries(&self) -> u32 {
-    self.primaries
-  }
-  /// Transfer characteristic (FFmpeg `AVCOL_TRC_*`).
-  #[inline]
-  pub const fn transfer(&self) -> u32 {
-    self.transfer
-  }
-  /// Matrix coefficients (FFmpeg `AVCOL_SPC_*`).
-  #[inline]
-  pub const fn matrix(&self) -> u32 {
-    self.matrix
-  }
-  /// Colour range (FFmpeg `AVCOL_RANGE_*`).
-  #[inline]
-  pub const fn range(&self) -> u32 {
-    self.range
-  }
-  /// Chroma sample location (FFmpeg `AVCHROMA_LOC_*`).
-  #[inline]
-  pub const fn chroma_location(&self) -> u32 {
-    self.chroma_location
-  }
-}
-
-/// TODO(mediaframe): replace with `mediaframe::HdrStaticMetadata` —
-/// MaxCLL / MaxFALL + mastering-display primaries + luminance bounds.
-///
-/// Carries `(max_cll, max_fall)` only as placeholder bookkeeping;
-/// the full structure (mastering-display primaries / white-point /
-/// luminance) lands with the mediaframe extern.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-pub struct HdrStaticMetadataPlaceholder {
-  pub(crate) max_cll: u32,
-  pub(crate) max_fall: u32,
-}
-
-impl HdrStaticMetadataPlaceholder {
-  /// Construct from `(max_cll, max_fall)`.
-  #[inline]
-  pub const fn new(max_cll: u32, max_fall: u32) -> Self {
-    Self { max_cll, max_fall }
-  }
-
-  /// Maximum content light level (cd/m²).
-  #[inline]
-  pub const fn max_cll(&self) -> u32 {
-    self.max_cll
-  }
-  /// Maximum frame-average light level (cd/m²).
-  #[inline]
-  pub const fn max_fall(&self) -> u32 {
-    self.max_fall
-  }
-}
-
-/// TODO(mediaframe): replace with `mediaframe::DolbyVisionConfig` —
-/// `{ profile, level, rpu_present, el_present, bl_present, bl_signal_compatibility }`.
-/// Distinct from HDR10 static metadata.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-pub struct DolbyVisionConfigPlaceholder {
-  pub(crate) profile: u8,
-  pub(crate) level: u8,
-  pub(crate) rpu_present: bool,
-  pub(crate) el_present: bool,
-  pub(crate) bl_present: bool,
-  pub(crate) bl_signal_compatibility_id: u8,
-}
-
-impl DolbyVisionConfigPlaceholder {
-  /// Construct from all six wire components.
-  #[inline]
-  pub const fn new(
-    profile: u8,
-    level: u8,
-    rpu_present: bool,
-    el_present: bool,
-    bl_present: bool,
-    bl_signal_compatibility_id: u8,
-  ) -> Self {
-    Self {
-      profile,
-      level,
-      rpu_present,
-      el_present,
-      bl_present,
-      bl_signal_compatibility_id,
-    }
-  }
-
-  /// Dolby Vision profile (e.g. 5, 7, 8).
-  #[inline]
-  pub const fn profile(&self) -> u8 {
-    self.profile
-  }
-  /// Dolby Vision level.
-  #[inline]
-  pub const fn level(&self) -> u8 {
-    self.level
-  }
-  /// Reference processing-unit metadata present.
-  #[inline]
-  pub const fn rpu_present(&self) -> bool {
-    self.rpu_present
-  }
-  /// Enhancement layer present.
-  #[inline]
-  pub const fn el_present(&self) -> bool {
-    self.el_present
-  }
-  /// Base layer present.
-  #[inline]
-  pub const fn bl_present(&self) -> bool {
-    self.bl_present
-  }
-  /// Base-layer signal-compatibility id (HDR10 / SDR / HLG indicator).
-  #[inline]
-  pub const fn bl_signal_compatibility_id(&self) -> u8 {
-    self.bl_signal_compatibility_id
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -401,23 +148,19 @@ impl VideoTrack<Uuid7> {
       has_b_frames: false,
       closed_gop: None,
       bits_per_raw_sample: None,
-      dimensions_width: 0,
-      dimensions_height: 0,
+      dimensions: Dimensions::new(0, 0),
       visible_rect: None,
-      sample_aspect_ratio_num: 1,
-      sample_aspect_ratio_den: 1,
-      pixel_format: 0,
-      color: ColorInfoPlaceholder::default(),
+      sample_aspect_ratio: SampleAspectRatio::default(),
+      pixel_format: PixelFormat::default(),
+      color: ColorInfo::default(),
       hdr_static: None,
-      rotation: 0,
-      frame_rate_num: 0,
-      frame_rate_den: 1,
-      frame_rate_is_vfr: false,
-      field_order: 0,
+      rotation: Rotation::default(),
+      frame_rate: FrameRate::default(),
+      field_order: FieldOrder::default(),
       stereo_mode: None,
       dovi: None,
       has_embedded_captions: false,
-      disposition: 0,
+      disposition: TrackDisposition::empty(),
       is_primary: false,
       auto_selected: false,
       scenes: std::vec::Vec::new(),
@@ -518,84 +261,73 @@ impl<Id> VideoTrack<Id> {
     self.bits_per_raw_sample
   }
 
-  /// Coded width × height. TODO(mediaframe): expose as
-  /// `mediaframe::Dimensions`.
+  /// Coded width × height (`mediaframe::frame::Dimensions`).
   #[inline]
-  pub const fn dimensions(&self) -> (u32, u32) {
-    (self.dimensions_width, self.dimensions_height)
+  pub const fn dimensions(&self) -> Dimensions {
+    self.dimensions
   }
 
-  /// Clean-aperture / crop rectangle.
-  /// TODO(mediaframe): `Option<&mediaframe::Rect>`.
+  /// Clean-aperture / crop rectangle (`mediaframe::frame::Rect`).
   #[inline]
-  pub const fn visible_rect(&self) -> Option<&RectPlaceholder> {
-    self.visible_rect.as_ref()
+  pub const fn visible_rect(&self) -> Option<Rect> {
+    self.visible_rect
   }
 
-  /// Display aspect / anamorphic ratio.
-  /// TODO(mediaframe): `mediaframe::SampleAspectRatio` (currently the
-  /// num/den pair the wire carries).
+  /// Display aspect / anamorphic ratio
+  /// (`mediaframe::frame::SampleAspectRatio`).
   #[inline]
-  pub const fn sample_aspect_ratio(&self) -> (u32, u32) {
-    (self.sample_aspect_ratio_num, self.sample_aspect_ratio_den)
+  pub const fn sample_aspect_ratio(&self) -> SampleAspectRatio {
+    self.sample_aspect_ratio
   }
 
-  /// FFmpeg pixfmt id. TODO(mediaframe): `mediaframe::PixelFormat`.
+  /// FFmpeg pixfmt (`mediaframe::pixel_format::PixelFormat`).
   #[inline]
-  pub const fn pixel_format(&self) -> u32 {
+  pub const fn pixel_format(&self) -> PixelFormat {
     self.pixel_format
   }
 
-  /// Colour primaries / transfer / matrix / range / chroma_location.
-  /// TODO(mediaframe): `&mediaframe::ColorInfo`.
+  /// Colour primaries / transfer / matrix / range / chroma_location
+  /// (`mediaframe::color::Info`).
   #[inline]
-  pub const fn color(&self) -> &ColorInfoPlaceholder {
+  pub const fn color(&self) -> &ColorInfo {
     &self.color
   }
 
-  /// HDR10 static metadata (MaxCLL / MaxFALL + mastering display).
-  /// TODO(mediaframe): `Option<&mediaframe::HdrStaticMetadata>`.
+  /// HDR10 static metadata (`mediaframe::color::HdrStaticMetadata`).
   #[inline]
-  pub const fn hdr_static(&self) -> Option<&HdrStaticMetadataPlaceholder> {
+  pub const fn hdr_static(&self) -> Option<&HdrStaticMetadata> {
     self.hdr_static.as_ref()
   }
 
-  /// Display rotation. TODO(mediaframe): `mediaframe::Rotation`.
+  /// Display rotation (`mediaframe::frame::Rotation`).
   #[inline]
-  pub const fn rotation(&self) -> u32 {
+  pub const fn rotation(&self) -> Rotation {
     self.rotation
   }
 
-  /// Frame rate as `(num, den, is_vfr)`. TODO(mediaframe):
-  /// `mediaframe::FrameRate` (NOT `mediatime::Timebase` — see the
-  /// locked spec).
+  /// Frame rate (`mediaframe::frame::FrameRate` — NOT
+  /// `mediatime::Timebase`, see the locked spec).
   #[inline]
-  pub const fn frame_rate(&self) -> (u32, u32, bool) {
-    (
-      self.frame_rate_num,
-      self.frame_rate_den,
-      self.frame_rate_is_vfr,
-    )
+  pub const fn frame_rate(&self) -> FrameRate {
+    self.frame_rate
   }
 
-  /// Field order. TODO(mediaframe): `mediaframe::FieldOrder` enum.
+  /// Field order (`mediaframe::frame::FieldOrder`).
   #[inline]
-  pub const fn field_order(&self) -> u32 {
+  pub const fn field_order(&self) -> FieldOrder {
     self.field_order
   }
 
-  /// 3D / stereoscopic packing.
-  /// TODO(mediaframe): `Option<mediaframe::StereoMode>`.
+  /// 3D / stereoscopic packing (`mediaframe::frame::StereoMode`).
   #[inline]
-  pub const fn stereo_mode(&self) -> Option<u32> {
+  pub const fn stereo_mode(&self) -> Option<StereoMode> {
     self.stereo_mode
   }
 
-  /// Dolby Vision config.
-  /// TODO(mediaframe): `Option<&mediaframe::DolbyVisionConfig>`.
+  /// Dolby Vision config (`mediaframe::color::DolbyVisionConfig`).
   #[inline]
-  pub const fn dovi(&self) -> Option<&DolbyVisionConfigPlaceholder> {
-    self.dovi.as_ref()
+  pub const fn dovi(&self) -> Option<DolbyVisionConfig> {
+    self.dovi
   }
 
   /// CEA-608/708 captions detected in the bitstream.
@@ -604,10 +336,10 @@ impl<Id> VideoTrack<Id> {
     self.has_embedded_captions
   }
 
-  /// Disposition flags. TODO(mediaframe): `mediaframe::TrackDisposition`
-  /// bitflags (the shared FFmpeg `AV_DISPOSITION_*` set).
+  /// Disposition flags (`mediaframe::disposition::TrackDisposition` —
+  /// the shared FFmpeg `AV_DISPOSITION_*` set).
   #[inline]
-  pub const fn disposition(&self) -> u32 {
+  pub const fn disposition(&self) -> TrackDisposition {
     self.disposition
   }
 
@@ -774,133 +506,103 @@ impl<Id> VideoTrack<Id> {
   }
 
   // --- frame / pixel / colour ---
-  /// TODO(mediaframe): accept `mediaframe::Dimensions`.
   #[inline]
-  pub const fn with_dimensions(mut self, width: u32, height: u32) -> Self {
-    self.dimensions_width = width;
-    self.dimensions_height = height;
+  pub const fn with_dimensions(mut self, v: Dimensions) -> Self {
+    self.dimensions = v;
     self
   }
-  /// TODO(mediaframe): accept `mediaframe::Dimensions`.
   #[inline]
-  pub const fn set_dimensions(&mut self, width: u32, height: u32) {
-    self.dimensions_width = width;
-    self.dimensions_height = height;
+  pub const fn set_dimensions(&mut self, v: Dimensions) {
+    self.dimensions = v;
   }
-  /// TODO(mediaframe): accept `Option<mediaframe::Rect>`.
   #[inline]
-  pub const fn with_visible_rect(mut self, v: Option<RectPlaceholder>) -> Self {
+  pub const fn with_visible_rect(mut self, v: Option<Rect>) -> Self {
     self.visible_rect = v;
     self
   }
-  /// TODO(mediaframe): accept `Option<mediaframe::Rect>`.
   #[inline]
-  pub const fn set_visible_rect(&mut self, v: Option<RectPlaceholder>) {
+  pub const fn set_visible_rect(&mut self, v: Option<Rect>) {
     self.visible_rect = v;
   }
-  /// TODO(mediaframe): accept `mediaframe::SampleAspectRatio`.
   #[inline]
-  pub const fn with_sample_aspect_ratio(mut self, num: u32, den: u32) -> Self {
-    self.sample_aspect_ratio_num = num;
-    self.sample_aspect_ratio_den = den;
+  pub const fn with_sample_aspect_ratio(mut self, v: SampleAspectRatio) -> Self {
+    self.sample_aspect_ratio = v;
     self
   }
-  /// TODO(mediaframe): accept `mediaframe::SampleAspectRatio`.
   #[inline]
-  pub const fn set_sample_aspect_ratio(&mut self, num: u32, den: u32) {
-    self.sample_aspect_ratio_num = num;
-    self.sample_aspect_ratio_den = den;
+  pub const fn set_sample_aspect_ratio(&mut self, v: SampleAspectRatio) {
+    self.sample_aspect_ratio = v;
   }
-  /// TODO(mediaframe): accept `mediaframe::PixelFormat`.
   #[inline]
-  pub const fn with_pixel_format(mut self, v: u32) -> Self {
+  pub const fn with_pixel_format(mut self, v: PixelFormat) -> Self {
     self.pixel_format = v;
     self
   }
-  /// TODO(mediaframe): accept `mediaframe::PixelFormat`.
   #[inline]
-  pub const fn set_pixel_format(&mut self, v: u32) {
+  pub const fn set_pixel_format(&mut self, v: PixelFormat) {
     self.pixel_format = v;
   }
-  /// TODO(mediaframe): accept `mediaframe::ColorInfo`.
   #[inline]
-  pub const fn with_color(mut self, v: ColorInfoPlaceholder) -> Self {
+  pub const fn with_color(mut self, v: ColorInfo) -> Self {
     self.color = v;
     self
   }
-  /// TODO(mediaframe): accept `mediaframe::ColorInfo`.
   #[inline]
-  pub const fn set_color(&mut self, v: ColorInfoPlaceholder) {
+  pub const fn set_color(&mut self, v: ColorInfo) {
     self.color = v;
   }
-  /// TODO(mediaframe): accept `Option<mediaframe::HdrStaticMetadata>`.
   #[inline]
-  pub const fn with_hdr_static(mut self, v: Option<HdrStaticMetadataPlaceholder>) -> Self {
+  pub const fn with_hdr_static(mut self, v: Option<HdrStaticMetadata>) -> Self {
     self.hdr_static = v;
     self
   }
-  /// TODO(mediaframe): accept `Option<mediaframe::HdrStaticMetadata>`.
   #[inline]
-  pub const fn set_hdr_static(&mut self, v: Option<HdrStaticMetadataPlaceholder>) {
+  pub const fn set_hdr_static(&mut self, v: Option<HdrStaticMetadata>) {
     self.hdr_static = v;
   }
-  /// TODO(mediaframe): accept `mediaframe::Rotation`.
   #[inline]
-  pub const fn with_rotation(mut self, v: u32) -> Self {
+  pub const fn with_rotation(mut self, v: Rotation) -> Self {
     self.rotation = v;
     self
   }
-  /// TODO(mediaframe): accept `mediaframe::Rotation`.
   #[inline]
-  pub const fn set_rotation(&mut self, v: u32) {
+  pub const fn set_rotation(&mut self, v: Rotation) {
     self.rotation = v;
   }
-  /// TODO(mediaframe): accept `mediaframe::FrameRate`.
   #[inline]
-  pub const fn with_frame_rate(mut self, num: u32, den: u32, is_vfr: bool) -> Self {
-    self.frame_rate_num = num;
-    self.frame_rate_den = den;
-    self.frame_rate_is_vfr = is_vfr;
+  pub const fn with_frame_rate(mut self, v: FrameRate) -> Self {
+    self.frame_rate = v;
     self
   }
-  /// TODO(mediaframe): accept `mediaframe::FrameRate`.
   #[inline]
-  pub const fn set_frame_rate(&mut self, num: u32, den: u32, is_vfr: bool) {
-    self.frame_rate_num = num;
-    self.frame_rate_den = den;
-    self.frame_rate_is_vfr = is_vfr;
+  pub const fn set_frame_rate(&mut self, v: FrameRate) {
+    self.frame_rate = v;
   }
-  /// TODO(mediaframe): accept `mediaframe::FieldOrder`.
   #[inline]
-  pub const fn with_field_order(mut self, v: u32) -> Self {
+  pub const fn with_field_order(mut self, v: FieldOrder) -> Self {
     self.field_order = v;
     self
   }
-  /// TODO(mediaframe): accept `mediaframe::FieldOrder`.
   #[inline]
-  pub const fn set_field_order(&mut self, v: u32) {
+  pub const fn set_field_order(&mut self, v: FieldOrder) {
     self.field_order = v;
   }
-  /// TODO(mediaframe): accept `Option<mediaframe::StereoMode>`.
   #[inline]
-  pub const fn with_stereo_mode(mut self, v: Option<u32>) -> Self {
+  pub const fn with_stereo_mode(mut self, v: Option<StereoMode>) -> Self {
     self.stereo_mode = v;
     self
   }
-  /// TODO(mediaframe): accept `Option<mediaframe::StereoMode>`.
   #[inline]
-  pub const fn set_stereo_mode(&mut self, v: Option<u32>) {
+  pub const fn set_stereo_mode(&mut self, v: Option<StereoMode>) {
     self.stereo_mode = v;
   }
-  /// TODO(mediaframe): accept `Option<mediaframe::DolbyVisionConfig>`.
   #[inline]
-  pub const fn with_dovi(mut self, v: Option<DolbyVisionConfigPlaceholder>) -> Self {
+  pub const fn with_dovi(mut self, v: Option<DolbyVisionConfig>) -> Self {
     self.dovi = v;
     self
   }
-  /// TODO(mediaframe): accept `Option<mediaframe::DolbyVisionConfig>`.
   #[inline]
-  pub const fn set_dovi(&mut self, v: Option<DolbyVisionConfigPlaceholder>) {
+  pub const fn set_dovi(&mut self, v: Option<DolbyVisionConfig>) {
     self.dovi = v;
   }
 
@@ -914,15 +616,13 @@ impl<Id> VideoTrack<Id> {
   pub const fn set_has_embedded_captions(&mut self, v: bool) {
     self.has_embedded_captions = v;
   }
-  /// TODO(mediaframe): accept `mediaframe::TrackDisposition`.
   #[inline]
-  pub const fn with_disposition(mut self, v: u32) -> Self {
+  pub const fn with_disposition(mut self, v: TrackDisposition) -> Self {
     self.disposition = v;
     self
   }
-  /// TODO(mediaframe): accept `mediaframe::TrackDisposition`.
   #[inline]
-  pub const fn set_disposition(&mut self, v: u32) {
+  pub const fn set_disposition(&mut self, v: TrackDisposition) {
     self.disposition = v;
   }
   #[inline]
@@ -1009,6 +709,8 @@ pub enum VideoTrackError {
 mod tests {
   use super::*;
   use crate::domain::ErrorCode;
+  use core::num::NonZeroU32;
+  use mediaframe::frame::Rational;
 
   #[test]
   fn try_new_happy_path() {
@@ -1019,7 +721,7 @@ mod tests {
     assert_eq!(t.parent(), &parent);
     assert_eq!(t.bit_rate(), 0);
     assert!(t.codec().is_other());
-    assert_eq!(t.dimensions(), (0, 0));
+    assert_eq!(t.dimensions(), Dimensions::new(0, 0));
     assert!(t.scenes().is_empty());
     assert!(t.index_status().is_empty());
     assert!(t.index_errors().is_empty());
@@ -1044,16 +746,17 @@ mod tests {
   fn builders_and_setters_chain() {
     let s1 = Uuid7::new();
     let s2 = Uuid7::new();
+    let fr = FrameRate::new(Rational::new(24000, NonZeroU32::new(1001).unwrap()), false);
     let t = VideoTrack::try_new(Uuid7::new(), Uuid7::new())
       .unwrap()
       .with_stream_index(Some(0))
-      .with_codec(VideoCodec::H265)
+      .with_codec(VideoCodec::Hevc)
       .with_profile(Some(SmolStr::new("Main10")))
       .with_level(Some(150))
       .with_bit_rate(8_000_000)
-      .with_dimensions(3840, 2160)
-      .with_frame_rate(24000, 1001, false)
-      .with_pixel_format(0x0a) // yuv420p10le-ish
+      .with_dimensions(Dimensions::new(3840, 2160))
+      .with_frame_rate(fr)
+      .with_pixel_format(PixelFormat::from_u32(0x0a)) // yuv420p10le-ish
       .with_has_b_frames(true)
       .with_is_primary(true)
       .with_scenes(std::vec![s1, s2])
@@ -1061,12 +764,12 @@ mod tests {
       .with_index_errors(std::vec![ErrorInfo::code_only(ErrorCode::SceneDetectionFailed)])
       .with_provenance(Provenance::from_parts("qwen2-vl-7b", "v0.3.0", "p@1", "idx-0.1.0"));
     assert_eq!(t.stream_index(), Some(0));
-    assert!(matches!(t.codec(), VideoCodec::H265));
+    assert!(matches!(t.codec(), VideoCodec::Hevc));
     assert_eq!(t.profile(), Some("Main10"));
     assert_eq!(t.level(), Some(150));
     assert_eq!(t.bit_rate(), 8_000_000);
-    assert_eq!(t.dimensions(), (3840, 2160));
-    assert_eq!(t.frame_rate(), (24000, 1001, false));
+    assert_eq!(t.dimensions(), Dimensions::new(3840, 2160));
+    assert_eq!(t.frame_rate(), fr);
     assert!(t.has_b_frames());
     assert!(t.is_primary());
     assert_eq!(t.scenes().len(), 2);
@@ -1077,12 +780,12 @@ mod tests {
 
     let mut t = t;
     t.set_bit_rate(0);
-    t.set_dimensions(0, 0);
+    t.set_dimensions(Dimensions::new(0, 0));
     t.set_is_primary(false);
     t.set_index_status(VideoIndexStatus::empty());
     t.set_scenes(std::vec::Vec::<Uuid7>::new());
     assert_eq!(t.bit_rate(), 0);
-    assert_eq!(t.dimensions(), (0, 0));
+    assert_eq!(t.dimensions(), Dimensions::new(0, 0));
     assert!(!t.is_primary());
     assert!(t.index_status().is_empty());
     assert!(t.scenes().is_empty());
@@ -1091,33 +794,31 @@ mod tests {
   #[test]
   fn codec_other_preserves_wire_string() {
     let c = VideoCodec::Other(SmolStr::new("xyz-codec"));
-    let s: SmolStr = c.try_unwrap_other().unwrap();
-    assert_eq!(s.as_str(), "xyz-codec");
+    assert!(c.is_other());
+    assert_eq!(c.as_str(), "xyz-codec");
   }
 
   #[test]
-  fn mediaframe_placeholders_round_trip() {
-    let r = RectPlaceholder::new(0, 0, 1920, 1080);
-    assert_eq!(r.width(), 1920);
-    assert_eq!(r.height(), 1080);
-
-    let c = ColorInfoPlaceholder::new(9, 16, 9, 1, 2);
-    assert_eq!(c.primaries(), 9);
-    assert_eq!(c.transfer(), 16);
-    assert_eq!(c.matrix(), 9);
-    assert_eq!(c.range(), 1);
-    assert_eq!(c.chroma_location(), 2);
-
-    let h = HdrStaticMetadataPlaceholder::new(4000, 400);
-    assert_eq!(h.max_cll(), 4000);
-    assert_eq!(h.max_fall(), 400);
-
-    let d = DolbyVisionConfigPlaceholder::new(8, 9, true, false, true, 1);
-    assert_eq!(d.profile(), 8);
-    assert_eq!(d.level(), 9);
-    assert!(d.rpu_present());
-    assert!(!d.el_present());
-    assert!(d.bl_present());
-    assert_eq!(d.bl_signal_compatibility_id(), 1);
+  fn mediaframe_descriptors_flow_through() {
+    let t = VideoTrack::try_new(Uuid7::new(), Uuid7::new())
+      .unwrap()
+      .with_visible_rect(Some(Rect::new(0, 0, 1920, 1080)))
+      .with_sample_aspect_ratio(SampleAspectRatio::new(16, NonZeroU32::new(9).unwrap()))
+      .with_rotation(Rotation::D90)
+      .with_field_order(FieldOrder::Progressive)
+      .with_stereo_mode(Some(StereoMode::SideBySide))
+      .with_color(ColorInfo::UNSPECIFIED)
+      .with_hdr_static(Some(HdrStaticMetadata::new(None, None)))
+      .with_dovi(Some(DolbyVisionConfig::new(8, 9, true, false, 1)))
+      .with_disposition(TrackDisposition::empty());
+    assert_eq!(t.visible_rect().unwrap().width(), 1920);
+    assert_eq!(t.sample_aspect_ratio().num(), 16);
+    assert!(matches!(t.rotation(), Rotation::D90));
+    assert!(matches!(t.field_order(), FieldOrder::Progressive));
+    assert!(matches!(t.stereo_mode(), Some(StereoMode::SideBySide)));
+    assert_eq!(t.color(), &ColorInfo::UNSPECIFIED);
+    assert!(t.hdr_static().is_some());
+    assert_eq!(t.dovi().unwrap().profile(), 8);
+    assert!(t.disposition().is_empty());
   }
 }

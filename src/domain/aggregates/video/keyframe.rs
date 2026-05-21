@@ -3,14 +3,16 @@
 //!
 //! Parent → `Scene`. **No `provenance`** — hoisted to `VideoTrack` in
 //! rev 16; every `Keyframe` inside a track shares the track's
-//! `Provenance`. The image is inline `data: Bytes` (no `location` —
-//! locked rev E); embeddings + `feature_print` live in **LanceDB**,
-//! keyed by `id`.
+//! `Provenance`. The image is inline `data: bytes::Bytes` (no
+//! `location` — locked rev E); embeddings + `feature_print` live in
+//! **LanceDB**, keyed by `id`.
 //!
 //! Many analysis VOs live in the sibling [`detections`](super::detections)
 //! module to keep this file focused on the aggregate itself.
 
+use bytes::Bytes;
 use derive_more::IsVariant;
+use mediaframe::frame::Dimensions;
 use mediatime::Timestamp;
 use smol_str::SmolStr;
 
@@ -40,16 +42,12 @@ pub struct Keyframe<Id = Uuid7> {
   pts: Timestamp,
 
   // --- artifact ---
-  /// TODO(mediaframe): `Bytes` — once mediaschema/mediaframe ships a
-  /// shared `Bytes` newtype; raw `Vec<u8>` for now matching the
-  /// inline-`data` locked rule.
-  data: std::vec::Vec<u8>,
+  /// Inline thumbnail image bytes (`bytes::Bytes`, no `location`).
+  data: Bytes,
   mime: SmolStr,
   size: u32,
-  // TODO(mediaframe): `mediaframe::Dimensions` — currently a `(w, h)`
-  // u32 pair matching the wire shape.
-  dimensions_width: u32,
-  dimensions_height: u32,
+  /// Thumbnail dimensions (`mediaframe::frame::Dimensions`).
+  dimensions: Dimensions,
   extractor: KeyframeExtractor,
 
   // --- apple-vision structured detections ---
@@ -90,8 +88,7 @@ impl Keyframe<Uuid7> {
     id: Uuid7,
     parent: Uuid7,
     pts: Timestamp,
-    dimensions_width: u32,
-    dimensions_height: u32,
+    dimensions: Dimensions,
     extractor: KeyframeExtractor,
   ) -> Result<Self, KeyframeError> {
     if id.is_nil() {
@@ -100,18 +97,17 @@ impl Keyframe<Uuid7> {
     if parent.is_nil() {
       return Err(KeyframeError::NilParent);
     }
-    if dimensions_width == 0 || dimensions_height == 0 {
+    if dimensions.width() == 0 || dimensions.height() == 0 {
       return Err(KeyframeError::ZeroDimensions);
     }
     Ok(Self {
       id,
       parent,
       pts,
-      data: std::vec::Vec::new(),
+      data: Bytes::new(),
       mime: SmolStr::default(),
       size: 0,
-      dimensions_width,
-      dimensions_height,
+      dimensions,
       extractor,
       classifications: std::vec::Vec::new(),
       objects: std::vec::Vec::new(),
@@ -148,7 +144,6 @@ impl<Id> Keyframe<Id> {
 
   // --- artifact ---
   /// Thumbnail image bytes (inline, no `location`).
-  /// TODO(mediaframe): expose as `&Bytes`.
   #[inline]
   pub fn data(&self) -> &[u8] {
     &self.data
@@ -163,11 +158,10 @@ impl<Id> Keyframe<Id> {
   pub const fn size(&self) -> u32 {
     self.size
   }
-  /// Thumbnail dimensions `(w, h)`.
-  /// TODO(mediaframe): `mediaframe::Dimensions`.
+  /// Thumbnail dimensions (`mediaframe::frame::Dimensions`).
   #[inline]
-  pub const fn dimensions(&self) -> (u32, u32) {
-    (self.dimensions_width, self.dimensions_height)
+  pub const fn dimensions(&self) -> Dimensions {
+    self.dimensions
   }
   /// Which extractor produced this keyframe.
   #[inline]
@@ -238,19 +232,16 @@ impl<Id> Keyframe<Id> {
   }
 }
 
-// Builders + setters per the encapsulation rule. Mediaframe-placeholder
-// fields are tagged TODO(mediaframe) so future renames land cleanly.
+// Builders + setters per the encapsulation rule.
 impl<Id> Keyframe<Id> {
   // --- artifact ---
-  /// TODO(mediaframe): accept `Bytes`.
   #[inline]
-  pub fn with_data(mut self, v: impl Into<std::vec::Vec<u8>>) -> Self {
+  pub fn with_data(mut self, v: impl Into<Bytes>) -> Self {
     self.data = v.into();
     self
   }
-  /// TODO(mediaframe): accept `Bytes`.
   #[inline]
-  pub fn set_data(&mut self, v: impl Into<std::vec::Vec<u8>>) {
+  pub fn set_data(&mut self, v: impl Into<Bytes>) {
     self.data = v.into();
   }
   #[inline]
@@ -271,18 +262,14 @@ impl<Id> Keyframe<Id> {
   pub const fn set_size(&mut self, v: u32) {
     self.size = v;
   }
-  /// TODO(mediaframe): accept `mediaframe::Dimensions`.
   #[inline]
-  pub const fn with_dimensions(mut self, width: u32, height: u32) -> Self {
-    self.dimensions_width = width;
-    self.dimensions_height = height;
+  pub const fn with_dimensions(mut self, v: Dimensions) -> Self {
+    self.dimensions = v;
     self
   }
-  /// TODO(mediaframe): accept `mediaframe::Dimensions`.
   #[inline]
-  pub const fn set_dimensions(&mut self, width: u32, height: u32) {
-    self.dimensions_width = width;
-    self.dimensions_height = height;
+  pub const fn set_dimensions(&mut self, v: Dimensions) {
+    self.dimensions = v;
   }
   #[inline]
   pub const fn with_extractor(mut self, v: KeyframeExtractor) -> Self {
@@ -439,7 +426,7 @@ pub enum KeyframeError {
   /// `Scene` reference.
   #[error("Keyframe parent (Scene) must not be the nil UUID")]
   NilParent,
-  /// `dimensions_width == 0` or `dimensions_height == 0` — a
+  /// `dimensions.width() == 0` or `dimensions.height() == 0` — a
   /// zero-extent thumbnail is not a valid artifact (locked invariant).
   #[error("Keyframe dimensions must be non-zero (locked invariant)")]
   ZeroDimensions,
@@ -468,14 +455,13 @@ mod tests {
       Uuid7::new(),
       parent,
       ts,
-      320,
-      180,
+      Dimensions::new(320, 180),
       KeyframeExtractor::CompositeQuality,
     )
     .unwrap();
     assert_eq!(kf.parent(), &parent);
     assert_eq!(kf.pts(), &ts);
-    assert_eq!(kf.dimensions(), (320, 180));
+    assert_eq!(kf.dimensions(), Dimensions::new(320, 180));
     assert!(kf.extractor().is_composite_quality());
     assert!(kf.data().is_empty());
     assert!(kf.classifications().is_empty());
@@ -491,8 +477,7 @@ mod tests {
         Uuid7::nil(),
         Uuid7::new(),
         ts,
-        1,
-        1,
+        Dimensions::new(1, 1),
         KeyframeExtractor::Manual
       )
       .err(),
@@ -503,8 +488,7 @@ mod tests {
         Uuid7::new(),
         Uuid7::nil(),
         ts,
-        1,
-        1,
+        Dimensions::new(1, 1),
         KeyframeExtractor::Manual
       )
       .err(),
@@ -522,8 +506,7 @@ mod tests {
         Uuid7::new(),
         Uuid7::new(),
         ts,
-        w,
-        h,
+        Dimensions::new(w, h),
         KeyframeExtractor::IFrame,
       );
       assert_eq!(
@@ -542,8 +525,7 @@ mod tests {
       Uuid7::new(),
       Uuid7::new(),
       ts,
-      1920,
-      1080,
+      Dimensions::new(1920, 1080),
       KeyframeExtractor::IFrame,
     )
     .unwrap()
@@ -569,11 +551,11 @@ mod tests {
     let mut kf = kf;
     kf.set_mime("");
     kf.set_size(0);
-    kf.set_data(std::vec::Vec::<u8>::new());
-    kf.set_dimensions(2, 2);
+    kf.set_data(Bytes::new());
+    kf.set_dimensions(Dimensions::new(2, 2));
     assert!(kf.mime().is_empty());
     assert_eq!(kf.size(), 0);
     assert!(kf.data().is_empty());
-    assert_eq!(kf.dimensions(), (2, 2));
+    assert_eq!(kf.dimensions(), Dimensions::new(2, 2));
   }
 }

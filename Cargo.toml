@@ -47,8 +47,8 @@ default = ["std"]
 # `smol_str` is also optional — it doesn't support no-std + no-alloc,
 # so it's pulled in only when either `alloc` or `std` is on (the
 # capability features that themselves require heap).
-alloc = ["dep:smol_str", "mediaframe/alloc"]
-std = ["dep:smol_str", "smol_str/default", "uuid/default", "uuid/v7", "buffa?/default", "buffa-types?/default", "mediaframe/std"]
+alloc = ["dep:smol_str", "dep:bytes", "mediaframe/alloc"]
+std = ["dep:smol_str", "smol_str/default", "dep:bytes", "uuid/default", "uuid/v7", "buffa?/default", "buffa-types?/default", "mediaframe/std"]
 buffa = ["dep:buffa", "dep:buffa-types", "mediaframe?/buffa"]
 json = ["std", "buffa", "dep:serde", "dep:serde_json", "buffa?/json", "buffa-types?/json", "mediatime/serde"]
 # `arbitrary` / `quickcheck` imply `std` AND `buffa`. Upstream
@@ -79,6 +79,12 @@ mediatime = { version = "0.1.6", default-features = false, features = ["buffa"] 
 # mediaschema uses the descriptor types (Dimensions, PixelFormat, color::Info,
 # codecs, …), not the zero-copy `*Frame` views.
 mediaframe = { version = "0.1", default-features = false, optional = true }
+# `bytes::Bytes` for inline image / mask byte payloads (`Keyframe.data`,
+# the apple-vision segmentation masks). Optional, pulled in by the heap
+# tiers (`alloc`/`std`) like `mediaframe` since every `Bytes`-typed field
+# lives on a heap-tier aggregate; `default-features = false` keeps it
+# `alloc`-only (no `std` requirement of its own).
+bytes = { version = "1", default-features = false, optional = true }
 # Domain layer (`src/domain/`): hand-written types programmed against by
 # downstream code. `smol_str` is optional — it requires `alloc` for
 # long strings, so it's pulled in only when the `alloc` or `std`
