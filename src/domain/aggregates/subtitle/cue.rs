@@ -5,22 +5,14 @@
 //!
 //! `text` and `ocr_text` are both [`LocalizedText`] and **kept distinct**
 //! (source of truth differs — parsed vs OCR). Bitmap-format inline data
-//! is `image: Vec<u8>` — empty means absent (mirrors locked
-//! `Keyframe.data` — no `Option`, no `Location`).
-//!
-//! ### `Bytes` placeholder
-//!
-//! The locked schema's `image` field is typed `Bytes` (`bytes::Bytes`),
-//! and the wire layer already uses `::buffa::bytes::Bytes`. The `bytes`
-//! crate is not yet a direct `mediaschema` dependency, so this PR uses
-//! `std::vec::Vec<u8>` for the inline cue bitmap. **TODO(mediaframe):**
-//! migrate to `bytes::Bytes` once the dep is added (cheap-clone via
-//! refcounted slices is the eventual goal — same migration story as
-//! `Keyframe.data`).
+//! is `image: bytes::Bytes` — empty means absent (mirrors locked
+//! `Keyframe.data` — no `Option`, no `Location`; cheap-clone via the
+//! refcounted slice matches the wire layer's `::buffa::bytes::Bytes`).
 //!
 //! No `provenance` field — it lives on the parent `SubtitleTrack` (one
 //! parse/OCR run per track, locked).
 
+use bytes::Bytes;
 use derive_more::IsVariant;
 use mediatime::TimeRange;
 use smol_str::SmolStr;
@@ -41,10 +33,9 @@ pub struct SubtitleCue<Id = Uuid7> {
   span: TimeRange,
   text: LocalizedText,
   styled_text: SmolStr,
-  /// TODO(mediaframe / bytes): see module doc — wire schema is
-  /// `bytes::Bytes`; we hold `Vec<u8>` until the `bytes` dep is added.
-  /// Empty = absent (mirrors `Keyframe.data`).
-  image: std::vec::Vec<u8>,
+  /// Inline rendered cue bitmap (PGS/DVBSUB); empty = absent (mirrors
+  /// `Keyframe.data`).
+  image: Bytes,
   ocr_text: LocalizedText,
 }
 
@@ -76,7 +67,7 @@ impl SubtitleCue<Uuid7> {
       span,
       text: LocalizedText::new(),
       styled_text: SmolStr::default(),
-      image: std::vec::Vec::new(),
+      image: Bytes::new(),
       ocr_text: LocalizedText::new(),
     })
   }
@@ -122,7 +113,6 @@ impl<Id> SubtitleCue<Id> {
   }
 
   /// Inline rendered cue bitmap (PGS/DVBSUB); empty = none.
-  /// TODO(mediaframe / bytes): see module doc.
   #[inline]
   pub fn image(&self) -> &[u8] {
     &self.image
@@ -183,7 +173,7 @@ impl<Id> SubtitleCue<Id> {
 
   /// Builder: replace `image`.
   #[inline]
-  pub fn with_image(mut self, v: impl Into<std::vec::Vec<u8>>) -> Self {
+  pub fn with_image(mut self, v: impl Into<Bytes>) -> Self {
     self.image = v.into();
     self
   }
@@ -225,7 +215,7 @@ impl<Id> SubtitleCue<Id> {
 
   /// In-place mutator for `image`.
   #[inline]
-  pub fn set_image(&mut self, v: impl Into<std::vec::Vec<u8>>) {
+  pub fn set_image(&mut self, v: impl Into<Bytes>) {
     self.image = v.into();
   }
 
