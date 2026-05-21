@@ -20,7 +20,8 @@
 //! | `subtitle_id`             | `subtitle`        | validating                           |
 //! | `index_error`             | `probe_error`     | wire `index_error` is the closest analogue |
 //! | `capture_date: i64`       | `capture_date: Option<JiffTimestamp>` | `0` means absent       |
-//! | `device_make`/`device_model` | `device: Option<MediaDevice>` | both `""` ⇒ None       |
+//! | `device_make`/`device_model` | `device: Option<Device>` | both `""` ⇒ None (`mediaframe::capture::Device`) |
+//! | `gps_location` (ISO 6709 str) | `gps: Option<GeoLocation>` | `""` ⇒ None; parsed/formatted via `mediaframe::capture::GeoLocation` |
 //!
 //! ## Wire-only (dropped on wire→domain; emitted as proto3-default on
 //! domain→wire)
@@ -34,27 +35,37 @@
 //!   locked domain expresses errors as `error_flags: MediaErrorFlags`
 //!   (a rollup over per-track failures) which is **structurally
 //!   different**; the bridge passes neither.
-//! - `gps_location: String` — legacy flat string. The locked domain has
-//!   structured `gps: Option<MediaGeoLocation>` (lat/lon/altitude). The
-//!   bridge does NOT attempt to parse / format this string; it's
-//!   dropped on wire→domain and left empty on domain→wire.
-//!
 //! ## Domain-only (dropped on domain→wire; defaulted on wire→domain)
 //!
-//! - `format: SmolStr` — locked container-format slug. No wire field.
+//! - `format: mediaframe::container::Format` — locked container-format
+//!   slug. No wire field; defaults to `Format::default()`
+//!   (`Other("")`, the absent sentinel) on wire→domain and is dropped
+//!   on domain→wire.
 //! - `duration: Option<mediatime::Timestamp>` — locked overall duration.
 //! - `error_flags: MediaErrorFlags` — locked rollup; not derivable from
 //!   the wire's `error_status: u32`.
+//!
+//! ## GPS (now round-tripped via mediaframe)
+//!
+//! Wire `gps_location: String` is the ISO 6709 degrees-only form
+//! (`±DD.dddd±DDD.dddd[±AAA]/`) — the exact representation
+//! [`mediaframe::capture::GeoLocation`] parses
+//! ([`GeoLocation::from_iso6709`]) and emits ([`GeoLocation::to_iso6709`]).
+//! The previous placeholder bridge dropped this field; with the real
+//! mediaframe type it now round-trips. An empty string is "absent"
+//! (`None`); a non-empty but malformed/out-of-range string surfaces as
+//! [`BuffaError::GpsLocationMalformed`].
 
 use jiff::Timestamp as JiffTimestamp;
+use mediaframe::{
+  capture::{Device, GeoLocation},
+  container::Format,
+};
 use smol_str::SmolStr;
 
 use crate::{
   buffa::error::BuffaError,
-  domain::{
-    aggregates::media::{MediaDevice, MediaError},
-    ErrorInfo, FileChecksum, Media, MediaKind, Uuid7,
-  },
+  domain::{aggregates::media::MediaError, ErrorInfo, FileChecksum, Media, MediaKind, Uuid7},
   generated::media::v1 as wire,
 };
 
@@ -88,16 +99,15 @@ impl TryFrom<&wire::Media> for Media<Uuid7> {
       .map_err(|_| BuffaError::TimestampOutOfRange(meta.created_at))?;
 
     let name = meta.name.as_str();
-    // NOTE(buffa-bridge): no wire `format` field; domain `format`
-    // (container slug) starts empty and would be set via
-    // `with_format`-style API — currently the domain has no
-    // `with_format` builder (locked schema doesn't expose one), so
-    // construction with `format = ""` matches the wire silence.
+    // NOTE(buffa-bridge): no wire `format` field; the domain `format`
+    // (container slug) has no wire counterpart, so it starts at
+    // `Format::default()` (`Other("")`, the mediaframe "absent"
+    // sentinel) which matches the wire silence.
     let mut d = Media::try_new(
       id,
       checksum,
       SmolStr::from(name),
-      SmolStr::default(), // format unmodelled in wire
+      Format::default(), // container format unmodelled in wire
       meta.size,
       created_at,
       kind,
@@ -136,12 +146,19 @@ impl TryFrom<&wire::Media> for Media<Uuid7> {
     let make = w.device_make.as_str();
     let model = w.device_model.as_str();
     if !make.is_empty() || !model.is_empty() {
-      d = d.with_device(Some(MediaDevice::from_parts(make, model)));
+      d = d.with_device(Some(Device::new().with_make(make).with_model(model)));
     }
 
-    // NOTE(buffa-bridge): wire `gps_location: String` (legacy flat
-    // string) is **dropped**. The domain `gps: Option<MediaGeoLocation>`
-    // is structured (lat/lon/altitude); we don't risk a string parse.
+    // --- gps: ISO 6709 string ⇒ structured GeoLocation ---
+    // Wire `gps_location` is the ISO 6709 degrees-only form that
+    // `mediaframe::capture::GeoLocation` parses/emits. Empty ⇒ absent;
+    // a malformed/out-of-range non-empty value is a hard error.
+    let gps_str = w.gps_location.as_str();
+    if !gps_str.is_empty() {
+      let geo = GeoLocation::from_iso6709(gps_str)
+        .map_err(|_| BuffaError::GpsLocationMalformed(SmolStr::from(gps_str)))?;
+      d = d.with_gps(Some(geo));
+    }
 
     Ok(d)
   }
@@ -181,6 +198,12 @@ impl From<&Media<Uuid7>> for wire::Media {
       None => (String::new(), String::new()),
     };
 
+    // GPS → ISO 6709 string (empty when absent).
+    let gps_location = match d.gps() {
+      Some(g) => g.to_iso6709(),
+      None => String::new(),
+    };
+
     wire::Media {
       meta: ::buffa::MessageField::some(meta),
       kind: ::buffa::EnumValue::from(d.kind()),
@@ -195,7 +218,7 @@ impl From<&Media<Uuid7>> for wire::Media {
       capture_date: d.capture_date().map(|t| t.as_millisecond()).unwrap_or(0),
       device_make,
       device_model,
-      gps_location: String::new(),
+      gps_location,
       __buffa_unknown_fields: Default::default(),
     }
   }
@@ -238,7 +261,7 @@ mod tests {
       id,
       cs,
       "clip.mp4",
-      "",
+      Format::default(),
       1_234_567,
       JiffTimestamp::from_millisecond(1_700_000_000_000).unwrap(),
       MediaKind::Video,
@@ -254,7 +277,10 @@ mod tests {
       .with_capture_date(Some(
         JiffTimestamp::from_millisecond(1_500_000_000_000).unwrap(),
       ))
-      .with_device(Some(MediaDevice::from_parts("Sony", "A7M3")))
+      .with_device(Some(Device::new().with_make("Sony").with_model("A7M3")))
+      .with_gps(Some(
+        GeoLocation::try_new(48.8566, 2.3522, Some(35.0)).unwrap(),
+      ))
       .with_probe_error(Some(ErrorInfo::new(
         crate::domain::ErrorCode::ProbeCorrupt,
         "bad container",
@@ -272,7 +298,17 @@ mod tests {
     assert_eq!(d.subtitle(), d2.subtitle());
     assert_eq!(d.capture_date(), d2.capture_date());
     assert_eq!(d.device(), d2.device());
+    assert_eq!(d.gps(), d2.gps());
     assert_eq!(d.probe_error(), d2.probe_error());
+  }
+
+  #[test]
+  fn malformed_gps_location_errors() {
+    let d = build_domain();
+    let mut w = wire::Media::from(&d);
+    w.gps_location = "not a location".to_string();
+    let err = Media::try_from(&w).unwrap_err();
+    assert!(err.is_gps_location_malformed());
   }
 
   #[test]

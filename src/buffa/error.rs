@@ -60,4 +60,10 @@ pub enum BuffaError {
   /// present value (e.g. `WatchedLocation.id`).
   #[error("wire message is missing required field `{0}`")]
   MissingRequiredField(&'static str),
+  /// Wire `Media.gps_location` (an ISO 6709 degrees-only string) failed
+  /// to parse into a [`mediaframe::capture::GeoLocation`] (malformed
+  /// shape or out-of-range lat/lon). The offending string is wrapped
+  /// verbatim.
+  #[error("wire gps_location is not a valid ISO 6709 location: {0:?}")]
+  GpsLocationMalformed(smol_str::SmolStr),
 }

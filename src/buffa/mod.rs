@@ -49,10 +49,13 @@
 //! - `Speaker`, `UserTag`, `SceneAnnotation`, `IndexProgress` — no
 //!   wire counterpart at all (or a fundamentally different shape
 //!   such as `SpeakerSegment` with three `u32` fields).
-//! - Auxiliary VOs (`Provenance`, `LocalizedText`, `MediaDevice`,
-//!   `MediaGeoLocation`) — bridged inline in their parent aggregate
-//!   where one exists (e.g. `MediaDevice` ⇄ `device_make`/`device_model`
-//!   pair on wire `Media`).
+//! - Auxiliary VOs (`Provenance`, `LocalizedText`) — bridged inline in
+//!   their parent aggregate where one exists.
+//! - The capture VOs are now the published mediaframe types
+//!   (`mediaframe::capture::Device` / `GeoLocation`), bridged inline on
+//!   wire `Media`: `Device` ⇄ `device_make`/`device_model` pair, and
+//!   `GeoLocation` ⇄ the ISO 6709 `gps_location` string (round-tripped
+//!   via `from_iso6709`/`to_iso6709`).
 //!
 //! ## Error model
 //!
