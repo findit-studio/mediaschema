@@ -133,6 +133,33 @@ impl MediaFile<Uuid7> {
 }
 
 impl<Id> MediaFile<Id> {
+  /// Raw constructor for **storage / wire reconstruction** — assembles a
+  /// `MediaFile` directly from its persisted fields, bypassing the
+  /// `WatchedLocation` indirection and the cross-volume re-validation that
+  /// [`Self::try_new`] performs. Intended ONLY for backends rebuilding a
+  /// `MediaFile` from a trusted persisted row/document (the data was
+  /// validated by `try_new` when first written). Application code building
+  /// a fresh `MediaFile` must use [`Self::try_new`].
+  #[inline(always)]
+  #[must_use]
+  pub const fn from_parts(
+    id: Id,
+    media_id: Id,
+    created_at: Option<JiffTimestamp>,
+    location: Location<Id>,
+    watched_location_id: Id,
+    watch_volume: Id,
+  ) -> Self {
+    Self {
+      id,
+      media_id,
+      created_at,
+      location,
+      watched_location_id,
+      watch_volume,
+    }
+  }
+
   /// Canonical identity (the copy's key).
   #[inline(always)]
   pub const fn id_ref(&self) -> &Id {
@@ -389,6 +416,26 @@ mod tests {
     let local = f.location_ref().unwrap_local_ref();
     assert_eq!(local.volume_ref(), &vol);
     assert_eq!(local.components_slice(), &["Movies", "clip.mp4"]);
+  }
+
+  #[test]
+  fn from_parts_round_trips_a_validated_instance() {
+    // `from_parts` is the storage-reconstruction constructor: rebuilding a
+    // `MediaFile` from a validated instance's raw fields must yield an
+    // identical aggregate.
+    let vol = Uuid7::new();
+    let wl = watch(vol);
+    let original = MediaFile::try_new(Uuid7::new(), Uuid7::new(), Some(real_ts()), loc(vol), &wl)
+      .expect("valid construction must succeed");
+    let rebuilt = MediaFile::from_parts(
+      *original.id_ref(),
+      *original.media_id_ref(),
+      original.created_at_ref().copied(),
+      original.location_ref().clone(),
+      *original.watched_location_id_ref(),
+      *original.watch_volume_ref(),
+    );
+    assert_eq!(rebuilt, original);
   }
 
   #[test]
