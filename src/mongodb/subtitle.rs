@@ -10,13 +10,10 @@ use mediaframe::{
 use smol_str::SmolStr;
 
 use crate::domain::{
-  aggregates::subtitle::{
-    cue::SubtitleCue,
-    facet::{IndexProgress, Subtitle},
-    track::SubtitleTrack,
-  },
+  aggregates::subtitle::{cue::SubtitleCue, facet::Subtitle, track::SubtitleTrack},
   bitflags::SubtitleIndexStatus,
   enums::SubtitleKind,
+  vo::{IndexProgress, LocalizedText},
   Uuid7,
 };
 
@@ -76,10 +73,13 @@ pub(super) fn index_progress_from_bson(
 impl From<&Subtitle<Uuid7>> for Document {
   fn from(s: &Subtitle<Uuid7>) -> Self {
     let mut d = Document::new();
-    d.insert("_id", uuid7_to_bson(*s.id()));
-    d.insert("parent", uuid7_to_bson(*s.parent()));
-    d.insert("tracks", uuid7_vec_to_bson(s.tracks()));
-    d.insert("track_progress", index_progress_to_bson(s.track_progress()));
+    d.insert("_id", uuid7_to_bson(*s.id_ref()));
+    d.insert("parent", uuid7_to_bson(*s.parent_ref()));
+    d.insert("tracks", uuid7_vec_to_bson(s.tracks_slice()));
+    d.insert(
+      "track_progress",
+      index_progress_to_bson(s.track_progress_ref()),
+    );
     d
   }
 }
@@ -108,8 +108,8 @@ impl TryFrom<Document> for Subtitle<Uuid7> {
 impl From<&SubtitleTrack<Uuid7>> for Document {
   fn from(t: &SubtitleTrack<Uuid7>) -> Self {
     let mut d = Document::new();
-    d.insert("_id", uuid7_to_bson(*t.id()));
-    d.insert("parent", uuid7_to_bson(*t.parent()));
+    d.insert("_id", uuid7_to_bson(*t.id_ref()));
+    d.insert("parent", uuid7_to_bson(*t.parent_ref()));
     d.insert(
       "stream_index",
       t.stream_index()
@@ -122,12 +122,12 @@ impl From<&SubtitleTrack<Uuid7>> for Document {
         .map(|v| Bson::Int64(v as i64))
         .unwrap_or(Bson::Null),
     );
-    d.insert("codec", Bson::String(t.codec().as_str().to_owned()));
-    d.insert("format", Bson::String(t.format().as_str().to_owned()));
+    d.insert("codec", Bson::String(t.codec_ref().as_str().to_owned()));
+    d.insert("format", Bson::String(t.format_ref().as_str().to_owned()));
     // `TrackOrigin` is a closed enum (no `FromStr`) — wire it as its
     // stable `to_u32`/`from_u32` code, Int32.
-    d.insert("origin", Bson::Int32(t.origin().to_u32() as i32));
-    d.insert("language", language_to_bson(t.language()));
+    d.insert("origin", Bson::Int32(t.origin_ref().to_u32() as i32));
+    d.insert("language", language_to_bson(t.language_ref()));
     d.insert("title", Bson::String(t.title().to_owned()));
     // `is_image_based` is derived from `format` (no setter); not
     // persisted — it round-trips for free once `format` is restored.
@@ -136,20 +136,22 @@ impl From<&SubtitleTrack<Uuid7>> for Document {
     d.insert("auto_selected", Bson::Boolean(t.auto_selected()));
     d.insert(
       "duration",
-      t.duration()
+      t.duration_ref()
         .map(|v| media_ts_to_bson(*v))
         .unwrap_or(Bson::Null),
     );
     d.insert("cue_count", Bson::Int64(t.cue_count() as i64));
-    d.insert("cues", uuid7_vec_to_bson(t.cues()));
-    d.insert("provenance", provenance_to_bson(t.provenance()));
+    d.insert("cues", uuid7_vec_to_bson(t.cues_slice()));
+    d.insert("provenance", provenance_to_bson(t.provenance_ref()));
     d.insert(
       "source_path",
-      t.source_path().map(location_to_bson).unwrap_or(Bson::Null),
+      t.source_path_ref()
+        .map(location_to_bson)
+        .unwrap_or(Bson::Null),
     );
     d.insert(
       "source_checksum",
-      t.source_checksum()
+      t.source_checksum_ref()
         .map(checksum_to_bson)
         .unwrap_or(Bson::Null),
     );
@@ -171,18 +173,21 @@ impl From<&SubtitleTrack<Uuid7>> for Document {
     d.insert("is_empty", Bson::Boolean(t.is_empty()));
     d.insert(
       "first_cue",
-      t.first_cue()
+      t.first_cue_ref()
         .map(|v| media_ts_to_bson(*v))
         .unwrap_or(Bson::Null),
     );
     d.insert(
       "last_cue",
-      t.last_cue()
+      t.last_cue_ref()
         .map(|v| media_ts_to_bson(*v))
         .unwrap_or(Bson::Null),
     );
     d.insert("index_status", Bson::Int64(t.index_status().bits() as i64));
-    d.insert("index_errors", error_info_vec_to_bson(t.index_errors()));
+    d.insert(
+      "index_errors",
+      error_info_vec_to_bson(t.index_errors_slice()),
+    );
     d
   }
 }
@@ -300,14 +305,14 @@ impl TryFrom<Document> for SubtitleTrack<Uuid7> {
 impl From<&SubtitleCue<Uuid7>> for Document {
   fn from(c: &SubtitleCue<Uuid7>) -> Self {
     let mut d = Document::new();
-    d.insert("_id", uuid7_to_bson(*c.id()));
-    d.insert("parent", uuid7_to_bson(*c.parent()));
+    d.insert("_id", uuid7_to_bson(*c.id_ref()));
+    d.insert("parent", uuid7_to_bson(*c.parent_ref()));
     d.insert("index", Bson::Int64(c.index() as i64));
-    d.insert("span", time_range_to_bson(c.span()));
-    d.insert("text", loc_text_to_bson(c.text()));
+    d.insert("span", time_range_to_bson(c.span_ref()));
+    d.insert("text", loc_text_to_bson(c.text_ref()));
     d.insert("styled_text", Bson::String(c.styled_text().to_owned()));
     d.insert("image", bytes_to_bson(c.image()));
-    d.insert("ocr_text", loc_text_to_bson(c.ocr_text()));
+    d.insert("ocr_text", loc_text_to_bson(c.ocr_text_ref()));
     d
   }
 }
@@ -320,21 +325,35 @@ impl TryFrom<Document> for SubtitleCue<Uuid7> {
     let parent = uuid7_from_bson(take(&mut d, "parent")?, "parent")?;
     let index = as_u32(take(&mut d, "index")?, "index")?;
     let span = time_range_from_bson(take(&mut d, "span")?, "span")?;
-    let mut c = SubtitleCue::try_new(id, parent, index, span)?;
-
-    if let Some(b) = take_opt(&mut d, "text") {
-      c.set_text(loc_text_from_bson(b, "text")?);
-    }
-    if let Some(b) = take_opt(&mut d, "styled_text") {
-      c.set_styled_text(as_smol(b, "styled_text")?);
-    }
-    if let Some(b) = take_opt(&mut d, "image") {
-      c.set_image(as_binary(b, "image")?);
-    }
-    if let Some(b) = take_opt(&mut d, "ocr_text") {
-      c.set_ocr_text(loc_text_from_bson(b, "ocr_text")?);
-    }
-    Ok(c)
+    // `SubtitleCue::try_new` is a full-args constructor that validates
+    // the text/image/ocr_text content invariant together — gather every
+    // payload field first, then construct once.
+    let text = match take_opt(&mut d, "text") {
+      Some(b) => loc_text_from_bson(b, "text")?,
+      None => LocalizedText::new(),
+    };
+    let styled_text = match take_opt(&mut d, "styled_text") {
+      Some(b) => as_smol(b, "styled_text")?,
+      None => SmolStr::default(),
+    };
+    let image = match take_opt(&mut d, "image") {
+      Some(b) => as_binary(b, "image")?,
+      None => Vec::new(),
+    };
+    let ocr_text = match take_opt(&mut d, "ocr_text") {
+      Some(b) => loc_text_from_bson(b, "ocr_text")?,
+      None => LocalizedText::new(),
+    };
+    Ok(SubtitleCue::try_new(
+      id,
+      parent,
+      index,
+      span,
+      text,
+      styled_text,
+      image,
+      ocr_text,
+    )?)
   }
 }
 
@@ -419,12 +438,17 @@ mod tests {
 
   #[test]
   fn subtitle_cue_roundtrip() {
-    let c = SubtitleCue::try_new(Uuid7::new(), Uuid7::new(), 0, sp(1000, 2000))
-      .unwrap()
-      .with_text(LocalizedText::from_src_translated("hola", "hello"))
-      .with_styled_text("{\\b1}hello{\\b0}")
-      .with_image(vec![0u8, 1, 2, 3])
-      .with_ocr_text(LocalizedText::from_src("hello (OCR)"));
+    let c = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      sp(1000, 2000),
+      LocalizedText::from_src_translated("hola", "hello"),
+      "{\\b1}hello{\\b0}",
+      vec![0u8, 1, 2, 3],
+      LocalizedText::from_src("hello (OCR)"),
+    )
+    .unwrap();
     let doc: Document = (&c).into();
     let c2: SubtitleCue<Uuid7> = doc.try_into().unwrap();
     assert_eq!(c, c2);

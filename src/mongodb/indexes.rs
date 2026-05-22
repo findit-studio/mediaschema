@@ -93,11 +93,11 @@ pub fn media_indexes() -> Vec<IndexModel> {
 }
 
 /// `watched_locations` — primarily a config table. Index on the
-/// volume-id within the root document for "find watch by volume"
-/// queries, and on `enabled` for the monitor-startup sweep.
+/// volume UUID for "find watch by volume" queries, and on `enabled`
+/// for the monitor-startup sweep.
 pub fn watched_location_indexes() -> Vec<IndexModel> {
   vec![
-    index_on(doc! { "root.volume": 1 }, "watched_root_volume"),
+    index_on(doc! { "volume": 1 }, "watched_volume"),
     index_on(doc! { "enabled": 1 }, "watched_enabled"),
   ]
 }

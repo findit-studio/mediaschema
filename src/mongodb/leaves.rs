@@ -47,27 +47,29 @@ fn scan_status_from_i64(v: i64, field: &'static str) -> Result<ScanStatus, Mongo
 impl From<&WatchedLocation<Uuid7>> for Document {
   fn from(w: &WatchedLocation<Uuid7>) -> Self {
     let mut d = Document::new();
-    d.insert("_id", uuid7_to_bson(*w.id()));
-    d.insert("root", location_to_bson(w.root()));
+    d.insert("_id", uuid7_to_bson(*w.id_ref()));
+    d.insert("volume", uuid7_to_bson(*w.volume_ref()));
     d.insert("recursive", Bson::Boolean(w.is_recursive()));
     d.insert("enabled", Bson::Boolean(w.is_enabled()));
     d.insert("is_ejectable", Bson::Boolean(w.is_ejectable()));
-    d.insert("added_at", jiff_to_bson(*w.added_at()));
+    d.insert("added_at", jiff_to_bson(*w.added_at_ref()));
     d.insert(
       "last_reconciled_at",
-      w.last_reconciled_at()
+      w.last_reconciled_at_ref()
         .map(|t| jiff_to_bson(*t))
         .unwrap_or(Bson::Null),
     );
     d.insert(
       "last_reconcile_status",
-      w.last_reconcile_status()
+      w.last_reconcile_status_ref()
         .map(|s| Bson::Int32(scan_status_to_i32(*s)))
         .unwrap_or(Bson::Null),
     );
     d.insert(
       "last_error",
-      w.last_error().map(error_info_to_bson).unwrap_or(Bson::Null),
+      w.last_error_ref()
+        .map(error_info_to_bson)
+        .unwrap_or(Bson::Null),
     );
     d
   }
@@ -78,14 +80,11 @@ impl TryFrom<Document> for WatchedLocation<Uuid7> {
 
   fn try_from(mut d: Document) -> Result<Self, Self::Error> {
     let id = uuid7_from_bson(take(&mut d, "_id")?, "_id")?;
-    // Decode the root into volume + components and re-run through the
-    // validating ctor so all invariants are re-enforced.
-    let mut root_doc = as_doc(take(&mut d, "root")?, "root")?;
-    let _kind = as_str(take(&mut root_doc, "kind")?, "kind")?;
-    let volume = uuid7_from_bson(take(&mut root_doc, "volume")?, "volume")?;
-    let components = smolstr_vec_from_bson(take(&mut root_doc, "components")?, "components")?;
+    // `WatchedLocation` is volume-scoped (no folder path / components):
+    // the monitored volume is a single `Uuid7` field.
+    let volume = uuid7_from_bson(take(&mut d, "volume")?, "volume")?;
     let added_at = jiff_from_bson(take(&mut d, "added_at")?, "added_at")?;
-    let mut w = WatchedLocation::try_new(id, volume, components, added_at)?;
+    let mut w = WatchedLocation::try_new(id, volume, added_at)?;
     if let Some(b) = take_opt(&mut d, "recursive") {
       w.set_recursive(as_bool(b, "recursive")?);
     }
@@ -116,13 +115,13 @@ impl TryFrom<Document> for WatchedLocation<Uuid7> {
 impl From<&Speaker<Uuid7>> for Document {
   fn from(s: &Speaker<Uuid7>) -> Self {
     let mut d = Document::new();
-    d.insert("_id", uuid7_to_bson(*s.id()));
-    d.insert("parent", uuid7_to_bson(*s.parent()));
+    d.insert("_id", uuid7_to_bson(*s.id_ref()));
+    d.insert("parent", uuid7_to_bson(*s.parent_ref()));
     d.insert("cluster_id", Bson::Int64(s.cluster_id() as i64));
     d.insert("name", Bson::String(s.name().to_owned()));
     d.insert(
       "speech_duration",
-      s.speech_duration()
+      s.speech_duration_ref()
         .map(|t| media_ts_to_bson(*t))
         .unwrap_or(Bson::Null),
     );
@@ -140,7 +139,7 @@ impl TryFrom<Document> for Speaker<Uuid7> {
     let name = as_smol(take(&mut d, "name")?, "name")?;
     let mut s = Speaker::try_new(id, parent, cluster_id, name)?;
     if let Some(b) = take_opt(&mut d, "speech_duration") {
-      s.set_speech_duration(Some(media_ts_from_bson(b, "speech_duration")?));
+      s.try_set_speech_duration(Some(media_ts_from_bson(b, "speech_duration")?))?;
     }
     Ok(s)
   }
@@ -153,10 +152,10 @@ impl TryFrom<Document> for Speaker<Uuid7> {
 impl From<&UserTag<Uuid7>> for Document {
   fn from(t: &UserTag<Uuid7>) -> Self {
     let mut d = Document::new();
-    d.insert("_id", uuid7_to_bson(*t.id()));
+    d.insert("_id", uuid7_to_bson(*t.id_ref()));
     d.insert("name", Bson::String(t.name().to_owned()));
     d.insert("color", t.color().map(rgba_to_bson).unwrap_or(Bson::Null));
-    d.insert("created_at", jiff_to_bson(*t.created_at()));
+    d.insert("created_at", jiff_to_bson(*t.created_at_ref()));
     d
   }
 }
@@ -183,10 +182,10 @@ impl TryFrom<Document> for UserTag<Uuid7> {
 impl From<&SceneAnnotation<Uuid7>> for Document {
   fn from(a: &SceneAnnotation<Uuid7>) -> Self {
     let mut d = Document::new();
-    d.insert("_id", uuid7_to_bson(*a.id()));
-    d.insert("scene", uuid7_to_bson(*a.scene()));
+    d.insert("_id", uuid7_to_bson(*a.id_ref()));
+    d.insert("scene", uuid7_to_bson(*a.scene_ref()));
     d.insert("favorite", Bson::Boolean(a.is_favorite()));
-    d.insert("user_tags", uuid7_vec_to_bson(a.user_tags()));
+    d.insert("user_tags", uuid7_vec_to_bson(a.user_tags_slice()));
     d.insert(
       "rating",
       a.rating()
@@ -194,7 +193,7 @@ impl From<&SceneAnnotation<Uuid7>> for Document {
         .unwrap_or(Bson::Null),
     );
     d.insert("note", Bson::String(a.note().to_owned()));
-    d.insert("updated_at", jiff_to_bson(*a.updated_at()));
+    d.insert("updated_at", jiff_to_bson(*a.updated_at_ref()));
     d
   }
 }
@@ -246,7 +245,7 @@ mod tests {
   fn watched_location_roundtrip() {
     let id = Uuid7::new();
     let vol = Uuid7::new();
-    let w = WatchedLocation::try_new(id, vol, ["Movies", "2024"], JiffTimestamp::default())
+    let w = WatchedLocation::try_new(id, vol, JiffTimestamp::default())
       .unwrap()
       .with_enabled(true)
       .with_recursive(true)
@@ -283,14 +282,7 @@ mod tests {
         bytes: vec![0u8; 16],
       }),
     );
-    let mut root = Document::new();
-    root.insert("kind", "local");
-    root.insert("volume", uuid7_to_bson(Uuid7::new()));
-    root.insert(
-      "components",
-      Bson::Array(vec![Bson::String("Movies".into())]),
-    );
-    d.insert("root", root);
+    d.insert("volume", uuid7_to_bson(Uuid7::new()));
     d.insert("added_at", jiff_to_bson(JiffTimestamp::default()));
     // Decode rejects nil at Uuid7 layer (which wraps validate_v7).
     let err = WatchedLocation::<Uuid7>::try_from(d).unwrap_err();
@@ -301,7 +293,8 @@ mod tests {
   fn speaker_roundtrip() {
     let s = Speaker::try_new(Uuid7::new(), Uuid7::new(), 3, "Jane")
       .unwrap()
-      .with_speech_duration(Some(MediaTimestamp::new(12000, tb())));
+      .try_with_speech_duration(Some(MediaTimestamp::new(12000, tb())))
+      .unwrap();
     let doc: Document = (&s).into();
     let s2: Speaker<Uuid7> = doc.try_into().unwrap();
     assert_eq!(s, s2);

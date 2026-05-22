@@ -57,8 +57,8 @@ fn content_kind_from_i64(v: i64, field: &'static str) -> Result<AudioContentKind
 impl From<&Audio<Uuid7>> for Document {
   fn from(a: &Audio<Uuid7>) -> Self {
     let mut d = Document::new();
-    d.insert("_id", uuid7_to_bson(*a.id()));
-    d.insert("tracks", uuid7_vec_to_bson(a.tracks()));
+    d.insert("_id", uuid7_to_bson(*a.id_ref()));
+    d.insert("tracks", uuid7_vec_to_bson(a.tracks_slice()));
     d.insert("total_segments", Bson::Int64(a.total_segments() as i64));
     d
   }
@@ -84,9 +84,18 @@ impl TryFrom<Document> for Audio<Uuid7> {
 // AudioTags
 // ---------------------------------------------------------------------------
 
+// `0`-means-absent `u16` → `Null` (absent) or `Int32` (present).
+fn u16_opt_to_bson(v: u16) -> Bson {
+  if v == 0 {
+    Bson::Null
+  } else {
+    Bson::Int32(i32::from(v))
+  }
+}
+
 // `mediaframe::audio::Tags` field set (rev: narrower than the old local
 // `AudioTags`): string fields use `""`-means-absent; numeric / language
-// fields are `Option`, persisted as `Null` when absent.
+// fields use `0`/`None`-means-absent, persisted as `Null` when absent.
 fn tags_to_bson(t: &Tags) -> Bson {
   let mut d = Document::new();
   d.insert("title", Bson::String(t.title().to_owned()));
@@ -96,41 +105,16 @@ fn tags_to_bson(t: &Tags) -> Bson {
   d.insert("composer", Bson::String(t.composer().to_owned()));
   d.insert("genre", Bson::String(t.genre().to_owned()));
   d.insert("comment", Bson::String(t.comment().to_owned()));
-  d.insert(
-    "year",
-    t.year()
-      .map(|v| Bson::Int32(v as i32))
-      .unwrap_or(Bson::Null),
-  );
-  d.insert(
-    "track_number",
-    t.track_number()
-      .map(|v| Bson::Int32(v as i32))
-      .unwrap_or(Bson::Null),
-  );
-  d.insert(
-    "track_total",
-    t.track_total()
-      .map(|v| Bson::Int32(v as i32))
-      .unwrap_or(Bson::Null),
-  );
-  d.insert(
-    "disc_number",
-    t.disc_number()
-      .map(|v| Bson::Int32(v as i32))
-      .unwrap_or(Bson::Null),
-  );
-  d.insert(
-    "disc_total",
-    t.disc_total()
-      .map(|v| Bson::Int32(v as i32))
-      .unwrap_or(Bson::Null),
-  );
+  // `mediaframe::audio::Tags` numeric getters return a bare `u16` with
+  // `0`-means-absent; map `0` back to `Null` so the bson form stays sparse.
+  d.insert("year", u16_opt_to_bson(t.year()));
+  d.insert("track_number", u16_opt_to_bson(t.track_number()));
+  d.insert("track_total", u16_opt_to_bson(t.track_total()));
+  d.insert("disc_number", u16_opt_to_bson(t.disc_number()));
+  d.insert("disc_total", u16_opt_to_bson(t.disc_total()));
   d.insert(
     "language",
-    t.language()
-      .map(|s| Bson::String(s.to_owned()))
-      .unwrap_or(Bson::Null),
+    t.language().map_or(Bson::Null, |l| language_to_bson(&l)),
   );
   Bson::Document(d)
 }
@@ -161,7 +145,7 @@ fn tags_from_bson(b: Bson, field: &'static str) -> Result<Tags, MongoError> {
     t = t.with_disc_total(as_u16(b, "disc_total")?);
   }
   if let Some(b) = take_opt(&mut d, "language") {
-    t = t.with_language(as_smol(b, "language")?);
+    t = t.with_language(language_from_bson(b, "language")?);
   }
   Ok(t)
 }
@@ -234,8 +218,8 @@ fn fingerprint_from_bson(b: Bson, field: &'static str) -> Result<Fingerprint, Mo
 impl From<&AudioTrack<Uuid7>> for Document {
   fn from(t: &AudioTrack<Uuid7>) -> Self {
     let mut d = Document::new();
-    d.insert("_id", uuid7_to_bson(*t.id()));
-    d.insert("parent", uuid7_to_bson(*t.parent()));
+    d.insert("_id", uuid7_to_bson(*t.id_ref()));
+    d.insert("parent", uuid7_to_bson(*t.parent_ref()));
     d.insert(
       "stream_index",
       t.stream_index()
@@ -248,13 +232,13 @@ impl From<&AudioTrack<Uuid7>> for Document {
         .map(|v| Bson::Int64(v as i64))
         .unwrap_or(Bson::Null),
     );
-    d.insert("codec", Bson::String(t.codec().as_str().to_owned()));
+    d.insert("codec", Bson::String(t.codec_ref().as_str().to_owned()));
     d.insert("profile", Bson::String(t.profile().to_owned()));
     d.insert("sample_rate", Bson::Int64(t.sample_rate() as i64));
     d.insert("channels", Bson::Int32(t.channels() as i32));
     d.insert(
       "channel_layout",
-      Bson::String(t.channel_layout().as_str().to_owned()),
+      Bson::String(t.channel_layout_ref().as_str().to_owned()),
     );
     d.insert("bit_rate", Bson::Int64(t.bit_rate() as i64));
     d.insert(
@@ -272,13 +256,13 @@ impl From<&AudioTrack<Uuid7>> for Document {
     d.insert("is_lossless", Bson::Boolean(t.is_lossless()));
     d.insert(
       "duration",
-      t.duration()
+      t.duration_ref()
         .map(|v| media_ts_to_bson(*v))
         .unwrap_or(Bson::Null),
     );
     d.insert(
       "start_pts",
-      t.start_pts()
+      t.start_pts_ref()
         .map(|v| media_ts_to_bson(*v))
         .unwrap_or(Bson::Null),
     );
@@ -313,11 +297,11 @@ impl From<&AudioTrack<Uuid7>> for Document {
     d.insert("is_silent", Bson::Boolean(t.is_silent()));
     d.insert(
       "loudness",
-      t.loudness().map(loudness_to_bson).unwrap_or(Bson::Null),
+      t.loudness_ref().map(loudness_to_bson).unwrap_or(Bson::Null),
     );
     d.insert(
       "fingerprint",
-      t.fingerprint()
+      t.fingerprint_ref()
         .map(fingerprint_to_bson)
         .unwrap_or(Bson::Null),
     );
@@ -327,16 +311,21 @@ impl From<&AudioTrack<Uuid7>> for Document {
       "musicbrainz_recording_id",
       Bson::String(t.musicbrainz_recording_id().to_owned()),
     );
-    d.insert("speakers", uuid7_vec_to_bson(t.speakers()));
-    d.insert("tags", t.tags().map(tags_to_bson).unwrap_or(Bson::Null));
+    d.insert("speakers", uuid7_vec_to_bson(t.speakers_slice()));
+    d.insert("tags", t.tags_ref().map(tags_to_bson).unwrap_or(Bson::Null));
     d.insert(
       "cover_art",
-      t.cover_art().map(cover_art_to_bson).unwrap_or(Bson::Null),
+      t.cover_art_ref()
+        .map(cover_art_to_bson)
+        .unwrap_or(Bson::Null),
     );
-    d.insert("segments", uuid7_vec_to_bson(t.segments()));
-    d.insert("provenance", provenance_to_bson(t.provenance()));
+    d.insert("segments", uuid7_vec_to_bson(t.segments_slice()));
+    d.insert("provenance", provenance_to_bson(t.provenance_ref()));
     d.insert("index_status", Bson::Int64(t.index_status().bits() as i64));
-    d.insert("index_errors", error_info_vec_to_bson(t.index_errors()));
+    d.insert(
+      "index_errors",
+      error_info_vec_to_bson(t.index_errors_slice()),
+    );
     d
   }
 }
@@ -366,10 +355,10 @@ impl TryFrom<Document> for AudioTrack<Uuid7> {
       t.set_profile(as_smol(b, "profile")?);
     }
     if let Some(b) = take_opt(&mut d, "sample_rate") {
-      t.set_sample_rate(as_u32(b, "sample_rate")?);
+      t.try_set_sample_rate(as_u32(b, "sample_rate")?)?;
     }
     if let Some(b) = take_opt(&mut d, "channels") {
-      t.set_channels(as_u16(b, "channels")?);
+      t.try_set_channels(as_u16(b, "channels")?)?;
     }
     if let Some(b) = take_opt(&mut d, "channel_layout") {
       // `ChannelLayout: FromStr<Err = Infallible>` (lossless via `Other`).
@@ -393,7 +382,7 @@ impl TryFrom<Document> for AudioTrack<Uuid7> {
       t.set_lossless(as_bool(b, "is_lossless")?);
     }
     if let Some(b) = take_opt(&mut d, "duration") {
-      t.set_duration(Some(media_ts_from_bson(b, "duration")?));
+      t.try_set_duration(Some(media_ts_from_bson(b, "duration")?))?;
     }
     if let Some(b) = take_opt(&mut d, "start_pts") {
       t.set_start_pts(Some(media_ts_from_bson(b, "start_pts")?));
@@ -404,9 +393,11 @@ impl TryFrom<Document> for AudioTrack<Uuid7> {
     if let Some(b) = take_opt(&mut d, "detected_language") {
       t.set_detected_language(Some(language_from_bson(b, "detected_language")?));
     }
-    if let Some(b) = take_opt(&mut d, "language_mismatch") {
-      t.set_language_mismatch(as_bool(b, "language_mismatch")?);
-    }
+    // `language_mismatch` is a derived getter on `AudioTrack` (computed
+    // from `language` vs `detected_language`); it is persisted only as a
+    // queryable denormalized field. Drop any stored value on read — the
+    // domain recomputes it.
+    let _ = take_opt(&mut d, "language_mismatch");
     if let Some(b) = take_opt(&mut d, "disposition") {
       t.set_disposition(mediaframe::disposition::TrackDisposition::from_u32(as_u32(
         b,
@@ -426,7 +417,7 @@ impl TryFrom<Document> for AudioTrack<Uuid7> {
       )?));
     }
     if let Some(b) = take_opt(&mut d, "speech_ratio") {
-      t.set_speech_ratio(Some(as_f32(b, "speech_ratio")?));
+      t.try_set_speech_ratio(Some(as_f32(b, "speech_ratio")?))?;
     }
     if let Some(b) = take_opt(&mut d, "is_silent") {
       t.set_silent(as_bool(b, "is_silent")?);
@@ -467,7 +458,7 @@ impl TryFrom<Document> for AudioTrack<Uuid7> {
         field: SmolStr::from("index_status"),
         value: bits as i64,
       })?;
-      t.set_index_status(AudioIndexStatus::from_bits_truncate(bits32));
+      t.try_set_index_status(AudioIndexStatus::from_bits_truncate(bits32))?;
     }
     if let Some(b) = take_opt(&mut d, "index_errors") {
       t.set_index_errors(error_info_vec_from_bson(b, "index_errors")?);
@@ -483,7 +474,7 @@ impl TryFrom<Document> for AudioTrack<Uuid7> {
 fn word_to_bson(w: &Word) -> Bson {
   let mut d = Document::new();
   d.insert("text", Bson::String(w.text().to_owned()));
-  d.insert("span", time_range_to_bson(w.span()));
+  d.insert("span", time_range_to_bson(w.span_ref()));
   d.insert("score", Bson::Double(w.score() as f64));
   d.insert(
     "language",
@@ -502,7 +493,7 @@ fn word_from_bson(b: Bson, field: &'static str) -> Result<Word, MongoError> {
   let language = opt(take_opt(&mut d, "language"), |bb| {
     language_from_bson(bb, "language")
   })?;
-  Ok(Word::from_parts(text, span, score, language))
+  Ok(Word::try_from_parts(text, span, score, language)?)
 }
 
 // ---------------------------------------------------------------------------
@@ -512,15 +503,17 @@ fn word_from_bson(b: Bson, field: &'static str) -> Result<Word, MongoError> {
 impl From<&AudioSegment<Uuid7>> for Document {
   fn from(s: &AudioSegment<Uuid7>) -> Self {
     let mut d = Document::new();
-    d.insert("_id", uuid7_to_bson(*s.id()));
-    d.insert("parent", uuid7_to_bson(*s.parent()));
+    d.insert("_id", uuid7_to_bson(*s.id_ref()));
+    d.insert("parent", uuid7_to_bson(*s.parent_ref()));
     d.insert("index", Bson::Int64(s.index() as i64));
-    d.insert("span", time_range_to_bson(s.span()));
+    d.insert("span", time_range_to_bson(s.span_ref()));
     d.insert(
       "speaker",
-      s.speaker().map(|i| uuid7_to_bson(*i)).unwrap_or(Bson::Null),
+      s.speaker_ref()
+        .map(|i| uuid7_to_bson(*i))
+        .unwrap_or(Bson::Null),
     );
-    d.insert("text", loc_text_to_bson(s.text()));
+    d.insert("text", loc_text_to_bson(s.text_ref()));
     d.insert(
       "language",
       s.language()
@@ -529,7 +522,7 @@ impl From<&AudioSegment<Uuid7>> for Document {
     );
     d.insert(
       "words",
-      Bson::Array(s.words().iter().map(word_to_bson).collect()),
+      Bson::Array(s.words_slice().iter().map(word_to_bson).collect()),
     );
     d.insert(
       "no_speech_prob",
@@ -578,10 +571,10 @@ impl TryFrom<Document> for AudioSegment<Uuid7> {
       for w in arr {
         vw.push(word_from_bson(w, "words[]")?);
       }
-      s.set_words(vw);
+      s.try_set_words(vw)?;
     }
     if let Some(b) = take_opt(&mut d, "no_speech_prob") {
-      s.set_no_speech_prob(Some(as_f32(b, "no_speech_prob")?));
+      s.try_set_no_speech_prob(Some(as_f32(b, "no_speech_prob")?))?;
     }
     if let Some(b) = take_opt(&mut d, "avg_logprob") {
       s.set_avg_logprob(Some(as_f32(b, "avg_logprob")?));
@@ -634,8 +627,10 @@ mod tests {
       .with_stream_index(Some(0))
       .with_codec(AudioCodec::Aac)
       .with_profile("LC")
-      .with_sample_rate(48_000)
-      .with_channels(2)
+      .try_with_sample_rate(48_000)
+      .unwrap()
+      .try_with_channels(2)
+      .unwrap()
       .with_channel_layout(ChannelLayout::Stereo)
       .with_bit_rate(192_000)
       .with_bit_rate_mode(Some(BitRateMode::Cbr))
@@ -646,7 +641,8 @@ mod tests {
       .with_disposition(TrackDisposition::from_u32(0x21))
       .with_primary(true)
       .with_content(Some(AudioContentKind::Music))
-      .with_speech_ratio(Some(0.42))
+      .try_with_speech_ratio(Some(0.42))
+      .unwrap()
       .with_silent(false)
       .with_loudness(Some(Loudness::new(-23.0, 7.5, -1.0, -3.0)))
       .with_fingerprint(Some(
@@ -662,14 +658,15 @@ mod tests {
           .with_artist("X")
           .with_track_number(1)
           .with_year(2024)
-          .with_language("en"),
+          .with_language(Language::from_bcp47("en").unwrap()),
       ))
       .with_cover_art(Some(
         CoverArt::try_new("image/jpeg", vec![0xFFu8, 0xD8, 0xFF]).unwrap(),
       ))
       .with_segments(vec![Uuid7::new()])
       .with_provenance(Provenance::from_parts("asry", "1.0", "p", "idx"))
-      .with_index_status(AudioIndexStatus::EXTRACTED | AudioIndexStatus::VAD_DONE)
+      .try_with_index_status(AudioIndexStatus::EXTRACTED | AudioIndexStatus::VAD_DONE)
+      .unwrap()
       .with_index_errors(vec![ErrorInfo::new(ErrorCode::ProbeCorrupt, "bad header")]);
     let doc: Document = (&t).into();
     let t2: AudioTrack<Uuid7> = doc.try_into().unwrap();
@@ -683,13 +680,16 @@ mod tests {
       .with_speaker(Some(Uuid7::new()))
       .with_text(LocalizedText::from_src_translated("hola", "hello"))
       .with_language(Some(Language::from_bcp47("es").unwrap()))
-      .with_words(vec![Word::from_parts(
+      .try_with_words(vec![Word::try_from_parts(
         "hola",
         sp(0, 500),
         0.95,
         Some(Language::from_bcp47("es").unwrap()),
-      )])
-      .with_no_speech_prob(Some(0.05))
+      )
+      .unwrap()])
+      .unwrap()
+      .try_with_no_speech_prob(Some(0.05))
+      .unwrap()
       .with_avg_logprob(Some(-0.4))
       .with_temperature(Some(0.0));
     let doc: Document = (&s).into();

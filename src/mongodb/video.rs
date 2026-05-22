@@ -20,14 +20,11 @@ use smol_str::SmolStr;
 
 use crate::domain::{
   aggregates::video::{
-    detections::*,
-    facet::{IndexProgress as VIndexProgress, Video},
-    keyframe::Keyframe,
-    scene::Scene,
-    track::VideoTrack,
+    detections::*, facet::Video, keyframe::Keyframe, scene::Scene, track::VideoTrack,
   },
   bitflags::VideoIndexStatus,
   enums::{KeyframeExtractor, SceneDetector},
+  vo::IndexProgress as VIndexProgress,
   Uuid7,
 };
 
@@ -134,12 +131,12 @@ fn v_index_progress_from_bson(b: Bson, field: &'static str) -> Result<VIndexProg
 impl From<&Video<Uuid7>> for Document {
   fn from(v: &Video<Uuid7>) -> Self {
     let mut d = Document::new();
-    d.insert("_id", uuid7_to_bson(*v.id()));
+    d.insert("_id", uuid7_to_bson(*v.id_ref()));
     d.insert("total_scenes", Bson::Int64(v.total_scenes() as i64));
-    d.insert("tracks", uuid7_vec_to_bson(v.tracks()));
+    d.insert("tracks", uuid7_vec_to_bson(v.tracks_slice()));
     d.insert(
       "track_progress",
-      v_index_progress_to_bson(v.track_progress()),
+      v_index_progress_to_bson(v.track_progress_ref()),
     );
     d
   }
@@ -151,14 +148,17 @@ impl TryFrom<Document> for Video<Uuid7> {
   fn try_from(mut d: Document) -> Result<Self, Self::Error> {
     let id = uuid7_from_bson(take(&mut d, "_id")?, "_id")?;
     let mut v = Video::try_new(id)?;
-    if let Some(b) = take_opt(&mut d, "total_scenes") {
-      v.set_total_scenes(as_u32(b, "total_scenes")?);
-    }
+    // `tracks` must be restored before `total_scenes` / `track_progress`:
+    // both `try_set_*` validate a cross-field invariant against the
+    // current track list (scenes-need-tracks, progress-rollup arity).
     if let Some(b) = take_opt(&mut d, "tracks") {
       v.set_tracks(uuid7_vec_from_bson(b, "tracks")?);
     }
+    if let Some(b) = take_opt(&mut d, "total_scenes") {
+      v.try_set_total_scenes(as_u32(b, "total_scenes")?)?;
+    }
     if let Some(b) = take_opt(&mut d, "track_progress") {
-      v.set_track_progress(v_index_progress_from_bson(b, "track_progress")?);
+      v.try_set_track_progress(v_index_progress_from_bson(b, "track_progress")?)?;
     }
     Ok(v)
   }
@@ -395,8 +395,8 @@ fn dovi_from_bson(b: Bson, field: &'static str) -> Result<DolbyVisionConfig, Mon
 impl From<&VideoTrack<Uuid7>> for Document {
   fn from(t: &VideoTrack<Uuid7>) -> Self {
     let mut d = Document::new();
-    d.insert("_id", uuid7_to_bson(*t.id()));
-    d.insert("parent", uuid7_to_bson(*t.parent()));
+    d.insert("_id", uuid7_to_bson(*t.id_ref()));
+    d.insert("parent", uuid7_to_bson(*t.parent_ref()));
     d.insert(
       "stream_index",
       t.stream_index()
@@ -411,17 +411,17 @@ impl From<&VideoTrack<Uuid7>> for Document {
     );
     d.insert(
       "start_pts",
-      t.start_pts()
+      t.start_pts_ref()
         .map(|v| media_ts_to_bson(*v))
         .unwrap_or(Bson::Null),
     );
     d.insert(
       "duration",
-      t.duration()
+      t.duration_ref()
         .map(|v| media_ts_to_bson(*v))
         .unwrap_or(Bson::Null),
     );
-    d.insert("codec", codec_to_bson(t.codec()));
+    d.insert("codec", codec_to_bson(t.codec_ref()));
     d.insert(
       "profile",
       t.profile()
@@ -464,10 +464,12 @@ impl From<&VideoTrack<Uuid7>> for Document {
       "pixel_format",
       Bson::Int64(t.pixel_format().to_u32() as i64),
     );
-    d.insert("color", color_info_to_bson(t.color()));
+    d.insert("color", color_info_to_bson(t.color_ref()));
     d.insert(
       "hdr_static",
-      t.hdr_static().map(hdr_static_to_bson).unwrap_or(Bson::Null),
+      t.hdr_static_ref()
+        .map(hdr_static_to_bson)
+        .unwrap_or(Bson::Null),
     );
     d.insert("rotation", Bson::Int64(t.rotation().to_u32() as i64));
     d.insert("frame_rate", frame_rate_to_bson(t.frame_rate()));
@@ -489,10 +491,13 @@ impl From<&VideoTrack<Uuid7>> for Document {
     d.insert("disposition", Bson::Int64(t.disposition().to_u32() as i64));
     d.insert("is_primary", Bson::Boolean(t.is_primary()));
     d.insert("auto_selected", Bson::Boolean(t.auto_selected()));
-    d.insert("scenes", uuid7_vec_to_bson(t.scenes()));
+    d.insert("scenes", uuid7_vec_to_bson(t.scenes_slice()));
     d.insert("index_status", Bson::Int64(t.index_status().bits() as i64));
-    d.insert("index_errors", error_info_vec_to_bson(t.index_errors()));
-    d.insert("provenance", provenance_to_bson(t.provenance()));
+    d.insert(
+      "index_errors",
+      error_info_vec_to_bson(t.index_errors_slice()),
+    );
+    d.insert("provenance", provenance_to_bson(t.provenance_ref()));
     d
   }
 }
@@ -515,7 +520,7 @@ impl TryFrom<Document> for VideoTrack<Uuid7> {
       t.set_start_pts(Some(media_ts_from_bson(b, "start_pts")?));
     }
     if let Some(b) = take_opt(&mut d, "duration") {
-      t.set_duration(Some(media_ts_from_bson(b, "duration")?));
+      t.try_set_duration(Some(media_ts_from_bson(b, "duration")?))?;
     }
     if let Some(b) = take_opt(&mut d, "codec") {
       t.set_codec(codec_from_bson(b, "codec")?);
@@ -542,10 +547,10 @@ impl TryFrom<Document> for VideoTrack<Uuid7> {
       t.set_bits_per_raw_sample(Some(as_u8(b, "bits_per_raw_sample")?));
     }
     if let Some(b) = take_opt(&mut d, "dimensions") {
-      t.set_dimensions(dimensions_from_bson(b, "dimensions")?);
+      t.try_set_dimensions(dimensions_from_bson(b, "dimensions")?)?;
     }
     if let Some(b) = take_opt(&mut d, "visible_rect") {
-      t.set_visible_rect(Some(rect_from_bson(b, "visible_rect")?));
+      t.try_set_visible_rect(Some(rect_from_bson(b, "visible_rect")?))?;
     }
     if let Some(b) = take_opt(&mut d, "sample_aspect_ratio") {
       t.set_sample_aspect_ratio(sar_from_bson(b, "sample_aspect_ratio")?);
@@ -614,12 +619,12 @@ impl TryFrom<Document> for VideoTrack<Uuid7> {
 impl From<&Scene<Uuid7>> for Document {
   fn from(s: &Scene<Uuid7>) -> Self {
     let mut d = Document::new();
-    d.insert("_id", uuid7_to_bson(*s.id()));
-    d.insert("parent", uuid7_to_bson(*s.parent()));
+    d.insert("_id", uuid7_to_bson(*s.id_ref()));
+    d.insert("parent", uuid7_to_bson(*s.parent_ref()));
     d.insert("index", Bson::Int64(s.index() as i64));
-    d.insert("span", time_range_to_bson(s.span()));
+    d.insert("span", time_range_to_bson(s.span_ref()));
     d.insert("detector", Bson::Int32(scene_detector_to_i32(s.detector())));
-    d.insert("keyframes", uuid7_vec_to_bson(s.keyframes()));
+    d.insert("keyframes", uuid7_vec_to_bson(s.keyframes_slice()));
     d.insert("description", Bson::String(s.description().to_owned()));
     d
   }
@@ -661,7 +666,7 @@ fn detection_from_bson(b: Bson, field: &'static str) -> Result<Detection, MongoE
   let mut d = as_doc(b, field)?;
   let label = as_smol(take(&mut d, "label")?, "label")?;
   let confidence = as_f32(take(&mut d, "confidence")?, "confidence")?;
-  Ok(Detection::new(label, confidence))
+  Ok(Detection::try_new(label, confidence)?)
 }
 
 fn bbox_to_bson(b: &BoundingBox) -> Bson {
@@ -679,13 +684,13 @@ fn bbox_from_bson(b: Bson, field: &'static str) -> Result<BoundingBox, MongoErro
   let y = as_f32(take(&mut d, "y")?, "y")?;
   let w = as_f32(take(&mut d, "width")?, "width")?;
   let h = as_f32(take(&mut d, "height")?, "height")?;
-  Ok(BoundingBox::new(x, y, w, h))
+  Ok(BoundingBox::try_new(x, y, w, h)?)
 }
 
 fn object_detection_to_bson(o: &ObjectDetection) -> Bson {
   let mut d = Document::new();
-  d.insert("detection", detection_to_bson(o.detection()));
-  d.insert("bbox", o.bbox().map(bbox_to_bson).unwrap_or(Bson::Null));
+  d.insert("detection", detection_to_bson(o.detection_ref()));
+  d.insert("bbox", o.bbox_ref().map(bbox_to_bson).unwrap_or(Bson::Null));
   Bson::Document(d)
 }
 
@@ -698,7 +703,7 @@ fn object_detection_from_bson(b: Bson, field: &'static str) -> Result<ObjectDete
 
 fn action_detection_to_bson(a: &ActionDetection) -> Bson {
   let mut d = Document::new();
-  d.insert("detection", detection_to_bson(a.detection()));
+  d.insert("detection", detection_to_bson(a.detection_ref()));
   Bson::Document(d)
 }
 
@@ -712,7 +717,7 @@ fn text_detection_to_bson(t: &TextDetection) -> Bson {
   let mut d = Document::new();
   d.insert("text", Bson::String(t.text().to_owned()));
   d.insert("confidence", Bson::Double(t.confidence() as f64));
-  d.insert("bbox", bbox_to_bson(t.bbox()));
+  d.insert("bbox", bbox_to_bson(t.bbox_ref()));
   Bson::Document(d)
 }
 
@@ -721,7 +726,7 @@ fn text_detection_from_bson(b: Bson, field: &'static str) -> Result<TextDetectio
   let text = as_smol(take(&mut d, "text")?, "text")?;
   let conf = as_f32(take(&mut d, "confidence")?, "confidence")?;
   let bbox = bbox_from_bson(take(&mut d, "bbox")?, "bbox")?;
-  Ok(TextDetection::new(text, conf, bbox))
+  Ok(TextDetection::try_new(text, conf, bbox)?)
 }
 
 fn barcode_to_bson(b: &BarcodeDetection) -> Bson {
@@ -729,7 +734,7 @@ fn barcode_to_bson(b: &BarcodeDetection) -> Bson {
   d.insert("payload", Bson::String(b.payload().to_owned()));
   d.insert("symbology", Bson::String(b.symbology().to_owned()));
   d.insert("confidence", Bson::Double(b.confidence() as f64));
-  d.insert("bbox", bbox_to_bson(b.bbox()));
+  d.insert("bbox", bbox_to_bson(b.bbox_ref()));
   Bson::Document(d)
 }
 
@@ -739,12 +744,12 @@ fn barcode_from_bson(b: Bson, field: &'static str) -> Result<BarcodeDetection, M
   let symbology = as_smol(take(&mut d, "symbology")?, "symbology")?;
   let conf = as_f32(take(&mut d, "confidence")?, "confidence")?;
   let bbox = bbox_from_bson(take(&mut d, "bbox")?, "bbox")?;
-  Ok(BarcodeDetection::new(payload, symbology, conf, bbox))
+  Ok(BarcodeDetection::try_new(payload, symbology, conf, bbox)?)
 }
 
 fn saliency_to_bson(s: &SaliencyRegion) -> Bson {
   let mut d = Document::new();
-  d.insert("bbox", bbox_to_bson(s.bbox()));
+  d.insert("bbox", bbox_to_bson(s.bbox_ref()));
   d.insert("confidence", Bson::Double(s.confidence() as f64));
   Bson::Document(d)
 }
@@ -753,7 +758,7 @@ fn saliency_from_bson(b: Bson, field: &'static str) -> Result<SaliencyRegion, Mo
   let mut d = as_doc(b, field)?;
   let bbox = bbox_from_bson(take(&mut d, "bbox")?, "bbox")?;
   let conf = as_f32(take(&mut d, "confidence")?, "confidence")?;
-  Ok(SaliencyRegion::new(bbox, conf))
+  Ok(SaliencyRegion::try_new(bbox, conf)?)
 }
 
 fn horizon_to_bson(h: &HorizonInfo) -> Bson {
@@ -767,7 +772,7 @@ fn horizon_from_bson(b: Bson, field: &'static str) -> Result<HorizonInfo, MongoE
   let mut d = as_doc(b, field)?;
   let a = as_f32(take(&mut d, "angle")?, "angle")?;
   let c = as_f32(take(&mut d, "confidence")?, "confidence")?;
-  Ok(HorizonInfo::new(a, c))
+  Ok(HorizonInfo::try_new(a, c)?)
 }
 
 fn aesthetics_to_bson(a: &Aesthetics) -> Bson {
@@ -816,7 +821,7 @@ fn document_segment_from_bson(b: Bson, field: &'static str) -> Result<DocumentSe
   let br = corner_from_bson(take(&mut d, "bottom_right")?, "bottom_right")?;
   let bl = corner_from_bson(take(&mut d, "bottom_left")?, "bottom_left")?;
   let cf = as_f32(take(&mut d, "confidence")?, "confidence")?;
-  Ok(DocumentSegment::new(tl, tr, br, bl, cf))
+  Ok(DocumentSegment::try_new(tl, tr, br, bl, cf)?)
 }
 
 fn joint_to_bson(j: &BodyPoseJoint) -> Bson {
@@ -834,7 +839,7 @@ fn joint_from_bson(b: Bson, field: &'static str) -> Result<BodyPoseJoint, MongoE
   let x = as_f32(take(&mut d, "x")?, "x")?;
   let y = as_f32(take(&mut d, "y")?, "y")?;
   let c = as_f32(take(&mut d, "confidence")?, "confidence")?;
-  Ok(BodyPoseJoint::new(name, x, y, c))
+  Ok(BodyPoseJoint::try_new(name, x, y, c)?)
 }
 
 fn joint3d_to_bson(j: &BodyPose3DJoint) -> Bson {
@@ -854,7 +859,7 @@ fn joint3d_from_bson(b: Bson, field: &'static str) -> Result<BodyPose3DJoint, Mo
   let y = as_f32(take(&mut d, "y")?, "y")?;
   let z = as_f32(take(&mut d, "z")?, "z")?;
   let c = as_f32(take(&mut d, "confidence")?, "confidence")?;
-  Ok(BodyPose3DJoint::new(name, x, y, z, c))
+  Ok(BodyPose3DJoint::try_new(name, x, y, z, c)?)
 }
 
 fn chirality_to_i32(c: HandChirality) -> i32 {
@@ -902,11 +907,11 @@ fn height_est_from_i64(
 
 fn body_pose_to_bson(p: &BodyPoseDetection) -> Bson {
   let mut d = Document::new();
-  d.insert("bbox", bbox_to_bson(p.bbox()));
+  d.insert("bbox", bbox_to_bson(p.bbox_ref()));
   d.insert("confidence", Bson::Double(p.confidence() as f64));
   d.insert(
     "joints",
-    Bson::Array(p.joints().iter().map(joint_to_bson).collect()),
+    Bson::Array(p.joints_slice().iter().map(joint_to_bson).collect()),
   );
   Bson::Document(d)
 }
@@ -919,17 +924,17 @@ fn body_pose_from_bson(b: Bson, field: &'static str) -> Result<BodyPoseDetection
     .into_iter()
     .map(|x| joint_from_bson(x, "joints[]"))
     .collect::<Result<Vec<_>, _>>()?;
-  Ok(BodyPoseDetection::new(bbox, c, joints))
+  Ok(BodyPoseDetection::try_new(bbox, c, joints)?)
 }
 
 fn hand_pose_to_bson(p: &HandPoseDetection) -> Bson {
   let mut d = Document::new();
-  d.insert("bbox", bbox_to_bson(p.bbox()));
+  d.insert("bbox", bbox_to_bson(p.bbox_ref()));
   d.insert("confidence", Bson::Double(p.confidence() as f64));
   d.insert("chirality", Bson::Int32(chirality_to_i32(p.chirality())));
   d.insert(
     "joints",
-    Bson::Array(p.joints().iter().map(joint_to_bson).collect()),
+    Bson::Array(p.joints_slice().iter().map(joint_to_bson).collect()),
   );
   Bson::Document(d)
 }
@@ -946,7 +951,7 @@ fn hand_pose_from_bson(b: Bson, field: &'static str) -> Result<HandPoseDetection
     .into_iter()
     .map(|x| joint_from_bson(x, "joints[]"))
     .collect::<Result<Vec<_>, _>>()?;
-  Ok(HandPoseDetection::new(bbox, c, ch, joints))
+  Ok(HandPoseDetection::try_new(bbox, c, ch, joints)?)
 }
 
 fn body_pose_3d_to_bson(p: &BodyPose3DDetection) -> Bson {
@@ -959,7 +964,7 @@ fn body_pose_3d_to_bson(p: &BodyPose3DDetection) -> Bson {
   );
   d.insert(
     "joints",
-    Bson::Array(p.joints().iter().map(joint3d_to_bson).collect()),
+    Bson::Array(p.joints_slice().iter().map(joint3d_to_bson).collect()),
   );
   Bson::Document(d)
 }
@@ -976,13 +981,13 @@ fn body_pose_3d_from_bson(b: Bson, field: &'static str) -> Result<BodyPose3DDete
     .into_iter()
     .map(|x| joint3d_from_bson(x, "joints[]"))
     .collect::<Result<Vec<_>, _>>()?;
-  Ok(BodyPose3DDetection::new(c, bh, he, joints))
+  Ok(BodyPose3DDetection::try_new(c, bh, he, joints)?)
 }
 
 fn subject_to_bson(s: &SubjectDetection) -> Bson {
   let mut d = Document::new();
-  d.insert("detection", detection_to_bson(s.detection()));
-  d.insert("bbox", bbox_to_bson(s.bbox()));
+  d.insert("detection", detection_to_bson(s.detection_ref()));
+  d.insert("bbox", bbox_to_bson(s.bbox_ref()));
   Bson::Document(d)
 }
 
@@ -995,7 +1000,7 @@ fn subject_from_bson(b: Bson, field: &'static str) -> Result<SubjectDetection, M
 
 fn face_to_bson(f: &FaceDetection) -> Bson {
   let mut d = Document::new();
-  d.insert("bbox", bbox_to_bson(f.bbox()));
+  d.insert("bbox", bbox_to_bson(f.bbox_ref()));
   d.insert("confidence", Bson::Double(f.confidence() as f64));
   d.insert("capture_quality", Bson::Double(f.capture_quality() as f64));
   d.insert("roll", Bson::Double(f.roll() as f64));
@@ -1012,7 +1017,7 @@ fn face_from_bson(b: Bson, field: &'static str) -> Result<FaceDetection, MongoEr
   let r = as_f32(take(&mut d, "roll")?, "roll")?;
   let y = as_f32(take(&mut d, "yaw")?, "yaw")?;
   let p = as_f32(take(&mut d, "pitch")?, "pitch")?;
-  Ok(FaceDetection::new(bbox, c, q, r, y, p))
+  Ok(FaceDetection::try_new(bbox, c, q, r, y, p)?)
 }
 
 fn flm_region_to_bson(r: &FaceLandmarkRegion) -> Bson {
@@ -1032,16 +1037,16 @@ fn flm_region_from_bson(b: Bson, field: &'static str) -> Result<FaceLandmarkRegi
     .into_iter()
     .map(|x| corner_from_bson(x, "points[]"))
     .collect::<Result<Vec<_>, _>>()?;
-  Ok(FaceLandmarkRegion::new(name, pts))
+  Ok(FaceLandmarkRegion::try_new(name, pts)?)
 }
 
 fn face_lms_to_bson(f: &FaceLandmarksDetection) -> Bson {
   let mut d = Document::new();
-  d.insert("bbox", bbox_to_bson(f.bbox()));
+  d.insert("bbox", bbox_to_bson(f.bbox_ref()));
   d.insert("confidence", Bson::Double(f.confidence() as f64));
   d.insert(
     "regions",
-    Bson::Array(f.regions().iter().map(flm_region_to_bson).collect()),
+    Bson::Array(f.regions_slice().iter().map(flm_region_to_bson).collect()),
   );
   Bson::Document(d)
 }
@@ -1054,12 +1059,12 @@ fn face_lms_from_bson(b: Bson, field: &'static str) -> Result<FaceLandmarksDetec
     .into_iter()
     .map(|x| flm_region_from_bson(x, "regions[]"))
     .collect::<Result<Vec<_>, _>>()?;
-  Ok(FaceLandmarksDetection::new(bbox, c, regions))
+  Ok(FaceLandmarksDetection::try_new(bbox, c, regions)?)
 }
 
 fn person_instance_mask_to_bson(m: &PersonInstanceMaskDetection) -> Bson {
   let mut d = Document::new();
-  d.insert("bbox", bbox_to_bson(m.bbox()));
+  d.insert("bbox", bbox_to_bson(m.bbox_ref()));
   d.insert("confidence", Bson::Double(m.confidence() as f64));
   d.insert("instance_index", Bson::Int64(m.instance_index() as i64));
   d.insert("dimensions", dimensions_to_bson(m.dimensions()));
@@ -1077,12 +1082,14 @@ fn person_instance_mask_from_bson(
   let idx = as_u32(take(&mut d, "instance_index")?, "instance_index")?;
   let dims = dimensions_from_bson(take(&mut d, "dimensions")?, "dimensions")?;
   let data = as_binary(take(&mut d, "data")?, "data")?;
-  Ok(PersonInstanceMaskDetection::new(bbox, c, idx, dims, data))
+  Ok(PersonInstanceMaskDetection::try_new(
+    bbox, c, idx, dims, data,
+  )?)
 }
 
 fn person_seg_mask_to_bson(m: &PersonSegmentationMask) -> Bson {
   let mut d = Document::new();
-  d.insert("bbox", bbox_to_bson(m.bbox()));
+  d.insert("bbox", bbox_to_bson(m.bbox_ref()));
   d.insert("confidence", Bson::Double(m.confidence() as f64));
   d.insert("dimensions", dimensions_to_bson(m.dimensions()));
   d.insert("data", bytes_to_bson(m.data()));
@@ -1098,35 +1105,40 @@ fn person_seg_mask_from_bson(
   let c = as_f32(take(&mut d, "confidence")?, "confidence")?;
   let dims = dimensions_from_bson(take(&mut d, "dimensions")?, "dimensions")?;
   let data = as_binary(take(&mut d, "data")?, "data")?;
-  Ok(PersonSegmentationMask::new(bbox, c, dims, data))
+  Ok(PersonSegmentationMask::try_new(bbox, c, dims, data)?)
 }
 
 fn human_to_bson(h: &HumanAnalysis) -> Bson {
   let mut d = Document::new();
   d.insert(
     "subjects",
-    Bson::Array(h.subjects().iter().map(subject_to_bson).collect()),
+    Bson::Array(h.subjects_slice().iter().map(subject_to_bson).collect()),
   );
   d.insert(
     "faces",
-    Bson::Array(h.faces().iter().map(face_to_bson).collect()),
+    Bson::Array(h.faces_slice().iter().map(face_to_bson).collect()),
   );
   d.insert(
     "body_poses",
-    Bson::Array(h.body_poses().iter().map(body_pose_to_bson).collect()),
+    Bson::Array(h.body_poses_slice().iter().map(body_pose_to_bson).collect()),
   );
   d.insert(
     "hand_poses",
-    Bson::Array(h.hand_poses().iter().map(hand_pose_to_bson).collect()),
+    Bson::Array(h.hand_poses_slice().iter().map(hand_pose_to_bson).collect()),
   );
   d.insert(
     "body_poses_3d",
-    Bson::Array(h.body_poses_3d().iter().map(body_pose_3d_to_bson).collect()),
+    Bson::Array(
+      h.body_poses_3d_slice()
+        .iter()
+        .map(body_pose_3d_to_bson)
+        .collect(),
+    ),
   );
   d.insert(
     "instance_masks",
     Bson::Array(
-      h.instance_masks()
+      h.instance_masks_slice()
         .iter()
         .map(person_instance_mask_to_bson)
         .collect(),
@@ -1134,16 +1146,21 @@ fn human_to_bson(h: &HumanAnalysis) -> Bson {
   );
   d.insert(
     "face_rectangles",
-    Bson::Array(h.face_rectangles().iter().map(face_to_bson).collect()),
+    Bson::Array(h.face_rectangles_slice().iter().map(face_to_bson).collect()),
   );
   d.insert(
     "face_landmarks",
-    Bson::Array(h.face_landmarks().iter().map(face_lms_to_bson).collect()),
+    Bson::Array(
+      h.face_landmarks_slice()
+        .iter()
+        .map(face_lms_to_bson)
+        .collect(),
+    ),
   );
   d.insert(
     "segmentation_masks",
     Bson::Array(
-      h.segmentation_masks()
+      h.segmentation_masks_slice()
         .iter()
         .map(person_seg_mask_to_bson)
         .collect(),
@@ -1208,11 +1225,11 @@ fn animal_to_bson(a: &AnimalAnalysis) -> Bson {
   let mut d = Document::new();
   d.insert(
     "subjects",
-    Bson::Array(a.subjects().iter().map(subject_to_bson).collect()),
+    Bson::Array(a.subjects_slice().iter().map(subject_to_bson).collect()),
   );
   d.insert(
     "body_poses",
-    Bson::Array(a.body_poses().iter().map(body_pose_to_bson).collect()),
+    Bson::Array(a.body_poses_slice().iter().map(body_pose_to_bson).collect()),
   );
   Bson::Document(d)
 }
@@ -1249,20 +1266,20 @@ fn dominant_color_from_bson(b: Bson, field: &'static str) -> Result<DominantColo
   let name = as_smol(take(&mut d, "name")?, "name")?;
   let pct = as_f32(take(&mut d, "percentage")?, "percentage")?;
   let pop = as_u32(take(&mut d, "population")?, "population")?;
-  Ok(DominantColor::new(rgb, name, pct, pop))
+  Ok(DominantColor::try_new(rgb, name, pct, pop)?)
 }
 
 fn vlm_to_bson(v: &VlmAnalysis) -> Bson {
   let mut d = Document::new();
-  d.insert("categories", loc_text_vec_to_bson(v.categories()));
-  d.insert("description", loc_text_to_bson(v.description()));
-  d.insert("tags", loc_text_vec_to_bson(v.tags()));
+  d.insert("categories", loc_text_vec_to_bson(v.categories_slice()));
+  d.insert("description", loc_text_to_bson(v.description_ref()));
+  d.insert("tags", loc_text_vec_to_bson(v.tags_slice()));
   d.insert("shot_type", Bson::String(v.shot_type().to_owned()));
-  d.insert("objects", loc_text_vec_to_bson(v.objects()));
-  d.insert("subjects", loc_text_vec_to_bson(v.subjects()));
-  d.insert("mood", loc_text_vec_to_bson(v.mood()));
-  d.insert("emotion", loc_text_vec_to_bson(v.emotion()));
-  d.insert("lighting", loc_text_vec_to_bson(v.lighting()));
+  d.insert("objects", loc_text_vec_to_bson(v.objects_slice()));
+  d.insert("subjects", loc_text_vec_to_bson(v.subjects_slice()));
+  d.insert("mood", loc_text_vec_to_bson(v.mood_slice()));
+  d.insert("emotion", loc_text_vec_to_bson(v.emotion_slice()));
+  d.insert("lighting", loc_text_vec_to_bson(v.lighting_slice()));
   Bson::Document(d)
 }
 
@@ -1301,9 +1318,9 @@ fn vlm_from_bson(b: Bson, field: &'static str) -> Result<VlmAnalysis, MongoError
 impl From<&Keyframe<Uuid7>> for Document {
   fn from(k: &Keyframe<Uuid7>) -> Self {
     let mut d = Document::new();
-    d.insert("_id", uuid7_to_bson(*k.id()));
-    d.insert("parent", uuid7_to_bson(*k.parent()));
-    d.insert("pts", media_ts_to_bson(*k.pts()));
+    d.insert("_id", uuid7_to_bson(*k.id_ref()));
+    d.insert("parent", uuid7_to_bson(*k.parent_ref()));
+    d.insert("pts", media_ts_to_bson(*k.pts_ref()));
     d.insert("data", bytes_to_bson(k.data()));
     d.insert("mime", Bson::String(k.mime().to_owned()));
     d.insert("size", Bson::Int64(k.size() as i64));
@@ -1314,22 +1331,37 @@ impl From<&Keyframe<Uuid7>> for Document {
     );
     d.insert(
       "classifications",
-      Bson::Array(k.classifications().iter().map(detection_to_bson).collect()),
+      Bson::Array(
+        k.classifications_slice()
+          .iter()
+          .map(detection_to_bson)
+          .collect(),
+      ),
     );
     d.insert(
       "objects",
-      Bson::Array(k.objects().iter().map(object_detection_to_bson).collect()),
+      Bson::Array(
+        k.objects_slice()
+          .iter()
+          .map(object_detection_to_bson)
+          .collect(),
+      ),
     );
-    d.insert("humans", human_to_bson(k.humans()));
-    d.insert("animals", animal_to_bson(k.animals()));
+    d.insert("humans", human_to_bson(k.humans_ref()));
+    d.insert("animals", animal_to_bson(k.animals_ref()));
     d.insert(
       "actions",
-      Bson::Array(k.actions().iter().map(action_detection_to_bson).collect()),
+      Bson::Array(
+        k.actions_slice()
+          .iter()
+          .map(action_detection_to_bson)
+          .collect(),
+      ),
     );
     d.insert(
       "text_detections",
       Bson::Array(
-        k.text_detections()
+        k.text_detections_slice()
           .iter()
           .map(text_detection_to_bson)
           .collect(),
@@ -1337,12 +1369,12 @@ impl From<&Keyframe<Uuid7>> for Document {
     );
     d.insert(
       "barcodes",
-      Bson::Array(k.barcodes().iter().map(barcode_to_bson).collect()),
+      Bson::Array(k.barcodes_slice().iter().map(barcode_to_bson).collect()),
     );
     d.insert(
       "attention_saliency",
       Bson::Array(
-        k.attention_saliency()
+        k.attention_saliency_slice()
           .iter()
           .map(saliency_to_bson)
           .collect(),
@@ -1351,28 +1383,33 @@ impl From<&Keyframe<Uuid7>> for Document {
     d.insert(
       "objectness_saliency",
       Bson::Array(
-        k.objectness_saliency()
+        k.objectness_saliency_slice()
           .iter()
           .map(saliency_to_bson)
           .collect(),
       ),
     );
-    d.insert("horizon", horizon_to_bson(k.horizon()));
+    d.insert("horizon", horizon_to_bson(k.horizon_ref()));
     d.insert(
       "document_segments",
       Bson::Array(
-        k.document_segments()
+        k.document_segments_slice()
           .iter()
           .map(document_segment_to_bson)
           .collect(),
       ),
     );
-    d.insert("aesthetics", aesthetics_to_bson(k.aesthetics()));
+    d.insert("aesthetics", aesthetics_to_bson(k.aesthetics_ref()));
     d.insert(
       "colors",
-      Bson::Array(k.colors().iter().map(dominant_color_to_bson).collect()),
+      Bson::Array(
+        k.colors_slice()
+          .iter()
+          .map(dominant_color_to_bson)
+          .collect(),
+      ),
     );
-    d.insert("vlm", vlm_to_bson(k.vlm()));
+    d.insert("vlm", vlm_to_bson(k.vlm_ref()));
     d
   }
 }
@@ -1397,9 +1434,10 @@ impl TryFrom<Document> for Keyframe<Uuid7> {
     if let Some(b) = take_opt(&mut d, "mime") {
       k.set_mime(as_smol(b, "mime")?);
     }
-    if let Some(b) = take_opt(&mut d, "size") {
-      k.set_size(as_u32(b, "size")?);
-    }
+    // `size` is derived from `data` (`Keyframe::size()`); it is written
+    // to the document for query/projection use but never decoded — once
+    // `data` is restored above, `size()` round-trips for free.
+    let _ = take_opt(&mut d, "size");
     if let Some(b) = take_opt(&mut d, "classifications") {
       let v = as_array(b, "classifications")?
         .into_iter()
@@ -1510,9 +1548,11 @@ mod tests {
   fn video_facet_roundtrip() {
     let v = Video::try_new(Uuid7::new())
       .unwrap()
-      .with_total_scenes(7)
       .with_tracks(vec![Uuid7::new(), Uuid7::new()])
-      .with_track_progress(VIndexProgress::try_new(2, 1, 0).unwrap());
+      .try_with_total_scenes(7)
+      .unwrap()
+      .try_with_track_progress(VIndexProgress::try_new(2, 1, 0).unwrap())
+      .unwrap();
     let doc: Document = (&v).into();
     let v2: Video<Uuid7> = doc.try_into().unwrap();
     assert_eq!(v, v2);
@@ -1542,7 +1582,8 @@ mod tests {
       .with_stream_index(Some(0))
       .with_container_track_id(Some(7))
       .with_start_pts(Some(MediaTimestamp::new(0, tb())))
-      .with_duration(Some(MediaTimestamp::new(60_000, tb())))
+      .try_with_duration(Some(MediaTimestamp::new(60_000, tb())))
+      .unwrap()
       .with_codec(VideoCodec::Hevc)
       .with_profile(Some(SmolStr::from("Main10")))
       .with_level(Some(150))
@@ -1551,8 +1592,10 @@ mod tests {
       .with_has_b_frames(true)
       .with_closed_gop(Some(true))
       .with_bits_per_raw_sample(Some(10))
-      .with_dimensions(Dimensions::new(3840, 2160))
-      .with_visible_rect(Some(Rect::new(0, 0, 3840, 2160)))
+      .try_with_dimensions(Dimensions::new(3840, 2160))
+      .unwrap()
+      .try_with_visible_rect(Some(Rect::new(0, 0, 3840, 2160)))
+      .unwrap()
       .with_sample_aspect_ratio(SampleAspectRatio::new(1, NonZeroU32::new(1).unwrap()))
       .with_pixel_format(PixelFormat::from_u32(0x0a))
       .with_color(ColorInfo::new(
@@ -1607,46 +1650,52 @@ mod tests {
     )
     .unwrap()
     .with_mime("image/jpeg")
-    .with_size(42_000)
     .with_data(vec![0xff, 0xd8, 0xff])
-    .with_classifications(vec![Detection::new("dog", 0.97)])
+    .with_classifications(vec![Detection::try_new("dog", 0.97).unwrap()])
     .with_objects(vec![ObjectDetection::new(
-      Detection::new("dog", 0.95),
-      Some(BoundingBox::new(0.1, 0.2, 0.3, 0.4)),
+      Detection::try_new("dog", 0.95).unwrap(),
+      Some(BoundingBox::try_new(0.1, 0.2, 0.3, 0.4).unwrap()),
     )])
-    .with_humans(HumanAnalysis::new().with_faces(vec![FaceDetection::new(
-      BoundingBox::new(0.0, 0.0, 0.5, 0.5),
+    .with_humans(HumanAnalysis::new().with_faces(vec![FaceDetection::try_new(
+      BoundingBox::try_new(0.0, 0.0, 0.5, 0.5).unwrap(),
       0.9,
       0.8,
       0.0,
       0.0,
       0.0,
-    )]))
+    )
+    .unwrap()]))
     .with_animals(AnimalAnalysis::new())
-    .with_actions(vec![ActionDetection::new(Detection::new("run", 0.6))])
-    .with_text_detections(vec![TextDetection::new(
+    .with_actions(vec![ActionDetection::new(
+      Detection::try_new("run", 0.6).unwrap(),
+    )])
+    .with_text_detections(vec![TextDetection::try_new(
       "hello",
       0.92,
-      BoundingBox::new(0.0, 0.0, 1.0, 1.0),
-    )])
-    .with_barcodes(vec![BarcodeDetection::new(
+      BoundingBox::try_new(0.0, 0.0, 1.0, 1.0).unwrap(),
+    )
+    .unwrap()])
+    .with_barcodes(vec![BarcodeDetection::try_new(
       "abc",
       "qr",
       0.99,
-      BoundingBox::new(0.0, 0.0, 0.1, 0.1),
-    )])
-    .with_attention_saliency(vec![SaliencyRegion::new(
-      BoundingBox::new(0.0, 0.0, 0.2, 0.2),
+      BoundingBox::try_new(0.0, 0.0, 0.1, 0.1).unwrap(),
+    )
+    .unwrap()])
+    .with_attention_saliency(vec![SaliencyRegion::try_new(
+      BoundingBox::try_new(0.0, 0.0, 0.2, 0.2).unwrap(),
       0.5,
-    )])
-    .with_horizon(HorizonInfo::new(0.05, 0.99))
+    )
+    .unwrap()])
+    .with_horizon(HorizonInfo::try_new(0.05, 0.99).unwrap())
     .with_aesthetics(Aesthetics::new(0.8, false))
-    .with_colors(vec![DominantColor::new(
+    .with_colors(vec![DominantColor::try_new(
       Rgba::from_components(0xff, 0x80, 0x00, 0xff),
       "orange",
       35.0,
       1024,
-    )])
+    )
+    .unwrap()])
     .with_vlm(
       VlmAnalysis::new()
         .with_description(LocalizedText::from_src("a dog running"))

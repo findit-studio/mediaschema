@@ -10,17 +10,18 @@ use smol_str::SmolStr;
 
 use crate::domain::{
   aggregates::{
-    audio::{AudioError, AudioSegmentError, AudioTrackError},
+    audio::{segment::WordError, AudioError, AudioSegmentError, AudioTrackError},
     curation::{NilIdError, SceneAnnotationError},
     media::MediaError,
     speaker::SpeakerError,
     subtitle::{cue::SubtitleCueError, facet::SubtitleError, track::SubtitleTrackError},
     video::{
-      facet::VideoError, keyframe::KeyframeError, scene::SceneError, track::VideoTrackError,
+      detections::DetectionError, facet::VideoError, keyframe::KeyframeError, scene::SceneError,
+      track::VideoTrackError,
     },
     watched_location::WatchedLocationError,
   },
-  primitives::Uuid7Error,
+  primitives::{LocationError, Uuid7Error},
 };
 
 /// Backend-specific error returned when a `bson::Document` cannot be
@@ -58,6 +59,12 @@ pub enum MongoError {
   /// A `Uuid7` round-trip rejected the binary payload (nil / non-v7).
   #[error("Uuid7 decode failed: {0}")]
   Uuid7(#[from] Uuid7Error),
+  /// A `{volume, components}` document violated a [`Location`]
+  /// invariant (nil volume / empty path).
+  ///
+  /// [`Location`]: crate::domain::primitives::Location
+  #[error("Location decode failed: {0}")]
+  Location(#[from] LocationError),
 
   // `mediaframe` value-object rejections surfaced at the bson edge —
   // these flow up from the typed descriptor / VO decoders (`Language`
@@ -96,6 +103,8 @@ pub enum MongoError {
   AudioTrack(#[from] AudioTrackError),
   #[error("AudioSegment try_new rejected: {0}")]
   AudioSegment(#[from] AudioSegmentError),
+  #[error("Word try_from_parts rejected: {0}")]
+  Word(#[from] WordError),
   #[error("Video try_new rejected: {0}")]
   Video(#[from] VideoError),
   #[error("VideoTrack try_new rejected: {0}")]
@@ -104,6 +113,8 @@ pub enum MongoError {
   Scene(#[from] SceneError),
   #[error("Keyframe try_new rejected: {0}")]
   Keyframe(#[from] KeyframeError),
+  #[error("keyframe detection VO try_new rejected: {0}")]
+  Detection(#[from] DetectionError),
   #[error("Subtitle try_new rejected: {0}")]
   Subtitle(#[from] SubtitleError),
   #[error("SubtitleTrack try_new rejected: {0}")]

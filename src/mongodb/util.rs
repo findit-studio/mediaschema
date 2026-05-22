@@ -503,12 +503,12 @@ pub(super) fn location_to_bson(loc: &Location<Uuid7>) -> Bson {
   let local = loc.unwrap_local_ref();
   let mut d = Document::new();
   d.insert("kind", Bson::String("local".to_owned()));
-  d.insert("volume", uuid7_to_bson(*local.volume()));
+  d.insert("volume", uuid7_to_bson(*local.volume_ref()));
   d.insert(
     "components",
     Bson::Array(
       local
-        .components()
+        .components_slice()
         .iter()
         .map(|s| Bson::String(s.as_str().to_owned()))
         .collect(),
@@ -531,10 +531,7 @@ pub(super) fn location_from_bson(
     .into_iter()
     .map(|v| as_smol(v, "components[]"))
     .collect::<Result<Vec<_>, _>>()?;
-  Location::try_local_uuid7(volume, components).map_err(|e| {
-    use crate::domain::aggregates::watched_location::WatchedLocationError;
-    MongoError::WatchedLocation(WatchedLocationError::Root(e))
-  })
+  Ok(Location::try_local_uuid7(volume, components)?)
 }
 
 // ---------------------------------------------------------------------------
@@ -549,20 +546,6 @@ pub(super) fn uuid7_vec_from_bson(b: Bson, field: &'static str) -> Result<Vec<Uu
   as_array(b, field)?
     .into_iter()
     .map(|v| uuid7_from_bson(v, field))
-    .collect()
-}
-
-// ---------------------------------------------------------------------------
-// SmolStr vec helpers (round-trippable Array of String → Vec<SmolStr>)
-// ---------------------------------------------------------------------------
-
-pub(super) fn smolstr_vec_from_bson(
-  b: Bson,
-  field: &'static str,
-) -> Result<Vec<SmolStr>, MongoError> {
-  as_array(b, field)?
-    .into_iter()
-    .map(|v| as_smol(v, field))
     .collect()
 }
 

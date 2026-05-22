@@ -42,11 +42,9 @@ shape is constant.
 | --- | --- | --- |
 | `_id` | `Binary(uuid)` | `Media.id` (`Uuid7`) |
 | `checksum` | `Binary(generic, 32)` | unique index |
-| `name` | `String` | |
 | `format` | `String` | container slug |
 | `size` | `Int64` | |
 | `duration` | `Timestamp` or `Null` | `mediatime::Timestamp` |
-| `created_at` | `DateTime` | |
 | `kind` | `Int32` | `0=Video / 1=Audio` |
 | `video` | `Binary(uuid)` or `Null` | facet FK |
 | `audio` | `Binary(uuid)` or `Null` | facet FK |
@@ -64,7 +62,7 @@ Indexes: unique `checksum`, plus `kind`, `error_flags`, `capture_date`.
 | field | type |
 | --- | --- |
 | `_id` | `Binary(uuid)` |
-| `root` | `Location` (see cheatsheet) |
+| `volume` | `Binary(uuid)` (stable volume UUID) |
 | `recursive` | `Boolean` |
 | `enabled` | `Boolean` |
 | `is_ejectable` | `Boolean` |
@@ -73,7 +71,7 @@ Indexes: unique `checksum`, plus `kind`, `error_flags`, `capture_date`.
 | `last_reconcile_status` | `Int32` (`0=Ok / 1=Partial / 2=Failed`) or `Null` |
 | `last_error` | `ErrorInfo` or `Null` |
 
-Indexes: `root.volume`, `enabled`.
+Indexes: `volume`, `enabled`.
 
 ### `speakers`
 

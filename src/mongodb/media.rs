@@ -91,51 +91,53 @@ fn geo_from_bson(b: Bson, field: &'static str) -> Result<GeoLocation, MongoError
 impl From<&Media<Uuid7>> for Document {
   fn from(m: &Media<Uuid7>) -> Self {
     let mut d = Document::new();
-    d.insert("_id", uuid7_to_bson(*m.id()));
-    d.insert("checksum", checksum_to_bson(m.checksum()));
-    d.insert("name", Bson::String(m.name().to_owned()));
-    d.insert("format", Bson::String(m.format().as_str().to_owned()));
+    d.insert("_id", uuid7_to_bson(*m.id_ref()));
+    d.insert("checksum", checksum_to_bson(m.checksum_ref()));
+    d.insert("format", Bson::String(m.format_ref().as_str().to_owned()));
     d.insert("size", Bson::Int64(m.size() as i64));
     d.insert(
       "duration",
-      m.duration()
+      m.duration_ref()
         .map(|t| media_ts_to_bson(*t))
         .unwrap_or(Bson::Null),
     );
-    d.insert("created_at", jiff_to_bson(*m.created_at()));
     d.insert("kind", Bson::Int32(media_kind_to_i32(m.kind())));
     d.insert(
       "video",
-      m.video().map(|i| uuid7_to_bson(*i)).unwrap_or(Bson::Null),
+      m.video_ref()
+        .map(|i| uuid7_to_bson(*i))
+        .unwrap_or(Bson::Null),
     );
     d.insert(
       "audio",
-      m.audio().map(|i| uuid7_to_bson(*i)).unwrap_or(Bson::Null),
+      m.audio_ref()
+        .map(|i| uuid7_to_bson(*i))
+        .unwrap_or(Bson::Null),
     );
     d.insert(
       "subtitle",
-      m.subtitle()
+      m.subtitle_ref()
         .map(|i| uuid7_to_bson(*i))
         .unwrap_or(Bson::Null),
     );
     d.insert("error_flags", Bson::Int64(m.error_flags().bits() as i64));
     d.insert(
       "probe_error",
-      m.probe_error()
+      m.probe_error_ref()
         .map(error_info_to_bson)
         .unwrap_or(Bson::Null),
     );
     d.insert(
       "capture_date",
-      m.capture_date()
+      m.capture_date_ref()
         .map(|t| jiff_to_bson(*t))
         .unwrap_or(Bson::Null),
     );
     d.insert(
       "device",
-      m.device().map(device_to_bson).unwrap_or(Bson::Null),
+      m.device_ref().map(device_to_bson).unwrap_or(Bson::Null),
     );
-    d.insert("gps", m.gps().map(geo_to_bson).unwrap_or(Bson::Null));
+    d.insert("gps", m.gps_ref().map(geo_to_bson).unwrap_or(Bson::Null));
     d
   }
 }
@@ -146,17 +148,15 @@ impl TryFrom<Document> for Media<Uuid7> {
   fn try_from(mut d: Document) -> Result<Self, Self::Error> {
     let id = uuid7_from_bson(take(&mut d, "_id")?, "_id")?;
     let checksum = checksum_from_bson(take(&mut d, "checksum")?, "checksum")?;
-    let name = as_smol(take(&mut d, "name")?, "name")?;
     // `Format: FromStr<Err = Infallible>` — unknown slugs land in
     // `Other`, so the parse is total.
     let Ok(format) = Format::from_str(&as_str(take(&mut d, "format")?, "format")?);
     let size = as_u64(take(&mut d, "size")?, "size")?;
-    let created_at = jiff_from_bson(take(&mut d, "created_at")?, "created_at")?;
     let kind = media_kind_from_i64(as_i64(take(&mut d, "kind")?, "kind")?, "kind")?;
-    let mut m = Media::try_new(id, checksum, name, format, size, created_at, kind)?;
+    let mut m = Media::try_new(id, checksum, format, size, kind)?;
 
     if let Some(b) = take_opt(&mut d, "duration") {
-      m.set_duration(Some(media_ts_from_bson(b, "duration")?));
+      m.try_set_duration(Some(media_ts_from_bson(b, "duration")?))?;
     }
     if let Some(b) = take_opt(&mut d, "video") {
       m.set_video(Some(uuid7_from_bson(b, "video")?));
@@ -219,16 +219,7 @@ mod tests {
 
   #[test]
   fn media_minimal_roundtrip() {
-    let m = Media::try_new(
-      Uuid7::new(),
-      cs(),
-      "clip.mp4",
-      mp4(),
-      12_345,
-      JiffTimestamp::default(),
-      MediaKind::Video,
-    )
-    .unwrap();
+    let m = Media::try_new(Uuid7::new(), cs(), mp4(), 12_345, MediaKind::Video).unwrap();
     let doc: Document = (&m).into();
     let m2: Media<Uuid7> = doc.try_into().unwrap();
     assert_eq!(m, m2);
@@ -236,29 +227,22 @@ mod tests {
 
   #[test]
   fn media_full_roundtrip() {
-    let m = Media::try_new(
-      Uuid7::new(),
-      cs(),
-      "clip.mp4",
-      mp4(),
-      999_999,
-      JiffTimestamp::default(),
-      MediaKind::Audio,
-    )
-    .unwrap()
-    .with_video(Some(Uuid7::new()))
-    .with_audio(Some(Uuid7::new()))
-    .with_subtitle(Some(Uuid7::new()))
-    .with_duration(Some(MediaTimestamp::new(60_000, tb())))
-    .with_error_flags(MediaErrorFlags::AUDIO_ERROR | MediaErrorFlags::SUBTITLE_ERROR)
-    .with_probe_error(Some(ErrorInfo::new(ErrorCode::ProbeCorrupt, "bad header")))
-    .with_capture_date(Some(JiffTimestamp::default()))
-    .with_device(Some(
-      Device::new().with_make("Apple").with_model("iPhone 15 Pro"),
-    ))
-    .with_gps(Some(
-      GeoLocation::try_new(37.7749, -122.4194, Some(20.0)).unwrap(),
-    ));
+    let m = Media::try_new(Uuid7::new(), cs(), mp4(), 999_999, MediaKind::Audio)
+      .unwrap()
+      .with_video(Some(Uuid7::new()))
+      .with_audio(Some(Uuid7::new()))
+      .with_subtitle(Some(Uuid7::new()))
+      .try_with_duration(Some(MediaTimestamp::new(60_000, tb())))
+      .unwrap()
+      .with_error_flags(MediaErrorFlags::AUDIO_ERROR | MediaErrorFlags::SUBTITLE_ERROR)
+      .with_probe_error(Some(ErrorInfo::new(ErrorCode::ProbeCorrupt, "bad header")))
+      .with_capture_date(Some(JiffTimestamp::default()))
+      .with_device(Some(
+        Device::new().with_make("Apple").with_model("iPhone 15 Pro"),
+      ))
+      .with_gps(Some(
+        GeoLocation::try_new(37.7749, -122.4194, Some(20.0)).unwrap(),
+      ));
     let doc: Document = (&m).into();
     let m2: Media<Uuid7> = doc.try_into().unwrap();
     assert_eq!(m, m2);
@@ -277,10 +261,8 @@ mod tests {
     let mut d = Document::new();
     d.insert("_id", uuid7_to_bson(Uuid7::new()));
     d.insert("checksum", checksum_to_bson(&FileChecksum::new()));
-    d.insert("name", "x");
     d.insert("format", "mp4");
     d.insert("size", Bson::Int64(0));
-    d.insert("created_at", jiff_to_bson(JiffTimestamp::default()));
     d.insert("kind", Bson::Int32(0));
     let err = Media::<Uuid7>::try_from(d).unwrap_err();
     assert!(err.is_media());
