@@ -91,7 +91,7 @@ impl Confidence {
 
   /// The validated confidence as a raw `f32` (always finite, in
   /// `0.0..=1.0`).
-  #[inline]
+  #[inline(always)]
   pub const fn get(self) -> f32 {
     self.0
   }
@@ -120,7 +120,7 @@ impl NormCoord {
 
   /// The validated coordinate as a raw `f32` (always finite, in
   /// `0.0..=1.0`).
-  #[inline]
+  #[inline(always)]
   pub const fn get(self) -> f32 {
     self.0
   }
@@ -153,20 +153,20 @@ impl Detection {
   }
 
   /// The detected label.
-  #[inline]
+  #[inline(always)]
   pub fn label(&self) -> &str {
     self.label.as_str()
   }
 
   /// Calibrated apple-vision confidence (finite, `0.0..=1.0`).
-  #[inline]
+  #[inline(always)]
   pub const fn confidence(&self) -> f32 {
     self.confidence.get()
   }
 
   /// Builder: replace label.
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub fn with_label(mut self, label: impl Into<SmolStr>) -> Self {
     self.label = label.into();
     self
@@ -181,7 +181,7 @@ impl Detection {
   }
 
   /// In-place mutator for label.
-  #[inline]
+  #[inline(always)]
   pub fn set_label(&mut self, label: impl Into<SmolStr>) -> &mut Self {
     self.label = label.into();
     self
@@ -265,22 +265,22 @@ impl BoundingBox {
   }
 
   /// `x` (left edge).
-  #[inline]
+  #[inline(always)]
   pub const fn x(&self) -> f32 {
     self.x.get()
   }
   /// `y` (top edge).
-  #[inline]
+  #[inline(always)]
   pub const fn y(&self) -> f32 {
     self.y.get()
   }
   /// Width.
-  #[inline]
+  #[inline(always)]
   pub const fn width(&self) -> f32 {
     self.width.get()
   }
   /// Height.
-  #[inline]
+  #[inline(always)]
   pub const fn height(&self) -> f32 {
     self.height.get()
   }
@@ -299,33 +299,33 @@ pub struct ObjectDetection {
 
 impl ObjectDetection {
   /// Construct.
-  #[inline]
+  #[inline(always)]
   pub const fn new(detection: Detection, bbox: Option<BoundingBox>) -> Self {
     Self { detection, bbox }
   }
 
   /// Inner `{label, confidence}`.
-  #[inline]
+  #[inline(always)]
   pub const fn detection_ref(&self) -> &Detection {
     &self.detection
   }
 
   /// Optional bounding box.
-  #[inline]
+  #[inline(always)]
   pub const fn bbox_ref(&self) -> Option<&BoundingBox> {
     self.bbox.as_ref()
   }
 
   /// Builder: replace bbox.
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub const fn with_bbox(mut self, bbox: Option<BoundingBox>) -> Self {
     self.bbox = bbox;
     self
   }
 
   /// In-place mutator for bbox.
-  #[inline]
+  #[inline(always)]
   pub const fn set_bbox(&mut self, bbox: Option<BoundingBox>) -> &mut Self {
     self.bbox = bbox;
     self
@@ -340,13 +340,13 @@ pub struct ActionDetection {
 
 impl ActionDetection {
   /// Construct.
-  #[inline]
+  #[inline(always)]
   pub const fn new(detection: Detection) -> Self {
     Self { detection }
   }
 
   /// Inner `{label, confidence}`.
-  #[inline]
+  #[inline(always)]
   pub const fn detection_ref(&self) -> &Detection {
     &self.detection
   }
@@ -377,17 +377,17 @@ impl TextDetection {
   }
 
   /// Detected text.
-  #[inline]
+  #[inline(always)]
   pub fn text(&self) -> &str {
     self.text.as_str()
   }
   /// Confidence (finite, `0.0..=1.0`).
-  #[inline]
+  #[inline(always)]
   pub const fn confidence(&self) -> f32 {
     self.confidence.get()
   }
   /// Bounding box.
-  #[inline]
+  #[inline(always)]
   pub const fn bbox_ref(&self) -> &BoundingBox {
     &self.bbox
   }
@@ -421,22 +421,22 @@ impl BarcodeDetection {
   }
 
   /// Decoded payload.
-  #[inline]
+  #[inline(always)]
   pub fn payload(&self) -> &str {
     self.payload.as_str()
   }
   /// Symbology name (`"qr"`, `"ean13"`, …).
-  #[inline]
+  #[inline(always)]
   pub fn symbology(&self) -> &str {
     self.symbology.as_str()
   }
   /// Confidence (finite, `0.0..=1.0`).
-  #[inline]
+  #[inline(always)]
   pub const fn confidence(&self) -> f32 {
     self.confidence.get()
   }
   /// Bounding box.
-  #[inline]
+  #[inline(always)]
   pub const fn bbox_ref(&self) -> &BoundingBox {
     &self.bbox
   }
@@ -461,12 +461,12 @@ impl SaliencyRegion {
   }
 
   /// Bounding box.
-  #[inline]
+  #[inline(always)]
   pub const fn bbox_ref(&self) -> &BoundingBox {
     &self.bbox
   }
   /// Confidence (finite, `0.0..=1.0`).
-  #[inline]
+  #[inline(always)]
   pub const fn confidence(&self) -> f32 {
     self.confidence.get()
   }
@@ -493,13 +493,13 @@ impl HorizonInfo {
   }
 
   /// Horizon angle (radians, per apple-vision).
-  #[inline]
+  #[inline(always)]
   pub const fn angle(&self) -> f32 {
     self.angle
   }
 
   /// Confidence (finite, `0.0..=1.0`).
-  #[inline]
+  #[inline(always)]
   pub const fn confidence(&self) -> f32 {
     self.confidence.get()
   }
@@ -621,27 +621,27 @@ impl DocumentSegment {
   }
 
   /// Top-left corner.
-  #[inline]
+  #[inline(always)]
   pub const fn top_left(&self) -> (f32, f32) {
     (self.top_left.0.get(), self.top_left.1.get())
   }
   /// Top-right corner.
-  #[inline]
+  #[inline(always)]
   pub const fn top_right(&self) -> (f32, f32) {
     (self.top_right.0.get(), self.top_right.1.get())
   }
   /// Bottom-right corner.
-  #[inline]
+  #[inline(always)]
   pub const fn bottom_right(&self) -> (f32, f32) {
     (self.bottom_right.0.get(), self.bottom_right.1.get())
   }
   /// Bottom-left corner.
-  #[inline]
+  #[inline(always)]
   pub const fn bottom_left(&self) -> (f32, f32) {
     (self.bottom_left.0.get(), self.bottom_left.1.get())
   }
   /// Confidence (finite, `0.0..=1.0`).
-  #[inline]
+  #[inline(always)]
   pub const fn confidence(&self) -> f32 {
     self.confidence.get()
   }
@@ -746,22 +746,22 @@ impl BodyPoseJoint {
   }
 
   /// Joint name (apple-vision string id).
-  #[inline]
+  #[inline(always)]
   pub fn name(&self) -> &str {
     self.name.as_str()
   }
   /// `x` coordinate (normalised, `0.0..=1.0`).
-  #[inline]
+  #[inline(always)]
   pub const fn x(&self) -> f32 {
     self.x.get()
   }
   /// `y` coordinate (normalised, `0.0..=1.0`).
-  #[inline]
+  #[inline(always)]
   pub const fn y(&self) -> f32 {
     self.y.get()
   }
   /// Confidence (finite, `0.0..=1.0`).
-  #[inline]
+  #[inline(always)]
   pub const fn confidence(&self) -> f32 {
     self.confidence.get()
   }
@@ -800,27 +800,27 @@ impl BodyPose3DJoint {
   }
 
   /// Joint name.
-  #[inline]
+  #[inline(always)]
   pub fn name(&self) -> &str {
     self.name.as_str()
   }
   /// `x` coordinate.
-  #[inline]
+  #[inline(always)]
   pub const fn x(&self) -> f32 {
     self.x
   }
   /// `y` coordinate.
-  #[inline]
+  #[inline(always)]
   pub const fn y(&self) -> f32 {
     self.y
   }
   /// `z` coordinate.
-  #[inline]
+  #[inline(always)]
   pub const fn z(&self) -> f32 {
     self.z
   }
   /// Confidence (finite, `0.0..=1.0`).
-  #[inline]
+  #[inline(always)]
   pub const fn confidence(&self) -> f32 {
     self.confidence.get()
   }
@@ -871,17 +871,17 @@ impl BodyPoseDetection {
   }
 
   /// Bounding box.
-  #[inline]
+  #[inline(always)]
   pub const fn bbox_ref(&self) -> &BoundingBox {
     &self.bbox
   }
   /// Confidence (finite, `0.0..=1.0`).
-  #[inline]
+  #[inline(always)]
   pub const fn confidence(&self) -> f32 {
     self.confidence.get()
   }
   /// Pose joints.
-  #[inline]
+  #[inline(always)]
   pub fn joints_slice(&self) -> &[BodyPoseJoint] {
     &self.joints
   }
@@ -915,22 +915,22 @@ impl HandPoseDetection {
   }
 
   /// Bounding box.
-  #[inline]
+  #[inline(always)]
   pub const fn bbox_ref(&self) -> &BoundingBox {
     &self.bbox
   }
   /// Confidence (finite, `0.0..=1.0`).
-  #[inline]
+  #[inline(always)]
   pub const fn confidence(&self) -> f32 {
     self.confidence.get()
   }
   /// Hand chirality.
-  #[inline]
+  #[inline(always)]
   pub const fn chirality(&self) -> HandChirality {
     self.chirality
   }
   /// Hand pose joints.
-  #[inline]
+  #[inline(always)]
   pub fn joints_slice(&self) -> &[BodyPoseJoint] {
     &self.joints
   }
@@ -966,22 +966,22 @@ impl BodyPose3DDetection {
   }
 
   /// Confidence (finite, `0.0..=1.0`).
-  #[inline]
+  #[inline(always)]
   pub const fn confidence(&self) -> f32 {
     self.confidence.get()
   }
   /// Body height (apple-vision estimate, metres).
-  #[inline]
+  #[inline(always)]
   pub const fn body_height(&self) -> f32 {
     self.body_height
   }
   /// Source of the height estimate.
-  #[inline]
+  #[inline(always)]
   pub const fn height_estimation(&self) -> BodyPose3DHeightEstimation {
     self.height_estimation
   }
   /// 3-D joints.
-  #[inline]
+  #[inline(always)]
   pub fn joints_slice(&self) -> &[BodyPose3DJoint] {
     &self.joints
   }
@@ -1000,19 +1000,19 @@ pub struct SubjectDetection {
 
 impl SubjectDetection {
   /// Construct.
-  #[inline]
+  #[inline(always)]
   pub const fn new(detection: Detection, bbox: BoundingBox) -> Self {
     Self { detection, bbox }
   }
 
   /// Inner `{label, confidence}`.
-  #[inline]
+  #[inline(always)]
   pub const fn detection_ref(&self) -> &Detection {
     &self.detection
   }
 
   /// Bounding box.
-  #[inline]
+  #[inline(always)]
   pub const fn bbox_ref(&self) -> &BoundingBox {
     &self.bbox
   }
@@ -1058,32 +1058,32 @@ impl FaceDetection {
   }
 
   /// Bounding box.
-  #[inline]
+  #[inline(always)]
   pub const fn bbox_ref(&self) -> &BoundingBox {
     &self.bbox
   }
   /// Confidence (finite, `0.0..=1.0`).
-  #[inline]
+  #[inline(always)]
   pub const fn confidence(&self) -> f32 {
     self.confidence.get()
   }
   /// Face capture quality (apple-vision).
-  #[inline]
+  #[inline(always)]
   pub const fn capture_quality(&self) -> f32 {
     self.capture_quality
   }
   /// Roll angle (radians).
-  #[inline]
+  #[inline(always)]
   pub const fn roll(&self) -> f32 {
     self.roll
   }
   /// Yaw angle (radians).
-  #[inline]
+  #[inline(always)]
   pub const fn yaw(&self) -> f32 {
     self.yaw
   }
   /// Pitch angle (radians).
-  #[inline]
+  #[inline(always)]
   pub const fn pitch(&self) -> f32 {
     self.pitch
   }
@@ -1120,7 +1120,7 @@ impl FaceLandmarkRegion {
   }
 
   /// Region name.
-  #[inline]
+  #[inline(always)]
   pub fn name(&self) -> &str {
     self.name.as_str()
   }
@@ -1158,17 +1158,17 @@ impl FaceLandmarksDetection {
   }
 
   /// Bounding box.
-  #[inline]
+  #[inline(always)]
   pub const fn bbox_ref(&self) -> &BoundingBox {
     &self.bbox
   }
   /// Confidence (finite, `0.0..=1.0`).
-  #[inline]
+  #[inline(always)]
   pub const fn confidence(&self) -> f32 {
     self.confidence.get()
   }
   /// Landmark regions.
-  #[inline]
+  #[inline(always)]
   pub fn regions_slice(&self) -> &[FaceLandmarkRegion] {
     &self.regions
   }
@@ -1233,27 +1233,27 @@ impl PersonInstanceMaskDetection {
   }
 
   /// Bounding box.
-  #[inline]
+  #[inline(always)]
   pub const fn bbox_ref(&self) -> &BoundingBox {
     &self.bbox
   }
   /// Confidence (finite, `0.0..=1.0`).
-  #[inline]
+  #[inline(always)]
   pub const fn confidence(&self) -> f32 {
     self.confidence.get()
   }
   /// Per-instance index (apple-vision).
-  #[inline]
+  #[inline(always)]
   pub const fn instance_index(&self) -> u32 {
     self.instance_index
   }
   /// Mask dimensions (`mediaframe::frame::Dimensions`).
-  #[inline]
+  #[inline(always)]
   pub const fn dimensions(&self) -> Dimensions {
     self.dimensions
   }
   /// Raw mask bytes (`bytes::Bytes`).
-  #[inline]
+  #[inline(always)]
   pub fn data(&self) -> &[u8] {
     &self.data
   }
@@ -1301,22 +1301,22 @@ impl PersonSegmentationMask {
   }
 
   /// Bounding box.
-  #[inline]
+  #[inline(always)]
   pub const fn bbox_ref(&self) -> &BoundingBox {
     &self.bbox
   }
   /// Confidence (finite, `0.0..=1.0`).
-  #[inline]
+  #[inline(always)]
   pub const fn confidence(&self) -> f32 {
     self.confidence.get()
   }
   /// Mask dimensions (`mediaframe::frame::Dimensions`).
-  #[inline]
+  #[inline(always)]
   pub const fn dimensions(&self) -> Dimensions {
     self.dimensions
   }
   /// Raw mask bytes (`bytes::Bytes`).
-  #[inline]
+  #[inline(always)]
   pub fn data(&self) -> &[u8] {
     &self.data
   }
@@ -1345,7 +1345,7 @@ pub struct HumanAnalysis {
 
 impl HumanAnalysis {
   /// Empty block — the canonical no-arg constructor.
-  #[inline]
+  #[inline(always)]
   pub const fn new() -> Self {
     Self {
       subjects: std::vec::Vec::new(),
@@ -1361,83 +1361,83 @@ impl HumanAnalysis {
   }
 
   /// Subjects.
-  #[inline]
+  #[inline(always)]
   pub fn subjects_slice(&self) -> &[SubjectDetection] {
     &self.subjects
   }
   /// Faces.
-  #[inline]
+  #[inline(always)]
   pub fn faces_slice(&self) -> &[FaceDetection] {
     &self.faces
   }
   /// 2-D body poses.
-  #[inline]
+  #[inline(always)]
   pub fn body_poses_slice(&self) -> &[BodyPoseDetection] {
     &self.body_poses
   }
   /// 2-D hand poses.
-  #[inline]
+  #[inline(always)]
   pub fn hand_poses_slice(&self) -> &[HandPoseDetection] {
     &self.hand_poses
   }
   /// 3-D body poses.
-  #[inline]
+  #[inline(always)]
   pub fn body_poses_3d_slice(&self) -> &[BodyPose3DDetection] {
     &self.body_poses_3d
   }
   /// Per-person instance masks.
-  #[inline]
+  #[inline(always)]
   pub fn instance_masks_slice(&self) -> &[PersonInstanceMaskDetection] {
     &self.instance_masks
   }
   /// Face rectangles (apple-vision face-detect request).
-  #[inline]
+  #[inline(always)]
   pub fn face_rectangles_slice(&self) -> &[FaceDetection] {
     &self.face_rectangles
   }
   /// Face-landmark detections.
-  #[inline]
+  #[inline(always)]
   pub fn face_landmarks_slice(&self) -> &[FaceLandmarksDetection] {
     &self.face_landmarks
   }
   /// Whole-frame person segmentation masks.
-  #[inline]
+  #[inline(always)]
   pub fn segmentation_masks_slice(&self) -> &[PersonSegmentationMask] {
     &self.segmentation_masks
   }
 
   // --- builders ---
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub fn with_subjects(mut self, v: impl Into<std::vec::Vec<SubjectDetection>>) -> Self {
     self.subjects = v.into();
     self
   }
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub fn with_faces(mut self, v: impl Into<std::vec::Vec<FaceDetection>>) -> Self {
     self.faces = v.into();
     self
   }
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub fn with_body_poses(mut self, v: impl Into<std::vec::Vec<BodyPoseDetection>>) -> Self {
     self.body_poses = v.into();
     self
   }
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub fn with_hand_poses(mut self, v: impl Into<std::vec::Vec<HandPoseDetection>>) -> Self {
     self.hand_poses = v.into();
     self
   }
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub fn with_body_poses_3d(mut self, v: impl Into<std::vec::Vec<BodyPose3DDetection>>) -> Self {
     self.body_poses_3d = v.into();
     self
   }
-  #[inline]
+  #[inline(always)]
   pub fn with_instance_masks(
     mut self,
     v: impl Into<std::vec::Vec<PersonInstanceMaskDetection>>,
@@ -1446,12 +1446,12 @@ impl HumanAnalysis {
     self
   }
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub fn with_face_rectangles(mut self, v: impl Into<std::vec::Vec<FaceDetection>>) -> Self {
     self.face_rectangles = v.into();
     self
   }
-  #[inline]
+  #[inline(always)]
   pub fn with_face_landmarks(
     mut self,
     v: impl Into<std::vec::Vec<FaceLandmarksDetection>>,
@@ -1459,7 +1459,7 @@ impl HumanAnalysis {
     self.face_landmarks = v.into();
     self
   }
-  #[inline]
+  #[inline(always)]
   pub fn with_segmentation_masks(
     mut self,
     v: impl Into<std::vec::Vec<PersonSegmentationMask>>,
@@ -1469,27 +1469,27 @@ impl HumanAnalysis {
   }
 
   // --- setters ---
-  #[inline]
+  #[inline(always)]
   pub fn set_subjects(&mut self, v: impl Into<std::vec::Vec<SubjectDetection>>) -> &mut Self {
     self.subjects = v.into();
     self
   }
-  #[inline]
+  #[inline(always)]
   pub fn set_faces(&mut self, v: impl Into<std::vec::Vec<FaceDetection>>) -> &mut Self {
     self.faces = v.into();
     self
   }
-  #[inline]
+  #[inline(always)]
   pub fn set_body_poses(&mut self, v: impl Into<std::vec::Vec<BodyPoseDetection>>) -> &mut Self {
     self.body_poses = v.into();
     self
   }
-  #[inline]
+  #[inline(always)]
   pub fn set_hand_poses(&mut self, v: impl Into<std::vec::Vec<HandPoseDetection>>) -> &mut Self {
     self.hand_poses = v.into();
     self
   }
-  #[inline]
+  #[inline(always)]
   pub fn set_body_poses_3d(
     &mut self,
     v: impl Into<std::vec::Vec<BodyPose3DDetection>>,
@@ -1497,7 +1497,7 @@ impl HumanAnalysis {
     self.body_poses_3d = v.into();
     self
   }
-  #[inline]
+  #[inline(always)]
   pub fn set_instance_masks(
     &mut self,
     v: impl Into<std::vec::Vec<PersonInstanceMaskDetection>>,
@@ -1505,12 +1505,12 @@ impl HumanAnalysis {
     self.instance_masks = v.into();
     self
   }
-  #[inline]
+  #[inline(always)]
   pub fn set_face_rectangles(&mut self, v: impl Into<std::vec::Vec<FaceDetection>>) -> &mut Self {
     self.face_rectangles = v.into();
     self
   }
-  #[inline]
+  #[inline(always)]
   pub fn set_face_landmarks(
     &mut self,
     v: impl Into<std::vec::Vec<FaceLandmarksDetection>>,
@@ -1518,7 +1518,7 @@ impl HumanAnalysis {
     self.face_landmarks = v.into();
     self
   }
-  #[inline]
+  #[inline(always)]
   pub fn set_segmentation_masks(
     &mut self,
     v: impl Into<std::vec::Vec<PersonSegmentationMask>>,
@@ -1529,7 +1529,7 @@ impl HumanAnalysis {
 }
 
 impl Default for HumanAnalysis {
-  #[inline]
+  #[inline(always)]
   fn default() -> Self {
     Self::new()
   }
@@ -1544,7 +1544,7 @@ pub struct AnimalAnalysis {
 
 impl AnimalAnalysis {
   /// Empty block — the canonical no-arg constructor.
-  #[inline]
+  #[inline(always)]
   pub const fn new() -> Self {
     Self {
       subjects: std::vec::Vec::new(),
@@ -1553,38 +1553,38 @@ impl AnimalAnalysis {
   }
 
   /// Subjects.
-  #[inline]
+  #[inline(always)]
   pub fn subjects_slice(&self) -> &[SubjectDetection] {
     &self.subjects
   }
   /// Body poses.
-  #[inline]
+  #[inline(always)]
   pub fn body_poses_slice(&self) -> &[BodyPoseDetection] {
     &self.body_poses
   }
 
   /// Builder: replace subjects.
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub fn with_subjects(mut self, v: impl Into<std::vec::Vec<SubjectDetection>>) -> Self {
     self.subjects = v.into();
     self
   }
   /// Builder: replace body poses.
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub fn with_body_poses(mut self, v: impl Into<std::vec::Vec<BodyPoseDetection>>) -> Self {
     self.body_poses = v.into();
     self
   }
   /// Setter: subjects.
-  #[inline]
+  #[inline(always)]
   pub fn set_subjects(&mut self, v: impl Into<std::vec::Vec<SubjectDetection>>) -> &mut Self {
     self.subjects = v.into();
     self
   }
   /// Setter: body poses.
-  #[inline]
+  #[inline(always)]
   pub fn set_body_poses(&mut self, v: impl Into<std::vec::Vec<BodyPoseDetection>>) -> &mut Self {
     self.body_poses = v.into();
     self
@@ -1592,7 +1592,7 @@ impl AnimalAnalysis {
 }
 
 impl Default for AnimalAnalysis {
-  #[inline]
+  #[inline(always)]
   fn default() -> Self {
     Self::new()
   }
@@ -1611,7 +1611,7 @@ pub struct Aesthetics {
 
 impl Aesthetics {
   /// Construct.
-  #[inline]
+  #[inline(always)]
   pub const fn new(overall_score: f32, is_utility: bool) -> Self {
     Self {
       overall_score,
@@ -1620,12 +1620,12 @@ impl Aesthetics {
   }
 
   /// Overall aesthetic score (apple-vision).
-  #[inline]
+  #[inline(always)]
   pub const fn overall_score(&self) -> f32 {
     self.overall_score
   }
   /// "Utility" classifier — apple-vision flag.
-  #[inline]
+  #[inline(always)]
   pub const fn is_utility(&self) -> bool {
     self.is_utility
   }
@@ -1663,22 +1663,22 @@ impl DominantColor {
   }
 
   /// Packed RGBA.
-  #[inline]
+  #[inline(always)]
   pub const fn rgb(&self) -> Rgba {
     self.rgb
   }
   /// Human / palette-name label (`""` = unnamed).
-  #[inline]
+  #[inline(always)]
   pub fn name(&self) -> &str {
     self.name.as_str()
   }
   /// Percentage share of the image (0.0–100.0).
-  #[inline]
+  #[inline(always)]
   pub const fn percentage(&self) -> f32 {
     self.percentage
   }
   /// Cluster population (pixel count or sample count).
-  #[inline]
+  #[inline(always)]
   pub const fn population(&self) -> u32 {
     self.population
   }
@@ -1709,7 +1709,7 @@ impl VlmAnalysis {
   /// Empty analysis (every field empty / `""`) — the canonical no-arg
   /// constructor. Not `const fn`: `LocalizedText::new` / `SmolStr`'s
   /// default are not `const`.
-  #[inline]
+  #[inline(always)]
   pub fn new() -> Self {
     Self {
       categories: std::vec::Vec::new(),
@@ -1725,149 +1725,149 @@ impl VlmAnalysis {
   }
 
   /// Scene categories.
-  #[inline]
+  #[inline(always)]
   pub fn categories_slice(&self) -> &[LocalizedText] {
     &self.categories
   }
   /// Free-form description.
-  #[inline]
+  #[inline(always)]
   pub const fn description_ref(&self) -> &LocalizedText {
     &self.description
   }
   /// VLM-suggested tags.
-  #[inline]
+  #[inline(always)]
   pub fn tags_slice(&self) -> &[LocalizedText] {
     &self.tags
   }
   /// Shot type (controlled — `""` = absent).
-  #[inline]
+  #[inline(always)]
   pub fn shot_type(&self) -> &str {
     self.shot_type.as_str()
   }
   /// VLM open-vocab objects (distinct from apple-vision `objects`).
-  #[inline]
+  #[inline(always)]
   pub fn objects_slice(&self) -> &[LocalizedText] {
     &self.objects
   }
   /// VLM open-vocab subjects.
-  #[inline]
+  #[inline(always)]
   pub fn subjects_slice(&self) -> &[LocalizedText] {
     &self.subjects
   }
   /// Mood labels.
-  #[inline]
+  #[inline(always)]
   pub fn mood_slice(&self) -> &[LocalizedText] {
     &self.mood
   }
   /// Emotion labels.
-  #[inline]
+  #[inline(always)]
   pub fn emotion_slice(&self) -> &[LocalizedText] {
     &self.emotion
   }
   /// Lighting labels.
-  #[inline]
+  #[inline(always)]
   pub fn lighting_slice(&self) -> &[LocalizedText] {
     &self.lighting
   }
 
   // --- builders ---
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub fn with_categories(mut self, v: impl Into<std::vec::Vec<LocalizedText>>) -> Self {
     self.categories = v.into();
     self
   }
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub fn with_description(mut self, v: LocalizedText) -> Self {
     self.description = v;
     self
   }
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub fn with_tags(mut self, v: impl Into<std::vec::Vec<LocalizedText>>) -> Self {
     self.tags = v.into();
     self
   }
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub fn with_shot_type(mut self, v: impl Into<SmolStr>) -> Self {
     self.shot_type = v.into();
     self
   }
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub fn with_objects(mut self, v: impl Into<std::vec::Vec<LocalizedText>>) -> Self {
     self.objects = v.into();
     self
   }
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub fn with_subjects(mut self, v: impl Into<std::vec::Vec<LocalizedText>>) -> Self {
     self.subjects = v.into();
     self
   }
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub fn with_mood(mut self, v: impl Into<std::vec::Vec<LocalizedText>>) -> Self {
     self.mood = v.into();
     self
   }
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub fn with_emotion(mut self, v: impl Into<std::vec::Vec<LocalizedText>>) -> Self {
     self.emotion = v.into();
     self
   }
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub fn with_lighting(mut self, v: impl Into<std::vec::Vec<LocalizedText>>) -> Self {
     self.lighting = v.into();
     self
   }
 
   // --- setters ---
-  #[inline]
+  #[inline(always)]
   pub fn set_categories(&mut self, v: impl Into<std::vec::Vec<LocalizedText>>) -> &mut Self {
     self.categories = v.into();
     self
   }
-  #[inline]
+  #[inline(always)]
   pub fn set_description(&mut self, v: LocalizedText) -> &mut Self {
     self.description = v;
     self
   }
-  #[inline]
+  #[inline(always)]
   pub fn set_tags(&mut self, v: impl Into<std::vec::Vec<LocalizedText>>) -> &mut Self {
     self.tags = v.into();
     self
   }
-  #[inline]
+  #[inline(always)]
   pub fn set_shot_type(&mut self, v: impl Into<SmolStr>) -> &mut Self {
     self.shot_type = v.into();
     self
   }
-  #[inline]
+  #[inline(always)]
   pub fn set_objects(&mut self, v: impl Into<std::vec::Vec<LocalizedText>>) -> &mut Self {
     self.objects = v.into();
     self
   }
-  #[inline]
+  #[inline(always)]
   pub fn set_subjects(&mut self, v: impl Into<std::vec::Vec<LocalizedText>>) -> &mut Self {
     self.subjects = v.into();
     self
   }
-  #[inline]
+  #[inline(always)]
   pub fn set_mood(&mut self, v: impl Into<std::vec::Vec<LocalizedText>>) -> &mut Self {
     self.mood = v.into();
     self
   }
-  #[inline]
+  #[inline(always)]
   pub fn set_emotion(&mut self, v: impl Into<std::vec::Vec<LocalizedText>>) -> &mut Self {
     self.emotion = v.into();
     self
   }
-  #[inline]
+  #[inline(always)]
   pub fn set_lighting(&mut self, v: impl Into<std::vec::Vec<LocalizedText>>) -> &mut Self {
     self.lighting = v.into();
     self
@@ -1875,7 +1875,7 @@ impl VlmAnalysis {
 }
 
 impl Default for VlmAnalysis {
-  #[inline]
+  #[inline(always)]
   fn default() -> Self {
     Self::new()
   }

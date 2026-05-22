@@ -133,105 +133,105 @@ impl Keyframe<Uuid7> {
 
 impl<Id> Keyframe<Id> {
   // --- identity / source ---
-  #[inline]
+  #[inline(always)]
   pub const fn id_ref(&self) -> &Id {
     &self.id
   }
-  #[inline]
+  #[inline(always)]
   pub const fn parent_ref(&self) -> &Id {
     &self.parent
   }
-  #[inline]
+  #[inline(always)]
   pub const fn pts_ref(&self) -> &Timestamp {
     &self.pts
   }
 
   // --- artifact ---
   /// Thumbnail image bytes (inline, no `location`).
-  #[inline]
+  #[inline(always)]
   pub fn data(&self) -> &[u8] {
     &self.data
   }
   /// MIME type (`""` = absent).
-  #[inline]
+  #[inline(always)]
   pub fn mime(&self) -> &str {
     self.mime.as_str()
   }
   /// Byte size of `data` — **derived** from `data.len()`, never stored
   /// independently, so it can never diverge from the actual buffer.
-  #[inline]
+  #[inline(always)]
   pub fn size(&self) -> u64 {
     self.data.len() as u64
   }
   /// Thumbnail dimensions (`mediaframe::frame::Dimensions`).
-  #[inline]
+  #[inline(always)]
   pub const fn dimensions(&self) -> Dimensions {
     self.dimensions
   }
   /// Which extractor produced this keyframe.
-  #[inline]
+  #[inline(always)]
   pub const fn extractor(&self) -> KeyframeExtractor {
     self.extractor
   }
 
   // --- apple-vision ---
-  #[inline]
+  #[inline(always)]
   pub fn classifications_slice(&self) -> &[Detection] {
     &self.classifications
   }
-  #[inline]
+  #[inline(always)]
   pub fn objects_slice(&self) -> &[ObjectDetection] {
     &self.objects
   }
-  #[inline]
+  #[inline(always)]
   pub const fn humans_ref(&self) -> &HumanAnalysis {
     &self.humans
   }
-  #[inline]
+  #[inline(always)]
   pub const fn animals_ref(&self) -> &AnimalAnalysis {
     &self.animals
   }
-  #[inline]
+  #[inline(always)]
   pub fn actions_slice(&self) -> &[ActionDetection] {
     &self.actions
   }
-  #[inline]
+  #[inline(always)]
   pub fn text_detections_slice(&self) -> &[TextDetection] {
     &self.text_detections
   }
-  #[inline]
+  #[inline(always)]
   pub fn barcodes_slice(&self) -> &[BarcodeDetection] {
     &self.barcodes
   }
-  #[inline]
+  #[inline(always)]
   pub fn attention_saliency_slice(&self) -> &[SaliencyRegion] {
     &self.attention_saliency
   }
-  #[inline]
+  #[inline(always)]
   pub fn objectness_saliency_slice(&self) -> &[SaliencyRegion] {
     &self.objectness_saliency
   }
-  #[inline]
+  #[inline(always)]
   pub const fn horizon_ref(&self) -> &HorizonInfo {
     &self.horizon
   }
-  #[inline]
+  #[inline(always)]
   pub fn document_segments_slice(&self) -> &[DocumentSegment] {
     &self.document_segments
   }
-  #[inline]
+  #[inline(always)]
   pub const fn aesthetics_ref(&self) -> &Aesthetics {
     &self.aesthetics
   }
 
   // --- colorthief ---
-  #[inline]
+  #[inline(always)]
   pub fn colors_slice(&self) -> &[DominantColor] {
     &self.colors
   }
 
   // --- VLM ---
-  #[inline]
+  #[inline(always)]
   pub const fn vlm_ref(&self) -> &VlmAnalysis {
     &self.vlm
   }
@@ -241,23 +241,23 @@ impl<Id> Keyframe<Id> {
 impl<Id> Keyframe<Id> {
   // --- artifact ---
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub fn with_data(mut self, v: impl Into<Bytes>) -> Self {
     self.data = v.into();
     self
   }
-  #[inline]
+  #[inline(always)]
   pub fn set_data(&mut self, v: impl Into<Bytes>) -> &mut Self {
     self.data = v.into();
     self
   }
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub fn with_mime(mut self, v: impl Into<SmolStr>) -> Self {
     self.mime = v.into();
     self
   }
-  #[inline]
+  #[inline(always)]
   pub fn set_mime(&mut self, v: impl Into<SmolStr>) -> &mut Self {
     self.mime = v.into();
     self
@@ -287,12 +287,12 @@ impl<Id> Keyframe<Id> {
     Ok(self)
   }
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub const fn with_extractor(mut self, v: KeyframeExtractor) -> Self {
     self.extractor = v;
     self
   }
-  #[inline]
+  #[inline(always)]
   pub const fn set_extractor(&mut self, v: KeyframeExtractor) -> &mut Self {
     self.extractor = v;
     self
@@ -300,89 +300,89 @@ impl<Id> Keyframe<Id> {
 
   // --- apple-vision ---
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub fn with_classifications(mut self, v: impl Into<std::vec::Vec<Detection>>) -> Self {
     self.classifications = v.into();
     self
   }
-  #[inline]
+  #[inline(always)]
   pub fn set_classifications(&mut self, v: impl Into<std::vec::Vec<Detection>>) -> &mut Self {
     self.classifications = v.into();
     self
   }
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub fn with_objects(mut self, v: impl Into<std::vec::Vec<ObjectDetection>>) -> Self {
     self.objects = v.into();
     self
   }
-  #[inline]
+  #[inline(always)]
   pub fn set_objects(&mut self, v: impl Into<std::vec::Vec<ObjectDetection>>) -> &mut Self {
     self.objects = v.into();
     self
   }
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub fn with_humans(mut self, v: HumanAnalysis) -> Self {
     self.humans = v;
     self
   }
-  #[inline]
+  #[inline(always)]
   pub fn set_humans(&mut self, v: HumanAnalysis) -> &mut Self {
     self.humans = v;
     self
   }
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub fn with_animals(mut self, v: AnimalAnalysis) -> Self {
     self.animals = v;
     self
   }
-  #[inline]
+  #[inline(always)]
   pub fn set_animals(&mut self, v: AnimalAnalysis) -> &mut Self {
     self.animals = v;
     self
   }
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub fn with_actions(mut self, v: impl Into<std::vec::Vec<ActionDetection>>) -> Self {
     self.actions = v.into();
     self
   }
-  #[inline]
+  #[inline(always)]
   pub fn set_actions(&mut self, v: impl Into<std::vec::Vec<ActionDetection>>) -> &mut Self {
     self.actions = v.into();
     self
   }
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub fn with_text_detections(mut self, v: impl Into<std::vec::Vec<TextDetection>>) -> Self {
     self.text_detections = v.into();
     self
   }
-  #[inline]
+  #[inline(always)]
   pub fn set_text_detections(&mut self, v: impl Into<std::vec::Vec<TextDetection>>) -> &mut Self {
     self.text_detections = v.into();
     self
   }
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub fn with_barcodes(mut self, v: impl Into<std::vec::Vec<BarcodeDetection>>) -> Self {
     self.barcodes = v.into();
     self
   }
-  #[inline]
+  #[inline(always)]
   pub fn set_barcodes(&mut self, v: impl Into<std::vec::Vec<BarcodeDetection>>) -> &mut Self {
     self.barcodes = v.into();
     self
   }
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub fn with_attention_saliency(mut self, v: impl Into<std::vec::Vec<SaliencyRegion>>) -> Self {
     self.attention_saliency = v.into();
     self
   }
-  #[inline]
+  #[inline(always)]
   pub fn set_attention_saliency(
     &mut self,
     v: impl Into<std::vec::Vec<SaliencyRegion>>,
@@ -391,12 +391,12 @@ impl<Id> Keyframe<Id> {
     self
   }
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub fn with_objectness_saliency(mut self, v: impl Into<std::vec::Vec<SaliencyRegion>>) -> Self {
     self.objectness_saliency = v.into();
     self
   }
-  #[inline]
+  #[inline(always)]
   pub fn set_objectness_saliency(
     &mut self,
     v: impl Into<std::vec::Vec<SaliencyRegion>>,
@@ -405,23 +405,23 @@ impl<Id> Keyframe<Id> {
     self
   }
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub const fn with_horizon(mut self, v: HorizonInfo) -> Self {
     self.horizon = v;
     self
   }
-  #[inline]
+  #[inline(always)]
   pub const fn set_horizon(&mut self, v: HorizonInfo) -> &mut Self {
     self.horizon = v;
     self
   }
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub fn with_document_segments(mut self, v: impl Into<std::vec::Vec<DocumentSegment>>) -> Self {
     self.document_segments = v.into();
     self
   }
-  #[inline]
+  #[inline(always)]
   pub fn set_document_segments(
     &mut self,
     v: impl Into<std::vec::Vec<DocumentSegment>>,
@@ -430,12 +430,12 @@ impl<Id> Keyframe<Id> {
     self
   }
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub const fn with_aesthetics(mut self, v: Aesthetics) -> Self {
     self.aesthetics = v;
     self
   }
-  #[inline]
+  #[inline(always)]
   pub const fn set_aesthetics(&mut self, v: Aesthetics) -> &mut Self {
     self.aesthetics = v;
     self
@@ -443,12 +443,12 @@ impl<Id> Keyframe<Id> {
 
   // --- colorthief ---
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub fn with_colors(mut self, v: impl Into<std::vec::Vec<DominantColor>>) -> Self {
     self.colors = v.into();
     self
   }
-  #[inline]
+  #[inline(always)]
   pub fn set_colors(&mut self, v: impl Into<std::vec::Vec<DominantColor>>) -> &mut Self {
     self.colors = v.into();
     self
@@ -456,12 +456,12 @@ impl<Id> Keyframe<Id> {
 
   // --- VLM ---
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub fn with_vlm(mut self, v: VlmAnalysis) -> Self {
     self.vlm = v;
     self
   }
-  #[inline]
+  #[inline(always)]
   pub fn set_vlm(&mut self, v: VlmAnalysis) -> &mut Self {
     self.vlm = v;
     self

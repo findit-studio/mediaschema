@@ -75,14 +75,14 @@ impl Scene<Uuid7> {
 
   /// Builder: replace the `keyframes` child-ref id-list.
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub fn with_keyframes(mut self, kfs: impl Into<std::vec::Vec<Uuid7>>) -> Self {
     self.keyframes = kfs.into();
     self
   }
 
   /// In-place mutator for the `keyframes` child-ref id-list.
-  #[inline]
+  #[inline(always)]
   pub fn set_keyframes(&mut self, kfs: impl Into<std::vec::Vec<Uuid7>>) -> &mut Self {
     self.keyframes = kfs.into();
     self
@@ -91,51 +91,51 @@ impl Scene<Uuid7> {
 
 impl<Id> Scene<Id> {
   /// Canonical identity (also the LanceDB vector key).
-  #[inline]
+  #[inline(always)]
   pub const fn id_ref(&self) -> &Id {
     &self.id
   }
 
   /// FK → `VideoTrack.id`.
-  #[inline]
+  #[inline(always)]
   pub const fn parent_ref(&self) -> &Id {
     &self.parent
   }
 
   /// 0-based scene order within the track.
-  #[inline]
+  #[inline(always)]
   pub const fn index(&self) -> u32 {
     self.index
   }
 
   /// Media-time span (`mediatime::TimeRange`).
-  #[inline]
+  #[inline(always)]
   pub const fn span_ref(&self) -> &TimeRange {
     &self.span
   }
 
   /// Which detector raised this scene.
-  #[inline]
+  #[inline(always)]
   pub const fn detector(&self) -> SceneDetector {
     self.detector
   }
 
   /// Refs → child [`Keyframe`](super::keyframe::Keyframe)s — these
   /// **are** the scene's thumbnails.
-  #[inline]
+  #[inline(always)]
   pub const fn keyframes_slice(&self) -> &[Id] {
     self.keyframes.as_slice()
   }
 
   /// VLM-generated description (`""` = none).
-  #[inline]
+  #[inline(always)]
   pub fn description(&self) -> &str {
     self.description.as_str()
   }
 
   /// Builder: replace `index`.
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub const fn with_index(mut self, index: u32) -> Self {
     self.index = index;
     self
@@ -169,7 +169,7 @@ impl<Id> Scene<Id> {
 
   /// Builder: replace `detector`.
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub const fn with_detector(mut self, detector: SceneDetector) -> Self {
     self.detector = detector;
     self
@@ -177,28 +177,28 @@ impl<Id> Scene<Id> {
 
   /// Builder: replace `description`.
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub fn with_description(mut self, description: impl Into<SmolStr>) -> Self {
     self.description = description.into();
     self
   }
 
   /// In-place mutator for `index`.
-  #[inline]
+  #[inline(always)]
   pub const fn set_index(&mut self, index: u32) -> &mut Self {
     self.index = index;
     self
   }
 
   /// In-place mutator for `detector`.
-  #[inline]
+  #[inline(always)]
   pub const fn set_detector(&mut self, detector: SceneDetector) -> &mut Self {
     self.detector = detector;
     self
   }
 
   /// In-place mutator for `description`.
-  #[inline]
+  #[inline(always)]
   pub fn set_description(&mut self, description: impl Into<SmolStr>) -> &mut Self {
     self.description = description.into();
     self

@@ -42,7 +42,7 @@ pub struct IndexProgress {
 
 impl IndexProgress {
   /// Canonical no-arg constructor — the empty rollup (`{0, 0, 0}`).
-  #[inline]
+  #[inline(always)]
   pub const fn new() -> Self {
     Self {
       total: 0,
@@ -71,34 +71,34 @@ impl IndexProgress {
   }
 
   /// Total child tracks the facet owns.
-  #[inline]
+  #[inline(always)]
   pub const fn total(&self) -> u32 {
     self.total
   }
 
   /// Tracks that finished indexing successfully.
-  #[inline]
+  #[inline(always)]
   pub const fn indexed(&self) -> u32 {
     self.indexed
   }
 
   /// Tracks whose indexing failed (`index_errors` non-empty at the time
   /// of last rollup maintenance).
-  #[inline]
+  #[inline(always)]
   pub const fn failed(&self) -> u32 {
     self.failed
   }
 
   /// True iff the facet has at least one failed track — the locked
   /// "kind container's error signal" rule (`failed > 0` ⇒ drill down).
-  #[inline]
+  #[inline(always)]
   pub const fn has_failures(&self) -> bool {
     self.failed > 0
   }
 }
 
 impl Default for IndexProgress {
-  #[inline]
+  #[inline(always)]
   fn default() -> Self {
     Self::new()
   }
@@ -178,7 +178,7 @@ impl Video<Uuid7> {
   /// `total_scenes` untouched, so completed/failed progress and the
   /// scene count survive a no-op re-set.
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub fn with_tracks(mut self, tracks: impl Into<std::vec::Vec<Uuid7>>) -> Self {
     self.set_tracks(tracks);
     self
@@ -225,26 +225,26 @@ impl Video<Uuid7> {
 impl<Id> Video<Id> {
   /// Canonical identity (referenced by `Media.video`; child
   /// `VideoTrack.parent` points here).
-  #[inline]
+  #[inline(always)]
   pub const fn id_ref(&self) -> &Id {
     &self.id
   }
 
   /// Total scenes across all child tracks — denormalised rollup
   /// (`Σ over its VideoTracks of scenes.len()`).
-  #[inline]
+  #[inline(always)]
   pub const fn total_scenes(&self) -> u32 {
     self.total_scenes
   }
 
   /// Refs → child [`VideoTrack`](super::track::VideoTrack)s.
-  #[inline]
+  #[inline(always)]
   pub const fn tracks_slice(&self) -> &[Id] {
     self.tracks.as_slice()
   }
 
   /// Per-kind indexing rollup over the facet's tracks.
-  #[inline]
+  #[inline(always)]
   pub const fn track_progress_ref(&self) -> &IndexProgress {
     &self.track_progress
   }

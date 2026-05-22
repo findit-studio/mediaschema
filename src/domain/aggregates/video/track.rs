@@ -172,14 +172,14 @@ impl VideoTrack<Uuid7> {
 
   /// Builder: replace the `scenes` child-ref id-list.
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub fn with_scenes(mut self, v: impl Into<std::vec::Vec<Uuid7>>) -> Self {
     self.scenes = v.into();
     self
   }
 
   /// In-place mutator for the `scenes` child-ref id-list.
-  #[inline]
+  #[inline(always)]
   pub fn set_scenes(&mut self, v: impl Into<std::vec::Vec<Uuid7>>) -> &mut Self {
     self.scenes = v.into();
     self
@@ -188,45 +188,45 @@ impl VideoTrack<Uuid7> {
 
 impl<Id> VideoTrack<Id> {
   /// Canonical identity.
-  #[inline]
+  #[inline(always)]
   pub const fn id_ref(&self) -> &Id {
     &self.id
   }
 
   /// FK → `Video.id`.
-  #[inline]
+  #[inline(always)]
   pub const fn parent_ref(&self) -> &Id {
     &self.parent
   }
 
   /// Source-locator: ffmpeg `stream_index` / WebCodecs index. Not
   /// identity.
-  #[inline]
+  #[inline(always)]
   pub const fn stream_index(&self) -> Option<u32> {
     self.stream_index
   }
 
   /// Container-level track id (kept only if the pipeline uses it).
-  #[inline]
+  #[inline(always)]
   pub const fn container_track_id(&self) -> Option<u64> {
     self.container_track_id
   }
 
   /// Stream start offset / first PTS (mediatime-represented).
-  #[inline]
+  #[inline(always)]
   pub const fn start_pts_ref(&self) -> Option<&Timestamp> {
     self.start_pts.as_ref()
   }
 
   /// Per-track duration (mediatime placeholder — see `duration` field
   /// comment).
-  #[inline]
+  #[inline(always)]
   pub const fn duration_ref(&self) -> Option<&Timestamp> {
     self.duration.as_ref()
   }
 
   /// Codec family (locked `VideoCodec` + `Other(SmolStr)` escape).
-  #[inline]
+  #[inline(always)]
   pub const fn codec_ref(&self) -> &VideoCodec {
     &self.codec
   }
@@ -235,156 +235,156 @@ impl<Id> VideoTrack<Id> {
   /// `Option<SmolStr>` here because the locked schema names it
   /// `Option<SmolStr>` — distinct from the "empty-string=absent" rule
   /// for plain `SmolStr` fields).
-  #[inline]
+  #[inline(always)]
   pub fn profile(&self) -> Option<&str> {
     self.profile.as_deref()
   }
 
   /// Codec level (numeric).
-  #[inline]
+  #[inline(always)]
   pub const fn level(&self) -> Option<u16> {
     self.level
   }
 
   /// Per-track bitrate (0 = unknown).
-  #[inline]
+  #[inline(always)]
   pub const fn bit_rate(&self) -> u64 {
     self.bit_rate
   }
 
   /// Frame count (exact-duration / progress / VFR signal).
-  #[inline]
+  #[inline(always)]
   pub const fn nb_frames(&self) -> Option<u64> {
     self.nb_frames
   }
 
   /// Bitstream contains B-frames (seek/cut behaviour).
-  #[inline]
+  #[inline(always)]
   pub const fn has_b_frames(&self) -> bool {
     self.has_b_frames
   }
 
   /// Closed-GOP (seek/cut behaviour).
-  #[inline]
+  #[inline(always)]
   pub const fn closed_gop(&self) -> Option<bool> {
     self.closed_gop
   }
 
   /// Coded sample depth (may differ from pixfmt).
-  #[inline]
+  #[inline(always)]
   pub const fn bits_per_raw_sample(&self) -> Option<u8> {
     self.bits_per_raw_sample
   }
 
   /// Coded width × height (`mediaframe::frame::Dimensions`).
-  #[inline]
+  #[inline(always)]
   pub const fn dimensions(&self) -> Dimensions {
     self.dimensions
   }
 
   /// Clean-aperture / crop rectangle (`mediaframe::frame::Rect`).
-  #[inline]
+  #[inline(always)]
   pub const fn visible_rect(&self) -> Option<Rect> {
     self.visible_rect
   }
 
   /// Display aspect / anamorphic ratio
   /// (`mediaframe::frame::SampleAspectRatio`).
-  #[inline]
+  #[inline(always)]
   pub const fn sample_aspect_ratio(&self) -> SampleAspectRatio {
     self.sample_aspect_ratio
   }
 
   /// FFmpeg pixfmt (`mediaframe::pixel_format::PixelFormat`).
-  #[inline]
+  #[inline(always)]
   pub const fn pixel_format(&self) -> PixelFormat {
     self.pixel_format
   }
 
   /// Colour primaries / transfer / matrix / range / chroma_location
   /// (`mediaframe::color::Info`).
-  #[inline]
+  #[inline(always)]
   pub const fn color_ref(&self) -> &ColorInfo {
     &self.color
   }
 
   /// HDR10 static metadata (`mediaframe::color::HdrStaticMetadata`).
-  #[inline]
+  #[inline(always)]
   pub const fn hdr_static_ref(&self) -> Option<&HdrStaticMetadata> {
     self.hdr_static.as_ref()
   }
 
   /// Display rotation (`mediaframe::frame::Rotation`).
-  #[inline]
+  #[inline(always)]
   pub const fn rotation(&self) -> Rotation {
     self.rotation
   }
 
   /// Frame rate (`mediaframe::frame::FrameRate` — NOT
   /// `mediatime::Timebase`, see the locked spec).
-  #[inline]
+  #[inline(always)]
   pub const fn frame_rate(&self) -> FrameRate {
     self.frame_rate
   }
 
   /// Field order (`mediaframe::frame::FieldOrder`).
-  #[inline]
+  #[inline(always)]
   pub const fn field_order(&self) -> FieldOrder {
     self.field_order
   }
 
   /// 3D / stereoscopic packing (`mediaframe::frame::StereoMode`).
-  #[inline]
+  #[inline(always)]
   pub const fn stereo_mode(&self) -> Option<StereoMode> {
     self.stereo_mode
   }
 
   /// Dolby Vision config (`mediaframe::color::DolbyVisionConfig`).
-  #[inline]
+  #[inline(always)]
   pub const fn dovi(&self) -> Option<DolbyVisionConfig> {
     self.dovi
   }
 
   /// CEA-608/708 captions detected in the bitstream.
-  #[inline]
+  #[inline(always)]
   pub const fn has_embedded_captions(&self) -> bool {
     self.has_embedded_captions
   }
 
   /// Disposition flags (`mediaframe::disposition::TrackDisposition` —
   /// the shared FFmpeg `AV_DISPOSITION_*` set).
-  #[inline]
+  #[inline(always)]
   pub const fn disposition(&self) -> TrackDisposition {
     self.disposition
   }
 
   /// Track selection signal — is this the primary video track for the
   /// containing media file?
-  #[inline]
+  #[inline(always)]
   pub const fn is_primary(&self) -> bool {
     self.is_primary
   }
 
   /// Track selection signal — was this track auto-selected?
-  #[inline]
+  #[inline(always)]
   pub const fn auto_selected(&self) -> bool {
     self.auto_selected
   }
 
   /// Refs → child [`Scene`](super::scene::Scene)s.
-  #[inline]
+  #[inline(always)]
   pub const fn scenes_slice(&self) -> &[Id] {
     self.scenes.as_slice()
   }
 
   /// Per-track pipeline-stage status (bitflags).
-  #[inline]
+  #[inline(always)]
   pub const fn index_status(&self) -> VideoIndexStatus {
     self.index_status
   }
 
   /// Per-track error history (stage-coded).
-  #[inline]
+  #[inline(always)]
   pub const fn index_errors_slice(&self) -> &[ErrorInfo] {
     self.index_errors.as_slice()
   }
@@ -392,7 +392,7 @@ impl<Id> VideoTrack<Id> {
   /// Analysis-run reproducibility for *this track-run*; every child
   /// `Scene` / `Keyframe` inherits this rather than carrying its own
   /// (rev 7 hoist).
-  #[inline]
+  #[inline(always)]
   pub const fn provenance_ref(&self) -> &Provenance {
     &self.provenance
   }
@@ -406,23 +406,23 @@ impl<Id> VideoTrack<Id> {
 impl<Id> VideoTrack<Id> {
   // --- source locators ---
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub const fn with_stream_index(mut self, v: Option<u32>) -> Self {
     self.stream_index = v;
     self
   }
-  #[inline]
+  #[inline(always)]
   pub const fn set_stream_index(&mut self, v: Option<u32>) -> &mut Self {
     self.stream_index = v;
     self
   }
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub const fn with_container_track_id(mut self, v: Option<u64>) -> Self {
     self.container_track_id = v;
     self
   }
-  #[inline]
+  #[inline(always)]
   pub const fn set_container_track_id(&mut self, v: Option<u64>) -> &mut Self {
     self.container_track_id = v;
     self
@@ -430,12 +430,12 @@ impl<Id> VideoTrack<Id> {
 
   // --- mediatime ---
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub fn with_start_pts(mut self, v: Option<Timestamp>) -> Self {
     self.start_pts = v;
     self
   }
-  #[inline]
+  #[inline(always)]
   pub fn set_start_pts(&mut self, v: Option<Timestamp>) -> &mut Self {
     self.start_pts = v;
     self
@@ -474,34 +474,34 @@ impl<Id> VideoTrack<Id> {
 
   // --- codec ---
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub fn with_codec(mut self, v: VideoCodec) -> Self {
     self.codec = v;
     self
   }
-  #[inline]
+  #[inline(always)]
   pub fn set_codec(&mut self, v: VideoCodec) -> &mut Self {
     self.codec = v;
     self
   }
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub fn with_profile(mut self, v: Option<SmolStr>) -> Self {
     self.profile = v;
     self
   }
-  #[inline]
+  #[inline(always)]
   pub fn set_profile(&mut self, v: Option<SmolStr>) -> &mut Self {
     self.profile = v;
     self
   }
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub const fn with_level(mut self, v: Option<u16>) -> Self {
     self.level = v;
     self
   }
-  #[inline]
+  #[inline(always)]
   pub const fn set_level(&mut self, v: Option<u16>) -> &mut Self {
     self.level = v;
     self
@@ -509,56 +509,56 @@ impl<Id> VideoTrack<Id> {
 
   // --- bitstream / signal ---
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub const fn with_bit_rate(mut self, v: u64) -> Self {
     self.bit_rate = v;
     self
   }
-  #[inline]
+  #[inline(always)]
   pub const fn set_bit_rate(&mut self, v: u64) -> &mut Self {
     self.bit_rate = v;
     self
   }
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub const fn with_nb_frames(mut self, v: Option<u64>) -> Self {
     self.nb_frames = v;
     self
   }
-  #[inline]
+  #[inline(always)]
   pub const fn set_nb_frames(&mut self, v: Option<u64>) -> &mut Self {
     self.nb_frames = v;
     self
   }
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub const fn with_has_b_frames(mut self, v: bool) -> Self {
     self.has_b_frames = v;
     self
   }
-  #[inline]
+  #[inline(always)]
   pub const fn set_has_b_frames(&mut self, v: bool) -> &mut Self {
     self.has_b_frames = v;
     self
   }
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub const fn with_closed_gop(mut self, v: Option<bool>) -> Self {
     self.closed_gop = v;
     self
   }
-  #[inline]
+  #[inline(always)]
   pub const fn set_closed_gop(&mut self, v: Option<bool>) -> &mut Self {
     self.closed_gop = v;
     self
   }
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub const fn with_bits_per_raw_sample(mut self, v: Option<u8>) -> Self {
     self.bits_per_raw_sample = v;
     self
   }
-  #[inline]
+  #[inline(always)]
   pub const fn set_bits_per_raw_sample(&mut self, v: Option<u8>) -> &mut Self {
     self.bits_per_raw_sample = v;
     self
@@ -643,100 +643,100 @@ impl<Id> VideoTrack<Id> {
     Ok(self)
   }
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub const fn with_sample_aspect_ratio(mut self, v: SampleAspectRatio) -> Self {
     self.sample_aspect_ratio = v;
     self
   }
-  #[inline]
+  #[inline(always)]
   pub const fn set_sample_aspect_ratio(&mut self, v: SampleAspectRatio) -> &mut Self {
     self.sample_aspect_ratio = v;
     self
   }
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub const fn with_pixel_format(mut self, v: PixelFormat) -> Self {
     self.pixel_format = v;
     self
   }
-  #[inline]
+  #[inline(always)]
   pub const fn set_pixel_format(&mut self, v: PixelFormat) -> &mut Self {
     self.pixel_format = v;
     self
   }
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub const fn with_color(mut self, v: ColorInfo) -> Self {
     self.color = v;
     self
   }
-  #[inline]
+  #[inline(always)]
   pub const fn set_color(&mut self, v: ColorInfo) -> &mut Self {
     self.color = v;
     self
   }
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub const fn with_hdr_static(mut self, v: Option<HdrStaticMetadata>) -> Self {
     self.hdr_static = v;
     self
   }
-  #[inline]
+  #[inline(always)]
   pub const fn set_hdr_static(&mut self, v: Option<HdrStaticMetadata>) -> &mut Self {
     self.hdr_static = v;
     self
   }
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub const fn with_rotation(mut self, v: Rotation) -> Self {
     self.rotation = v;
     self
   }
-  #[inline]
+  #[inline(always)]
   pub const fn set_rotation(&mut self, v: Rotation) -> &mut Self {
     self.rotation = v;
     self
   }
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub const fn with_frame_rate(mut self, v: FrameRate) -> Self {
     self.frame_rate = v;
     self
   }
-  #[inline]
+  #[inline(always)]
   pub const fn set_frame_rate(&mut self, v: FrameRate) -> &mut Self {
     self.frame_rate = v;
     self
   }
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub const fn with_field_order(mut self, v: FieldOrder) -> Self {
     self.field_order = v;
     self
   }
-  #[inline]
+  #[inline(always)]
   pub const fn set_field_order(&mut self, v: FieldOrder) -> &mut Self {
     self.field_order = v;
     self
   }
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub const fn with_stereo_mode(mut self, v: Option<StereoMode>) -> Self {
     self.stereo_mode = v;
     self
   }
-  #[inline]
+  #[inline(always)]
   pub const fn set_stereo_mode(&mut self, v: Option<StereoMode>) -> &mut Self {
     self.stereo_mode = v;
     self
   }
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub const fn with_dovi(mut self, v: Option<DolbyVisionConfig>) -> Self {
     self.dovi = v;
     self
   }
-  #[inline]
+  #[inline(always)]
   pub const fn set_dovi(&mut self, v: Option<DolbyVisionConfig>) -> &mut Self {
     self.dovi = v;
     self
@@ -744,45 +744,45 @@ impl<Id> VideoTrack<Id> {
 
   // --- findit signals ---
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub const fn with_has_embedded_captions(mut self, v: bool) -> Self {
     self.has_embedded_captions = v;
     self
   }
-  #[inline]
+  #[inline(always)]
   pub const fn set_has_embedded_captions(&mut self, v: bool) -> &mut Self {
     self.has_embedded_captions = v;
     self
   }
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub const fn with_disposition(mut self, v: TrackDisposition) -> Self {
     self.disposition = v;
     self
   }
-  #[inline]
+  #[inline(always)]
   pub const fn set_disposition(&mut self, v: TrackDisposition) -> &mut Self {
     self.disposition = v;
     self
   }
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub const fn with_is_primary(mut self, v: bool) -> Self {
     self.is_primary = v;
     self
   }
-  #[inline]
+  #[inline(always)]
   pub const fn set_is_primary(&mut self, v: bool) -> &mut Self {
     self.is_primary = v;
     self
   }
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub const fn with_auto_selected(mut self, v: bool) -> Self {
     self.auto_selected = v;
     self
   }
-  #[inline]
+  #[inline(always)]
   pub const fn set_auto_selected(&mut self, v: bool) -> &mut Self {
     self.auto_selected = v;
     self
@@ -790,34 +790,34 @@ impl<Id> VideoTrack<Id> {
 
   // --- indexing / provenance ---
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub const fn with_index_status(mut self, v: VideoIndexStatus) -> Self {
     self.index_status = v;
     self
   }
-  #[inline]
+  #[inline(always)]
   pub const fn set_index_status(&mut self, v: VideoIndexStatus) -> &mut Self {
     self.index_status = v;
     self
   }
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub fn with_index_errors(mut self, v: impl Into<std::vec::Vec<ErrorInfo>>) -> Self {
     self.index_errors = v.into();
     self
   }
-  #[inline]
+  #[inline(always)]
   pub fn set_index_errors(&mut self, v: impl Into<std::vec::Vec<ErrorInfo>>) -> &mut Self {
     self.index_errors = v.into();
     self
   }
   #[must_use]
-  #[inline]
+  #[inline(always)]
   pub fn with_provenance(mut self, v: Provenance) -> Self {
     self.provenance = v;
     self
   }
-  #[inline]
+  #[inline(always)]
   pub fn set_provenance(&mut self, v: Provenance) -> &mut Self {
     self.provenance = v;
     self
