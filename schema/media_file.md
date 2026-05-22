@@ -1,4 +1,4 @@
-# `MediaFile<Id>` — one physical copy of a piece of content  *(rev 2 — LOCKED, user-approved)*
+# `MediaFile<Id>` — one physical copy of a piece of content  *(rev 3 — LOCKED, user-approved)*
 
 ## Domain meaning
 
@@ -41,8 +41,9 @@ are the UUID). Wall-clock = `jiff::Timestamp` (ms). Strings = `SmolStr`
 | `id` | `Id` (UUIDv7) | the copy's key |
 | `media_id` | `Id` (UUIDv7) | FK → the shared [`Media`](media.md) content row |
 | `created_at` | `Option<jiff::Timestamp>` | **filesystem** creation time (Unix ms) — copy-specific. **Optional**: many filesystems lack a birth time, and the wire encodes `0` (Unix epoch, ms) as absent, so a 0-ms timestamp normalises to `None` (same treatment as `Media.capture_date`) |
-| `location` | `Location` | structured `Local { volume, components }` — where this copy lives; volume-aware (removable drives), not a path string. The `WatchedLocation` is **volume-scoped** (its root *is* a volume; volumes are disjoint/non-nesting — see [`watched_location.md`](watched_location.md)), so this copy's volume maps to exactly one watch and `watched_location_id` is unambiguous |
+| `location` | `Location` | structured `Local { volume, components }` — where this copy lives; volume-aware (removable drives), not a path string. The `WatchedLocation` is **volume-scoped** (its monitored target *is* a volume `Id`; volumes are disjoint/non-nesting — see [`watched_location.md`](watched_location.md)), so this copy's volume maps to exactly one watch and `watched_location_id` is unambiguous. **Volume consistency**: `location`'s volume must equal `watch_volume` — enforced at construction and on every location/watch change (see below) |
 | `watched_location_id` | `Id` (UUIDv7) | FK → the [`WatchedLocation`](watched_location.md) that discovered it — **non-optional** (see below) |
+| `watch_volume` | `Id` (UUIDv7) | cached volume identity of the discovering `WatchedLocation` (its `volume`). **Not a separate FK** — duplicates the watch's `volume` so the location setters can re-check the volume-consistency invariant without holding a `WatchedLocation` reference. Set once at construction from the `WatchedLocation` passed to `try_new` |
 
 **`name` is derived, not stored.** The file name is the **last component of
 `location`** (`Location::Local.components` is validated non-empty), exposed via
@@ -61,12 +62,42 @@ Modelling it as a plain `Id` rather than `Option<Id>` makes the always-present
 invariant unrepresentable-otherwise — `try_new` rejects a nil
 `watched_location_id` exactly as it rejects a nil `id` / `media_id`.
 
+## Volume consistency *(rev 3 — codex PR #13 round-3 finding)*
+
+A `MediaFile`'s `location` must sit on the **same volume** as the
+`WatchedLocation` that discovered it (the watch is volume-scoped). Round 3
+rejected a constructor that took `location` and a bare `watched_location_id`
+independently and only nil-checked the id — nothing stopped a file on volume
+A from pointing at a watch for volume B.
+
+rev 3 enforces it:
+
+- **`try_new` takes the `WatchedLocation` by reference**, not a bare id. It
+  extracts the watch's `id` (still stored as `watched_location_id: Id` — the
+  user's explicit decision) and `volume`, and rejects a
+  `location.volume() != watch.volume()` pairing with the new
+  `MediaFileError::VolumeMismatch` variant.
+- **The watch volume is cached** in the `watch_volume` field so the location
+  setters can re-validate without a `WatchedLocation` reference.
+- **The location setters are fallible**: `set_location` / `with_location` are
+  replaced by `try_set_location` / `try_with_location`, which reject a
+  cross-volume move with `VolumeMismatch` (leaving `self` unchanged on the
+  in-place form). Moving a copy to a different volume is a *new copy under a
+  different watch*, not a mutation.
+- **Re-pointing the watch is also fallible**: `set_watched_location_id` /
+  `with_watched_location_id` (bare-id) are replaced by
+  `try_set_watched_location` / `try_with_watched_location`, which take a
+  `WatchedLocation` and reject a watch on a volume other than this copy's
+  current `location` volume; they update both `watched_location_id` and
+  `watch_volume` together so the two can never desync.
+
 ## Invariants
 
 `id`, `media_id`, `watched_location_id` all non-nil (rejected by `try_new`);
 `location.components` non-empty (valid `Local`, enforced by the `Location`
-constructor). No `Default` — a `MediaFile` with nil ids is an orphan copy,
-same reasoning as `Media`'s "No Default".
+constructor); `location.volume() == watch_volume` (rejected by `try_new` and
+re-checked by every location/watch mutator). No `Default` — a `MediaFile`
+with nil ids is an orphan copy, same reasoning as `Media`'s "No Default".
 
 ## Projection notes
 
@@ -81,8 +112,22 @@ same reasoning as `Media`'s "No Default".
   `watched_location_id` stored as `BinData`.
 - **graphql**: expose the copy's path/name + a resolver to its `Media`
   content and discovering `WatchedLocation`; opaque external id.
+- **volume consistency**: `watch_volume` is a denormalised copy of
+  `watched_location(volume)`; it is *not* a separate FK column and is kept in
+  lock-step with `watched_location_id` by the fallible domain mutators.
 
-**Status: LOCKED (rev 2) — user-approved.** *(rev 2: codex PR #13 round-2
+**Status: LOCKED (rev 3) — user-approved.** *(rev 3: codex PR #13 round-3
+finding — `MediaFile` could point at a watch for a different volume.
+`try_new` now takes the `WatchedLocation` (not a bare id) and rejects a
+`location`/watch volume mismatch with the new `MediaFileError::VolumeMismatch`
+variant; a cached `watch_volume: Id` field lets the location setters
+re-validate; `set_location`/`with_location` and
+`set_watched_location_id`/`with_watched_location_id` are replaced by the
+fallible `try_set_location`/`try_with_location` and
+`try_set_watched_location`/`try_with_watched_location`. `watched_location_id`
+stays a stored `Id` field per the user's explicit decision.)*
+
+*(rev 2: codex PR #13 round-2
 findings — `name` is now **derived** from `location`'s last component
 instead of a standalone field that could desync; `created_at` becomes
 `Option<jiff::Timestamp>` with the 0-ms wire sentinel normalised to `None`,
