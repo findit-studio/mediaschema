@@ -7,11 +7,13 @@
 
 pub mod leaves;
 pub mod media;
+pub mod media_file;
 
 pub use leaves::{
   SqliteSceneAnnotationRow, SqliteSpeakerRow, SqliteUserTagRow, SqliteWatchedLocationRow,
 };
 pub use media::SqliteMediaRow;
+pub use media_file::SqliteMediaFileRow;
 
 /// Canonical SQLite DDL for the mediaschema tables this revision maps.
 ///

@@ -12,9 +12,11 @@
 
 pub mod leaves;
 pub mod media;
+pub mod media_file;
 
 pub use leaves::{PgSceneAnnotationRow, PgSpeakerRow, PgUserTagRow, PgWatchedLocationRow};
 pub use media::PgMediaRow;
+pub use media_file::PgMediaFileRow;
 
 /// Canonical PostgreSQL DDL for the mediaschema tables this revision maps.
 pub const SCHEMA_SQL: &str = include_str!("schema.sql");

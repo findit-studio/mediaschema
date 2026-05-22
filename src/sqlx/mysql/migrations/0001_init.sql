@@ -46,6 +46,19 @@ CREATE TABLE IF NOT EXISTS watched_location (
     PRIMARY KEY (id)
 );
 
+CREATE TABLE IF NOT EXISTS media_file (
+    id                  BINARY(16) NOT NULL,
+    media_id            BINARY(16) NOT NULL,
+    created_at_ms       BIGINT,
+    location_volume     BINARY(16) NOT NULL,
+    location_path       TEXT       NOT NULL,
+    watched_location_id BINARY(16) NOT NULL,
+    watch_volume        BINARY(16) NOT NULL,
+    PRIMARY KEY (id),
+    KEY idx_media_file_media_id (media_id),
+    KEY idx_media_file_watched_location_id (watched_location_id)
+);
+
 CREATE TABLE IF NOT EXISTS speaker (
     id                  BINARY(16) NOT NULL,
     parent              BINARY(16) NOT NULL,
