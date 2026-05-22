@@ -55,54 +55,58 @@ impl UserTag<Uuid7> {
 
 impl<Id> UserTag<Id> {
   /// Canonical identity.
-  #[inline]
+  #[inline(always)]
   pub const fn id(&self) -> &Id {
     &self.id
   }
 
   /// Display name. Unique-by-`name` is a projection-side concern
   /// (case-folded comparison etc.).
-  #[inline]
+  #[inline(always)]
   pub fn name(&self) -> &str {
     self.name.as_str()
   }
 
   /// Optional swatch for UI.
-  #[inline]
+  #[inline(always)]
   pub const fn color(&self) -> Option<Rgba> {
     self.color
   }
 
   /// When the tag was created.
-  #[inline]
+  #[inline(always)]
   pub const fn created_at(&self) -> &Timestamp {
     &self.created_at
   }
 
   /// Builder: replace `name`.
-  #[inline]
+  #[inline(always)]
+  #[must_use]
   pub fn with_name(mut self, name: impl Into<SmolStr>) -> Self {
     self.name = name.into();
     self
   }
 
   /// Builder: replace `color`.
-  #[inline]
+  #[inline(always)]
+  #[must_use]
   pub const fn with_color(mut self, color: Option<Rgba>) -> Self {
     self.color = color;
     self
   }
 
   /// In-place mutator for `name`.
-  #[inline]
-  pub fn set_name(&mut self, name: impl Into<SmolStr>) {
+  #[inline(always)]
+  pub fn set_name(&mut self, name: impl Into<SmolStr>) -> &mut Self {
     self.name = name.into();
+    self
   }
 
   /// In-place mutator for `color`.
-  #[inline]
-  pub const fn set_color(&mut self, color: Option<Rgba>) {
+  #[inline(always)]
+  pub const fn set_color(&mut self, color: Option<Rgba>) -> &mut Self {
     self.color = color;
+    self
   }
 }
 
@@ -168,26 +172,26 @@ impl SceneAnnotation<Uuid7> {
 
 impl<Id> SceneAnnotation<Id> {
   /// Canonical identity.
-  #[inline]
+  #[inline(always)]
   pub const fn id(&self) -> &Id {
     &self.id
   }
 
   /// FK → `Scene.id`.
-  #[inline]
+  #[inline(always)]
   pub const fn scene(&self) -> &Id {
     &self.scene
   }
 
   /// Whether the scene is favourited.
-  #[inline]
+  #[inline(always)]
   pub const fn is_favorite(&self) -> bool {
     self.favorite
   }
 
   /// References to `UserTag.id`s (not inline strings — supports
   /// rename / dedup via the tag aggregate).
-  #[inline]
+  #[inline(always)]
   pub const fn user_tags(&self) -> &[Id] {
     // `Vec::as_slice` is const fn; deref-coercion (`&self.user_tags`)
     // would require the non-const `Deref` impl.
@@ -196,73 +200,81 @@ impl<Id> SceneAnnotation<Id> {
 
   /// `None` = unrated; otherwise typically 0–5 (range enforced by the
   /// projection).
-  #[inline]
+  #[inline(always)]
   pub const fn rating(&self) -> Option<u8> {
     self.rating
   }
 
   /// Free-text note; `""` = none (locked: no `Option` for `SmolStr`).
-  #[inline]
+  #[inline(always)]
   pub fn note(&self) -> &str {
     self.note.as_str()
   }
 
   /// When the annotation was last updated.
-  #[inline]
+  #[inline(always)]
   pub const fn updated_at(&self) -> &Timestamp {
     &self.updated_at
   }
 
   /// Builder: replace `favorite`.
-  #[inline]
+  #[inline(always)]
+  #[must_use]
   pub const fn with_favorite(mut self, favorite: bool) -> Self {
     self.favorite = favorite;
     self
   }
 
   /// Builder: replace `user_tags`.
-  #[inline]
+  #[inline(always)]
+  #[must_use]
   pub fn with_user_tags(mut self, tags: impl Into<std::vec::Vec<Id>>) -> Self {
     self.user_tags = tags.into();
     self
   }
 
   /// Builder: replace `rating`.
-  #[inline]
+  #[inline(always)]
+  #[must_use]
   pub const fn with_rating(mut self, rating: Option<u8>) -> Self {
     self.rating = rating;
     self
   }
 
   /// Builder: replace `note`.
-  #[inline]
+  #[inline(always)]
+  #[must_use]
   pub fn with_note(mut self, note: impl Into<SmolStr>) -> Self {
     self.note = note.into();
     self
   }
 
   /// In-place mutator for `favorite`.
-  #[inline]
-  pub const fn set_favorite(&mut self, favorite: bool) {
+  #[inline(always)]
+  pub const fn set_favorite(&mut self, favorite: bool) -> &mut Self {
     self.favorite = favorite;
+    self
   }
 
   /// In-place mutator for `user_tags`.
-  #[inline]
-  pub fn set_user_tags(&mut self, tags: impl Into<std::vec::Vec<Id>>) {
+  #[inline(always)]
+  pub fn set_user_tags(&mut self, tags: impl Into<std::vec::Vec<Id>>) -> &mut Self {
     self.user_tags = tags.into();
+    self
   }
 
   /// In-place mutator for `rating`.
-  #[inline]
-  pub const fn set_rating(&mut self, rating: Option<u8>) {
+  #[inline(always)]
+  pub const fn set_rating(&mut self, rating: Option<u8>) -> &mut Self {
     self.rating = rating;
+    self
   }
 
   /// In-place mutator for `note`.
-  #[inline]
-  pub fn set_note(&mut self, note: impl Into<SmolStr>) {
+  #[inline(always)]
+  pub fn set_note(&mut self, note: impl Into<SmolStr>) -> &mut Self {
     self.note = note.into();
+    self
   }
 }
 

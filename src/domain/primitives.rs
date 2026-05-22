@@ -107,7 +107,7 @@ fn validate_v7(u: Uuid) -> Result<Uuid7, Uuid7Error> {
 impl Uuid7 {
   /// Generate a new time-ordered UUIDv7 from the current wall-clock time.
   #[cfg(feature = "std")]
-  #[inline]
+  #[inline(always)]
   pub fn new() -> Self {
     Self(Uuid::now_v7())
   }
@@ -121,7 +121,7 @@ impl Uuid7 {
   /// Currently only the internal test suite exercises this; the
   /// `dead_code` allow is held for the upcoming proto adapter and the
   /// `Location::try_local_uuid7` nil-rejection regression test.
-  #[inline]
+  #[inline(always)]
   #[allow(dead_code)]
   pub(crate) const fn nil() -> Self {
     Self(Uuid::nil())
@@ -129,27 +129,27 @@ impl Uuid7 {
 
   /// Is this the nil sentinel? Useful for the same wire-codec paths that
   /// produce the sentinel; domain code should not test for it.
-  #[inline]
+  #[inline(always)]
   #[allow(dead_code)]
   pub(crate) fn is_nil(&self) -> bool {
     self.0.is_nil()
   }
 
   /// Underlying `uuid::Uuid` (read-only; conversion back is `TryFrom`).
-  #[inline]
+  #[inline(always)]
   pub const fn as_uuid(&self) -> Uuid {
     self.0
   }
 
   /// Raw 16-byte representation.
-  #[inline]
+  #[inline(always)]
   pub const fn as_bytes(&self) -> &[u8; 16] {
     self.0.as_bytes()
   }
 
   /// Validating constructor from raw 16 bytes — rejects nil and any
   /// non-v7 layout.
-  #[inline]
+  #[inline(always)]
   pub fn try_from_bytes(bytes: [u8; 16]) -> Result<Self, Uuid7Error> {
     validate_v7(Uuid::from_bytes(bytes))
   }
@@ -167,7 +167,7 @@ impl Uuid7 {
   ///
   /// Held with `#[allow(dead_code)]` for the upcoming proto adapter; the
   /// in-crate test suite exercises the round-trip semantics.
-  #[inline]
+  #[inline(always)]
   #[allow(dead_code)]
   pub(crate) const fn from_bytes_unchecked(bytes: [u8; 16]) -> Self {
     Self(Uuid::from_bytes(bytes))
@@ -200,7 +200,7 @@ impl TryFrom<Uuid> for Uuid7 {
 }
 
 impl From<Uuid7> for Uuid {
-  #[inline]
+  #[inline(always)]
   fn from(id: Uuid7) -> Self {
     id.0
   }
@@ -227,32 +227,32 @@ pub struct FileChecksum([u8; 32]);
 impl FileChecksum {
   /// All-zero sentinel for "not yet computed". The canonical no-arg
   /// constructor — [`Default::default`] is `Self::new()`.
-  #[inline]
+  #[inline(always)]
   pub const fn new() -> Self {
     Self([0; 32])
   }
 
   /// Wrap a 32-byte hash.
-  #[inline]
+  #[inline(always)]
   pub const fn from_bytes(bytes: [u8; 32]) -> Self {
     Self(bytes)
   }
 
   /// Raw bytes.
-  #[inline]
+  #[inline(always)]
   pub const fn as_bytes(&self) -> &[u8; 32] {
     &self.0
   }
 
   /// Is this the all-zero "not yet computed" sentinel?
-  #[inline]
+  #[inline(always)]
   pub fn is_zero(&self) -> bool {
     self.0 == [0; 32]
   }
 }
 
 impl Default for FileChecksum {
-  #[inline]
+  #[inline(always)]
   fn default() -> Self {
     Self::new()
   }
@@ -269,7 +269,7 @@ impl fmt::Display for FileChecksum {
 }
 
 impl From<[u8; 32]> for FileChecksum {
-  #[inline]
+  #[inline(always)]
   fn from(bytes: [u8; 32]) -> Self {
     Self(bytes)
   }
@@ -297,53 +297,53 @@ pub struct Rgba(u32);
 impl Rgba {
   /// Transparent black (`0x00000000`). The canonical no-arg constructor —
   /// [`Default::default`] is `Self::new()`.
-  #[inline]
+  #[inline(always)]
   pub const fn new() -> Self {
     Self(0)
   }
 
   /// Pack from RGBA components.
-  #[inline]
+  #[inline(always)]
   pub const fn from_components(r: u8, g: u8, b: u8, a: u8) -> Self {
     Self(((r as u32) << 24) | ((g as u32) << 16) | ((b as u32) << 8) | (a as u32))
   }
 
   /// Construct from a pre-packed `0xRRGGBBAA` value.
-  #[inline]
+  #[inline(always)]
   pub const fn from_bits(bits: u32) -> Self {
     Self(bits)
   }
 
   /// Raw packed `0xRRGGBBAA` value.
-  #[inline]
+  #[inline(always)]
   pub const fn bits(self) -> u32 {
     self.0
   }
 
   /// Red component.
-  #[inline]
+  #[inline(always)]
   pub const fn r(self) -> u8 {
     (self.0 >> 24) as u8
   }
   /// Green component.
-  #[inline]
+  #[inline(always)]
   pub const fn g(self) -> u8 {
     (self.0 >> 16) as u8
   }
   /// Blue component.
-  #[inline]
+  #[inline(always)]
   pub const fn b(self) -> u8 {
     (self.0 >> 8) as u8
   }
   /// Alpha component.
-  #[inline]
+  #[inline(always)]
   pub const fn a(self) -> u8 {
     self.0 as u8
   }
 }
 
 impl Default for Rgba {
-  #[inline]
+  #[inline(always)]
   fn default() -> Self {
     Self::new()
   }
@@ -397,7 +397,7 @@ impl<Id> LocalLocation<Id> {
   /// The validating ctors call this after checking invariants;
   /// the proto wire adapter will call it when round-tripping a
   /// pre-validated oneof.
-  #[inline]
+  #[inline(always)]
   pub(crate) fn new<I, S>(volume: Id, components: I) -> Self
   where
     I: IntoIterator<Item = S>,
@@ -411,13 +411,13 @@ impl<Id> LocalLocation<Id> {
 
   /// Stable volume identity (the UUID written to
   /// `<mount>/.findit_index/.id`).
-  #[inline]
+  #[inline(always)]
   pub fn volume(&self) -> &Id {
     &self.volume
   }
 
   /// Platform-agnostic path components, relative to the volume root.
-  #[inline]
+  #[inline(always)]
   pub fn components(&self) -> &[SmolStr] {
     &self.components
   }
@@ -426,7 +426,7 @@ impl<Id> LocalLocation<Id> {
   ///
   /// `components` is validated non-empty at construction
   /// ([`LocationError::EmptyPath`]), so a last element always exists.
-  #[inline]
+  #[inline(always)]
   pub fn file_name(&self) -> &str {
     self
       .components
@@ -542,7 +542,7 @@ pub struct UnknownErrorCode(pub(crate) u32);
 
 impl UnknownErrorCode {
   /// The wire `u32` this `Unknown` carries.
-  #[inline]
+  #[inline(always)]
   pub const fn get(self) -> u32 {
     self.0
   }
@@ -827,7 +827,7 @@ pub struct ErrorInfo {
 #[cfg(any(feature = "std", feature = "alloc"))]
 impl ErrorInfo {
   /// Construct an `ErrorInfo` with the given code and message.
-  #[inline]
+  #[inline(always)]
   pub fn new(code: ErrorCode, message: impl Into<SmolStr>) -> Self {
     Self {
       code,
@@ -836,7 +836,7 @@ impl ErrorInfo {
   }
 
   /// Construct with just a code (empty message).
-  #[inline]
+  #[inline(always)]
   pub fn code_only(code: ErrorCode) -> Self {
     Self {
       code,
@@ -845,41 +845,45 @@ impl ErrorInfo {
   }
 
   /// Stage-coded error id (the wire-stable signal).
-  #[inline]
+  #[inline(always)]
   pub const fn code(&self) -> ErrorCode {
     self.code
   }
 
   /// Human-readable description (`""` = absent).
-  #[inline]
+  #[inline(always)]
   pub fn message(&self) -> &str {
     self.message.as_str()
   }
 
   /// Builder: replace the message and return `self`.
-  #[inline]
+  #[inline(always)]
+  #[must_use]
   pub fn with_message(mut self, message: impl Into<SmolStr>) -> Self {
     self.message = message.into();
     self
   }
 
   /// Builder: replace the code and return `self`.
-  #[inline]
+  #[inline(always)]
+  #[must_use]
   pub fn with_code(mut self, code: ErrorCode) -> Self {
     self.code = code;
     self
   }
 
   /// In-place setter for the message.
-  #[inline]
-  pub fn set_message(&mut self, message: impl Into<SmolStr>) {
+  #[inline(always)]
+  pub fn set_message(&mut self, message: impl Into<SmolStr>) -> &mut Self {
     self.message = message.into();
+    self
   }
 
   /// In-place setter for the code.
-  #[inline]
-  pub fn set_code(&mut self, code: ErrorCode) {
+  #[inline(always)]
+  pub fn set_code(&mut self, code: ErrorCode) -> &mut Self {
     self.code = code;
+    self
   }
 }
 

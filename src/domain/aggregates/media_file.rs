@@ -134,13 +134,13 @@ impl MediaFile<Uuid7> {
 
 impl<Id> MediaFile<Id> {
   /// Canonical identity (the copy's key).
-  #[inline]
+  #[inline(always)]
   pub const fn id(&self) -> &Id {
     &self.id
   }
 
   /// FK → the shared `Media` content row.
-  #[inline]
+  #[inline(always)]
   pub const fn media_id(&self) -> &Id {
     &self.media_id
   }
@@ -159,26 +159,26 @@ impl<Id> MediaFile<Id> {
 
   /// Filesystem creation time (wall-clock, ms-resolution). `None` when the
   /// filesystem has no birth time.
-  #[inline]
+  #[inline(always)]
   pub const fn created_at(&self) -> Option<&JiffTimestamp> {
     self.created_at.as_ref()
   }
 
   /// Structured location where this copy lives.
-  #[inline]
+  #[inline(always)]
   pub const fn location(&self) -> &Location<Id> {
     &self.location
   }
 
   /// FK → the `WatchedLocation` that discovered this copy.
-  #[inline]
+  #[inline(always)]
   pub const fn watched_location_id(&self) -> &Id {
     &self.watched_location_id
   }
 
   /// Volume identity of the discovering `WatchedLocation` — the volume
   /// every valid `location` of this copy must sit on.
-  #[inline]
+  #[inline(always)]
   pub const fn watch_volume(&self) -> &Id {
     &self.watch_volume
   }
@@ -187,7 +187,8 @@ impl<Id> MediaFile<Id> {
 
   /// Builder: replace `created_at`. Stores the supplied `Option`
   /// faithfully — see [`MediaFile::set_created_at`].
-  #[inline]
+  #[inline(always)]
+  #[must_use]
   pub const fn with_created_at(mut self, t: Option<JiffTimestamp>) -> Self {
     self.created_at = t;
     self
@@ -212,7 +213,8 @@ impl<Id> MediaFile<Id> {
   }
 
   /// Builder: replace the `Media` content FK.
-  #[inline]
+  #[inline(always)]
+  #[must_use]
   pub fn with_media_id(mut self, media_id: Id) -> Self {
     self.media_id = media_id;
     self
@@ -246,9 +248,10 @@ impl<Id> MediaFile<Id> {
   /// real timestamp and is preserved distinctly from `None`. Translating
   /// the legacy wire `0` (Unix epoch, ms) sentinel to `None` is the
   /// responsibility of the wire-decode adapter, not the domain.
-  #[inline]
-  pub const fn set_created_at(&mut self, t: Option<JiffTimestamp>) {
+  #[inline(always)]
+  pub const fn set_created_at(&mut self, t: Option<JiffTimestamp>) -> &mut Self {
     self.created_at = t;
+    self
   }
 
   /// In-place mutator for `location` — also the single atomic rename/move
@@ -259,7 +262,7 @@ impl<Id> MediaFile<Id> {
   /// cross-volume move is rejected with [`MediaFileError::VolumeMismatch`]
   /// and `self` is left unchanged.
   #[inline]
-  pub fn try_set_location(&mut self, location: Location<Id>) -> Result<(), MediaFileError>
+  pub fn try_set_location(&mut self, location: Location<Id>) -> Result<&mut Self, MediaFileError>
   where
     Id: PartialEq,
   {
@@ -267,13 +270,14 @@ impl<Id> MediaFile<Id> {
       return Err(MediaFileError::VolumeMismatch);
     }
     self.location = location;
-    Ok(())
+    Ok(self)
   }
 
   /// In-place mutator for the `Media` content FK.
-  #[inline]
-  pub fn set_media_id(&mut self, media_id: Id) {
+  #[inline(always)]
+  pub fn set_media_id(&mut self, media_id: Id) -> &mut Self {
     self.media_id = media_id;
+    self
   }
 
   /// In-place mutator: re-point this copy at a different discovering
@@ -289,7 +293,7 @@ impl<Id> MediaFile<Id> {
   pub fn try_set_watched_location(
     &mut self,
     watched_location: &WatchedLocation<Id>,
-  ) -> Result<(), MediaFileError>
+  ) -> Result<&mut Self, MediaFileError>
   where
     Id: Clone + PartialEq,
   {
@@ -298,7 +302,7 @@ impl<Id> MediaFile<Id> {
     }
     self.watched_location_id = watched_location.id().clone();
     self.watch_volume = watched_location.volume().clone();
-    Ok(())
+    Ok(self)
   }
 }
 

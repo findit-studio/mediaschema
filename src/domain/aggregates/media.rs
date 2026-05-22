@@ -37,9 +37,9 @@
 //! ## Encapsulation
 //!
 //! No public fields. Access via getters (`const fn` where possible);
-//! mutation via `with_*` builders and `set_*` setters (returning `()`).
-//! `try_new` is the validating constructor; nil `id` and nil `checksum`
-//! are rejected.
+//! mutation via `with_*` builders and `set_*` setters (returning
+//! `&mut Self` so they chain). `try_new` is the validating constructor;
+//! nil `id` and nil `checksum` are rejected.
 
 use derive_more::IsVariant;
 use jiff::Timestamp as JiffTimestamp;
@@ -145,92 +145,92 @@ impl Media<Uuid7> {
 
 impl<Id> Media<Id> {
   /// Canonical identity.
-  #[inline]
+  #[inline(always)]
   pub const fn id(&self) -> &Id {
     &self.id
   }
 
   /// Content hash (the unique-across-`Media` index).
-  #[inline]
+  #[inline(always)]
   pub const fn checksum(&self) -> &FileChecksum {
     &self.checksum
   }
 
   /// Container format (MP4/MKV/MKA/…).
-  #[inline]
+  #[inline(always)]
   pub const fn format(&self) -> &Format {
     &self.format
   }
 
   /// File size in bytes.
-  #[inline]
+  #[inline(always)]
   pub const fn size(&self) -> u64 {
     self.size
   }
 
   /// **Overall** media length (per-track duration is on the track).
-  #[inline]
+  #[inline(always)]
   pub const fn duration(&self) -> Option<&MediaTimestamp> {
     self.duration.as_ref()
   }
 
   /// Top-level media kind.
-  #[inline]
+  #[inline(always)]
   pub const fn kind(&self) -> MediaKind {
     self.kind
   }
 
   /// Reverse lookup → this content's [`MediaFile`](super::MediaFile)
   /// copies (projects the slice, never `&Vec`).
-  #[inline]
-  pub fn files(&self) -> &[Id] {
+  #[inline(always)]
+  pub const fn files(&self) -> &[Id] {
     self.files.as_slice()
   }
 
   /// FK → `Video` facet.
-  #[inline]
+  #[inline(always)]
   pub const fn video(&self) -> Option<&Id> {
     self.video.as_ref()
   }
 
   /// FK → `Audio` facet.
-  #[inline]
+  #[inline(always)]
   pub const fn audio(&self) -> Option<&Id> {
     self.audio.as_ref()
   }
 
   /// FK → `Subtitle` facet.
-  #[inline]
+  #[inline(always)]
   pub const fn subtitle(&self) -> Option<&Id> {
     self.subtitle.as_ref()
   }
 
   /// Per-kind error rollup.
-  #[inline]
+  #[inline(always)]
   pub const fn error_flags(&self) -> MediaErrorFlags {
     self.error_flags
   }
 
   /// File-level probe error (the non-track case).
-  #[inline]
+  #[inline(always)]
   pub const fn probe_error(&self) -> Option<&ErrorInfo> {
     self.probe_error.as_ref()
   }
 
   /// EXIF capture timestamp.
-  #[inline]
+  #[inline(always)]
   pub const fn capture_date(&self) -> Option<&JiffTimestamp> {
     self.capture_date.as_ref()
   }
 
   /// EXIF device info.
-  #[inline]
+  #[inline(always)]
   pub const fn device(&self) -> Option<&Device> {
     self.device.as_ref()
   }
 
   /// EXIF GPS reading.
-  #[inline]
+  #[inline(always)]
   pub const fn gps(&self) -> Option<&GeoLocation> {
     self.gps.as_ref()
   }
@@ -255,49 +255,56 @@ impl<Id> Media<Id> {
   }
 
   /// Builder: replace the whole `files` reverse-lookup list.
-  #[inline]
+  #[inline(always)]
+  #[must_use]
   pub fn with_files(mut self, files: std::vec::Vec<Id>) -> Self {
     self.files = files;
     self
   }
 
   /// Builder: append one `MediaFile` id to the reverse-lookup list.
-  #[inline]
+  #[inline(always)]
+  #[must_use]
   pub fn push_file(mut self, file: Id) -> Self {
     self.files.push(file);
     self
   }
 
   /// Builder: set the `Video` facet FK.
-  #[inline]
+  #[inline(always)]
+  #[must_use]
   pub fn with_video(mut self, video: Option<Id>) -> Self {
     self.video = video;
     self
   }
 
   /// Builder: set the `Audio` facet FK.
-  #[inline]
+  #[inline(always)]
+  #[must_use]
   pub fn with_audio(mut self, audio: Option<Id>) -> Self {
     self.audio = audio;
     self
   }
 
   /// Builder: set the `Subtitle` facet FK.
-  #[inline]
+  #[inline(always)]
+  #[must_use]
   pub fn with_subtitle(mut self, subtitle: Option<Id>) -> Self {
     self.subtitle = subtitle;
     self
   }
 
   /// Builder: replace the per-kind error-rollup.
-  #[inline]
+  #[inline(always)]
+  #[must_use]
   pub const fn with_error_flags(mut self, flags: MediaErrorFlags) -> Self {
     self.error_flags = flags;
     self
   }
 
   /// Builder: replace `probe_error`.
-  #[inline]
+  #[inline(always)]
+  #[must_use]
   pub fn with_probe_error(mut self, e: Option<ErrorInfo>) -> Self {
     self.probe_error = e;
     self
@@ -309,21 +316,24 @@ impl<Id> Media<Id> {
   /// real timestamp and is preserved distinctly from `None`. Translating
   /// the legacy wire `0` (Unix epoch, ms) sentinel to `None` is the
   /// responsibility of the wire-decode adapter, not the domain.
-  #[inline]
+  #[inline(always)]
+  #[must_use]
   pub const fn with_capture_date(mut self, t: Option<JiffTimestamp>) -> Self {
     self.capture_date = t;
     self
   }
 
   /// Builder: replace `device`.
-  #[inline]
+  #[inline(always)]
+  #[must_use]
   pub fn with_device(mut self, d: Option<Device>) -> Self {
     self.device = d;
     self
   }
 
   /// Builder: replace `gps`.
-  #[inline]
+  #[inline(always)]
+  #[must_use]
   pub const fn with_gps(mut self, g: Option<GeoLocation>) -> Self {
     self.gps = g;
     self
@@ -349,65 +359,75 @@ impl<Id> Media<Id> {
   }
 
   /// In-place mutator: replace the whole `files` reverse-lookup list.
-  #[inline]
-  pub fn set_files(&mut self, files: std::vec::Vec<Id>) {
+  #[inline(always)]
+  pub fn set_files(&mut self, files: std::vec::Vec<Id>) -> &mut Self {
     self.files = files;
+    self
   }
 
   /// In-place mutator: append one `MediaFile` id to the reverse-lookup
   /// list.
-  #[inline]
-  pub fn add_file(&mut self, file: Id) {
+  #[inline(always)]
+  pub fn add_file(&mut self, file: Id) -> &mut Self {
     self.files.push(file);
+    self
   }
 
   /// In-place mutator for the `Video` facet FK.
-  #[inline]
-  pub fn set_video(&mut self, video: Option<Id>) {
+  #[inline(always)]
+  pub fn set_video(&mut self, video: Option<Id>) -> &mut Self {
     self.video = video;
+    self
   }
 
   /// In-place mutator for the `Audio` facet FK.
-  #[inline]
-  pub fn set_audio(&mut self, audio: Option<Id>) {
+  #[inline(always)]
+  pub fn set_audio(&mut self, audio: Option<Id>) -> &mut Self {
     self.audio = audio;
+    self
   }
 
   /// In-place mutator for the `Subtitle` facet FK.
-  #[inline]
-  pub fn set_subtitle(&mut self, subtitle: Option<Id>) {
+  #[inline(always)]
+  pub fn set_subtitle(&mut self, subtitle: Option<Id>) -> &mut Self {
     self.subtitle = subtitle;
+    self
   }
 
   /// In-place mutator for the per-kind error rollup.
-  #[inline]
-  pub const fn set_error_flags(&mut self, flags: MediaErrorFlags) {
+  #[inline(always)]
+  pub const fn set_error_flags(&mut self, flags: MediaErrorFlags) -> &mut Self {
     self.error_flags = flags;
+    self
   }
 
   /// In-place mutator for `probe_error`.
-  #[inline]
-  pub fn set_probe_error(&mut self, e: Option<ErrorInfo>) {
+  #[inline(always)]
+  pub fn set_probe_error(&mut self, e: Option<ErrorInfo>) -> &mut Self {
     self.probe_error = e;
+    self
   }
 
   /// In-place mutator for `capture_date`. Stores the supplied `Option`
   /// faithfully — see [`Media::with_capture_date`].
-  #[inline]
-  pub const fn set_capture_date(&mut self, t: Option<JiffTimestamp>) {
+  #[inline(always)]
+  pub const fn set_capture_date(&mut self, t: Option<JiffTimestamp>) -> &mut Self {
     self.capture_date = t;
+    self
   }
 
   /// In-place mutator for `device`.
-  #[inline]
-  pub fn set_device(&mut self, d: Option<Device>) {
+  #[inline(always)]
+  pub fn set_device(&mut self, d: Option<Device>) -> &mut Self {
     self.device = d;
+    self
   }
 
   /// In-place mutator for `gps`.
-  #[inline]
-  pub const fn set_gps(&mut self, g: Option<GeoLocation>) {
+  #[inline(always)]
+  pub const fn set_gps(&mut self, g: Option<GeoLocation>) -> &mut Self {
     self.gps = g;
+    self
   }
 }
 

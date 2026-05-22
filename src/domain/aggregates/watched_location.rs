@@ -90,7 +90,7 @@ impl WatchedLocation<Uuid7> {
 
 impl<Id> WatchedLocation<Id> {
   /// Canonical identity.
-  #[inline]
+  #[inline(always)]
   pub const fn id(&self) -> &Id {
     &self.id
   }
@@ -98,19 +98,19 @@ impl<Id> WatchedLocation<Id> {
   /// Stable identity of the monitored volume — the same UUID
   /// `LocalLocation::volume` carries. The watch is volume-scoped; this is
   /// **not** a folder path.
-  #[inline]
+  #[inline(always)]
   pub const fn volume(&self) -> &Id {
     &self.volume
   }
 
   /// Descend subdirectories.
-  #[inline]
+  #[inline(always)]
   pub const fn is_recursive(&self) -> bool {
     self.recursive
   }
 
   /// Actively monitored (vs paused).
-  #[inline]
+  #[inline(always)]
   pub const fn is_enabled(&self) -> bool {
     self.enabled
   }
@@ -119,26 +119,26 @@ impl<Id> WatchedLocation<Id> {
   /// Ejectable + absent ⇒ expected/transient (monitor pauses; reconcile
   /// on remount). Non-ejectable + absent ⇒ `last_error` =
   /// `VolumeNotAvailable`.
-  #[inline]
+  #[inline(always)]
   pub const fn is_ejectable(&self) -> bool {
     self.is_ejectable
   }
 
   /// When this watch was configured.
-  #[inline]
+  #[inline(always)]
   pub const fn added_at(&self) -> &Timestamp {
     &self.added_at
   }
 
   /// Last full reconcile sweep (bootstrap / after-downtime /
   /// volume-remount catch-up — events the monitor missed while offline).
-  #[inline]
+  #[inline(always)]
   pub const fn last_reconciled_at(&self) -> Option<&Timestamp> {
     self.last_reconciled_at.as_ref()
   }
 
   /// Status of that sweep.
-  #[inline]
+  #[inline(always)]
   pub const fn last_reconcile_status(&self) -> Option<&ScanStatus> {
     self.last_reconcile_status.as_ref()
   }
@@ -146,87 +146,99 @@ impl<Id> WatchedLocation<Id> {
   /// Monitor-health failure (e.g. `VolumeNotAvailable`,
   /// `LocalPermissionDenied`). The non-track error case —
   /// `WatchedLocation` is config + monitor health, not media.
-  #[inline]
+  #[inline(always)]
   pub const fn last_error(&self) -> Option<&ErrorInfo> {
     self.last_error.as_ref()
   }
 
   /// Builder: replace `recursive` flag.
-  #[inline]
+  #[inline(always)]
+  #[must_use]
   pub const fn with_recursive(mut self, recursive: bool) -> Self {
     self.recursive = recursive;
     self
   }
 
   /// Builder: replace `enabled` flag.
-  #[inline]
+  #[inline(always)]
+  #[must_use]
   pub const fn with_enabled(mut self, enabled: bool) -> Self {
     self.enabled = enabled;
     self
   }
 
   /// Builder: replace `is_ejectable` flag.
-  #[inline]
+  #[inline(always)]
+  #[must_use]
   pub const fn with_ejectable(mut self, is_ejectable: bool) -> Self {
     self.is_ejectable = is_ejectable;
     self
   }
 
   /// Builder: replace `last_reconciled_at`.
-  #[inline]
+  #[inline(always)]
+  #[must_use]
   pub fn with_last_reconciled_at(mut self, t: Option<Timestamp>) -> Self {
     self.last_reconciled_at = t;
     self
   }
 
   /// Builder: replace `last_reconcile_status`.
-  #[inline]
+  #[inline(always)]
+  #[must_use]
   pub fn with_last_reconcile_status(mut self, s: Option<ScanStatus>) -> Self {
     self.last_reconcile_status = s;
     self
   }
 
   /// Builder: replace `last_error`.
-  #[inline]
+  #[inline(always)]
+  #[must_use]
   pub fn with_last_error(mut self, e: Option<ErrorInfo>) -> Self {
     self.last_error = e;
     self
   }
 
   /// In-place mutator for `recursive`.
-  #[inline]
-  pub const fn set_recursive(&mut self, recursive: bool) {
+  #[inline(always)]
+  pub const fn set_recursive(&mut self, recursive: bool) -> &mut Self {
     self.recursive = recursive;
+    self
   }
 
   /// In-place mutator for `enabled`.
-  #[inline]
-  pub const fn set_enabled(&mut self, enabled: bool) {
+  #[inline(always)]
+  pub const fn set_enabled(&mut self, enabled: bool) -> &mut Self {
     self.enabled = enabled;
+    self
   }
 
   /// In-place mutator for `is_ejectable`.
-  #[inline]
-  pub const fn set_ejectable(&mut self, is_ejectable: bool) {
+  #[inline(always)]
+  pub const fn set_ejectable(&mut self, is_ejectable: bool) -> &mut Self {
     self.is_ejectable = is_ejectable;
+    self
   }
 
   /// In-place mutator for `last_reconciled_at`.
-  #[inline]
-  pub fn set_last_reconciled_at(&mut self, t: Option<Timestamp>) {
+  #[inline(always)]
+  pub fn set_last_reconciled_at(&mut self, t: Option<Timestamp>) -> &mut Self {
     self.last_reconciled_at = t;
+    self
   }
 
   /// In-place mutator for `last_reconcile_status`.
-  #[inline]
-  pub fn set_last_reconcile_status(&mut self, s: Option<ScanStatus>) {
+  #[inline(always)]
+  pub fn set_last_reconcile_status(&mut self, s: Option<ScanStatus>) -> &mut Self {
     self.last_reconcile_status = s;
+    self
   }
 
   /// In-place mutator for `last_error`.
-  #[inline]
-  pub fn set_last_error(&mut self, e: Option<ErrorInfo>) {
+  #[inline(always)]
+  pub fn set_last_error(&mut self, e: Option<ErrorInfo>) -> &mut Self {
     self.last_error = e;
+    self
   }
 }
 
