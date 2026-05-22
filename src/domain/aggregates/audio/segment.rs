@@ -83,31 +83,31 @@ impl Word {
   }
 
   /// Word text token.
-  #[inline]
+  #[inline(always)]
   pub fn text(&self) -> &str {
     self.text.as_str()
   }
 
   /// Time span (media-time).
-  #[inline]
-  pub const fn span(&self) -> &TimeRange {
+  #[inline(always)]
+  pub const fn span_ref(&self) -> &TimeRange {
     &self.span
   }
 
   /// `[0,1]` score; always present (NaN-free per locked spec).
-  #[inline]
+  #[inline(always)]
   pub const fn score(&self) -> f32 {
     self.score
   }
 
   /// Per-word BCP-47 language tag (`None` = inherits segment).
-  #[inline]
+  #[inline(always)]
   pub const fn language(&self) -> Option<Language> {
     self.language
   }
 
   /// Builder: replace `text`.
-  #[inline]
+  #[inline(always)]
   #[must_use]
   pub fn with_text(mut self, v: impl Into<SmolStr>) -> Self {
     self.text = v.into();
@@ -115,7 +115,7 @@ impl Word {
   }
 
   /// Builder: replace `span`.
-  #[inline]
+  #[inline(always)]
   #[must_use]
   pub fn with_span(mut self, span: TimeRange) -> Self {
     self.span = span;
@@ -148,7 +148,7 @@ impl Word {
   }
 
   /// Builder: replace `language`.
-  #[inline]
+  #[inline(always)]
   #[must_use]
   pub const fn with_language(mut self, v: Option<Language>) -> Self {
     self.language = v;
@@ -238,7 +238,7 @@ impl AudioSegment<Uuid7> {
   }
 
   /// Builder: replace the `speaker` FK (`None` = not diarized).
-  #[inline]
+  #[inline(always)]
   #[must_use]
   pub fn with_speaker(mut self, v: Option<Uuid7>) -> Self {
     self.speaker = v;
@@ -246,7 +246,7 @@ impl AudioSegment<Uuid7> {
   }
 
   /// In-place mutator for the `speaker` FK (`None` = not diarized).
-  #[inline]
+  #[inline(always)]
   pub fn set_speaker(&mut self, v: Option<Uuid7>) -> &mut Self {
     self.speaker = v;
     self
@@ -255,69 +255,69 @@ impl AudioSegment<Uuid7> {
 
 impl<Id> AudioSegment<Id> {
   /// Canonical identity.
-  #[inline]
-  pub const fn id(&self) -> &Id {
+  #[inline(always)]
+  pub const fn id_ref(&self) -> &Id {
     &self.id
   }
 
   /// FK → `AudioTrack.id`.
-  #[inline]
-  pub const fn parent(&self) -> &Id {
+  #[inline(always)]
+  pub const fn parent_ref(&self) -> &Id {
     &self.parent
   }
 
   /// 0-based segment ordinal within the parent track.
-  #[inline]
+  #[inline(always)]
   pub const fn index(&self) -> u32 {
     self.index
   }
 
   /// Segment time span (media-time).
-  #[inline]
-  pub const fn span(&self) -> &TimeRange {
+  #[inline(always)]
+  pub const fn span_ref(&self) -> &TimeRange {
     &self.span
   }
 
   /// FK → `Speaker` (`None` = not diarized; raw `dia` cluster lives on
   /// `Speaker.cluster_id`).
-  #[inline]
-  pub const fn speaker(&self) -> Option<&Id> {
+  #[inline(always)]
+  pub const fn speaker_ref(&self) -> Option<&Id> {
     self.speaker.as_ref()
   }
 
   /// Transcript text (`src` = `asry` transcript, `translated` =
   /// whisper-translate; both `""` until emitted).
-  #[inline]
-  pub const fn text(&self) -> &LocalizedText {
+  #[inline(always)]
+  pub const fn text_ref(&self) -> &LocalizedText {
     &self.text
   }
 
   /// Chunk language (`asry::Transcript.language`; BCP-47).
-  #[inline]
+  #[inline(always)]
   pub const fn language(&self) -> Option<Language> {
     self.language
   }
 
   /// Word-level timing + scores (`asry`). May be empty (= no word timing).
-  #[inline]
-  pub fn words(&self) -> &[Word] {
+  #[inline(always)]
+  pub fn words_slice(&self) -> &[Word] {
     self.words.as_slice()
   }
 
   /// Whisper "no speech" probability (replaces generic `confidence`).
-  #[inline]
+  #[inline(always)]
   pub const fn no_speech_prob(&self) -> Option<f32> {
     self.no_speech_prob
   }
 
   /// Whisper mean token logprob.
-  #[inline]
+  #[inline(always)]
   pub const fn avg_logprob(&self) -> Option<f32> {
     self.avg_logprob
   }
 
   /// Whisper final decode temperature (retry/quality signal).
-  #[inline]
+  #[inline(always)]
   pub const fn temperature(&self) -> Option<f32> {
     self.temperature
   }
@@ -337,7 +337,7 @@ impl<Id> AudioSegment<Id> {
     use core::cmp::Ordering;
     let (seg_start, seg_end) = (self.span.start(), self.span.end());
     for w in words {
-      let (w_start, w_end) = (w.span().start(), w.span().end());
+      let (w_start, w_end) = (w.span_ref().start(), w.span_ref().end());
       // Reject an inverted word range outright.
       if w_start.cmp_semantic(&w_end) == Ordering::Greater {
         return Err(AudioSegmentError::InvertedWordSpan);
@@ -354,7 +354,7 @@ impl<Id> AudioSegment<Id> {
   // ----- Builders ----------------------------------------------------------
 
   /// Builder: replace `text`.
-  #[inline]
+  #[inline(always)]
   #[must_use]
   pub fn with_text(mut self, v: LocalizedText) -> Self {
     self.text = v;
@@ -362,7 +362,7 @@ impl<Id> AudioSegment<Id> {
   }
 
   /// Builder: replace `language`.
-  #[inline]
+  #[inline(always)]
   #[must_use]
   pub const fn with_language(mut self, v: Option<Language>) -> Self {
     self.language = v;
@@ -410,7 +410,7 @@ impl<Id> AudioSegment<Id> {
   }
 
   /// Builder: replace `avg_logprob`.
-  #[inline]
+  #[inline(always)]
   #[must_use]
   pub const fn with_avg_logprob(mut self, v: Option<f32>) -> Self {
     self.avg_logprob = v;
@@ -418,7 +418,7 @@ impl<Id> AudioSegment<Id> {
   }
 
   /// Builder: replace `temperature`.
-  #[inline]
+  #[inline(always)]
   #[must_use]
   pub const fn with_temperature(mut self, v: Option<f32>) -> Self {
     self.temperature = v;
@@ -428,14 +428,14 @@ impl<Id> AudioSegment<Id> {
   // ----- Setters -----------------------------------------------------------
 
   /// In-place mutator for `text`.
-  #[inline]
+  #[inline(always)]
   pub fn set_text(&mut self, v: LocalizedText) -> &mut Self {
     self.text = v;
     self
   }
 
   /// In-place mutator for `language`.
-  #[inline]
+  #[inline(always)]
   pub const fn set_language(&mut self, v: Option<Language>) -> &mut Self {
     self.language = v;
     self
@@ -473,14 +473,14 @@ impl<Id> AudioSegment<Id> {
   }
 
   /// In-place mutator for `avg_logprob`.
-  #[inline]
+  #[inline(always)]
   pub const fn set_avg_logprob(&mut self, v: Option<f32>) -> &mut Self {
     self.avg_logprob = v;
     self
   }
 
   /// In-place mutator for `temperature`.
-  #[inline]
+  #[inline(always)]
   pub const fn set_temperature(&mut self, v: Option<f32>) -> &mut Self {
     self.temperature = v;
     self
@@ -544,11 +544,11 @@ mod tests {
     let parent = Uuid7::new();
     let s = AudioSegment::try_new(Uuid7::new(), parent, 0, span(0, 1500))
       .expect("valid construction must succeed");
-    assert_eq!(s.parent(), &parent);
+    assert_eq!(s.parent_ref(), &parent);
     assert_eq!(s.index(), 0);
-    assert!(s.speaker().is_none());
-    assert!(s.text().is_empty());
-    assert!(s.words().is_empty());
+    assert!(s.speaker_ref().is_none());
+    assert!(s.text_ref().is_empty());
+    assert!(s.words_slice().is_empty());
     assert!(s.language().is_none());
     assert!(s.no_speech_prob().is_none());
   }
@@ -599,9 +599,9 @@ mod tests {
       .with_speaker(Some(speaker))
       .with_text(LocalizedText::from_src_translated("hola", "hello"))
       .with_language(Some(es));
-    assert_eq!(s.speaker(), Some(&speaker));
-    assert_eq!(s.text().src(), "hola");
-    assert_eq!(s.text().translated(), "hello");
+    assert_eq!(s.speaker_ref(), Some(&speaker));
+    assert_eq!(s.text_ref().src(), "hola");
+    assert_eq!(s.text_ref().translated(), "hello");
     assert_eq!(s.language(), Some(es));
     assert_eq!(s.language().unwrap().language(), "es");
   }
@@ -617,10 +617,10 @@ mod tests {
       .unwrap()
       .try_with_words(std::vec![w1.clone(), w2.clone()])
       .unwrap();
-    assert_eq!(s.words().len(), 2);
-    assert_eq!(s.words()[0].text(), "bon");
-    assert!((s.words()[0].score() - 0.95).abs() < f32::EPSILON);
-    assert_eq!(s.words()[1].language(), Some(fr));
+    assert_eq!(s.words_slice().len(), 2);
+    assert_eq!(s.words_slice()[0].text(), "bon");
+    assert!((s.words_slice()[0].score() - 0.95).abs() < f32::EPSILON);
+    assert_eq!(s.words_slice()[1].language(), Some(fr));
   }
 
   #[test]
@@ -672,12 +672,12 @@ mod tests {
     let mut seg = AudioSegment::try_new(Uuid7::new(), Uuid7::new(), 0, span(100, 400)).unwrap();
     let good = Word::try_new("c", span(150, 300), 0.9).unwrap();
     seg.try_set_words(std::vec![good.clone()]).unwrap();
-    assert_eq!(seg.words().len(), 1);
+    assert_eq!(seg.words_slice().len(), 1);
     let bad = Word::try_new("d", span(0, 50), 0.9).unwrap();
     let r = seg.try_set_words(std::vec![bad]);
     assert_eq!(r.err(), Some(AudioSegmentError::WordSpanOutOfSegment));
     // the prior valid word list is still in place
-    assert_eq!(seg.words(), &[good]);
+    assert_eq!(seg.words_slice(), &[good]);
   }
 
   #[test]
@@ -702,9 +702,9 @@ mod tests {
     s.try_set_words(std::vec![Word::try_new("hi", span(0, 100), 0.9).unwrap()])
       .unwrap();
     s.try_set_no_speech_prob(Some(0.01)).unwrap();
-    assert_eq!(s.speaker(), Some(&speaker));
-    assert_eq!(s.text().src(), "hello");
-    assert_eq!(s.words().len(), 1);
+    assert_eq!(s.speaker_ref(), Some(&speaker));
+    assert_eq!(s.text_ref().src(), "hello");
+    assert_eq!(s.words_slice().len(), 1);
     assert!((s.no_speech_prob().unwrap() - 0.01).abs() < f32::EPSILON);
   }
 
@@ -785,13 +785,13 @@ mod tests {
     let seg = AudioSegment::try_new(Uuid7::new(), Uuid7::new(), 0, span(0, 500)).unwrap();
     // `None` — the "not diarized" sentinel.
     let n = seg.clone().with_speaker(None);
-    assert!(n.speaker().is_none());
+    assert!(n.speaker_ref().is_none());
     // a `Speaker` id attaches via the builder.
     let speaker = Uuid7::new();
     let mut s = seg.with_speaker(Some(speaker));
-    assert_eq!(s.speaker(), Some(&speaker));
+    assert_eq!(s.speaker_ref(), Some(&speaker));
     // the in-place mutator clears it.
     s.set_speaker(None);
-    assert!(s.speaker().is_none());
+    assert!(s.speaker_ref().is_none());
   }
 }

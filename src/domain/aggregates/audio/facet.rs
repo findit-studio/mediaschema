@@ -47,7 +47,7 @@ pub struct IndexProgress {
 
 impl IndexProgress {
   /// Canonical no-arg constructor — the empty rollup (`{0, 0, 0}`).
-  #[inline]
+  #[inline(always)]
   pub const fn new() -> Self {
     Self {
       total: 0,
@@ -75,34 +75,34 @@ impl IndexProgress {
   }
 
   /// Total child tracks the facet owns.
-  #[inline]
+  #[inline(always)]
   pub const fn total(&self) -> u32 {
     self.total
   }
 
   /// Tracks that finished indexing successfully.
-  #[inline]
+  #[inline(always)]
   pub const fn indexed(&self) -> u32 {
     self.indexed
   }
 
   /// Tracks whose indexing failed (`index_errors` non-empty at the time
   /// of last rollup maintenance).
-  #[inline]
+  #[inline(always)]
   pub const fn failed(&self) -> u32 {
     self.failed
   }
 
   /// True iff the facet has at least one failed track — the locked
   /// "kind container's error signal" rule (`failed > 0` ⇒ drill down).
-  #[inline]
+  #[inline(always)]
   pub const fn has_failures(&self) -> bool {
     self.failed > 0
   }
 }
 
 impl Default for IndexProgress {
-  #[inline]
+  #[inline(always)]
   fn default() -> Self {
     Self::new()
   }
@@ -172,27 +172,27 @@ impl Audio<Uuid7> {
 
 impl<Id> Audio<Id> {
   /// Canonical identity (also referenced by `Media.audio`).
-  #[inline]
-  pub const fn id(&self) -> &Id {
+  #[inline(always)]
+  pub const fn id_ref(&self) -> &Id {
     &self.id
   }
 
   /// Refs to child `AudioTrack`s.
-  #[inline]
-  pub const fn tracks(&self) -> &[Id] {
+  #[inline(always)]
+  pub const fn tracks_slice(&self) -> &[Id] {
     self.tracks.as_slice()
   }
 
   /// Rollup `Σ AudioTrack.segments.len()` — cheap "how many segments under
   /// this media" facet. Truth = per-track `AudioTrack.segments`.
-  #[inline]
+  #[inline(always)]
   pub const fn total_segments(&self) -> u32 {
     self.total_segments
   }
 
   /// Per-kind indexing rollup over the facet's tracks.
-  #[inline]
-  pub const fn track_progress(&self) -> &IndexProgress {
+  #[inline(always)]
+  pub const fn track_progress_ref(&self) -> &IndexProgress {
     &self.track_progress
   }
 
@@ -210,7 +210,7 @@ impl<Id> Audio<Id> {
   /// Reapplying the **identical** track-id list (same ids, same order) is a
   /// no-op for both rollups, so an idempotent save/retry that re-sets the
   /// current list does not wipe valid progress.
-  #[inline]
+  #[inline(always)]
   #[must_use]
   pub fn with_tracks(mut self, tracks: impl Into<std::vec::Vec<Id>>) -> Self
   where
@@ -221,7 +221,7 @@ impl<Id> Audio<Id> {
   }
 
   /// Builder: replace `total_segments`.
-  #[inline]
+  #[inline(always)]
   #[must_use]
   pub const fn with_total_segments(mut self, total: u32) -> Self {
     self.total_segments = total;
@@ -250,7 +250,7 @@ impl<Id> Audio<Id> {
   /// `{ total = new tracks.len(), indexed = 0, failed = 0 }` and resets
   /// `total_segments` to `0`; reapplying the **identical** list leaves both
   /// rollups untouched.
-  #[inline]
+  #[inline(always)]
   pub fn set_tracks(&mut self, tracks: impl Into<std::vec::Vec<Id>>) -> &mut Self
   where
     Id: PartialEq,
@@ -260,7 +260,7 @@ impl<Id> Audio<Id> {
   }
 
   /// In-place mutator for `total_segments`.
-  #[inline]
+  #[inline(always)]
   pub const fn set_total_segments(&mut self, total: u32) -> &mut Self {
     self.total_segments = total;
     self
@@ -341,10 +341,10 @@ mod tests {
   fn try_new_happy_path() {
     let id = Uuid7::new();
     let a = Audio::try_new(id).expect("valid construction must succeed");
-    assert_eq!(a.id(), &id);
-    assert!(a.tracks().is_empty());
+    assert_eq!(a.id_ref(), &id);
+    assert!(a.tracks_slice().is_empty());
     assert_eq!(a.total_segments(), 0);
-    assert_eq!(a.track_progress(), &IndexProgress::new());
+    assert_eq!(a.track_progress_ref(), &IndexProgress::new());
   }
 
   #[test]
@@ -365,10 +365,10 @@ mod tests {
       .with_total_segments(42)
       .try_with_track_progress(p)
       .unwrap();
-    assert_eq!(a.tracks().len(), 2);
-    assert!(a.tracks().contains(&t1));
+    assert_eq!(a.tracks_slice().len(), 2);
+    assert!(a.tracks_slice().contains(&t1));
     assert_eq!(a.total_segments(), 42);
-    assert_eq!(a.track_progress(), &p);
+    assert_eq!(a.track_progress_ref(), &p);
   }
 
   #[test]
@@ -378,10 +378,10 @@ mod tests {
     a.set_total_segments(7);
     a.try_set_track_progress(IndexProgress::try_new(1, 1, 0).unwrap())
       .unwrap();
-    assert_eq!(a.tracks().len(), 1);
+    assert_eq!(a.tracks_slice().len(), 1);
     assert_eq!(a.total_segments(), 7);
-    assert_eq!(a.track_progress().total(), 1);
-    assert!(!a.track_progress().has_failures());
+    assert_eq!(a.track_progress_ref().total(), 1);
+    assert!(!a.track_progress_ref().has_failures());
   }
 
   // --- Finding 3: track_progress / tracks coupling --------------------------
@@ -389,8 +389,11 @@ mod tests {
   #[test]
   fn fresh_facet_has_empty_rollup_consistent_with_empty_tracks() {
     let a = Audio::try_new(Uuid7::new()).unwrap();
-    assert_eq!(a.track_progress().total() as usize, a.tracks().len());
-    assert_eq!(a.track_progress(), &IndexProgress::new());
+    assert_eq!(
+      a.track_progress_ref().total() as usize,
+      a.tracks_slice().len()
+    );
+    assert_eq!(a.track_progress_ref(), &IndexProgress::new());
   }
 
   #[test]
@@ -402,10 +405,13 @@ mod tests {
     ]);
     // changed track list ⇒ fresh rollup { total = 3, indexed = 0, failed = 0 }
     assert_eq!(
-      a.track_progress(),
+      a.track_progress_ref(),
       &IndexProgress::try_new(3, 0, 0).unwrap()
     );
-    assert_eq!(a.track_progress().total() as usize, a.tracks().len());
+    assert_eq!(
+      a.track_progress_ref().total() as usize,
+      a.tracks_slice().len()
+    );
   }
 
   #[test]
@@ -418,10 +424,13 @@ mod tests {
     // replacing the track list invalidates the prior fully-indexed rollup
     a.set_tracks(std::vec![Uuid7::new()]);
     assert_eq!(
-      a.track_progress(),
+      a.track_progress_ref(),
       &IndexProgress::try_new(1, 0, 0).unwrap()
     );
-    assert_eq!(a.track_progress().total() as usize, a.tracks().len());
+    assert_eq!(
+      a.track_progress_ref().total() as usize,
+      a.tracks_slice().len()
+    );
   }
 
   #[test]
@@ -438,7 +447,7 @@ mod tests {
     a.set_tracks(std::vec![t1, t2]);
     assert_eq!(a.total_segments(), 17);
     assert_eq!(
-      a.track_progress(),
+      a.track_progress_ref(),
       &IndexProgress::try_new(2, 1, 1).unwrap()
     );
   }
@@ -456,10 +465,13 @@ mod tests {
     // a DIFFERENT track list invalidates total_segments + track_progress
     a.set_tracks(std::vec![Uuid7::new()]);
     assert_eq!(a.total_segments(), 0);
-    assert_eq!(a.track_progress().total(), 1);
-    assert_eq!(a.track_progress().total() as usize, a.tracks().len());
-    assert_eq!(a.track_progress().indexed(), 0);
-    assert_eq!(a.track_progress().failed(), 0);
+    assert_eq!(a.track_progress_ref().total(), 1);
+    assert_eq!(
+      a.track_progress_ref().total() as usize,
+      a.tracks_slice().len()
+    );
+    assert_eq!(a.track_progress_ref().indexed(), 0);
+    assert_eq!(a.track_progress_ref().failed(), 0);
   }
 
   #[test]
@@ -484,14 +496,14 @@ mod tests {
     let mut a = Audio::try_new(Uuid7::new())
       .unwrap()
       .with_tracks(std::vec![Uuid7::new(), Uuid7::new()]);
-    let before = *a.track_progress();
+    let before = *a.track_progress_ref();
     let r = a.try_set_track_progress(IndexProgress::try_new(5, 0, 0).unwrap());
     assert_eq!(r.err(), Some(AudioError::TrackProgressMismatch));
     // rejection leaves the prior rollup in place
-    assert_eq!(a.track_progress(), &before);
+    assert_eq!(a.track_progress_ref(), &before);
     a.try_set_track_progress(IndexProgress::try_new(2, 2, 0).unwrap())
       .unwrap();
-    assert_eq!(a.track_progress().indexed(), 2);
+    assert_eq!(a.track_progress_ref().indexed(), 2);
   }
 
   #[test]

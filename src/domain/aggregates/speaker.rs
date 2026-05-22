@@ -47,9 +47,9 @@ const fn is_negative_duration(d: Option<Timestamp>) -> bool {
 /// an orphan voice clustered as `SPEAKER_NN=0` — a real invalid state.
 /// Construct explicitly via [`Speaker::try_new`].
 ///
-/// Fields are private per the encapsulation rule; access via `id()` /
-/// `parent()` / `cluster_id()` / `name()` / `speech_duration()` getters
-/// and `with_*` / `set_*` builders/mutators.
+/// Fields are private per the encapsulation rule; access via `id_ref()` /
+/// `parent_ref()` / `cluster_id()` / `name()` / `speech_duration_ref()`
+/// getters and `with_*` / `set_*` builders/mutators.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Speaker<Id = Uuid7> {
   id: Id,
@@ -92,37 +92,37 @@ impl Speaker<Uuid7> {
 
 impl<Id> Speaker<Id> {
   /// Canonical identity (also the LanceDB voiceprint key).
-  #[inline]
-  pub const fn id(&self) -> &Id {
+  #[inline(always)]
+  pub const fn id_ref(&self) -> &Id {
     &self.id
   }
 
   /// FK → `AudioTrack.id`.
-  #[inline]
-  pub const fn parent(&self) -> &Id {
+  #[inline(always)]
+  pub const fn parent_ref(&self) -> &Id {
     &self.parent
   }
 
   /// `dia` cluster label within this track.
-  #[inline]
+  #[inline(always)]
   pub const fn cluster_id(&self) -> u32 {
     self.cluster_id
   }
 
   /// Human-assigned identity label (`""` = unassigned).
-  #[inline]
+  #[inline(always)]
   pub fn name(&self) -> &str {
     self.name.as_str()
   }
 
   /// Total time this speaker spoke (`None` = not yet rolled up).
-  #[inline]
-  pub const fn speech_duration(&self) -> Option<&Timestamp> {
+  #[inline(always)]
+  pub const fn speech_duration_ref(&self) -> Option<&Timestamp> {
     self.speech_duration.as_ref()
   }
 
   /// Builder: replace `name` and return `self`.
-  #[inline]
+  #[inline(always)]
   #[must_use]
   pub fn with_name(mut self, name: impl Into<SmolStr>) -> Self {
     self.name = name.into();
@@ -147,7 +147,7 @@ impl<Id> Speaker<Id> {
   }
 
   /// Builder: replace `cluster_id` and return `self`.
-  #[inline]
+  #[inline(always)]
   #[must_use]
   pub const fn with_cluster_id(mut self, cluster_id: u32) -> Self {
     self.cluster_id = cluster_id;
@@ -155,7 +155,7 @@ impl<Id> Speaker<Id> {
   }
 
   /// In-place mutator for `name`.
-  #[inline]
+  #[inline(always)]
   pub fn set_name(&mut self, name: impl Into<SmolStr>) -> &mut Self {
     self.name = name.into();
     self
@@ -178,7 +178,7 @@ impl<Id> Speaker<Id> {
   }
 
   /// In-place mutator for `cluster_id`.
-  #[inline]
+  #[inline(always)]
   pub const fn set_cluster_id(&mut self, cluster_id: u32) -> &mut Self {
     self.cluster_id = cluster_id;
     self
@@ -217,10 +217,10 @@ mod tests {
     let parent = Uuid7::new();
     let s =
       Speaker::try_new(Uuid7::new(), parent, 2, "Jane").expect("valid construction must succeed");
-    assert_eq!(s.parent(), &parent);
+    assert_eq!(s.parent_ref(), &parent);
     assert_eq!(s.cluster_id(), 2);
     assert_eq!(s.name(), "Jane");
-    assert!(s.speech_duration().is_none());
+    assert!(s.speech_duration_ref().is_none());
   }
 
   #[test]
@@ -285,16 +285,16 @@ mod tests {
       .clone()
       .try_with_speech_duration(Some(Timestamp::new(0, tb())))
       .expect("zero duration accepted");
-    assert_eq!(z.speech_duration().unwrap().pts(), 0);
+    assert_eq!(z.speech_duration_ref().unwrap().pts(), 0);
     // positive
     let p = s
       .clone()
       .try_with_speech_duration(Some(Timestamp::new(5000, tb())))
       .expect("positive duration accepted");
-    assert_eq!(p.speech_duration().unwrap().pts(), 5000);
+    assert_eq!(p.speech_duration_ref().unwrap().pts(), 5000);
     // absent
     let n = s.try_with_speech_duration(None).expect("None accepted");
-    assert!(n.speech_duration().is_none());
+    assert!(n.speech_duration_ref().is_none());
   }
 
   #[test]
@@ -308,10 +308,10 @@ mod tests {
         .err(),
       Some(SpeakerError::NegativeSpeechDuration)
     );
-    assert_eq!(s.speech_duration().unwrap().pts(), 3000);
+    assert_eq!(s.speech_duration_ref().unwrap().pts(), 3000);
     // a valid update goes through
     s.try_set_speech_duration(Some(Timestamp::new(0, tb())))
       .unwrap();
-    assert_eq!(s.speech_duration().unwrap().pts(), 0);
+    assert_eq!(s.speech_duration_ref().unwrap().pts(), 0);
   }
 }

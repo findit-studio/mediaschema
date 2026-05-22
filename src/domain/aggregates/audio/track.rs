@@ -234,104 +234,104 @@ impl AudioTrack<Uuid7> {
 
 impl<Id> AudioTrack<Id> {
   /// Canonical identity.
-  #[inline]
-  pub const fn id(&self) -> &Id {
+  #[inline(always)]
+  pub const fn id_ref(&self) -> &Id {
     &self.id
   }
 
   /// FK → `Audio.id`.
-  #[inline]
-  pub const fn parent(&self) -> &Id {
+  #[inline(always)]
+  pub const fn parent_ref(&self) -> &Id {
     &self.parent
   }
 
   /// Source stream index (FFmpeg/container locator; not identity).
-  #[inline]
+  #[inline(always)]
   pub const fn stream_index(&self) -> Option<u32> {
     self.stream_index
   }
 
   /// Container-specific track id (Matroska TrackNumber etc.).
-  #[inline]
+  #[inline(always)]
   pub const fn container_track_id(&self) -> Option<u64> {
     self.container_track_id
   }
 
   /// Codec (`AudioCodec::Other("")` = absent).
-  #[inline]
-  pub const fn codec(&self) -> &AudioCodec {
+  #[inline(always)]
+  pub const fn codec_ref(&self) -> &AudioCodec {
     &self.codec
   }
 
   /// Codec profile (e.g. `LC` / `HE-AACv2`; `""` = absent).
-  #[inline]
+  #[inline(always)]
   pub fn profile(&self) -> &str {
     self.profile.as_str()
   }
 
   /// Sample rate (Hz; `0` = unknown).
-  #[inline]
+  #[inline(always)]
   pub const fn sample_rate(&self) -> u32 {
     self.sample_rate
   }
 
   /// Channel count (`0` = unknown).
-  #[inline]
+  #[inline(always)]
   pub const fn channels(&self) -> u16 {
     self.channels
   }
 
   /// Channel layout (`ChannelLayout::Other("")` = absent).
-  #[inline]
-  pub const fn channel_layout(&self) -> &ChannelLayout {
+  #[inline(always)]
+  pub const fn channel_layout_ref(&self) -> &ChannelLayout {
     &self.channel_layout
   }
 
   /// Bit rate (bits/s; `0` = unknown).
-  #[inline]
+  #[inline(always)]
   pub const fn bit_rate(&self) -> u64 {
     self.bit_rate
   }
 
   /// Bit-rate mode (`Cbr`/`Vbr`/`Abr`; `None` = unknown).
-  #[inline]
+  #[inline(always)]
   pub const fn bit_rate_mode(&self) -> Option<BitRateMode> {
     self.bit_rate_mode
   }
 
   /// PCM/lossless sample depth.
-  #[inline]
+  #[inline(always)]
   pub const fn bits_per_sample(&self) -> Option<u16> {
     self.bits_per_sample
   }
 
   /// Lossless flag (drives transcode/quality search facets).
-  #[inline]
+  #[inline(always)]
   pub const fn is_lossless(&self) -> bool {
     self.is_lossless
   }
 
   /// Per-track duration (track-relative offset/duration; see
   /// TODO(mediaframe) note on the field).
-  #[inline]
-  pub const fn duration(&self) -> Option<&Timestamp> {
+  #[inline(always)]
+  pub const fn duration_ref(&self) -> Option<&Timestamp> {
     self.duration.as_ref()
   }
 
   /// First-PTS offset (audio rarely starts at 0; A/V sync/seek).
-  #[inline]
-  pub const fn start_pts(&self) -> Option<&Timestamp> {
+  #[inline(always)]
+  pub const fn start_pts_ref(&self) -> Option<&Timestamp> {
     self.start_pts.as_ref()
   }
 
   /// Declared language (BCP-47; `None` = absent).
-  #[inline]
+  #[inline(always)]
   pub const fn language(&self) -> Option<Language> {
     self.language
   }
 
   /// Whisper-LID detected language (BCP-47; `None` = absent).
-  #[inline]
+  #[inline(always)]
   pub const fn detected_language(&self) -> Option<Language> {
     self.detected_language
   }
@@ -352,119 +352,119 @@ impl<Id> AudioTrack<Id> {
   }
 
   /// Disposition flags (`AV_DISPOSITION_*` bitflags).
-  #[inline]
+  #[inline(always)]
   pub const fn disposition(&self) -> TrackDisposition {
     self.disposition
   }
 
   /// Primary-track flag.
-  #[inline]
+  #[inline(always)]
   pub const fn is_primary(&self) -> bool {
     self.is_primary
   }
 
   /// Auto-selected flag.
-  #[inline]
+  #[inline(always)]
   pub const fn auto_selected(&self) -> bool {
     self.auto_selected
   }
 
   /// Coarse content classification (Speech/Music/Mixed/Silence).
-  #[inline]
+  #[inline(always)]
   pub const fn content(&self) -> Option<AudioContentKind> {
     self.content
   }
 
   /// Fraction-speech estimate (drives the pipeline).
-  #[inline]
+  #[inline(always)]
   pub const fn speech_ratio(&self) -> Option<f32> {
     self.speech_ratio
   }
 
   /// Cheap defect signal.
-  #[inline]
+  #[inline(always)]
   pub const fn is_silent(&self) -> bool {
     self.is_silent
   }
 
   /// EBU R128 loudness (`None` = stage not run yet).
-  #[inline]
-  pub const fn loudness(&self) -> Option<&Loudness> {
+  #[inline(always)]
+  pub const fn loudness_ref(&self) -> Option<&Loudness> {
     self.loudness.as_ref()
   }
 
   /// Chromaprint fingerprint (`None` = stage not run yet).
-  #[inline]
-  pub const fn fingerprint(&self) -> Option<&Fingerprint> {
+  #[inline(always)]
+  pub const fn fingerprint_ref(&self) -> Option<&Fingerprint> {
     self.fingerprint.as_ref()
   }
 
   /// ISRC recording code (`""` = absent).
-  #[inline]
+  #[inline(always)]
   pub fn isrc(&self) -> &str {
     self.isrc.as_str()
   }
 
   /// AcoustID id (`""` = absent).
-  #[inline]
+  #[inline(always)]
   pub fn acoustid(&self) -> &str {
     self.acoustid.as_str()
   }
 
   /// MusicBrainz recording id (`""` = absent).
-  #[inline]
+  #[inline(always)]
   pub fn musicbrainz_recording_id(&self) -> &str {
     self.musicbrainz_recording_id.as_str()
   }
 
   /// The track's diarized speaker set (`Speaker` ids; voiceprint → LanceDB).
-  /// Distinct-count = `speakers().len()`.
-  #[inline]
-  pub const fn speakers(&self) -> &[Id] {
+  /// Distinct-count = `speakers_slice().len()`.
+  #[inline(always)]
+  pub const fn speakers_slice(&self) -> &[Id] {
     self.speakers.as_slice()
   }
 
   /// Per-recording music tags (`None` = no tags read yet).
-  #[inline]
-  pub const fn tags(&self) -> Option<&Tags> {
+  #[inline(always)]
+  pub const fn tags_ref(&self) -> Option<&Tags> {
     self.tags.as_ref()
   }
 
   /// Per-recording embedded cover art (`None` = no art).
-  #[inline]
-  pub const fn cover_art(&self) -> Option<&CoverArt> {
+  #[inline(always)]
+  pub const fn cover_art_ref(&self) -> Option<&CoverArt> {
     self.cover_art.as_ref()
   }
 
   /// Per-track `AudioSegment` ids (`Audio.total_segments` rolls these up).
-  #[inline]
-  pub const fn segments(&self) -> &[Id] {
+  #[inline(always)]
+  pub const fn segments_slice(&self) -> &[Id] {
     self.segments.as_slice()
   }
 
   /// Analysis-run reproducibility (per-track, one per run).
-  #[inline]
-  pub const fn provenance(&self) -> &Provenance {
+  #[inline(always)]
+  pub const fn provenance_ref(&self) -> &Provenance {
     &self.provenance
   }
 
   /// 11-bit indexing state (the verified `ProcessingStage`).
-  #[inline]
+  #[inline(always)]
   pub const fn index_status(&self) -> AudioIndexStatus {
     self.index_status
   }
 
   /// Per-track index errors (stage-coded `ErrorInfo.code`). Error-state is
   /// derived from `(index_status, index_errors)` via `AudioIndexStage`.
-  #[inline]
-  pub fn index_errors(&self) -> &[ErrorInfo] {
+  #[inline(always)]
+  pub fn index_errors_slice(&self) -> &[ErrorInfo] {
     self.index_errors.as_slice()
   }
 
   // ----- Builders ----------------------------------------------------------
 
   /// Builder: replace `stream_index`.
-  #[inline]
+  #[inline(always)]
   #[must_use]
   pub const fn with_stream_index(mut self, v: Option<u32>) -> Self {
     self.stream_index = v;
@@ -472,7 +472,7 @@ impl<Id> AudioTrack<Id> {
   }
 
   /// Builder: replace `container_track_id`.
-  #[inline]
+  #[inline(always)]
   #[must_use]
   pub const fn with_container_track_id(mut self, v: Option<u64>) -> Self {
     self.container_track_id = v;
@@ -480,7 +480,7 @@ impl<Id> AudioTrack<Id> {
   }
 
   /// Builder: replace `codec`.
-  #[inline]
+  #[inline(always)]
   #[must_use]
   pub fn with_codec(mut self, v: AudioCodec) -> Self {
     self.codec = v;
@@ -488,7 +488,7 @@ impl<Id> AudioTrack<Id> {
   }
 
   /// Builder: replace `profile`.
-  #[inline]
+  #[inline(always)]
   #[must_use]
   pub fn with_profile(mut self, v: impl Into<SmolStr>) -> Self {
     self.profile = v.into();
@@ -528,7 +528,7 @@ impl<Id> AudioTrack<Id> {
   }
 
   /// Builder: replace `channel_layout`.
-  #[inline]
+  #[inline(always)]
   #[must_use]
   pub fn with_channel_layout(mut self, v: ChannelLayout) -> Self {
     self.channel_layout = v;
@@ -536,7 +536,7 @@ impl<Id> AudioTrack<Id> {
   }
 
   /// Builder: replace `bit_rate`.
-  #[inline]
+  #[inline(always)]
   #[must_use]
   pub const fn with_bit_rate(mut self, bps: u64) -> Self {
     self.bit_rate = bps;
@@ -544,7 +544,7 @@ impl<Id> AudioTrack<Id> {
   }
 
   /// Builder: replace `bit_rate_mode`.
-  #[inline]
+  #[inline(always)]
   #[must_use]
   pub const fn with_bit_rate_mode(mut self, v: Option<BitRateMode>) -> Self {
     self.bit_rate_mode = v;
@@ -552,7 +552,7 @@ impl<Id> AudioTrack<Id> {
   }
 
   /// Builder: replace `bits_per_sample`.
-  #[inline]
+  #[inline(always)]
   #[must_use]
   pub const fn with_bits_per_sample(mut self, v: Option<u16>) -> Self {
     self.bits_per_sample = v;
@@ -560,7 +560,7 @@ impl<Id> AudioTrack<Id> {
   }
 
   /// Builder: replace `is_lossless`.
-  #[inline]
+  #[inline(always)]
   #[must_use]
   pub const fn with_lossless(mut self, v: bool) -> Self {
     self.is_lossless = v;
@@ -586,7 +586,7 @@ impl<Id> AudioTrack<Id> {
   }
 
   /// Builder: replace `start_pts`.
-  #[inline]
+  #[inline(always)]
   #[must_use]
   pub fn with_start_pts(mut self, v: Option<Timestamp>) -> Self {
     self.start_pts = v;
@@ -594,7 +594,7 @@ impl<Id> AudioTrack<Id> {
   }
 
   /// Builder: replace `language`.
-  #[inline]
+  #[inline(always)]
   #[must_use]
   pub const fn with_language(mut self, v: Option<Language>) -> Self {
     self.language = v;
@@ -602,7 +602,7 @@ impl<Id> AudioTrack<Id> {
   }
 
   /// Builder: replace `detected_language`.
-  #[inline]
+  #[inline(always)]
   #[must_use]
   pub const fn with_detected_language(mut self, v: Option<Language>) -> Self {
     self.detected_language = v;
@@ -610,7 +610,7 @@ impl<Id> AudioTrack<Id> {
   }
 
   /// Builder: replace `disposition` flags.
-  #[inline]
+  #[inline(always)]
   #[must_use]
   pub const fn with_disposition(mut self, v: TrackDisposition) -> Self {
     self.disposition = v;
@@ -618,7 +618,7 @@ impl<Id> AudioTrack<Id> {
   }
 
   /// Builder: replace `is_primary`.
-  #[inline]
+  #[inline(always)]
   #[must_use]
   pub const fn with_primary(mut self, v: bool) -> Self {
     self.is_primary = v;
@@ -626,7 +626,7 @@ impl<Id> AudioTrack<Id> {
   }
 
   /// Builder: replace `auto_selected`.
-  #[inline]
+  #[inline(always)]
   #[must_use]
   pub const fn with_auto_selected(mut self, v: bool) -> Self {
     self.auto_selected = v;
@@ -634,7 +634,7 @@ impl<Id> AudioTrack<Id> {
   }
 
   /// Builder: replace `content`.
-  #[inline]
+  #[inline(always)]
   #[must_use]
   pub const fn with_content(mut self, v: Option<AudioContentKind>) -> Self {
     self.content = v;
@@ -660,7 +660,7 @@ impl<Id> AudioTrack<Id> {
   }
 
   /// Builder: replace `is_silent`.
-  #[inline]
+  #[inline(always)]
   #[must_use]
   pub const fn with_silent(mut self, v: bool) -> Self {
     self.is_silent = v;
@@ -668,7 +668,7 @@ impl<Id> AudioTrack<Id> {
   }
 
   /// Builder: replace `loudness`.
-  #[inline]
+  #[inline(always)]
   #[must_use]
   pub const fn with_loudness(mut self, v: Option<Loudness>) -> Self {
     self.loudness = v;
@@ -676,7 +676,7 @@ impl<Id> AudioTrack<Id> {
   }
 
   /// Builder: replace `fingerprint`.
-  #[inline]
+  #[inline(always)]
   #[must_use]
   pub fn with_fingerprint(mut self, v: Option<Fingerprint>) -> Self {
     self.fingerprint = v;
@@ -684,7 +684,7 @@ impl<Id> AudioTrack<Id> {
   }
 
   /// Builder: replace `isrc`.
-  #[inline]
+  #[inline(always)]
   #[must_use]
   pub fn with_isrc(mut self, v: impl Into<SmolStr>) -> Self {
     self.isrc = v.into();
@@ -692,7 +692,7 @@ impl<Id> AudioTrack<Id> {
   }
 
   /// Builder: replace `acoustid`.
-  #[inline]
+  #[inline(always)]
   #[must_use]
   pub fn with_acoustid(mut self, v: impl Into<SmolStr>) -> Self {
     self.acoustid = v.into();
@@ -700,7 +700,7 @@ impl<Id> AudioTrack<Id> {
   }
 
   /// Builder: replace `musicbrainz_recording_id`.
-  #[inline]
+  #[inline(always)]
   #[must_use]
   pub fn with_musicbrainz_recording_id(mut self, v: impl Into<SmolStr>) -> Self {
     self.musicbrainz_recording_id = v.into();
@@ -708,7 +708,7 @@ impl<Id> AudioTrack<Id> {
   }
 
   /// Builder: replace `tags`.
-  #[inline]
+  #[inline(always)]
   #[must_use]
   pub fn with_tags(mut self, v: Option<Tags>) -> Self {
     self.tags = v;
@@ -716,7 +716,7 @@ impl<Id> AudioTrack<Id> {
   }
 
   /// Builder: replace `cover_art`.
-  #[inline]
+  #[inline(always)]
   #[must_use]
   pub fn with_cover_art(mut self, v: Option<CoverArt>) -> Self {
     self.cover_art = v;
@@ -724,7 +724,7 @@ impl<Id> AudioTrack<Id> {
   }
 
   /// Builder: replace the diarized `speakers` set.
-  #[inline]
+  #[inline(always)]
   #[must_use]
   pub fn with_speakers(mut self, v: impl Into<std::vec::Vec<Id>>) -> Self {
     self.speakers = v.into();
@@ -732,7 +732,7 @@ impl<Id> AudioTrack<Id> {
   }
 
   /// Builder: replace `segments`.
-  #[inline]
+  #[inline(always)]
   #[must_use]
   pub fn with_segments(mut self, v: impl Into<std::vec::Vec<Id>>) -> Self {
     self.segments = v.into();
@@ -740,7 +740,7 @@ impl<Id> AudioTrack<Id> {
   }
 
   /// Builder: replace `provenance`.
-  #[inline]
+  #[inline(always)]
   #[must_use]
   pub fn with_provenance(mut self, v: Provenance) -> Self {
     self.provenance = v;
@@ -776,7 +776,7 @@ impl<Id> AudioTrack<Id> {
   }
 
   /// Builder: replace `index_errors`.
-  #[inline]
+  #[inline(always)]
   #[must_use]
   pub fn with_index_errors(mut self, v: impl Into<std::vec::Vec<ErrorInfo>>) -> Self {
     self.index_errors = v.into();
@@ -786,28 +786,28 @@ impl<Id> AudioTrack<Id> {
   // ----- Setters -----------------------------------------------------------
 
   /// In-place mutator for `stream_index`.
-  #[inline]
+  #[inline(always)]
   pub const fn set_stream_index(&mut self, v: Option<u32>) -> &mut Self {
     self.stream_index = v;
     self
   }
 
   /// In-place mutator for `container_track_id`.
-  #[inline]
+  #[inline(always)]
   pub const fn set_container_track_id(&mut self, v: Option<u64>) -> &mut Self {
     self.container_track_id = v;
     self
   }
 
   /// In-place mutator for `codec`.
-  #[inline]
+  #[inline(always)]
   pub fn set_codec(&mut self, v: AudioCodec) -> &mut Self {
     self.codec = v;
     self
   }
 
   /// In-place mutator for `profile`.
-  #[inline]
+  #[inline(always)]
   pub fn set_profile(&mut self, v: impl Into<SmolStr>) -> &mut Self {
     self.profile = v.into();
     self
@@ -838,35 +838,35 @@ impl<Id> AudioTrack<Id> {
   }
 
   /// In-place mutator for `channel_layout`.
-  #[inline]
+  #[inline(always)]
   pub fn set_channel_layout(&mut self, v: ChannelLayout) -> &mut Self {
     self.channel_layout = v;
     self
   }
 
   /// In-place mutator for `bit_rate`.
-  #[inline]
+  #[inline(always)]
   pub const fn set_bit_rate(&mut self, bps: u64) -> &mut Self {
     self.bit_rate = bps;
     self
   }
 
   /// In-place mutator for `bit_rate_mode`.
-  #[inline]
+  #[inline(always)]
   pub const fn set_bit_rate_mode(&mut self, v: Option<BitRateMode>) -> &mut Self {
     self.bit_rate_mode = v;
     self
   }
 
   /// In-place mutator for `bits_per_sample`.
-  #[inline]
+  #[inline(always)]
   pub const fn set_bits_per_sample(&mut self, v: Option<u16>) -> &mut Self {
     self.bits_per_sample = v;
     self
   }
 
   /// In-place mutator for `is_lossless`.
-  #[inline]
+  #[inline(always)]
   pub const fn set_lossless(&mut self, v: bool) -> &mut Self {
     self.is_lossless = v;
     self
@@ -889,49 +889,49 @@ impl<Id> AudioTrack<Id> {
   }
 
   /// In-place mutator for `start_pts`.
-  #[inline]
+  #[inline(always)]
   pub fn set_start_pts(&mut self, v: Option<Timestamp>) -> &mut Self {
     self.start_pts = v;
     self
   }
 
   /// In-place mutator for `language`.
-  #[inline]
+  #[inline(always)]
   pub const fn set_language(&mut self, v: Option<Language>) -> &mut Self {
     self.language = v;
     self
   }
 
   /// In-place mutator for `detected_language`.
-  #[inline]
+  #[inline(always)]
   pub const fn set_detected_language(&mut self, v: Option<Language>) -> &mut Self {
     self.detected_language = v;
     self
   }
 
   /// In-place mutator for `disposition`.
-  #[inline]
+  #[inline(always)]
   pub const fn set_disposition(&mut self, v: TrackDisposition) -> &mut Self {
     self.disposition = v;
     self
   }
 
   /// In-place mutator for `is_primary`.
-  #[inline]
+  #[inline(always)]
   pub const fn set_primary(&mut self, v: bool) -> &mut Self {
     self.is_primary = v;
     self
   }
 
   /// In-place mutator for `auto_selected`.
-  #[inline]
+  #[inline(always)]
   pub const fn set_auto_selected(&mut self, v: bool) -> &mut Self {
     self.auto_selected = v;
     self
   }
 
   /// In-place mutator for `content`.
-  #[inline]
+  #[inline(always)]
   pub const fn set_content(&mut self, v: Option<AudioContentKind>) -> &mut Self {
     self.content = v;
     self
@@ -953,77 +953,77 @@ impl<Id> AudioTrack<Id> {
   }
 
   /// In-place mutator for `is_silent`.
-  #[inline]
+  #[inline(always)]
   pub const fn set_silent(&mut self, v: bool) -> &mut Self {
     self.is_silent = v;
     self
   }
 
   /// In-place mutator for `loudness`.
-  #[inline]
+  #[inline(always)]
   pub const fn set_loudness(&mut self, v: Option<Loudness>) -> &mut Self {
     self.loudness = v;
     self
   }
 
   /// In-place mutator for `fingerprint`.
-  #[inline]
+  #[inline(always)]
   pub fn set_fingerprint(&mut self, v: Option<Fingerprint>) -> &mut Self {
     self.fingerprint = v;
     self
   }
 
   /// In-place mutator for `isrc`.
-  #[inline]
+  #[inline(always)]
   pub fn set_isrc(&mut self, v: impl Into<SmolStr>) -> &mut Self {
     self.isrc = v.into();
     self
   }
 
   /// In-place mutator for `acoustid`.
-  #[inline]
+  #[inline(always)]
   pub fn set_acoustid(&mut self, v: impl Into<SmolStr>) -> &mut Self {
     self.acoustid = v.into();
     self
   }
 
   /// In-place mutator for `musicbrainz_recording_id`.
-  #[inline]
+  #[inline(always)]
   pub fn set_musicbrainz_recording_id(&mut self, v: impl Into<SmolStr>) -> &mut Self {
     self.musicbrainz_recording_id = v.into();
     self
   }
 
   /// In-place mutator for `tags`.
-  #[inline]
+  #[inline(always)]
   pub fn set_tags(&mut self, v: Option<Tags>) -> &mut Self {
     self.tags = v;
     self
   }
 
   /// In-place mutator for `cover_art`.
-  #[inline]
+  #[inline(always)]
   pub fn set_cover_art(&mut self, v: Option<CoverArt>) -> &mut Self {
     self.cover_art = v;
     self
   }
 
   /// In-place mutator for the diarized `speakers` set.
-  #[inline]
+  #[inline(always)]
   pub fn set_speakers(&mut self, v: impl Into<std::vec::Vec<Id>>) -> &mut Self {
     self.speakers = v.into();
     self
   }
 
   /// In-place mutator for `segments`.
-  #[inline]
+  #[inline(always)]
   pub fn set_segments(&mut self, v: impl Into<std::vec::Vec<Id>>) -> &mut Self {
     self.segments = v.into();
     self
   }
 
   /// In-place mutator for `provenance`.
-  #[inline]
+  #[inline(always)]
   pub fn set_provenance(&mut self, v: Provenance) -> &mut Self {
     self.provenance = v;
     self
@@ -1052,7 +1052,7 @@ impl<Id> AudioTrack<Id> {
   }
 
   /// In-place mutator for `index_errors`.
-  #[inline]
+  #[inline(always)]
   pub fn set_index_errors(&mut self, v: impl Into<std::vec::Vec<ErrorInfo>>) -> &mut Self {
     self.index_errors = v.into();
     self
@@ -1118,16 +1118,16 @@ mod tests {
   fn try_new_happy_path() {
     let parent = Uuid7::new();
     let t = AudioTrack::try_new(Uuid7::new(), parent).expect("valid construction must succeed");
-    assert_eq!(t.parent(), &parent);
+    assert_eq!(t.parent_ref(), &parent);
     assert_eq!(t.sample_rate(), 0);
     assert_eq!(t.channels(), 0);
-    assert!(t.codec().as_str().is_empty());
-    assert!(t.tags().is_none());
-    assert!(t.cover_art().is_none());
-    assert!(t.speakers().is_empty());
-    assert!(t.segments().is_empty());
+    assert!(t.codec_ref().as_str().is_empty());
+    assert!(t.tags_ref().is_none());
+    assert!(t.cover_art_ref().is_none());
+    assert!(t.speakers_slice().is_empty());
+    assert!(t.segments_slice().is_empty());
     assert_eq!(t.index_status(), AudioIndexStatus::empty());
-    assert!(t.provenance().is_empty());
+    assert!(t.provenance_ref().is_empty());
   }
 
   #[test]
@@ -1158,13 +1158,13 @@ mod tests {
       .with_bit_rate(192_000)
       .with_lossless(false)
       .with_primary(true);
-    assert_eq!(t.codec(), &AudioCodec::Aac);
-    assert_eq!(t.codec().as_str(), "aac");
+    assert_eq!(t.codec_ref(), &AudioCodec::Aac);
+    assert_eq!(t.codec_ref().as_str(), "aac");
     assert_eq!(t.profile(), "LC");
     assert_eq!(t.sample_rate(), 48_000);
     assert_eq!(t.channels(), 2);
-    assert_eq!(t.channel_layout(), &ChannelLayout::Stereo);
-    assert_eq!(t.channel_layout().as_str(), "stereo");
+    assert_eq!(t.channel_layout_ref(), &ChannelLayout::Stereo);
+    assert_eq!(t.channel_layout_ref().as_str(), "stereo");
     assert_eq!(t.bit_rate(), 192_000);
     assert!(!t.is_lossless());
     assert!(t.is_primary());
@@ -1183,12 +1183,12 @@ mod tests {
       .unwrap()
       .with_tags(Some(tags))
       .with_cover_art(Some(cover));
-    let tags = t.tags().expect("tags attached");
+    let tags = t.tags_ref().expect("tags attached");
     assert_eq!(tags.title(), "Track 1");
     assert_eq!(tags.artist(), "Artist A");
     assert_eq!(tags.track_number(), 1);
     assert_eq!(tags.track_total(), 12);
-    let cover = t.cover_art().expect("cover attached");
+    let cover = t.cover_art_ref().expect("cover attached");
     assert_eq!(cover.mime(), "image/jpeg");
     assert_eq!(cover.data(), &[0xFFu8, 0xD8, 0xFF]);
   }
@@ -1201,11 +1201,11 @@ mod tests {
       .with_fingerprint(Some(
         Fingerprint::try_new("chromaprint", std::vec![1u8, 2, 3, 4]).unwrap(),
       ));
-    let l = t.loudness().expect("loudness present");
+    let l = t.loudness_ref().expect("loudness present");
     assert!((l.integrated_lufs() - -23.0).abs() < f32::EPSILON);
     assert!((l.true_peak_dbtp() - -1.0).abs() < f32::EPSILON);
     assert!((l.range_lu() - 7.5).abs() < f32::EPSILON);
-    let fp = t.fingerprint().expect("fingerprint present");
+    let fp = t.fingerprint_ref().expect("fingerprint present");
     assert_eq!(fp.algorithm(), "chromaprint");
     assert_eq!(fp.value(), &[1u8, 2, 3, 4]);
   }
@@ -1216,8 +1216,8 @@ mod tests {
     let t = AudioTrack::try_new(Uuid7::new(), Uuid7::new())
       .unwrap()
       .with_provenance(prov.clone());
-    assert_eq!(t.provenance(), &prov);
-    assert_eq!(t.provenance().model_name(), "asry");
+    assert_eq!(t.provenance_ref(), &prov);
+    assert_eq!(t.provenance_ref().model_name(), "asry");
   }
 
   #[test]
@@ -1234,8 +1234,8 @@ mod tests {
       .with_index_errors(std::vec![err.clone()]);
     assert!(t.index_status().contains(AudioIndexStatus::EXTRACTED));
     assert!(t.index_status().contains(AudioIndexStatus::VAD_DONE));
-    assert_eq!(t.index_errors().len(), 1);
-    assert_eq!(t.index_errors()[0], err);
+    assert_eq!(t.index_errors_slice().len(), 1);
+    assert_eq!(t.index_errors_slice()[0], err);
   }
 
   #[test]
@@ -1246,8 +1246,8 @@ mod tests {
       .unwrap()
       .with_speakers(std::vec![s1])
       .with_segments(std::vec![g1]);
-    assert_eq!(t.speakers(), &[s1]);
-    assert_eq!(t.segments(), &[g1]);
+    assert_eq!(t.speakers_slice(), &[s1]);
+    assert_eq!(t.segments_slice(), &[g1]);
   }
 
   #[test]
@@ -1264,14 +1264,14 @@ mod tests {
     t.set_speakers(std::vec![s1]);
     t.set_segments(std::vec![g1]);
     t.try_set_index_status(AudioIndexStatus::EXTRACTED).unwrap();
-    assert_eq!(t.codec(), &AudioCodec::Opus);
+    assert_eq!(t.codec_ref(), &AudioCodec::Opus);
     assert_eq!(t.sample_rate(), 48_000);
     assert_eq!(t.channels(), 2);
     assert!(!t.is_lossless());
     assert!(t.is_silent());
     assert_eq!(t.content(), Some(AudioContentKind::Music));
-    assert_eq!(t.speakers(), &[s1]);
-    assert_eq!(t.segments(), &[g1]);
+    assert_eq!(t.speakers_slice(), &[s1]);
+    assert_eq!(t.segments_slice(), &[g1]);
     assert_eq!(t.index_status(), AudioIndexStatus::EXTRACTED);
   }
 
@@ -1567,14 +1567,14 @@ mod tests {
       .clone()
       .try_with_duration(Some(Timestamp::new(0, tb())))
       .expect("zero accepted");
-    assert_eq!(z.duration().unwrap().pts(), 0);
+    assert_eq!(z.duration_ref().unwrap().pts(), 0);
     let p = t
       .clone()
       .try_with_duration(Some(Timestamp::new(5000, tb())))
       .expect("positive accepted");
-    assert_eq!(p.duration().unwrap().pts(), 5000);
+    assert_eq!(p.duration_ref().unwrap().pts(), 5000);
     let n = t.try_with_duration(None).expect("None accepted");
-    assert!(n.duration().is_none());
+    assert!(n.duration_ref().is_none());
   }
 
   #[test]
@@ -1587,11 +1587,11 @@ mod tests {
       Some(AudioTrackError::NegativeDuration)
     );
     // rejection leaves the prior valid value in place.
-    assert_eq!(t.duration().unwrap().pts(), 3000);
+    assert_eq!(t.duration_ref().unwrap().pts(), 3000);
     t.try_set_duration(Some(Timestamp::new(0, tb()))).unwrap();
-    assert_eq!(t.duration().unwrap().pts(), 0);
+    assert_eq!(t.duration_ref().unwrap().pts(), 0);
     t.try_set_duration(None).unwrap();
-    assert!(t.duration().is_none());
+    assert!(t.duration_ref().is_none());
   }
 
   // --- Finding 3: language_mismatch is derived ------------------------------
