@@ -44,6 +44,18 @@ CREATE TABLE IF NOT EXISTS watched_location (
     last_error_message    TEXT
 );
 
+CREATE TABLE IF NOT EXISTS media_file (
+    id                  BLOB    NOT NULL PRIMARY KEY,
+    media_id            BLOB    NOT NULL,    -- FK -> media.id
+    created_at_ms       INTEGER,            -- filesystem birth time; NULL = absent
+    location_volume     BLOB    NOT NULL,
+    location_path       TEXT    NOT NULL,   -- path components joined by '/'
+    watched_location_id BLOB    NOT NULL,   -- FK -> watched_location.id
+    watch_volume        BLOB    NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_media_file_media_id            ON media_file(media_id);
+CREATE INDEX IF NOT EXISTS idx_media_file_watched_location_id ON media_file(watched_location_id);
+
 CREATE TABLE IF NOT EXISTS speaker (
     id                  BLOB    NOT NULL PRIMARY KEY,
     parent              BLOB    NOT NULL,    -- FK -> audio_track.id

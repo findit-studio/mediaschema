@@ -9,11 +9,13 @@
 
 pub mod leaves;
 pub mod media;
+pub mod media_file;
 
 pub use leaves::{
   MySqlSceneAnnotationRow, MySqlSpeakerRow, MySqlUserTagRow, MySqlWatchedLocationRow,
 };
 pub use media::MySqlMediaRow;
+pub use media_file::MySqlMediaFileRow;
 
 /// Canonical MySQL DDL for the mediaschema tables this revision maps.
 pub const SCHEMA_SQL: &str = include_str!("schema.sql");
