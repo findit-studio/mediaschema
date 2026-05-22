@@ -41,14 +41,14 @@ bitflags! {
 
 impl MediaErrorFlags {
   /// Canonical no-arg constructor — the empty flag set.
-  #[inline]
+  #[inline(always)]
   pub const fn new() -> Self {
     Self::empty()
   }
 }
 
 impl Default for MediaErrorFlags {
-  #[inline]
+  #[inline(always)]
   fn default() -> Self {
     Self::new()
   }
@@ -86,7 +86,7 @@ bitflags! {
 impl VideoIndexStatus {
   /// Canonical no-arg constructor — the empty flag set.
   /// [`Default::default`] is `Self::new()`.
-  #[inline]
+  #[inline(always)]
   pub const fn new() -> Self {
     Self::empty()
   }
@@ -113,7 +113,7 @@ impl VideoIndexStatus {
 }
 
 impl Default for VideoIndexStatus {
-  #[inline]
+  #[inline(always)]
   fn default() -> Self {
     Self::new()
   }
@@ -150,7 +150,7 @@ bitflags! {
 impl AudioIndexStatus {
   /// Canonical no-arg constructor — the empty flag set.
   /// [`Default::default`] is `Self::new()`.
-  #[inline]
+  #[inline(always)]
   pub const fn new() -> Self {
     Self::empty()
   }
@@ -179,7 +179,7 @@ impl AudioIndexStatus {
 }
 
 impl Default for AudioIndexStatus {
-  #[inline]
+  #[inline(always)]
   fn default() -> Self {
     Self::new()
   }
@@ -207,7 +207,7 @@ bitflags! {
 impl SubtitleIndexStatus {
   /// Canonical no-arg constructor — the empty flag set.
   /// [`Default::default`] is `Self::new()`.
-  #[inline]
+  #[inline(always)]
   pub const fn new() -> Self {
     Self::empty()
   }
@@ -225,8 +225,15 @@ impl SubtitleIndexStatus {
   /// The prior unconditional inclusion of `OCR_DONE` meant every text
   /// subtitle track stayed permanently incomplete, poisoning progress
   /// rollups and re-index decisions.
+  ///
+  /// `pub(crate)`: `requires_ocr` is an unbound caller-supplied bool, so
+  /// exposing this publicly lets external code build a mask that omits
+  /// `OCR_DONE` and `contains()`-test an unknown/image track into
+  /// "complete" without OCR. The only public completion path is
+  /// [`SubtitleTrack::is_fully_indexed`], which binds `requires_ocr`
+  /// from the track's codec/format internally.
   #[inline]
-  pub const fn fully_indexed_mask(requires_ocr: bool) -> Self {
+  pub(crate) const fn fully_indexed_mask(requires_ocr: bool) -> Self {
     let base =
       Self::TRACKS_DISCOVERED.bits() | Self::CUES_EXTRACTED.bits() | Self::SEARCH_INDEXED.bits();
     if requires_ocr {
@@ -240,14 +247,20 @@ impl SubtitleIndexStatus {
   /// Pass `requires_ocr = true` for image-based codecs (PGS/DVBSUB/
   /// DVDSUB/XSUB per FFmpeg's `AV_CODEC_PROP_BITMAP_SUB`) and `false`
   /// for text-based codecs (SRT/VTT/ASS/…).
+  ///
+  /// `pub(crate)`: `requires_ocr` is an unbound caller-supplied bool, so
+  /// exposing this publicly lets external code mark an unknown/image
+  /// track complete without `OCR_DONE`. The only public completion path
+  /// is [`SubtitleTrack::is_fully_indexed`], which binds `requires_ocr`
+  /// from the track's codec/format internally.
   #[inline]
-  pub fn is_fully_indexed(&self, requires_ocr: bool) -> bool {
+  pub(crate) fn is_fully_indexed(&self, requires_ocr: bool) -> bool {
     self.contains(Self::fully_indexed_mask(requires_ocr))
   }
 }
 
 impl Default for SubtitleIndexStatus {
-  #[inline]
+  #[inline(always)]
   fn default() -> Self {
     Self::new()
   }
