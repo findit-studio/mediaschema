@@ -50,11 +50,23 @@ CREATE TABLE IF NOT EXISTS media_file (
     created_at_ms       bigint,
     location_volume     uuid    NOT NULL,
     location_path       text    NOT NULL,
+    location_path_hash  bytea   NOT NULL,
     watched_location_id uuid    NOT NULL,
     watch_volume        uuid    NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_media_file_media_id            ON media_file(media_id);
 CREATE INDEX IF NOT EXISTS idx_media_file_watched_location_id ON media_file(watched_location_id);
+-- Natural-key uniqueness of a copy: one path per volume. Hashing the path
+-- with SHA-256 sidesteps MySQL/InnoDB's prefix-length requirement for
+-- `UNIQUE` indexes over variable-length `TEXT` (where a truncated prefix
+-- would falsely collide two long paths sharing a prefix); same shape
+-- across pg/mysql/sqlite. `location_path_hash` is computed at write time
+-- from the same canonical `location_path` string.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_media_file_path
+    ON media_file(location_volume, location_path_hash);
+-- Prefix-lookup index on the plain path for `LIKE 'prefix/%'` scans.
+CREATE INDEX        IF NOT EXISTS idx_media_file_path_prefix
+    ON media_file(location_volume, location_path);
 
 CREATE TABLE IF NOT EXISTS speaker (
     id                  uuid    NOT NULL PRIMARY KEY,
