@@ -240,8 +240,14 @@ impl SubtitleIndexStatus {
   /// Pass `requires_ocr = true` for image-based codecs (PGS/DVBSUB/
   /// DVDSUB/XSUB per FFmpeg's `AV_CODEC_PROP_BITMAP_SUB`) and `false`
   /// for text-based codecs (SRT/VTT/ASS/…).
+  ///
+  /// `pub(crate)`: `requires_ocr` is an unbound caller-supplied bool, so
+  /// exposing this publicly lets external code mark an unknown/image
+  /// track complete without `OCR_DONE`. The only public completion path
+  /// is [`SubtitleTrack::is_fully_indexed`], which binds `requires_ocr`
+  /// from the track's codec/format internally.
   #[inline]
-  pub fn is_fully_indexed(&self, requires_ocr: bool) -> bool {
+  pub(crate) fn is_fully_indexed(&self, requires_ocr: bool) -> bool {
     self.contains(Self::fully_indexed_mask(requires_ocr))
   }
 }

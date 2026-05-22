@@ -65,10 +65,13 @@ aggregate (heavy, segmented — same pattern as `VideoTrack.scenes → Scene`),
 
 Completion / stage are derived **on the aggregate**: `SubtitleTrack::is_fully_indexed()`
 and `SubtitleTrack::index_stage()` call `self.requires_ocr()` internally, so OCR
-gating cannot be bypassed by a caller passing a wrong `bool`. The
+gating cannot be bypassed by a caller passing a wrong `bool`. These two aggregate
+methods are the **only public** completion/stage path. The
 `requires_ocr`-parameterised `SubtitleIndexStatus::is_fully_indexed` /
-`SubtitleIndexStage::from_status` are shared lower-level helpers; the
-aggregate methods are the completion-facing path.
+`SubtitleIndexStage::from_status` are crate-private (`pub(crate)`) lower-level
+helpers — they are deliberately **not** exported, because an unbound
+caller-supplied `requires_ocr` bool would let external code mark an unknown /
+image subtitle complete without `OCR_DONE`.
 
 ## Resolved (your calls)
 
