@@ -234,35 +234,17 @@ impl AudioSegment<Uuid7> {
     })
   }
 
-  /// Validating builder: replace the `speaker` FK.
-  ///
-  /// `None` is the real "not diarized" sentinel and is always accepted. A
-  /// `Some(_)` must be a real `Speaker` identity — a `Some(Uuid7::nil())`
-  /// is an invalid FK and is rejected with
-  /// [`AudioSegmentError::NilSpeaker`]. The infallible mutator is omitted
-  /// for the canonical `Uuid7` type so this check cannot be bypassed. On
-  /// rejection `self` is returned unchanged inside the `Err`.
+  /// Builder: replace the `speaker` FK (`None` = not diarized).
   #[inline]
-  pub fn try_with_speaker(mut self, v: Option<Uuid7>) -> Result<Self, AudioSegmentError> {
-    if matches!(v, Some(id) if id.is_nil()) {
-      return Err(AudioSegmentError::NilSpeaker);
-    }
+  pub fn with_speaker(mut self, v: Option<Uuid7>) -> Self {
     self.speaker = v;
-    Ok(self)
+    self
   }
 
-  /// Validating in-place mutator for the `speaker` FK. Rejects a
-  /// `Some(Uuid7::nil())` ([`AudioSegmentError::NilSpeaker`]); `None` and a
-  /// valid `Some` are accepted. On rejection `self` is left unchanged.
-  ///
-  /// Not `const` — `Uuid7::is_nil` is not a `const fn`.
+  /// In-place mutator for the `speaker` FK (`None` = not diarized).
   #[inline]
-  pub fn try_set_speaker(&mut self, v: Option<Uuid7>) -> Result<&mut Self, AudioSegmentError> {
-    if matches!(v, Some(id) if id.is_nil()) {
-      return Err(AudioSegmentError::NilSpeaker);
-    }
+  pub fn set_speaker(&mut self, v: Option<Uuid7>) {
     self.speaker = v;
-    Ok(self)
   }
 }
 
@@ -520,10 +502,6 @@ pub enum AudioSegmentError {
   /// out-of-`[0,1]` value — it is a Whisper silence probability.
   #[error("AudioSegment no_speech_prob must be finite and within [0, 1]")]
   NoSpeechProbOutOfRange,
-  /// The `speaker` FK was set to `Some(Uuid7::nil())` — the nil UUID is not
-  /// a real `Speaker` identity; `None` is the "not diarized" sentinel.
-  #[error("AudioSegment speaker FK must not be Some(nil UUID)")]
-  NilSpeaker,
 }
 
 // ===========================================================================
@@ -605,8 +583,7 @@ mod tests {
     let es = Language::from_bcp47("es").unwrap();
     let s = AudioSegment::try_new(Uuid7::new(), Uuid7::new(), 2, span(1000, 2000))
       .unwrap()
-      .try_with_speaker(Some(speaker))
-      .unwrap()
+      .with_speaker(Some(speaker))
       .with_text(LocalizedText::from_src_translated("hola", "hello"))
       .with_language(Some(es));
     assert_eq!(s.speaker(), Some(&speaker));
@@ -707,7 +684,7 @@ mod tests {
   fn setters_mutate_in_place() {
     let mut s = AudioSegment::try_new(Uuid7::new(), Uuid7::new(), 0, span(0, 500)).unwrap();
     let speaker = Uuid7::new();
-    s.try_set_speaker(Some(speaker)).unwrap();
+    s.set_speaker(Some(speaker));
     s.set_text(LocalizedText::from_src("hello"));
     s.try_set_words(std::vec![Word::try_new("hi", span(0, 100), 0.9).unwrap()])
       .unwrap();
@@ -788,45 +765,20 @@ mod tests {
     assert!((seg.no_speech_prob().unwrap() - 0.9).abs() < f32::EPSILON);
   }
 
-  // --- Finding 3 (round 4): speaker FK rejects Some(nil) --------------------
+  // --- speaker FK builder/setter --------------------------------------------
 
   #[test]
-  fn try_with_speaker_rejects_some_nil() {
+  fn with_speaker_and_set_speaker_attach_and_clear() {
     let seg = AudioSegment::try_new(Uuid7::new(), Uuid7::new(), 0, span(0, 500)).unwrap();
-    assert_eq!(
-      seg.try_with_speaker(Some(Uuid7::nil())).err(),
-      Some(AudioSegmentError::NilSpeaker)
-    );
-    assert!(AudioSegmentError::NilSpeaker.is_nil_speaker());
-  }
-
-  #[test]
-  fn try_with_speaker_accepts_none_and_valid_some() {
-    let seg = AudioSegment::try_new(Uuid7::new(), Uuid7::new(), 0, span(0, 500)).unwrap();
-    // `None` — the "not diarized" sentinel — is always accepted.
-    let n = seg.clone().try_with_speaker(None).expect("None accepted");
+    // `None` — the "not diarized" sentinel.
+    let n = seg.clone().with_speaker(None);
     assert!(n.speaker().is_none());
-    // a real `Speaker` id is accepted.
+    // a `Speaker` id attaches via the builder.
     let speaker = Uuid7::new();
-    let s = seg
-      .try_with_speaker(Some(speaker))
-      .expect("valid speaker accepted");
+    let mut s = seg.with_speaker(Some(speaker));
     assert_eq!(s.speaker(), Some(&speaker));
-  }
-
-  #[test]
-  fn try_set_speaker_rejects_some_nil_and_leaves_value_unchanged() {
-    let mut seg = AudioSegment::try_new(Uuid7::new(), Uuid7::new(), 0, span(0, 500)).unwrap();
-    let speaker = Uuid7::new();
-    seg.try_set_speaker(Some(speaker)).unwrap();
-    // a `Some(nil)` update is rejected, leaving the prior value in place
-    assert_eq!(
-      seg.try_set_speaker(Some(Uuid7::nil())).err(),
-      Some(AudioSegmentError::NilSpeaker)
-    );
-    assert_eq!(seg.speaker(), Some(&speaker));
-    // clearing to `None` goes through
-    seg.try_set_speaker(None).unwrap();
-    assert!(seg.speaker().is_none());
+    // the in-place mutator clears it.
+    s.set_speaker(None);
+    assert!(s.speaker().is_none());
   }
 }

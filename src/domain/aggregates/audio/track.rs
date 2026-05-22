@@ -230,53 +230,6 @@ impl AudioTrack<Uuid7> {
       index_errors: std::vec::Vec::new(),
     })
   }
-
-  /// Validating builder: replace the diarized `speakers` set.
-  ///
-  /// The speaker set is a *set*: the distinct-speaker count is
-  /// `speakers().len()`, so a duplicated id would inflate it
-  /// ([`AudioTrackError::DuplicateSpeaker`]). A nil `Uuid7` is not a real
-  /// `Speaker` identity and is rejected too
-  /// ([`AudioTrackError::NilSpeaker`]). On rejection `self` is returned
-  /// unchanged inside the `Err`.
-  pub fn try_with_speakers(
-    mut self,
-    v: impl Into<std::vec::Vec<Uuid7>>,
-  ) -> Result<Self, AudioTrackError> {
-    let speakers = v.into();
-    validate_speaker_set(&speakers)?;
-    self.speakers = speakers;
-    Ok(self)
-  }
-
-  /// Validating in-place mutator for the diarized `speakers` set. Rejects
-  /// a nil id ([`AudioTrackError::NilSpeaker`]) or a duplicate id
-  /// ([`AudioTrackError::DuplicateSpeaker`]); on rejection `self` is left
-  /// unchanged.
-  pub fn try_set_speakers(
-    &mut self,
-    v: impl Into<std::vec::Vec<Uuid7>>,
-  ) -> Result<&mut Self, AudioTrackError> {
-    let speakers = v.into();
-    validate_speaker_set(&speakers)?;
-    self.speakers = speakers;
-    Ok(self)
-  }
-}
-
-/// Validates a diarized speaker set for the canonical `Uuid7` identity:
-/// no nil ids, no duplicates. `O(n²)` is fine — a track's distinct speaker
-/// count is small.
-fn validate_speaker_set(speakers: &[Uuid7]) -> Result<(), AudioTrackError> {
-  for (i, id) in speakers.iter().enumerate() {
-    if id.is_nil() {
-      return Err(AudioTrackError::NilSpeaker);
-    }
-    if speakers[..i].contains(id) {
-      return Err(AudioTrackError::DuplicateSpeaker);
-    }
-  }
-  Ok(())
 }
 
 impl<Id> AudioTrack<Id> {
@@ -746,6 +699,13 @@ impl<Id> AudioTrack<Id> {
     self
   }
 
+  /// Builder: replace the diarized `speakers` set.
+  #[inline]
+  pub fn with_speakers(mut self, v: impl Into<std::vec::Vec<Id>>) -> Self {
+    self.speakers = v.into();
+    self
+  }
+
   /// Builder: replace `segments`.
   #[inline]
   pub fn with_segments(mut self, v: impl Into<std::vec::Vec<Id>>) -> Self {
@@ -996,6 +956,12 @@ impl<Id> AudioTrack<Id> {
     self.cover_art = v;
   }
 
+  /// In-place mutator for the diarized `speakers` set.
+  #[inline]
+  pub fn set_speakers(&mut self, v: impl Into<std::vec::Vec<Id>>) {
+    self.speakers = v.into();
+  }
+
   /// In-place mutator for `segments`.
   #[inline]
   pub fn set_segments(&mut self, v: impl Into<std::vec::Vec<Id>>) {
@@ -1071,14 +1037,6 @@ pub enum AudioTrackError {
     "AudioTrack index_status mask is out of order: a stage bit is set without its prerequisites"
   )]
   StatusOutOfOrder,
-  /// The diarized `speakers` set contained the same id twice — duplicates
-  /// would inflate the distinct-speaker count `speakers().len()`.
-  #[error("AudioTrack speakers set must not contain duplicate ids")]
-  DuplicateSpeaker,
-  /// The diarized `speakers` set contained the nil `Uuid7`, which is not a
-  /// real `Speaker` identity.
-  #[error("AudioTrack speakers set must not contain the nil UUID")]
-  NilSpeaker,
   /// An `index_status` mask carried a bit outside the declared
   /// `AudioIndexStatus` set — `bitflags` retains unknown bits on
   /// construction, and the domain cannot reason about a status it does not
@@ -1230,8 +1188,7 @@ mod tests {
     let g1 = Uuid7::new();
     let t = AudioTrack::try_new(Uuid7::new(), Uuid7::new())
       .unwrap()
-      .try_with_speakers(std::vec![s1])
-      .unwrap()
+      .with_speakers(std::vec![s1])
       .with_segments(std::vec![g1]);
     assert_eq!(t.speakers(), &[s1]);
     assert_eq!(t.segments(), &[g1]);
@@ -1239,6 +1196,8 @@ mod tests {
 
   #[test]
   fn setters_mutate_in_place() {
+    let s1 = Uuid7::new();
+    let g1 = Uuid7::new();
     let mut t = AudioTrack::try_new(Uuid7::new(), Uuid7::new()).unwrap();
     t.set_codec(AudioCodec::Opus);
     t.try_set_sample_rate(48_000).unwrap();
@@ -1246,6 +1205,8 @@ mod tests {
     t.set_lossless(false);
     t.set_silent(true);
     t.set_content(Some(AudioContentKind::Music));
+    t.set_speakers(std::vec![s1]);
+    t.set_segments(std::vec![g1]);
     t.try_set_index_status(AudioIndexStatus::EXTRACTED).unwrap();
     assert_eq!(t.codec(), &AudioCodec::Opus);
     assert_eq!(t.sample_rate(), 48_000);
@@ -1253,6 +1214,8 @@ mod tests {
     assert!(!t.is_lossless());
     assert!(t.is_silent());
     assert_eq!(t.content(), Some(AudioContentKind::Music));
+    assert_eq!(t.speakers(), &[s1]);
+    assert_eq!(t.segments(), &[g1]);
     assert_eq!(t.index_status(), AudioIndexStatus::EXTRACTED);
   }
 
@@ -1464,56 +1427,6 @@ mod tests {
         "valid contiguous mask {mask:?} must be accepted"
       );
     }
-  }
-
-  // --- Finding 2: speaker set invariant -------------------------------------
-
-  #[test]
-  fn try_with_speakers_rejects_duplicates() {
-    let s1 = Uuid7::new();
-    let t = AudioTrack::try_new(Uuid7::new(), Uuid7::new()).unwrap();
-    assert_eq!(
-      t.try_with_speakers(std::vec![s1, s1]).err(),
-      Some(AudioTrackError::DuplicateSpeaker)
-    );
-    assert!(AudioTrackError::DuplicateSpeaker.is_duplicate_speaker());
-  }
-
-  #[test]
-  fn try_with_speakers_rejects_nil() {
-    let t = AudioTrack::try_new(Uuid7::new(), Uuid7::new()).unwrap();
-    assert_eq!(
-      t.try_with_speakers(std::vec![Uuid7::nil()]).err(),
-      Some(AudioTrackError::NilSpeaker)
-    );
-    assert!(AudioTrackError::NilSpeaker.is_nil_speaker());
-  }
-
-  #[test]
-  fn try_set_speakers_rejects_and_leaves_value_unchanged() {
-    let s1 = Uuid7::new();
-    let s2 = Uuid7::new();
-    let mut t = AudioTrack::try_new(Uuid7::new(), Uuid7::new())
-      .unwrap()
-      .try_with_speakers(std::vec![s1, s2])
-      .unwrap();
-    // Distinct set accepted.
-    assert_eq!(t.speakers(), &[s1, s2]);
-    // Rejected duplicate leaves the prior value in place.
-    assert_eq!(
-      t.try_set_speakers(std::vec![s1, s1]).err(),
-      Some(AudioTrackError::DuplicateSpeaker)
-    );
-    assert_eq!(t.speakers(), &[s1, s2]);
-    // Rejected nil leaves the prior value in place.
-    assert_eq!(
-      t.try_set_speakers(std::vec![Uuid7::nil()]).err(),
-      Some(AudioTrackError::NilSpeaker)
-    );
-    assert_eq!(t.speakers(), &[s1, s2]);
-    // A fresh valid set replaces it.
-    t.try_set_speakers(std::vec![s2]).unwrap();
-    assert_eq!(t.speakers(), &[s2]);
   }
 
   // --- Finding 1 (round 5): unknown index_status bits -----------------------
