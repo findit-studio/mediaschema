@@ -26,6 +26,9 @@
 //!     `domain::WatchedLocation` (partial: see module doc).
 //!   - [`media`] — `media.v1::Media` ⇄ `domain::Media` (partial: see
 //!     module doc).
+//!   - [`media_file`] — `media.v1::MediaFile` ⇄ `domain::MediaFile`
+//!     (1:1 — wire shape mirrors the domain, including `watch_volume`,
+//!     so a single message round-trips losslessly).
 //!
 //! ### Not yet bridged (no clean wire counterpart)
 //!
@@ -70,6 +73,7 @@ pub mod enums;
 pub mod error;
 pub mod location;
 pub mod media;
+pub mod media_file;
 pub mod primitives;
 pub mod watched_location;
 
