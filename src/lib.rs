@@ -65,6 +65,23 @@ pub mod domain;
 )]
 pub mod buffa;
 
+/// `sqlx` row-mapping backend — Postgres / MySQL / SQLite. Off by default;
+/// enable one (or more) of `sqlx-postgres` / `sqlx-mysql` / `sqlx-sqlite`.
+#[cfg(any(
+  feature = "sqlx-postgres",
+  feature = "sqlx-mysql",
+  feature = "sqlx-sqlite"
+))]
+#[cfg_attr(
+  docsrs,
+  doc(cfg(any(
+    feature = "sqlx-postgres",
+    feature = "sqlx-mysql",
+    feature = "sqlx-sqlite"
+  )))
+)]
+pub mod sqlx;
+
 // Flatten the product-neutral `media.v1` package to the crate root so
 // consumers write `mediaschema::Detection`. Named (not glob) so buffa
 // internals (`__buffa`, `__*_JSON_ANY`) stay out of the public surface.

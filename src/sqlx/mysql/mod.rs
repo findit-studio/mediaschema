@@ -1,0 +1,22 @@
+//! MySQL row mapping. `Uuid7` rides as a `BINARY(16)`, `FileChecksum` as
+//! `BINARY(32)`. Nested VOs ride as MySQL `JSON` columns; the row struct
+//! reads them as `String` (sqlx queries should cast — MySQL `JSON` auto-
+//! coerces to text on retrieval, so no explicit cast is needed). Wall-
+//! clock columns are `BIGINT` milliseconds-since-epoch.
+//!
+//! See the module-level [`super`] doc for the cross-backend mapping
+//! conventions and current coverage scope.
+
+pub mod leaves;
+pub mod media;
+
+pub use leaves::{
+  MySqlSceneAnnotationRow, MySqlSpeakerRow, MySqlUserTagRow, MySqlWatchedLocationRow,
+};
+pub use media::MySqlMediaRow;
+
+/// Canonical MySQL DDL for the mediaschema tables this revision maps.
+pub const SCHEMA_SQL: &str = include_str!("schema.sql");
+
+/// Initial migration mirror of [`SCHEMA_SQL`].
+pub const MIGRATION_0001_INIT: &str = include_str!("migrations/0001_init.sql");
