@@ -9,11 +9,9 @@
 CREATE TABLE IF NOT EXISTS media (
     id                  BLOB    NOT NULL PRIMARY KEY,
     checksum            BLOB    NOT NULL,
-    name                TEXT    NOT NULL,
     format              TEXT    NOT NULL,
     size                INTEGER NOT NULL,
     duration_raw        INTEGER,
-    created_at_ms       INTEGER NOT NULL,
     kind                INTEGER NOT NULL,        -- 0=Video, 1=Audio
     video               BLOB,
     audio               BLOB,

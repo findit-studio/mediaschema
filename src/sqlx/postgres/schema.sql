@@ -9,11 +9,9 @@
 CREATE TABLE IF NOT EXISTS media (
     id                  uuid    NOT NULL PRIMARY KEY,
     checksum            bytea   NOT NULL,
-    name                text    NOT NULL,
     format              text    NOT NULL,
     size                bigint  NOT NULL,
     duration_raw        bigint,
-    created_at_ms       bigint  NOT NULL,
     kind                smallint NOT NULL,
     video               uuid,
     audio               uuid,

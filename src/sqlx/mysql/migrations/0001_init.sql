@@ -9,11 +9,9 @@
 CREATE TABLE IF NOT EXISTS media (
     id                  BINARY(16)  NOT NULL,
     checksum            BINARY(32)  NOT NULL,
-    name                VARCHAR(1024) NOT NULL,
     format              VARCHAR(64)   NOT NULL,
     size                BIGINT UNSIGNED NOT NULL,
     duration_raw        BIGINT,
-    created_at_ms       BIGINT      NOT NULL,
     kind                SMALLINT    NOT NULL,
     video               BINARY(16),
     audio               BINARY(16),
