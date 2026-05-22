@@ -32,7 +32,7 @@
 //!   *same volume* as the [`WatchedLocation`](crate::domain::WatchedLocation)
 //!   that discovered it (the watch is volume-scoped). `try_new` takes the
 //!   `WatchedLocation` itself (not a bare id) so it can verify
-//!   `WatchedLocation::volume() == location.volume()`. The watch volume is
+//!   `WatchedLocation::volume_ref() == location.volume_ref()`. The watch volume is
 //!   stored alongside `watched_location_id` so the location setters can
 //!   re-check the invariant — hence `set_location` / `with_location` are
 //!   **fallible** (`try_set_location` / `try_with_location`).
@@ -81,7 +81,7 @@ pub struct MediaFile<Id = Uuid7> {
   /// Cached volume identity of the discovering `WatchedLocation` (its
   /// volume-scoped `volume`). Not a separate FK — it duplicates the
   /// watch's `volume` purely so the location setters can re-check the
-  /// volume-consistency invariant (`location.volume() == watch.volume()`)
+  /// volume-consistency invariant (`location.volume_ref() == watch.volume_ref()`)
   /// without holding a reference to the watch. Set once at construction
   /// from the `WatchedLocation` passed to `try_new`.
   watch_volume: Id,
@@ -113,11 +113,11 @@ impl MediaFile<Uuid7> {
     if media_id.is_nil() {
       return Err(MediaFileError::NilMediaId);
     }
-    let watched_location_id = *watched_location.id();
+    let watched_location_id = *watched_location.id_ref();
     if watched_location_id.is_nil() {
       return Err(MediaFileError::NilWatchedLocationId);
     }
-    let watch_volume = *watched_location.volume();
+    let watch_volume = *watched_location.volume_ref();
     if location_volume(&location) != &watch_volume {
       return Err(MediaFileError::VolumeMismatch);
     }
@@ -135,13 +135,13 @@ impl MediaFile<Uuid7> {
 impl<Id> MediaFile<Id> {
   /// Canonical identity (the copy's key).
   #[inline(always)]
-  pub const fn id(&self) -> &Id {
+  pub const fn id_ref(&self) -> &Id {
     &self.id
   }
 
   /// FK → the shared `Media` content row.
   #[inline(always)]
-  pub const fn media_id(&self) -> &Id {
+  pub const fn media_id_ref(&self) -> &Id {
     &self.media_id
   }
 
@@ -160,26 +160,26 @@ impl<Id> MediaFile<Id> {
   /// Filesystem creation time (wall-clock, ms-resolution). `None` when the
   /// filesystem has no birth time.
   #[inline(always)]
-  pub const fn created_at(&self) -> Option<&JiffTimestamp> {
+  pub const fn created_at_ref(&self) -> Option<&JiffTimestamp> {
     self.created_at.as_ref()
   }
 
   /// Structured location where this copy lives.
   #[inline(always)]
-  pub const fn location(&self) -> &Location<Id> {
+  pub const fn location_ref(&self) -> &Location<Id> {
     &self.location
   }
 
   /// FK → the `WatchedLocation` that discovered this copy.
   #[inline(always)]
-  pub const fn watched_location_id(&self) -> &Id {
+  pub const fn watched_location_id_ref(&self) -> &Id {
     &self.watched_location_id
   }
 
   /// Volume identity of the discovering `WatchedLocation` — the volume
   /// every valid `location` of this copy must sit on.
   #[inline(always)]
-  pub const fn watch_volume(&self) -> &Id {
+  pub const fn watch_volume_ref(&self) -> &Id {
     &self.watch_volume
   }
 
@@ -199,7 +199,7 @@ impl<Id> MediaFile<Id> {
   /// [`name`](MediaFile::name) follows.
   ///
   /// **Fallible**: the new `location` must stay on the same volume as the
-  /// discovering watch ([`watch_volume`](MediaFile::watch_volume)); a
+  /// discovering watch ([`watch_volume_ref`](MediaFile::watch_volume_ref)); a
   /// cross-volume move is rejected with [`MediaFileError::VolumeMismatch`].
   /// Moving a copy to a different volume is a *new copy under a different
   /// watch*, not a mutation of this record.
@@ -258,7 +258,7 @@ impl<Id> MediaFile<Id> {
   /// API; the derived [`name`](MediaFile::name) follows.
   ///
   /// **Fallible**: the new `location` must stay on the same volume as the
-  /// discovering watch ([`watch_volume`](MediaFile::watch_volume)); a
+  /// discovering watch ([`watch_volume_ref`](MediaFile::watch_volume_ref)); a
   /// cross-volume move is rejected with [`MediaFileError::VolumeMismatch`]
   /// and `self` is left unchanged.
   #[inline]
@@ -297,11 +297,11 @@ impl<Id> MediaFile<Id> {
   where
     Id: Clone + PartialEq,
   {
-    if location_volume(&self.location) != watched_location.volume() {
+    if location_volume(&self.location) != watched_location.volume_ref() {
       return Err(MediaFileError::VolumeMismatch);
     }
-    self.watched_location_id = watched_location.id().clone();
-    self.watch_volume = watched_location.volume().clone();
+    self.watched_location_id = watched_location.id_ref().clone();
+    self.watch_volume = watched_location.volume_ref().clone();
     Ok(self)
   }
 }
@@ -314,7 +314,7 @@ impl<Id> MediaFile<Id> {
 #[inline]
 fn location_volume<Id>(location: &Location<Id>) -> &Id {
   match location {
-    Location::Local(local) => local.volume(),
+    Location::Local(local) => local.volume_ref(),
   }
 }
 
@@ -377,18 +377,18 @@ mod tests {
     let wl = watch(vol);
     let f = MediaFile::try_new(id, media_id, Some(real_ts()), loc(vol), &wl)
       .expect("valid construction must succeed");
-    assert_eq!(f.id(), &id);
-    assert_eq!(f.media_id(), &media_id);
+    assert_eq!(f.id_ref(), &id);
+    assert_eq!(f.media_id_ref(), &media_id);
     // name is derived from the location's last component.
     assert_eq!(f.name(), "clip.mp4");
-    assert_eq!(f.created_at(), Some(&real_ts()));
-    assert_eq!(f.watched_location_id(), wl.id());
-    assert_eq!(f.watch_volume(), &vol);
+    assert_eq!(f.created_at_ref(), Some(&real_ts()));
+    assert_eq!(f.watched_location_id_ref(), wl.id_ref());
+    assert_eq!(f.watch_volume_ref(), &vol);
     // location() projects &Location; use the IsVariant + Unwrap derives.
-    assert!(f.location().is_local());
-    let local = f.location().unwrap_local_ref();
-    assert_eq!(local.volume(), &vol);
-    assert_eq!(local.components(), &["Movies", "clip.mp4"]);
+    assert!(f.location_ref().is_local());
+    let local = f.location_ref().unwrap_local_ref();
+    assert_eq!(local.volume_ref(), &vol);
+    assert_eq!(local.components_slice(), &["Movies", "clip.mp4"]);
   }
 
   #[test]
@@ -421,23 +421,23 @@ mod tests {
     let wl = watch(vol);
     let f = MediaFile::try_new(Uuid7::new(), Uuid7::new(), Some(epoch), loc(vol), &wl).unwrap();
     assert_eq!(
-      f.created_at(),
+      f.created_at_ref(),
       Some(&epoch),
       "Some(epoch) must be preserved faithfully"
     );
 
     // An explicit `None` stays `None`.
     let f = f.with_created_at(None);
-    assert!(f.created_at().is_none());
+    assert!(f.created_at_ref().is_none());
 
     // A real instant is preserved too.
     let f = f.with_created_at(Some(real_ts()));
-    assert_eq!(f.created_at(), Some(&real_ts()));
+    assert_eq!(f.created_at_ref(), Some(&real_ts()));
 
     // The in-place setter stores faithfully and identically.
     let mut f = f;
     f.set_created_at(Some(epoch));
-    assert_eq!(f.created_at(), Some(&epoch));
+    assert_eq!(f.created_at_ref(), Some(&epoch));
   }
 
   #[test]
@@ -502,7 +502,7 @@ mod tests {
     let r = f.try_set_location(named_loc(other_vol, "moved.mp4"));
     assert_eq!(r, Err(MediaFileError::VolumeMismatch));
     assert_eq!(f.name(), "clip.mp4", "rejected move must not mutate self");
-    assert_eq!(f.location().unwrap_local_ref().volume(), &vol);
+    assert_eq!(f.location_ref().unwrap_local_ref().volume_ref(), &vol);
     // A same-volume move succeeds.
     f.try_set_location(named_loc(vol, "renamed.mp4"))
       .expect("same-volume move must succeed");
@@ -530,16 +530,16 @@ mod tests {
     let r = f.try_set_watched_location(&other);
     assert_eq!(r, Err(MediaFileError::VolumeMismatch));
     assert_eq!(
-      f.watched_location_id(),
-      wl.id(),
+      f.watched_location_id_ref(),
+      wl.id_ref(),
       "rejected re-point must not mutate"
     );
     // Re-pointing at another watch on the *same* volume succeeds.
     let same_vol_watch = watch(vol);
     f.try_set_watched_location(&same_vol_watch)
       .expect("same-volume re-point must succeed");
-    assert_eq!(f.watched_location_id(), same_vol_watch.id());
-    assert_eq!(f.watch_volume(), &vol);
+    assert_eq!(f.watched_location_id_ref(), same_vol_watch.id_ref());
+    assert_eq!(f.watch_volume_ref(), &vol);
   }
 
   #[test]
@@ -560,10 +560,10 @@ mod tests {
     .unwrap()
     .with_created_at(Some(real_ts()));
     assert_eq!(f.name(), "new.mkv");
-    assert_eq!(f.media_id(), &media_id);
-    assert_eq!(f.created_at(), Some(&real_ts()));
-    assert_eq!(f.watched_location_id(), wl.id());
-    assert_eq!(f.location().unwrap_local_ref().volume(), &vol);
+    assert_eq!(f.media_id_ref(), &media_id);
+    assert_eq!(f.created_at_ref(), Some(&real_ts()));
+    assert_eq!(f.watched_location_id_ref(), wl.id_ref());
+    assert_eq!(f.location_ref().unwrap_local_ref().volume_ref(), &vol);
   }
 
   #[test]
@@ -583,8 +583,8 @@ mod tests {
     f.try_set_location(named_loc(vol, "renamed.mp4")).unwrap();
     f.set_created_at(None);
     assert_eq!(f.name(), "renamed.mp4");
-    assert_eq!(f.media_id(), &media_id);
-    assert!(f.created_at().is_none());
-    assert_eq!(f.location().unwrap_local_ref().volume(), &vol);
+    assert_eq!(f.media_id_ref(), &media_id);
+    assert!(f.created_at_ref().is_none());
+    assert_eq!(f.location_ref().unwrap_local_ref().volume_ref(), &vol);
   }
 }

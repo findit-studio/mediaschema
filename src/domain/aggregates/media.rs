@@ -146,19 +146,19 @@ impl Media<Uuid7> {
 impl<Id> Media<Id> {
   /// Canonical identity.
   #[inline(always)]
-  pub const fn id(&self) -> &Id {
+  pub const fn id_ref(&self) -> &Id {
     &self.id
   }
 
   /// Content hash (the unique-across-`Media` index).
   #[inline(always)]
-  pub const fn checksum(&self) -> &FileChecksum {
+  pub const fn checksum_ref(&self) -> &FileChecksum {
     &self.checksum
   }
 
   /// Container format (MP4/MKV/MKA/…).
   #[inline(always)]
-  pub const fn format(&self) -> &Format {
+  pub const fn format_ref(&self) -> &Format {
     &self.format
   }
 
@@ -170,7 +170,7 @@ impl<Id> Media<Id> {
 
   /// **Overall** media length (per-track duration is on the track).
   #[inline(always)]
-  pub const fn duration(&self) -> Option<&MediaTimestamp> {
+  pub const fn duration_ref(&self) -> Option<&MediaTimestamp> {
     self.duration.as_ref()
   }
 
@@ -183,25 +183,25 @@ impl<Id> Media<Id> {
   /// Reverse lookup → this content's [`MediaFile`](super::MediaFile)
   /// copies (projects the slice, never `&Vec`).
   #[inline(always)]
-  pub const fn files(&self) -> &[Id] {
+  pub const fn files_slice(&self) -> &[Id] {
     self.files.as_slice()
   }
 
   /// FK → `Video` facet.
   #[inline(always)]
-  pub const fn video(&self) -> Option<&Id> {
+  pub const fn video_ref(&self) -> Option<&Id> {
     self.video.as_ref()
   }
 
   /// FK → `Audio` facet.
   #[inline(always)]
-  pub const fn audio(&self) -> Option<&Id> {
+  pub const fn audio_ref(&self) -> Option<&Id> {
     self.audio.as_ref()
   }
 
   /// FK → `Subtitle` facet.
   #[inline(always)]
-  pub const fn subtitle(&self) -> Option<&Id> {
+  pub const fn subtitle_ref(&self) -> Option<&Id> {
     self.subtitle.as_ref()
   }
 
@@ -213,25 +213,25 @@ impl<Id> Media<Id> {
 
   /// File-level probe error (the non-track case).
   #[inline(always)]
-  pub const fn probe_error(&self) -> Option<&ErrorInfo> {
+  pub const fn probe_error_ref(&self) -> Option<&ErrorInfo> {
     self.probe_error.as_ref()
   }
 
   /// EXIF capture timestamp.
   #[inline(always)]
-  pub const fn capture_date(&self) -> Option<&JiffTimestamp> {
+  pub const fn capture_date_ref(&self) -> Option<&JiffTimestamp> {
     self.capture_date.as_ref()
   }
 
   /// EXIF device info.
   #[inline(always)]
-  pub const fn device(&self) -> Option<&Device> {
+  pub const fn device_ref(&self) -> Option<&Device> {
     self.device.as_ref()
   }
 
   /// EXIF GPS reading.
   #[inline(always)]
-  pub const fn gps(&self) -> Option<&GeoLocation> {
+  pub const fn gps_ref(&self) -> Option<&GeoLocation> {
     self.gps.as_ref()
   }
 
@@ -479,21 +479,24 @@ mod tests {
     let cs = fake_checksum();
     let m = Media::try_new(id, cs, Format::Mp4, 12_345, MediaKind::Video)
       .expect("valid construction must succeed");
-    assert_eq!(m.id(), &id);
-    assert_eq!(m.checksum(), &cs);
-    assert_eq!(m.format(), &Format::Mp4);
+    assert_eq!(m.id_ref(), &id);
+    assert_eq!(m.checksum_ref(), &cs);
+    assert_eq!(m.format_ref(), &Format::Mp4);
     assert_eq!(m.size(), 12_345);
     assert!(m.kind().is_video());
-    assert!(m.files().is_empty(), "files start empty on construction");
-    assert!(m.video().is_none());
-    assert!(m.audio().is_none());
-    assert!(m.subtitle().is_none());
-    assert!(m.duration().is_none());
+    assert!(
+      m.files_slice().is_empty(),
+      "files start empty on construction"
+    );
+    assert!(m.video_ref().is_none());
+    assert!(m.audio_ref().is_none());
+    assert!(m.subtitle_ref().is_none());
+    assert!(m.duration_ref().is_none());
     assert_eq!(m.error_flags(), MediaErrorFlags::new());
-    assert!(m.probe_error().is_none());
-    assert!(m.capture_date().is_none());
-    assert!(m.device().is_none());
-    assert!(m.gps().is_none());
+    assert!(m.probe_error_ref().is_none());
+    assert!(m.capture_date_ref().is_none());
+    assert!(m.device_ref().is_none());
+    assert!(m.gps_ref().is_none());
   }
 
   #[test]
@@ -536,15 +539,15 @@ mod tests {
     .unwrap()
     .push_file(a)
     .with_files(vec![a, b]);
-    assert_eq!(m.files(), &[a, b]);
+    assert_eq!(m.files_slice(), &[a, b]);
 
     // In-place vocabulary mirrors the builders.
     let mut m = m;
     let c = Uuid7::new();
     m.add_file(c);
-    assert_eq!(m.files(), &[a, b, c]);
+    assert_eq!(m.files_slice(), &[a, b, c]);
     m.set_files(vec![c]);
-    assert_eq!(m.files(), &[c]);
+    assert_eq!(m.files_slice(), &[c]);
   }
 
   #[test]
@@ -563,23 +566,23 @@ mod tests {
     .unwrap()
     .with_capture_date(Some(epoch));
     assert_eq!(
-      m.capture_date(),
+      m.capture_date_ref(),
       Some(&epoch),
       "Some(epoch) must be preserved faithfully"
     );
 
     // A real instant is preserved too.
     let m = m.with_capture_date(Some(real_ts()));
-    assert_eq!(m.capture_date(), Some(&real_ts()));
+    assert_eq!(m.capture_date_ref(), Some(&real_ts()));
 
     // An explicit `None` stays `None`.
     let m = m.with_capture_date(None);
-    assert!(m.capture_date().is_none());
+    assert!(m.capture_date_ref().is_none());
 
     // The in-place setter stores faithfully and identically.
     let mut m = m;
     m.set_capture_date(Some(epoch));
-    assert_eq!(m.capture_date(), Some(&epoch));
+    assert_eq!(m.capture_date_ref(), Some(&epoch));
   }
 
   #[test]
@@ -599,15 +602,15 @@ mod tests {
       ))
       .with_gps(Some(gps));
 
-    assert_eq!(m.video(), Some(&video_id));
-    assert_eq!(m.audio(), Some(&audio_id));
-    assert!(m.subtitle().is_none());
+    assert_eq!(m.video_ref(), Some(&video_id));
+    assert_eq!(m.audio_ref(), Some(&audio_id));
+    assert!(m.subtitle_ref().is_none());
     assert_eq!(m.error_flags(), MediaErrorFlags::VIDEO_ERROR);
-    assert!(m.capture_date().is_some());
-    let dev = m.device().expect("device set");
+    assert!(m.capture_date_ref().is_some());
+    let dev = m.device_ref().expect("device set");
     assert_eq!(dev.make(), "Apple");
     assert_eq!(dev.model(), "iPhone 15 Pro");
-    let gps = m.gps().expect("gps set");
+    let gps = m.gps_ref().expect("gps set");
     assert_eq!(gps.lat(), 37.7749);
     assert_eq!(gps.lon(), -122.4194);
     assert_eq!(gps.altitude(), Some(20.0));
@@ -628,11 +631,11 @@ mod tests {
     m.set_gps(Some(
       GeoLocation::try_new(0.0, 0.0, None).expect("valid coordinates"),
     ));
-    assert!(m.video().is_some());
+    assert!(m.video_ref().is_some());
     assert!(m
       .error_flags()
       .contains(MediaErrorFlags::AUDIO_ERROR | MediaErrorFlags::SUBTITLE_ERROR));
-    assert_eq!(m.gps().map(GeoLocation::altitude), Some(None));
+    assert_eq!(m.gps_ref().map(GeoLocation::altitude), Some(None));
   }
 
   fn sample_media() -> Media {
@@ -653,13 +656,13 @@ mod tests {
   #[test]
   fn try_with_duration_accepts_zero_positive_and_none() {
     let m = sample_media().try_with_duration(Some(pts(0))).unwrap();
-    assert_eq!(m.duration().map(MediaTimestamp::pts), Some(0));
+    assert_eq!(m.duration_ref().map(MediaTimestamp::pts), Some(0));
 
     let m = m.try_with_duration(Some(pts(48_000))).unwrap();
-    assert_eq!(m.duration().map(MediaTimestamp::pts), Some(48_000));
+    assert_eq!(m.duration_ref().map(MediaTimestamp::pts), Some(48_000));
 
     let m = m.try_with_duration(None).unwrap();
-    assert!(m.duration().is_none());
+    assert!(m.duration_ref().is_none());
   }
 
   #[test]
@@ -674,13 +677,13 @@ mod tests {
     let mut m = sample_media();
 
     m.try_set_duration(Some(pts(0))).unwrap();
-    assert_eq!(m.duration().map(MediaTimestamp::pts), Some(0));
+    assert_eq!(m.duration_ref().map(MediaTimestamp::pts), Some(0));
 
     m.try_set_duration(Some(pts(48_000))).unwrap();
-    assert_eq!(m.duration().map(MediaTimestamp::pts), Some(48_000));
+    assert_eq!(m.duration_ref().map(MediaTimestamp::pts), Some(48_000));
 
     m.try_set_duration(None).unwrap();
-    assert!(m.duration().is_none());
+    assert!(m.duration_ref().is_none());
   }
 
   #[test]
@@ -691,7 +694,7 @@ mod tests {
     assert_eq!(r.err(), Some(MediaError::NegativeDuration));
     // Rejected setter leaves the prior value unchanged.
     assert_eq!(
-      m.duration().map(MediaTimestamp::pts),
+      m.duration_ref().map(MediaTimestamp::pts),
       Some(48_000),
       "rejected try_set_duration must not mutate the prior value"
     );

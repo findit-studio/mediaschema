@@ -412,13 +412,13 @@ impl<Id> LocalLocation<Id> {
   /// Stable volume identity (the UUID written to
   /// `<mount>/.findit_index/.id`).
   #[inline(always)]
-  pub fn volume(&self) -> &Id {
+  pub fn volume_ref(&self) -> &Id {
     &self.volume
   }
 
   /// Platform-agnostic path components, relative to the volume root.
   #[inline(always)]
-  pub fn components(&self) -> &[SmolStr] {
+  pub fn components_slice(&self) -> &[SmolStr] {
     &self.components
   }
 
@@ -1034,8 +1034,8 @@ mod tests {
     // IsVariant + Unwrap derives.
     assert!(l.is_local());
     let local = l.unwrap_local_ref();
-    assert_eq!(local.volume(), &vol);
-    assert_eq!(local.components(), &["Movies", "Holiday"]);
+    assert_eq!(local.volume_ref(), &vol);
+    assert_eq!(local.components_slice(), &["Movies", "Holiday"]);
   }
 
   #[test]
@@ -1074,8 +1074,8 @@ mod tests {
     let vol = Uuid7::new();
     let l = Location::try_local_uuid7(vol, ["Movies"]).unwrap();
     let local: LocalLocation<Uuid7> = l.try_unwrap_local().unwrap();
-    assert_eq!(local.volume(), &vol);
-    assert_eq!(local.components(), &["Movies"]);
+    assert_eq!(local.volume_ref(), &vol);
+    assert_eq!(local.components_slice(), &["Movies"]);
   }
 
   #[test]

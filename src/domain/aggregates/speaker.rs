@@ -30,9 +30,9 @@ use crate::domain::Uuid7;
 /// an orphan voice clustered as `SPEAKER_NN=0` — a real invalid state.
 /// Construct explicitly via [`Speaker::try_new`].
 ///
-/// Fields are private per the encapsulation rule; access via `id()` /
-/// `parent()` / `cluster_id()` / `name()` / `speech_duration()` getters
-/// and `with_*` / `set_*` builders/mutators.
+/// Fields are private per the encapsulation rule; access via `id_ref()` /
+/// `parent_ref()` / `cluster_id()` / `name()` / `speech_duration_ref()`
+/// getters and `with_*` / `set_*` builders/mutators.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Speaker<Id = Uuid7> {
   id: Id,
@@ -76,13 +76,13 @@ impl Speaker<Uuid7> {
 impl<Id> Speaker<Id> {
   /// Canonical identity (also the LanceDB voiceprint key).
   #[inline(always)]
-  pub const fn id(&self) -> &Id {
+  pub const fn id_ref(&self) -> &Id {
     &self.id
   }
 
   /// FK → `AudioTrack.id`.
   #[inline(always)]
-  pub const fn parent(&self) -> &Id {
+  pub const fn parent_ref(&self) -> &Id {
     &self.parent
   }
 
@@ -100,7 +100,7 @@ impl<Id> Speaker<Id> {
 
   /// Total time this speaker spoke (`None` = not yet rolled up).
   #[inline(always)]
-  pub const fn speech_duration(&self) -> Option<&Timestamp> {
+  pub const fn speech_duration_ref(&self) -> Option<&Timestamp> {
     self.speech_duration.as_ref()
   }
 
@@ -178,10 +178,10 @@ mod tests {
     let parent = Uuid7::new();
     let s =
       Speaker::try_new(Uuid7::new(), parent, 2, "Jane").expect("valid construction must succeed");
-    assert_eq!(s.parent(), &parent);
+    assert_eq!(s.parent_ref(), &parent);
     assert_eq!(s.cluster_id(), 2);
     assert_eq!(s.name(), "Jane");
-    assert!(s.speech_duration().is_none());
+    assert!(s.speech_duration_ref().is_none());
   }
 
   #[test]

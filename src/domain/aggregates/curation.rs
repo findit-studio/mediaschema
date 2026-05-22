@@ -23,7 +23,7 @@ use crate::domain::{Rgba, Uuid7};
 /// recolourable, deduped via `id` rather than string equality.
 ///
 /// Fields are private per the encapsulation rule; access via
-/// `id()` / `name()` / `color()` / `created_at()` getters and
+/// `id_ref()` / `name()` / `color()` / `created_at_ref()` getters and
 /// `with_*` / `set_*` builders/mutators.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct UserTag<Id = Uuid7> {
@@ -56,7 +56,7 @@ impl UserTag<Uuid7> {
 impl<Id> UserTag<Id> {
   /// Canonical identity.
   #[inline(always)]
-  pub const fn id(&self) -> &Id {
+  pub const fn id_ref(&self) -> &Id {
     &self.id
   }
 
@@ -75,7 +75,7 @@ impl<Id> UserTag<Id> {
 
   /// When the tag was created.
   #[inline(always)]
-  pub const fn created_at(&self) -> &Timestamp {
+  pub const fn created_at_ref(&self) -> &Timestamp {
     &self.created_at
   }
 
@@ -173,13 +173,13 @@ impl SceneAnnotation<Uuid7> {
 impl<Id> SceneAnnotation<Id> {
   /// Canonical identity.
   #[inline(always)]
-  pub const fn id(&self) -> &Id {
+  pub const fn id_ref(&self) -> &Id {
     &self.id
   }
 
   /// FK → `Scene.id`.
   #[inline(always)]
-  pub const fn scene(&self) -> &Id {
+  pub const fn scene_ref(&self) -> &Id {
     &self.scene
   }
 
@@ -192,7 +192,7 @@ impl<Id> SceneAnnotation<Id> {
   /// References to `UserTag.id`s (not inline strings — supports
   /// rename / dedup via the tag aggregate).
   #[inline(always)]
-  pub const fn user_tags(&self) -> &[Id] {
+  pub const fn user_tags_slice(&self) -> &[Id] {
     // `Vec::as_slice` is const fn; deref-coercion (`&self.user_tags`)
     // would require the non-const `Deref` impl.
     self.user_tags.as_slice()
@@ -213,7 +213,7 @@ impl<Id> SceneAnnotation<Id> {
 
   /// When the annotation was last updated.
   #[inline(always)]
-  pub const fn updated_at(&self) -> &Timestamp {
+  pub const fn updated_at_ref(&self) -> &Timestamp {
     &self.updated_at
   }
 
@@ -331,7 +331,7 @@ mod tests {
   fn scene_annotation_try_new_is_pristine() {
     let a = SceneAnnotation::try_new(Uuid7::new(), Uuid7::new(), Timestamp::default()).unwrap();
     assert!(!a.is_favorite());
-    assert!(a.user_tags().is_empty());
+    assert!(a.user_tags_slice().is_empty());
     assert!(a.rating().is_none());
     assert!(a.note().is_empty());
   }
@@ -361,12 +361,12 @@ mod tests {
       .with_user_tags(std::vec![t1, t2])
       .with_rating(Some(4))
       .with_note("great driving scene");
-    assert_eq!(a.scene(), &scene);
+    assert_eq!(a.scene_ref(), &scene);
     assert!(a.is_favorite());
     assert_eq!(a.rating(), Some(4));
-    assert_eq!(a.user_tags().len(), 2);
-    assert!(a.user_tags().contains(&t1));
-    assert!(a.user_tags().contains(&t2));
+    assert_eq!(a.user_tags_slice().len(), 2);
+    assert!(a.user_tags_slice().contains(&t1));
+    assert!(a.user_tags_slice().contains(&t2));
     assert_eq!(a.note(), "great driving scene");
   }
 }

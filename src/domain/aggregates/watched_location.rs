@@ -91,7 +91,7 @@ impl WatchedLocation<Uuid7> {
 impl<Id> WatchedLocation<Id> {
   /// Canonical identity.
   #[inline(always)]
-  pub const fn id(&self) -> &Id {
+  pub const fn id_ref(&self) -> &Id {
     &self.id
   }
 
@@ -99,7 +99,7 @@ impl<Id> WatchedLocation<Id> {
   /// `LocalLocation::volume` carries. The watch is volume-scoped; this is
   /// **not** a folder path.
   #[inline(always)]
-  pub const fn volume(&self) -> &Id {
+  pub const fn volume_ref(&self) -> &Id {
     &self.volume
   }
 
@@ -126,20 +126,20 @@ impl<Id> WatchedLocation<Id> {
 
   /// When this watch was configured.
   #[inline(always)]
-  pub const fn added_at(&self) -> &Timestamp {
+  pub const fn added_at_ref(&self) -> &Timestamp {
     &self.added_at
   }
 
   /// Last full reconcile sweep (bootstrap / after-downtime /
   /// volume-remount catch-up — events the monitor missed while offline).
   #[inline(always)]
-  pub const fn last_reconciled_at(&self) -> Option<&Timestamp> {
+  pub const fn last_reconciled_at_ref(&self) -> Option<&Timestamp> {
     self.last_reconciled_at.as_ref()
   }
 
   /// Status of that sweep.
   #[inline(always)]
-  pub const fn last_reconcile_status(&self) -> Option<&ScanStatus> {
+  pub const fn last_reconcile_status_ref(&self) -> Option<&ScanStatus> {
     self.last_reconcile_status.as_ref()
   }
 
@@ -147,7 +147,7 @@ impl<Id> WatchedLocation<Id> {
   /// `LocalPermissionDenied`). The non-track error case —
   /// `WatchedLocation` is config + monitor health, not media.
   #[inline(always)]
-  pub const fn last_error(&self) -> Option<&ErrorInfo> {
+  pub const fn last_error_ref(&self) -> Option<&ErrorInfo> {
     self.last_error.as_ref()
   }
 
@@ -275,8 +275,8 @@ mod tests {
     let vol = Uuid7::new();
     let w = WatchedLocation::try_new(id, vol, Timestamp::default())
       .expect("valid construction must succeed");
-    assert_eq!(w.id(), &id);
-    assert_eq!(w.volume(), &vol);
+    assert_eq!(w.id_ref(), &id);
+    assert_eq!(w.volume_ref(), &vol);
     assert!(!w.is_enabled(), "monitor starts paused");
     assert!(!w.is_recursive());
     assert!(!w.is_ejectable());
@@ -316,7 +316,7 @@ mod tests {
         "drive offline",
       )));
     assert_eq!(
-      w.last_error().map(|e| e.code()),
+      w.last_error_ref().map(|e| e.code()),
       Some(ErrorCode::VolumeNotAvailable)
     );
   }
