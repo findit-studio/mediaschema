@@ -45,6 +45,20 @@ const fn is_valid_ratio(v: Option<f32>) -> bool {
   }
 }
 
+/// `duration` is semantically a non-negative track-relative length. A
+/// `mediatime::Timestamp` is negative iff its `pts()` is negative — the
+/// timebase numerator/denominator are always positive, so the sign is
+/// carried entirely by the PTS value. `None` (absent) is not negative.
+/// Mirrors `Speaker`'s `is_negative_duration` check. (`start_pts` is a
+/// different field: negative offsets are valid there and it is not gated.)
+#[inline]
+const fn is_negative_duration(d: Option<Timestamp>) -> bool {
+  match d {
+    None => false,
+    Some(ts) => ts.pts() < 0,
+  }
+}
+
 /// A status that includes [`AudioIndexStatus::EXTRACTED`] (or any later
 /// bit, which the pipeline only sets *after* extraction) asserts the track
 /// has been probed — and the locked `audio_track.md` invariant requires a
@@ -80,6 +94,13 @@ const fn status_asserts_descriptor(s: AudioIndexStatus) -> bool {
 /// requirement applies to them.
 const fn validate_status_topology(s: AudioIndexStatus) -> Result<(), AudioTrackError> {
   use AudioIndexStatus as S;
+  // Reject any bit outside the declared `AudioIndexStatus` mask before the
+  // lifecycle checks. `bitflags` retains unknown bits on construction, so a
+  // caller could otherwise smuggle a bit the domain does not understand
+  // (e.g. `EXTRACTED | 0x800`) past every topology check below.
+  if s.bits() & !S::all().bits() != 0 {
+    return Err(AudioTrackError::UnknownStatusBits);
+  }
   // The empty mask makes no lifecycle claim and is always valid.
   if s.is_empty() {
     return Ok(());
@@ -584,11 +605,22 @@ impl<Id> AudioTrack<Id> {
     self
   }
 
-  /// Builder: replace `duration`.
+  /// Validating builder: replace `duration`.
+  ///
+  /// `duration` is semantically a non-negative track-relative length;
+  /// although `mediatime::Timestamp` admits a negative PTS, a `Some(_)`
+  /// with `pts() < 0` is rejected with
+  /// [`AudioTrackError::NegativeDuration`]. `None` (absent) and a zero or
+  /// positive `Timestamp` are accepted. On rejection `self` is returned
+  /// unchanged inside the `Err`. (`start_pts` is left infallible — a
+  /// negative first-PTS offset is legitimate.)
   #[inline]
-  pub fn with_duration(mut self, v: Option<Timestamp>) -> Self {
+  pub fn try_with_duration(mut self, v: Option<Timestamp>) -> Result<Self, AudioTrackError> {
+    if is_negative_duration(v) {
+      return Err(AudioTrackError::NegativeDuration);
+    }
     self.duration = v;
-    self
+    Ok(self)
   }
 
   /// Builder: replace `start_pts`.
@@ -843,10 +875,20 @@ impl<Id> AudioTrack<Id> {
     self.is_lossless = v;
   }
 
-  /// In-place mutator for `duration`.
+  /// Validating in-place mutator for `duration`. Rejects a `Some(_)`
+  /// carrying a negative `Timestamp` ([`AudioTrackError::NegativeDuration`]);
+  /// `None` and a zero or positive `Timestamp` are accepted. On rejection
+  /// `self` is left unchanged.
   #[inline]
-  pub fn set_duration(&mut self, v: Option<Timestamp>) {
+  pub const fn try_set_duration(
+    &mut self,
+    v: Option<Timestamp>,
+  ) -> Result<&mut Self, AudioTrackError> {
+    if is_negative_duration(v) {
+      return Err(AudioTrackError::NegativeDuration);
+    }
     self.duration = v;
+    Ok(self)
   }
 
   /// In-place mutator for `start_pts`.
@@ -1037,6 +1079,16 @@ pub enum AudioTrackError {
   /// real `Speaker` identity.
   #[error("AudioTrack speakers set must not contain the nil UUID")]
   NilSpeaker,
+  /// An `index_status` mask carried a bit outside the declared
+  /// `AudioIndexStatus` set — `bitflags` retains unknown bits on
+  /// construction, and the domain cannot reason about a status it does not
+  /// understand.
+  #[error("AudioTrack index_status mask contains unknown bits outside AudioIndexStatus")]
+  UnknownStatusBits,
+  /// A `Some(_)` `duration` carried a negative `Timestamp` — a track
+  /// duration is semantically a non-negative length.
+  #[error("AudioTrack duration must not be negative")]
+  NegativeDuration,
 }
 
 // ===========================================================================
@@ -1462,6 +1514,115 @@ mod tests {
     // A fresh valid set replaces it.
     t.try_set_speakers(std::vec![s2]).unwrap();
     assert_eq!(t.speakers(), &[s2]);
+  }
+
+  // --- Finding 1 (round 5): unknown index_status bits -----------------------
+
+  /// A bit not declared by any `AudioIndexStatus` flag. The declared mask
+  /// occupies the low 11 bits, so `0x800` is guaranteed unknown.
+  fn unknown_bit() -> AudioIndexStatus {
+    let b = AudioIndexStatus::from_bits_retain(0x800);
+    assert!(
+      b.bits() & !AudioIndexStatus::all().bits() != 0,
+      "0x800 must lie outside the declared mask"
+    );
+    b
+  }
+
+  #[test]
+  fn index_status_rejects_unknown_bits() {
+    let t = probed_track();
+    // An unknown-only mask is rejected.
+    assert_eq!(
+      t.clone().try_with_index_status(unknown_bit()).err(),
+      Some(AudioTrackError::UnknownStatusBits)
+    );
+    // EXTRACTED smuggling an unknown bit alongside is rejected — the unknown
+    // check runs before the lifecycle/topology checks.
+    assert_eq!(
+      t.clone()
+        .try_with_index_status(AudioIndexStatus::EXTRACTED | unknown_bit())
+        .err(),
+      Some(AudioTrackError::UnknownStatusBits)
+    );
+    // The in-place mutator rejects it too, leaving the prior value unchanged.
+    let mut m = probed_track();
+    m.try_set_index_status(AudioIndexStatus::EXTRACTED).unwrap();
+    assert_eq!(
+      m.try_set_index_status(AudioIndexStatus::EXTRACTED | unknown_bit())
+        .err(),
+      Some(AudioTrackError::UnknownStatusBits)
+    );
+    assert_eq!(m.index_status(), AudioIndexStatus::EXTRACTED);
+    assert!(AudioTrackError::UnknownStatusBits.is_unknown_status_bits());
+  }
+
+  #[test]
+  fn index_status_accepts_all_known_masks() {
+    use AudioIndexStatus as S;
+    let t = probed_track();
+    // Every all-known valid mask is still accepted after the unknown-bit gate.
+    for mask in [
+      S::empty(),
+      S::EXTRACTED,
+      S::EXTRACTED | S::VAD_DONE,
+      S::EXTRACTED | S::CLASSIFIED | S::VAD_DONE | S::STT_DONE | S::SPEAKER_DONE,
+      S::all(),
+    ] {
+      assert!(
+        t.clone().try_with_index_status(mask).is_ok(),
+        "all-known mask {mask:?} must be accepted"
+      );
+    }
+  }
+
+  // --- Finding 2 (round 5): non-negative track duration ---------------------
+
+  /// A standard 1/1000 (millisecond) timebase for duration tests.
+  fn tb() -> mediatime::Timebase {
+    mediatime::Timebase::new(1, core::num::NonZeroU32::new(1000).expect("nonzero"))
+  }
+
+  #[test]
+  fn try_with_duration_rejects_negative() {
+    let t = AudioTrack::try_new(Uuid7::new(), Uuid7::new()).unwrap();
+    assert_eq!(
+      t.clone()
+        .try_with_duration(Some(Timestamp::new(-1, tb())))
+        .err(),
+      Some(AudioTrackError::NegativeDuration)
+    );
+    assert!(AudioTrackError::NegativeDuration.is_negative_duration());
+    // zero / positive / None are accepted.
+    let z = t
+      .clone()
+      .try_with_duration(Some(Timestamp::new(0, tb())))
+      .expect("zero accepted");
+    assert_eq!(z.duration().unwrap().pts(), 0);
+    let p = t
+      .clone()
+      .try_with_duration(Some(Timestamp::new(5000, tb())))
+      .expect("positive accepted");
+    assert_eq!(p.duration().unwrap().pts(), 5000);
+    let n = t.try_with_duration(None).expect("None accepted");
+    assert!(n.duration().is_none());
+  }
+
+  #[test]
+  fn try_set_duration_rejects_and_leaves_value_unchanged() {
+    let mut t = AudioTrack::try_new(Uuid7::new(), Uuid7::new()).unwrap();
+    t.try_set_duration(Some(Timestamp::new(3000, tb())))
+      .unwrap();
+    assert_eq!(
+      t.try_set_duration(Some(Timestamp::new(-10, tb()))).err(),
+      Some(AudioTrackError::NegativeDuration)
+    );
+    // rejection leaves the prior valid value in place.
+    assert_eq!(t.duration().unwrap().pts(), 3000);
+    t.try_set_duration(Some(Timestamp::new(0, tb()))).unwrap();
+    assert_eq!(t.duration().unwrap().pts(), 0);
+    t.try_set_duration(None).unwrap();
+    assert!(t.duration().is_none());
   }
 
   // --- Finding 3: language_mismatch is derived ------------------------------
