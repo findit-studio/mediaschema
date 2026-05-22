@@ -116,30 +116,6 @@ fn json_roundtrip() {
   assert_eq!(d, back);
 }
 
-#[test]
-#[cfg(feature = "quickcheck")]
-fn detection_quickcheck_roundtrip() {
-  fn prop(label: String, confidence: f32) -> quickcheck::TestResult {
-    // `Detection` derives PartialEq over the raw f32; NaN != NaN makes an
-    // equality property ill-defined for non-finite confidence (the codec
-    // itself round-trips the bits faithfully). Scope to the finite domain.
-    if !confidence.is_finite() {
-      return quickcheck::TestResult::discard();
-    }
-    let d = Detection {
-      label,
-      confidence,
-      ..Default::default()
-    };
-    let bytes = d.encode_to_vec();
-    let ok = Detection::decode_from_slice(&bytes)
-      .map(|b| b == d)
-      .unwrap_or(false);
-    quickcheck::TestResult::from_bool(ok)
-  }
-  quickcheck::quickcheck(prop as fn(String, f32) -> quickcheck::TestResult);
-}
-
 // ── SP1 Batch 1 ──────────────────────────────────────────────────────────────
 
 #[test]
@@ -260,28 +236,6 @@ fn document_segment_json_roundtrip() {
   let json = serde_json::to_string(&seg).expect("to_json");
   let back: DocumentSegment = serde_json::from_str(&json).expect("from_json");
   assert_eq!(seg, back);
-}
-
-#[test]
-#[cfg(feature = "quickcheck")]
-fn dimensions_quickcheck_roundtrip() {
-  fn prop(width: u32, height: u32) -> quickcheck::TestResult {
-    // Dimensions uses u32 scalars; all values are valid (no non-finite
-    // domain to discard). Mirror SP0's style with discard as a safety
-    // valve — use it to filter any pathological zero-zero case if needed;
-    // here we simply admit all values.
-    let d = Dimensions {
-      width,
-      height,
-      ..Default::default()
-    };
-    let bytes = d.encode_to_vec();
-    let ok = Dimensions::decode_from_slice(&bytes)
-      .map(|b| b == d)
-      .unwrap_or(false);
-    quickcheck::TestResult::from_bool(ok)
-  }
-  quickcheck::quickcheck(prop as fn(u32, u32) -> quickcheck::TestResult);
 }
 
 // ── SP1 Batch 2 ──────────────────────────────────────────────────────────────

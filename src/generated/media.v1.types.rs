@@ -4,7 +4,6 @@
 /// Container/video file format.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 #[repr(i32)]
 pub enum VideoFormat {
     VIDEO_FORMAT_UNSPECIFIED = 0i32,
@@ -192,7 +191,6 @@ impl ::buffa::Enumeration for VideoFormat {
 /// Audio file format.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 #[repr(i32)]
 pub enum AudioFormat {
     AUDIO_FORMAT_UNSPECIFIED = 0i32,
@@ -370,7 +368,6 @@ impl ::buffa::Enumeration for AudioFormat {
 /// Method used to obtain the body height estimate in BodyPose3DDetection.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 #[repr(i32)]
 pub enum BodyPose3DHeightEstimation {
     BODY_POSE_3D_HEIGHT_ESTIMATION_UNSPECIFIED = 0i32,
@@ -544,7 +541,6 @@ impl ::buffa::Enumeration for BodyPose3DHeightEstimation {
 /// Chirality (handedness) of a detected hand.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 #[repr(i32)]
 pub enum HandChirality {
     HAND_CHIRALITY_UNSPECIFIED = 0i32,
@@ -691,7 +687,6 @@ impl ::buffa::Enumeration for HandChirality {
 /// Source of timing information for a media track.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 #[repr(i32)]
 pub enum TrackTimeSource {
     TRACK_TIME_SOURCE_UNSPECIFIED = 0i32,
@@ -854,7 +849,6 @@ impl ::buffa::Enumeration for TrackTimeSource {
 /// Database asset tri-state. Renamed `DbMediaKind` (distinct from SP1's `MediaKind` oneof; same package since mono-consolidation).
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 #[repr(i32)]
 pub enum DbMediaKind {
     /// src `Unknown`
@@ -993,7 +987,6 @@ impl ::buffa::Enumeration for DbMediaKind {
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 #[repr(i32)]
 pub enum SubtitleTrackFormat {
     /// src `Unknown`
@@ -1192,7 +1185,6 @@ impl ::buffa::Enumeration for SubtitleTrackFormat {
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 #[repr(i32)]
 pub enum SubtitleTrackRole {
     /// src `Unknown`
@@ -1368,7 +1360,6 @@ impl ::buffa::Enumeration for SubtitleTrackRole {
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 #[repr(i32)]
 pub enum ChannelLayoutKind {
     /// src `Unknown`
@@ -1782,7 +1773,6 @@ impl ::buffa::Enumeration for ChannelLayoutKind {
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 #[repr(i32)]
 pub enum AudioChannelOrderKind {
     /// src `Unspecified`
@@ -1945,7 +1935,6 @@ impl ::buffa::Enumeration for AudioChannelOrderKind {
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 #[repr(i32)]
 pub enum AudioClipKind {
     /// src `Unknown`
@@ -2114,7 +2103,6 @@ impl ::buffa::Enumeration for AudioClipKind {
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 #[repr(i32)]
 pub enum AudioPrefilterClass {
     /// src `Unknown`
@@ -2271,7 +2259,6 @@ impl ::buffa::Enumeration for AudioPrefilterClass {
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 #[repr(i32)]
 pub enum AudioTrackRole {
     /// src `Unknown`
@@ -2450,7 +2437,6 @@ impl ::buffa::Enumeration for AudioTrackRole {
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 #[repr(i32)]
 pub enum AudioContainerFormat {
     /// inserted (src define_code_type! 0=None)
@@ -2658,7 +2644,6 @@ impl ::buffa::Enumeration for AudioContainerFormat {
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 #[repr(i32)]
 pub enum AudioCodec {
     /// inserted
@@ -2830,7 +2815,6 @@ impl ::buffa::Enumeration for AudioCodec {
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 #[repr(i32)]
 pub enum AudioSampleFormat {
     /// inserted
@@ -2992,7 +2976,6 @@ impl ::buffa::Enumeration for AudioSampleFormat {
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 #[repr(i32)]
 pub enum TrackClassificationType {
     /// src `Unknown`
@@ -3198,7 +3181,6 @@ impl ::buffa::Enumeration for TrackClassificationType {
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct Detection {
     /// Field 1: `label`
     #[cfg_attr(
@@ -3373,7 +3355,6 @@ pub const __DETECTION_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct BoundingBox {
     /// Field 1: `x`
     #[cfg_attr(
@@ -3609,7 +3590,6 @@ pub const __BOUNDING_BOX_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buff
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct TimedDetection {
     /// Field 1: `detection`
     #[cfg_attr(
@@ -3847,7 +3827,6 @@ pub const __TIMED_DETECTION_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::b
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct Point2D {
     /// Field 1: `x`
     #[cfg_attr(
@@ -4016,7 +3995,6 @@ pub const __POINT2D_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::ty
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct Dimensions {
     /// Field 1: `width`
     #[cfg_attr(
@@ -4188,7 +4166,6 @@ pub const __DIMENSIONS_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa:
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct Aesthetics {
     /// Field 1: `overall_score`
     #[cfg_attr(
@@ -4362,7 +4339,6 @@ pub const __AESTHETICS_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa:
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct HorizonInfo {
     /// Field 1: `angle`
     #[cfg_attr(
@@ -4534,7 +4510,6 @@ pub const __HORIZON_INFO_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buff
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct CodecId {
     /// Field 1: `value`
     #[cfg_attr(
@@ -4674,7 +4649,6 @@ pub const __CODEC_ID_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::t
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct FeaturePrint {
     /// Field 1: `data`
     #[cfg_attr(
@@ -4854,7 +4828,6 @@ pub const __FEATURE_PRINT_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buf
 #[cfg_attr(feature = "json", derive(::serde::Serialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct MediaKind {
     #[cfg_attr(feature = "json", serde(flatten))]
     pub kind: ::core::option::Option<__buffa::oneof::media_kind::Kind>,
@@ -5114,7 +5087,6 @@ pub mod media_kind {
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct DocumentSegment {
     /// Field 1: `top_left`
     #[cfg_attr(
@@ -5428,7 +5400,6 @@ pub const __DOCUMENT_SEGMENT_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct Id {
     /// Field 1: `value`
     #[cfg_attr(
@@ -5575,7 +5546,6 @@ pub const __ID_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_re
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct FileChecksum {
     /// Field 1: `value`
     #[cfg_attr(
@@ -5722,7 +5692,6 @@ pub const __FILE_CHECKSUM_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buf
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct Local {
     /// Field 1: `volume`
     #[cfg_attr(
@@ -5909,7 +5878,6 @@ pub const __LOCAL_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type
 #[cfg_attr(feature = "json", derive(::serde::Serialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct Location {
     #[cfg_attr(feature = "json", serde(flatten))]
     pub kind: ::core::option::Option<__buffa::oneof::location::Kind>,
@@ -6139,7 +6107,6 @@ pub mod location {
 #[cfg_attr(feature = "json", derive(::serde::Serialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct LocationTarget {
     #[cfg_attr(feature = "json", serde(flatten))]
     pub kind: ::core::option::Option<__buffa::oneof::location_target::Kind>,
@@ -6350,7 +6317,6 @@ pub mod location_target {
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct AppPathBuf {
     /// Field 1: `checksum`
     #[cfg_attr(
@@ -6546,7 +6512,6 @@ pub const __APP_PATH_BUF_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buff
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct Tag {
     /// Field 1: `name`
     #[cfg_attr(
@@ -6721,7 +6686,6 @@ pub const __TAG_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_r
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct ErrorInfo {
     /// Field 1: `code`
     #[cfg_attr(
@@ -6896,7 +6860,6 @@ pub const __ERROR_INFO_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa:
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct WatchedLocation {
     /// Field 1: `id`
     #[cfg_attr(
@@ -7544,7 +7507,6 @@ pub const __WATCHED_LOCATION_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct VolumeMeta {
     /// Field 1: `id`
     #[cfg_attr(
@@ -7867,7 +7829,6 @@ pub const __VOLUME_META_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct ClassificationDetection {
     /// Field 1: `detection`
     #[cfg_attr(
@@ -8021,7 +7982,6 @@ pub const __CLASSIFICATION_DETECTION_JSON_ANY: ::buffa::type_registry::JsonAnyEn
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct ActionDetection {
     /// Field 1: `detection`
     #[cfg_attr(
@@ -8173,7 +8133,6 @@ pub const __ACTION_DETECTION_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct EmotionDetection {
     /// Field 1: `detection`
     #[cfg_attr(
@@ -8325,7 +8284,6 @@ pub const __EMOTION_DETECTION_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = :
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct MoodDetection {
     /// Field 1: `detection`
     #[cfg_attr(
@@ -8477,7 +8435,6 @@ pub const __MOOD_DETECTION_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::bu
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct LightingDetection {
     /// Field 1: `detection`
     #[cfg_attr(
@@ -8629,7 +8586,6 @@ pub const __LIGHTING_DETECTION_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = 
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct ColorDetection {
     /// Field 1: `detection`
     #[cfg_attr(
@@ -8781,7 +8737,6 @@ pub const __COLOR_DETECTION_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::b
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct ObjectDetection {
     /// Field 1: `detection`
     #[cfg_attr(
@@ -8977,7 +8932,6 @@ pub const __OBJECT_DETECTION_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct SubjectDetection {
     /// Field 1: `detection`
     #[cfg_attr(
@@ -9173,7 +9127,6 @@ pub const __SUBJECT_DETECTION_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = :
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct TextDetection {
     /// Field 1: `text`
     #[cfg_attr(
@@ -9390,7 +9343,6 @@ pub const __TEXT_DETECTION_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::bu
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct BarcodeDetection {
     /// Field 1: `payload`
     #[cfg_attr(
@@ -9640,7 +9592,6 @@ pub const __BARCODE_DETECTION_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = :
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct FaceDetection {
     /// Field 1: `bbox`
     #[cfg_attr(
@@ -9945,7 +9896,6 @@ pub const __FACE_DETECTION_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::bu
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct SaliencyRegion {
     /// Field 1: `bbox`
     #[cfg_attr(
@@ -10129,7 +10079,6 @@ pub const __SALIENCY_REGION_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::b
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct FaceLandmarkPoint {
     /// Field 1: `x`
     #[cfg_attr(
@@ -10301,7 +10250,6 @@ pub const __FACE_LANDMARK_POINT_JSON_ANY: ::buffa::type_registry::JsonAnyEntry =
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct FaceLandmarkRegion {
     /// Field 1: `name`
     #[cfg_attr(
@@ -10487,7 +10435,6 @@ pub const __FACE_LANDMARK_REGION_JSON_ANY: ::buffa::type_registry::JsonAnyEntry 
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct FaceLandmarksDetection {
     /// Field 1: `bbox`
     #[cfg_attr(
@@ -10712,7 +10659,6 @@ pub const __FACE_LANDMARKS_DETECTION_JSON_ANY: ::buffa::type_registry::JsonAnyEn
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct BodyPoseJoint {
     /// Field 1: `name`
     #[cfg_attr(
@@ -10947,7 +10893,6 @@ pub const __BODY_POSE_JOINT_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::b
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct BodyPoseDetection {
     /// Field 1: `bbox`
     #[cfg_attr(
@@ -11172,7 +11117,6 @@ pub const __BODY_POSE_DETECTION_JSON_ANY: ::buffa::type_registry::JsonAnyEntry =
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct BodyPose3DJoint {
     /// Field 1: `name`
     #[cfg_attr(
@@ -11437,7 +11381,6 @@ pub const __BODY_POSE3D_JOINT_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = :
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct BodyPose3DDetection {
     /// Field 1: `confidence`
     #[cfg_attr(
@@ -11690,7 +11633,6 @@ pub const __BODY_POSE3D_DETECTION_JSON_ANY: ::buffa::type_registry::JsonAnyEntry
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct HandPoseDetection {
     /// Field 1: `bbox`
     #[cfg_attr(
@@ -11953,7 +11895,6 @@ pub const __HAND_POSE_DETECTION_JSON_ANY: ::buffa::type_registry::JsonAnyEntry =
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct PersonSegmentationMask {
     /// Field 1: `bbox`
     #[cfg_attr(
@@ -12216,7 +12157,6 @@ pub const __PERSON_SEGMENTATION_MASK_JSON_ANY: ::buffa::type_registry::JsonAnyEn
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct PersonInstanceMaskDetection {
     /// Field 1: `bbox`
     #[cfg_attr(
@@ -12511,7 +12451,6 @@ pub const __PERSON_INSTANCE_MASK_DETECTION_JSON_ANY: ::buffa::type_registry::Jso
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct TrackTime {
     /// Field 1: `declared`
     #[cfg_attr(
@@ -12751,7 +12690,6 @@ pub const __TRACK_TIME_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa:
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct AnimalAnalysis {
     /// Field 1: `subjects`
     #[cfg_attr(
@@ -12946,7 +12884,6 @@ pub const __ANIMAL_ANALYSIS_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::b
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct HumanAnalysis {
     /// Field 1: `subjects`
     #[cfg_attr(
@@ -13448,7 +13385,6 @@ pub const __HUMAN_ANALYSIS_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::bu
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct Sp2CodegenSmoke {
     /// inline-bytes id convention
     ///
@@ -13727,7 +13663,6 @@ pub const __SP2CODEGEN_SMOKE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct TagConfidence {
     /// Field 1: `label`
     #[cfg_attr(
@@ -13901,7 +13836,6 @@ pub const __TAG_CONFIDENCE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::bu
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct SoundSource {
     /// Field 1: `name`
     #[cfg_attr(
@@ -14111,7 +14045,6 @@ pub const __SOUND_SOURCE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buff
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct AudioEvent {
     /// Field 1: `event_type`
     #[cfg_attr(
@@ -14349,7 +14282,6 @@ pub const __AUDIO_EVENT_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct SpeakerSegment {
     /// Field 1: `start_ms`
     #[cfg_attr(
@@ -14553,7 +14485,6 @@ pub const __SPEAKER_SEGMENT_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::b
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct AudioTranscriptSegment {
     /// Field 1: `start_ms`
     #[cfg_attr(
@@ -14822,7 +14753,6 @@ pub const __AUDIO_TRANSCRIPT_SEGMENT_JSON_ANY: ::buffa::type_registry::JsonAnyEn
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct AudioChannelSpec {
     /// Field 1: `index`
     #[cfg_attr(
@@ -15027,7 +14957,6 @@ pub const __AUDIO_CHANNEL_SPEC_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = 
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct Chromaprint {
     /// Field 1: `fingerprint`
     #[cfg_attr(
@@ -15206,7 +15135,6 @@ pub const __CHROMAPRINT_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct Ebur128 {
     /// Field 1: `loudness_lufs`
     #[cfg_attr(
@@ -15410,7 +15338,6 @@ pub const __EBUR128_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::ty
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct Timecode {
     /// Field 1: `start`
     #[cfg_attr(
@@ -15650,7 +15577,6 @@ pub const __TIMECODE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::t
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct CedDetection {
     /// Field 1: `tag`
     #[cfg_attr(
@@ -15821,7 +15747,6 @@ pub const __CED_DETECTION_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buf
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct Ced {
     /// Field 1: `tags`
     #[cfg_attr(
@@ -15972,7 +15897,6 @@ pub const __CED_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_r
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct AudioChannelLayout {
     /// Field 1: `order`
     #[cfg_attr(
@@ -16311,7 +16235,6 @@ pub const __AUDIO_CHANNEL_LAYOUT_JSON_ANY: ::buffa::type_registry::JsonAnyEntry 
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct Clap {
     /// Field 1: `audio_detection`
     #[cfg_attr(
@@ -16633,7 +16556,6 @@ pub const __CLAP_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct TrackTag {
     /// Field 1: `category`
     #[cfg_attr(
@@ -16852,7 +16774,6 @@ pub const __TRACK_TAG_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct VideoMeta {
     /// Field 1: `id`
     #[cfg_attr(
@@ -17278,7 +17199,6 @@ pub const __VIDEO_META_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa:
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct VideoTrackMeta {
     /// Field 1: `id`
     #[cfg_attr(
@@ -17571,7 +17491,6 @@ pub const __VIDEO_TRACK_META_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct VideoStreamMeta {
     /// Field 1: `codec_id`
     #[cfg_attr(
@@ -17903,7 +17822,6 @@ pub const __VIDEO_STREAM_META_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = :
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct MediaMeta {
     /// Field 1: `id`
     #[cfg_attr(
@@ -18224,7 +18142,6 @@ pub const __MEDIA_META_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa:
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct SceneMeta {
     /// Field 1: `id`
     #[cfg_attr(
@@ -18522,7 +18439,6 @@ pub const __SCENE_META_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa:
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct SubtitleMeta {
     /// Field 1: `id`
     #[cfg_attr(
@@ -18701,7 +18617,6 @@ pub const __SUBTITLE_META_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buf
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct SubtitleTrackMeta {
     /// Field 1: `id`
     #[cfg_attr(
@@ -19008,7 +18923,6 @@ pub const __SUBTITLE_TRACK_META_JSON_ANY: ::buffa::type_registry::JsonAnyEntry =
 #[cfg_attr(feature = "json", derive(::serde::Serialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct SubtitleTrackOrigin {
     /// Field 1: `kind`
     #[cfg_attr(
@@ -19340,7 +19254,6 @@ pub mod subtitle_track_origin {
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct FailedFile {
     /// Field 1: `id`
     #[cfg_attr(
@@ -19601,7 +19514,6 @@ pub const __FAILED_FILE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct Video {
     /// Field 1: `meta`
     #[cfg_attr(
@@ -19903,7 +19815,6 @@ pub const __VIDEO_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct VideoTrack {
     /// Field 1: `meta`
     #[cfg_attr(
@@ -20309,7 +20220,6 @@ pub const __VIDEO_TRACK_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct Media {
     /// Field 1: `meta`
     #[cfg_attr(
@@ -20881,7 +20791,6 @@ pub const __MEDIA_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct Subtitle {
     /// Field 1: `meta`
     #[cfg_attr(
@@ -21115,7 +21024,6 @@ pub const __SUBTITLE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::t
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct SubtitleTrack {
     /// Field 1: `meta`
     #[cfg_attr(
@@ -21702,7 +21610,6 @@ pub const __SUBTITLE_TRACK_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::bu
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct SubtitleCue {
     /// Field 1: `id`
     #[cfg_attr(
@@ -22074,7 +21981,6 @@ pub const __SUBTITLE_CUE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buff
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct Scene {
     /// Field 1: `meta`
     #[cfg_attr(
@@ -22539,7 +22445,6 @@ pub const __SCENE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct SceneVlmResult {
     /// Field 1: `scene`
     #[cfg_attr(
@@ -23110,7 +23015,6 @@ pub const __SCENE_VLM_RESULT_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct Keyframe {
     /// Field 1: `id`
     #[cfg_attr(
@@ -24113,7 +24017,6 @@ pub const __KEYFRAME_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::t
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct AudioMeta {
     /// Field 1: `id`
     #[cfg_attr(
@@ -24430,7 +24333,6 @@ pub const __AUDIO_META_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa:
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct AudioStreamMeta {
     /// Field 1: `codec_id`
     #[cfg_attr(
@@ -24986,7 +24888,6 @@ pub const __AUDIO_STREAM_META_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = :
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct AudioTrackMeta {
     /// Field 1: `id`
     #[cfg_attr(
@@ -25279,7 +25180,6 @@ pub const __AUDIO_TRACK_META_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct AudioSummary {
     /// Field 1: `prefilter_class`
     #[cfg_attr(
@@ -25993,7 +25893,6 @@ pub const __AUDIO_SUMMARY_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buf
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct AudioAnalysis {
     /// Field 1: `id`
     #[cfg_attr(
@@ -27818,7 +27717,6 @@ pub const __AUDIO_ANALYSIS_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::bu
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct TrackRecord {
     /// Field 1: `id`
     #[cfg_attr(
@@ -28807,7 +28705,6 @@ pub const __TRACK_RECORD_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buff
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct Audio {
     /// Field 1: `meta`
     #[cfg_attr(
@@ -29120,7 +29017,6 @@ pub const __AUDIO_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct AudioTrack {
     /// Field 1: `meta`
     #[cfg_attr(
@@ -29561,7 +29457,6 @@ pub const __AUDIO_TRACK_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct AudioCoverArt {
     /// Field 1: `path`
     #[cfg_attr(
@@ -29819,7 +29714,6 @@ pub const __AUDIO_COVER_ART_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::b
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct AudioFileRecord {
     /// Field 1: `id`
     #[cfg_attr(
@@ -30897,7 +30791,6 @@ pub const __AUDIO_FILE_RECORD_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = :
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct Sp3CodegenSmoke {
     /// inline-bytes id convention (§7.1)
     ///
@@ -31185,7 +31078,6 @@ pub const __SP3CODEGEN_SMOKE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct Pagination {
     /// Field 1: `limit`
     #[cfg_attr(
@@ -31358,7 +31250,6 @@ pub const __PAGINATION_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa:
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct SearchFilter {
     /// Field 1: `key`
     #[cfg_attr(
@@ -31566,7 +31457,6 @@ pub const __SEARCH_FILTER_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buf
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct HeartbeatRequest {
     /// Field 1: `timestamp`
     #[cfg_attr(
@@ -31706,7 +31596,6 @@ pub const __HEARTBEAT_REQUEST_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = :
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct HeartbeatResponse {
     /// Field 1: `timestamp`
     #[cfg_attr(
@@ -31851,7 +31740,6 @@ pub const __HEARTBEAT_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = 
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct SearchHit {
     /// Field 1: `scene_id`
     #[cfg_attr(
@@ -32300,7 +32188,6 @@ pub const __SEARCH_HIT_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa:
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct BrowseItem {
     /// Field 1: `meta`
     #[cfg_attr(
@@ -32566,7 +32453,6 @@ pub const __BROWSE_ITEM_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct ModelInfo {
     /// Field 1: `name`
     #[cfg_attr(
@@ -32774,7 +32660,6 @@ pub const __MODEL_INFO_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa:
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct ModelDownloadProgress {
     /// Field 1: `name`
     #[cfg_attr(
@@ -33083,7 +32968,6 @@ pub const __MODEL_DOWNLOAD_PROGRESS_JSON_ANY: ::buffa::type_registry::JsonAnyEnt
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct NetFailedFile {
     /// Field 1: `kind`
     #[cfg_attr(
@@ -33375,7 +33259,6 @@ pub const __NET_FAILED_FILE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::b
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct IndexingFile {
     /// Field 1: `location`
     #[cfg_attr(
@@ -33600,7 +33483,6 @@ pub const __INDEXING_FILE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buf
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct ListLocationsRequest {
     #[cfg_attr(feature = "json", serde(skip))]
     #[doc(hidden)]
@@ -33710,7 +33592,6 @@ pub const __LIST_LOCATIONS_REQUEST_JSON_ANY: ::buffa::type_registry::JsonAnyEntr
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct RemoveLocationResponse {
     #[cfg_attr(feature = "json", serde(skip))]
     #[doc(hidden)]
@@ -33820,7 +33701,6 @@ pub const __REMOVE_LOCATION_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEn
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct RetryFailedResponse {
     #[cfg_attr(feature = "json", serde(skip))]
     #[doc(hidden)]
@@ -33930,7 +33810,6 @@ pub const __RETRY_FAILED_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct EjectVolumeResponse {
     #[cfg_attr(feature = "json", serde(skip))]
     #[doc(hidden)]
@@ -34040,7 +33919,6 @@ pub const __EJECT_VOLUME_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct GetModelStatusRequest {
     #[cfg_attr(feature = "json", serde(skip))]
     #[doc(hidden)]
@@ -34150,7 +34028,6 @@ pub const __GET_MODEL_STATUS_REQUEST_JSON_ANY: ::buffa::type_registry::JsonAnyEn
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct GetDaemonInfoRequest {
     #[cfg_attr(feature = "json", serde(skip))]
     #[doc(hidden)]
@@ -34260,7 +34137,6 @@ pub const __GET_DAEMON_INFO_REQUEST_JSON_ANY: ::buffa::type_registry::JsonAnyEnt
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct UpdateAnnotationResponse {
     #[cfg_attr(feature = "json", serde(skip))]
     #[doc(hidden)]
@@ -34371,7 +34247,6 @@ pub const __UPDATE_ANNOTATION_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAny
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct EjectVolumeRequest {
     /// Field 1: `volume_id`
     #[cfg_attr(
@@ -34519,7 +34394,6 @@ pub const __EJECT_VOLUME_REQUEST_JSON_ANY: ::buffa::type_registry::JsonAnyEntry 
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct GetIndexedFileRequest {
     /// Field 1: `checksum`
     #[cfg_attr(
@@ -34668,7 +34542,6 @@ pub const __GET_INDEXED_FILE_REQUEST_JSON_ANY: ::buffa::type_registry::JsonAnyEn
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct GetFileIndexingStatsRequest {
     /// Field 1: `video_id`
     #[cfg_attr(
@@ -34817,7 +34690,6 @@ pub const __GET_FILE_INDEXING_STATS_REQUEST_JSON_ANY: ::buffa::type_registry::Js
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct GetLocationStatsRequest {
     /// Field 1: `location`
     #[cfg_attr(
@@ -34970,7 +34842,6 @@ pub const __GET_LOCATION_STATS_REQUEST_JSON_ANY: ::buffa::type_registry::JsonAny
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct RemoveLocationRequest {
     /// Field 1: `location`
     #[cfg_attr(
@@ -35123,7 +34994,6 @@ pub const __REMOVE_LOCATION_REQUEST_JSON_ANY: ::buffa::type_registry::JsonAnyEnt
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct RetryFailedRequest {
     /// Field 1: `location`
     #[cfg_attr(
@@ -35274,7 +35144,6 @@ pub const __RETRY_FAILED_REQUEST_JSON_ANY: ::buffa::type_registry::JsonAnyEntry 
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct BrowseRequest {
     /// Field 1: `location`
     #[cfg_attr(
@@ -35469,7 +35338,6 @@ pub const __BROWSE_REQUEST_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::bu
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct IndexLocationRequest {
     /// Field 1: `target`
     #[cfg_attr(
@@ -35620,7 +35488,6 @@ pub const __INDEX_LOCATION_REQUEST_JSON_ANY: ::buffa::type_registry::JsonAnyEntr
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct IndexLocationResponse {
     /// Field 1: `folder`
     #[cfg_attr(
@@ -35773,7 +35640,6 @@ pub const __INDEX_LOCATION_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEnt
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct UpdateAnnotationRequest {
     /// Field 1: `scene_ids`
     #[cfg_attr(
@@ -35965,7 +35831,6 @@ pub const __UPDATE_ANNOTATION_REQUEST_JSON_ANY: ::buffa::type_registry::JsonAnyE
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct SearchResponse {
     /// Field 1: `search_id`
     #[cfg_attr(
@@ -36145,7 +36010,6 @@ pub const __SEARCH_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::b
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct GetDaemonInfoResponse {
     /// Field 1: `version`
     #[cfg_attr(
@@ -36417,7 +36281,6 @@ pub const __GET_DAEMON_INFO_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEn
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct Volume {
     /// Field 1: `meta`
     #[cfg_attr(
@@ -36611,7 +36474,6 @@ pub const __VOLUME_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::typ
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct ListLocationsResponse {
     /// Field 1: `groups`
     #[cfg_attr(
@@ -36761,7 +36623,6 @@ pub const __LIST_LOCATIONS_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEnt
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct GetLocationStatsResponse {
     /// Field 1: `total_files`
     #[cfg_attr(
@@ -37070,7 +36931,6 @@ pub const __GET_LOCATION_STATS_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAn
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct FailedFilesResponse {
     /// Field 1: `location_id`
     #[cfg_attr(
@@ -37261,7 +37121,6 @@ pub const __FAILED_FILES_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct SearchRequest {
     /// Field 1: `query`
     #[cfg_attr(
@@ -37488,7 +37347,6 @@ pub const __SEARCH_REQUEST_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::bu
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct BrowseResponse {
     /// Field 1: `items`
     #[cfg_attr(
@@ -37715,7 +37573,6 @@ pub const __BROWSE_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::b
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct GetIndexedFileResponse {
     /// Field 1: `video`
     #[cfg_attr(
@@ -37916,7 +37773,6 @@ pub const __GET_INDEXED_FILE_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyE
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct GetFileIndexingStatsResponse {
     /// Field 1: `video_id`
     #[cfg_attr(
@@ -38138,7 +37994,6 @@ pub const __GET_FILE_INDEXING_STATS_RESPONSE_JSON_ANY: ::buffa::type_registry::J
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct GetModelStatusResponse {
     /// Field 1: `models`
     #[cfg_attr(
@@ -38292,7 +38147,6 @@ pub const __GET_MODEL_STATUS_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyE
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct ModelDownloadProgressResponse {
     /// Field 1: `model`
     #[cfg_attr(
@@ -38445,7 +38299,6 @@ pub const __MODEL_DOWNLOAD_PROGRESS_RESPONSE_JSON_ANY: ::buffa::type_registry::J
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct IndexingProgressResponse {
     /// Field 1: `location`
     #[cfg_attr(
@@ -38706,7 +38559,6 @@ pub const __INDEXING_PROGRESS_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAny
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct VolumeStateChangedEvent {
     /// Field 1: `volume`
     #[cfg_attr(
@@ -38892,7 +38744,6 @@ pub const __VOLUME_STATE_CHANGED_EVENT_JSON_ANY: ::buffa::type_registry::JsonAny
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct FolderUpdatedEvent {
     /// Field 1: `folder_location`
     #[cfg_attr(
@@ -39114,7 +38965,6 @@ pub const __FOLDER_UPDATED_EVENT_JSON_ANY: ::buffa::type_registry::JsonAnyEntry 
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct ModelDownloadProgressEvent {
     /// Field 1: `model`
     #[cfg_attr(
@@ -39272,7 +39122,6 @@ pub const __MODEL_DOWNLOAD_PROGRESS_EVENT_JSON_ANY: ::buffa::type_registry::Json
 #[cfg_attr(feature = "json", derive(::serde::Serialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct Request {
     #[cfg_attr(feature = "json", serde(flatten))]
     pub kind: ::core::option::Option<__buffa::oneof::request::Kind>,
@@ -40400,7 +40249,6 @@ pub mod request {
 #[cfg_attr(feature = "json", derive(::serde::Serialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct Response {
     #[cfg_attr(feature = "json", serde(flatten))]
     pub kind: ::core::option::Option<__buffa::oneof::response::Kind>,
@@ -41594,7 +41442,6 @@ pub mod response {
 #[cfg_attr(feature = "json", derive(::serde::Serialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct Event {
     #[cfg_attr(feature = "json", serde(flatten))]
     pub kind: ::core::option::Option<__buffa::oneof::event::Kind>,
@@ -42103,7 +41950,6 @@ pub mod event {
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct RequestEnvelope {
     /// Field 1: `request_id`
     #[cfg_attr(
@@ -42291,7 +42137,6 @@ pub const __REQUEST_ENVELOPE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-#[cfg_attr(feature = "quickcheck", derive(::mediaschema_derive::QuickcheckArbitrary))]
 pub struct ResponseEnvelope {
     /// Field 1: `request_id`
     #[cfg_attr(

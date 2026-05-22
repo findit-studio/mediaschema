@@ -6,10 +6,6 @@ pub mod media_kind {
     use super::*;
     #[derive(Clone, PartialEq, Debug)]
     #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-    #[cfg_attr(
-        feature = "quickcheck",
-        derive(::mediaschema_derive::QuickcheckArbitrary)
-    )]
     pub enum Kind {
         Video(::buffa::EnumValue<super::super::super::VideoFormat>),
         Audio(::buffa::EnumValue<super::super::super::AudioFormat>),
@@ -40,10 +36,6 @@ pub mod location {
     use super::*;
     #[derive(Clone, PartialEq, Debug)]
     #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-    #[cfg_attr(
-        feature = "quickcheck",
-        derive(::mediaschema_derive::QuickcheckArbitrary)
-    )]
     pub enum Kind {
         Local(::buffa::alloc::boxed::Box<super::super::super::Local>),
     }
@@ -80,10 +72,6 @@ pub mod location_target {
     use super::*;
     #[derive(Clone, PartialEq, Debug)]
     #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-    #[cfg_attr(
-        feature = "quickcheck",
-        derive(::mediaschema_derive::QuickcheckArbitrary)
-    )]
     pub enum Kind {
         Local(::buffa::alloc::string::String),
     }
@@ -110,10 +98,6 @@ pub mod subtitle_track_origin {
     use super::*;
     #[derive(Clone, PartialEq, Debug)]
     #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-    #[cfg_attr(
-        feature = "quickcheck",
-        derive(::mediaschema_derive::QuickcheckArbitrary)
-    )]
     pub enum Source {
         SourceAudioTrackId(
             #[cfg_attr(
@@ -174,10 +158,6 @@ pub mod request {
     use super::*;
     #[derive(Clone, PartialEq, Debug)]
     #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-    #[cfg_attr(
-        feature = "quickcheck",
-        derive(::mediaschema_derive::QuickcheckArbitrary)
-    )]
     pub enum Kind {
         Heartbeat(::buffa::alloc::boxed::Box<super::super::super::HeartbeatRequest>),
         Search(::buffa::alloc::boxed::Box<super::super::super::SearchRequest>),
@@ -423,10 +403,6 @@ pub mod response {
     use super::*;
     #[derive(Clone, PartialEq, Debug)]
     #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-    #[cfg_attr(
-        feature = "quickcheck",
-        derive(::mediaschema_derive::QuickcheckArbitrary)
-    )]
     pub enum Kind {
         Heartbeat(::buffa::alloc::boxed::Box<super::super::super::HeartbeatResponse>),
         Search(::buffa::alloc::boxed::Box<super::super::super::SearchResponse>),
@@ -692,10 +668,6 @@ pub mod event {
     use super::*;
     #[derive(Clone, PartialEq, Debug)]
     #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
-    #[cfg_attr(
-        feature = "quickcheck",
-        derive(::mediaschema_derive::QuickcheckArbitrary)
-    )]
     pub enum Kind {
         FailedFiles(
             ::buffa::alloc::boxed::Box<super::super::super::FailedFilesResponse>,

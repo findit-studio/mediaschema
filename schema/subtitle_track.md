@@ -27,7 +27,7 @@ Conversions deferred.
 | `origin` | `SubtitleTrackOrigin` (enum) | origin | `External` / `Embedded` / `Generated` (cheap-unambiguous redesign, locked) |
 | `language` | `Option<LanguageCode>` | language | BCP-47/ISO-639 newtype |
 | `title` | `SmolStr` | title | track title/label; `""`=absent (no `Option` — string rule) |
-| `is_image_based` | `bool` | derived from `codec`/`format` | PGS/DVBSUB/DVDSUB ⇒ OCR stage required — **derived, not stored** (resolved) |
+| `image_based` | `Option<bool>` | derived from `codec`/`format` | lossless tri-state classifier: `Some(true)` known bitmap (PGS/DVBSUB/DVDSUB ⇒ OCR required), `Some(false)` known text, `None` unclassifiable — **derived, not stored**. `requires_ocr()` is the conservative `bool` projection (`None` ⇒ `true`) used by completion gating |
 | `disposition` | `TrackDisposition` (bitflags!) | disposition `u32` | shared flag set — `FORCED`/`HEARING_IMPAIRED`/`DEFAULT`/… (see [bitflags.md](bitflags.md)) |
 | `is_primary` · `auto_selected` | `bool` | selection | selection signals |
 | `duration` | `Option<TrackTime>` | time | per-track duration (mediatime extern) |
@@ -61,13 +61,26 @@ aggregate (heavy, segmented — same pattern as `VideoTrack.scenes → Scene`),
 ## Invariants
 
 `id` non-empty; `codec`/`origin` closed-ish enums (`Other(SmolStr)` escape);
-`is_image_based` is a pure function of `codec` (store derived or compute — open).
+`image_based` is a pure function of `codec`/`format` (derived, not stored).
+
+Completion / stage are derived **on the aggregate**: `SubtitleTrack::is_fully_indexed()`
+and `SubtitleTrack::index_stage()` call `self.requires_ocr()` internally, so OCR
+gating cannot be bypassed by a caller passing a wrong `bool`. These two aggregate
+methods are the **only public** completion/stage path. The
+`requires_ocr`-parameterised `SubtitleIndexStatus::fully_indexed_mask`,
+`SubtitleIndexStatus::is_fully_indexed` and `SubtitleIndexStage::from_status`
+are crate-private (`pub(crate)`) lower-level helpers — they are deliberately
+**not** exported, because an unbound caller-supplied `requires_ocr` bool would
+let external code mark an unknown / image subtitle complete without `OCR_DONE`
+(whether by calling `is_fully_indexed`/`from_status` directly or by
+`contains()`-testing a `fully_indexed_mask(false)`).
 
 ## Resolved (your calls)
 
 - **ST-cues** = referenced per-track aggregate ([subtitle_cues.md](subtitle_cues.md)) + `cue_count` rollup.
 - **ST-codec/format** = **keep both** `codec` + `format` (do not fold).
-- **`is_image_based`** = **derived** from `codec`/`format`, not stored.
+- **`image_based`** = **derived** tri-state from `codec`/`format`, not stored;
+  `requires_ocr()` is its conservative `bool` projection for completion gating.
 - **`provenance`** = shared `Provenance` VO added.
 - Recommended-field set **all adopted** (obtainable via ffmpeg-probe / parse /
   ingest); `Option<SmolStr>` `title` → `SmolStr` (`""`=absent).
