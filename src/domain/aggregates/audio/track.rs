@@ -31,6 +31,21 @@ use crate::domain::{
 };
 
 // ---------------------------------------------------------------------------
+// Ratio validation — shared by `speech_ratio`'s validating mutators
+// ---------------------------------------------------------------------------
+
+/// An optional `[0,1]`-bounded fraction is valid iff it is absent, or its
+/// `Some(_)` value is finite (no NaN / ±∞) and within the closed unit
+/// interval. `f32::is_finite` already excludes NaN and infinities.
+#[inline]
+const fn is_valid_ratio(v: Option<f32>) -> bool {
+  match v {
+    None => true,
+    Some(r) => r.is_finite() && r >= 0.0 && r <= 1.0,
+  }
+}
+
+// ---------------------------------------------------------------------------
 // AudioTrack
 // ---------------------------------------------------------------------------
 
@@ -502,11 +517,22 @@ impl<Id> AudioTrack<Id> {
     self
   }
 
-  /// Builder: replace `speech_ratio`.
+  /// Validating builder: replace `speech_ratio`.
+  ///
+  /// `speech_ratio` is a fraction that drives pipeline decisions, so a
+  /// `Some(_)` value must be finite (no NaN / ±∞) and within `[0,1]`;
+  /// `None` (absent) is always accepted. On rejection `self` is returned
+  /// unchanged inside the `Err`.
+  ///
+  /// Not `const` — the error path drops `self`, which is not permitted in
+  /// a `const fn`.
   #[inline]
-  pub const fn with_speech_ratio(mut self, v: Option<f32>) -> Self {
+  pub fn try_with_speech_ratio(mut self, v: Option<f32>) -> Result<Self, AudioTrackError> {
+    if !is_valid_ratio(v) {
+      return Err(AudioTrackError::SpeechRatioOutOfRange);
+    }
     self.speech_ratio = v;
-    self
+    Ok(self)
   }
 
   /// Builder: replace `is_silent`.
@@ -722,10 +748,19 @@ impl<Id> AudioTrack<Id> {
     self.content = v;
   }
 
-  /// In-place mutator for `speech_ratio`.
+  /// Validating in-place mutator for `speech_ratio`. A `Some(_)` value
+  /// must be finite and within `[0,1]`; on rejection `self` is left
+  /// unchanged.
   #[inline]
-  pub const fn set_speech_ratio(&mut self, v: Option<f32>) {
+  pub const fn try_set_speech_ratio(
+    &mut self,
+    v: Option<f32>,
+  ) -> Result<&mut Self, AudioTrackError> {
+    if !is_valid_ratio(v) {
+      return Err(AudioTrackError::SpeechRatioOutOfRange);
+    }
     self.speech_ratio = v;
+    Ok(self)
   }
 
   /// In-place mutator for `is_silent`.
@@ -807,8 +842,8 @@ impl<Id> AudioTrack<Id> {
   }
 }
 
-/// Error returned when [`AudioTrack::try_new`] cannot uphold the
-/// non-nil-id / non-nil-parent invariants. Unit-only enum.
+/// Error returned by [`AudioTrack`]'s validating constructor and
+/// fraction-valued mutators when an invariant cannot be upheld.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant, thiserror::Error)]
 #[non_exhaustive]
 pub enum AudioTrackError {
@@ -819,6 +854,10 @@ pub enum AudioTrackError {
   /// `Audio` facet reference.
   #[error("AudioTrack parent (Audio) must not be the nil UUID")]
   NilParent,
+  /// A `Some(_)` `speech_ratio` was non-finite (NaN / ±∞) or outside the
+  /// closed `[0,1]` interval.
+  #[error("AudioTrack speech_ratio must be finite and within [0, 1]")]
+  SpeechRatioOutOfRange,
 }
 
 // ===========================================================================
@@ -900,8 +939,8 @@ mod tests {
     let tags = t.tags().expect("tags attached");
     assert_eq!(tags.title(), "Track 1");
     assert_eq!(tags.artist(), "Artist A");
-    assert_eq!(tags.track_number(), Some(1));
-    assert_eq!(tags.track_total(), Some(12));
+    assert_eq!(tags.track_number(), 1);
+    assert_eq!(tags.track_total(), 12);
     let cover = t.cover_art().expect("cover attached");
     assert_eq!(cover.mime(), "image/jpeg");
     assert_eq!(cover.data(), &[0xFFu8, 0xD8, 0xFF]);
@@ -976,5 +1015,40 @@ mod tests {
     assert!(t.is_silent());
     assert_eq!(t.content(), Some(AudioContentKind::Music));
     assert_eq!(t.index_status(), AudioIndexStatus::EXTRACTED);
+  }
+
+  #[test]
+  fn try_with_speech_ratio_rejects_non_finite_or_out_of_range() {
+    let t = AudioTrack::try_new(Uuid7::new(), Uuid7::new()).unwrap();
+    for bad in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, -0.01, 1.5] {
+      let r = t.clone().try_with_speech_ratio(Some(bad));
+      assert_eq!(r.err(), Some(AudioTrackError::SpeechRatioOutOfRange));
+    }
+    // boundary + absent values are accepted
+    assert!(t.clone().try_with_speech_ratio(Some(0.0)).is_ok());
+    assert!(t.clone().try_with_speech_ratio(Some(1.0)).is_ok());
+    assert!(t.clone().try_with_speech_ratio(None).is_ok());
+    let t = t.try_with_speech_ratio(Some(0.6)).unwrap();
+    assert!((t.speech_ratio().unwrap() - 0.6).abs() < f32::EPSILON);
+    assert!(AudioTrackError::SpeechRatioOutOfRange.is_speech_ratio_out_of_range());
+  }
+
+  #[test]
+  fn try_set_speech_ratio_rejects_and_leaves_value_unchanged() {
+    let mut t = AudioTrack::try_new(Uuid7::new(), Uuid7::new()).unwrap();
+    t.try_set_speech_ratio(Some(0.4)).unwrap();
+    assert_eq!(
+      t.try_set_speech_ratio(Some(f32::NAN)).err(),
+      Some(AudioTrackError::SpeechRatioOutOfRange)
+    );
+    // rejection leaves the prior valid value in place
+    assert!((t.speech_ratio().unwrap() - 0.4).abs() < f32::EPSILON);
+    assert_eq!(
+      t.try_set_speech_ratio(Some(2.0)).err(),
+      Some(AudioTrackError::SpeechRatioOutOfRange)
+    );
+    assert!((t.speech_ratio().unwrap() - 0.4).abs() < f32::EPSILON);
+    t.try_set_speech_ratio(None).unwrap();
+    assert!(t.speech_ratio().is_none());
   }
 }

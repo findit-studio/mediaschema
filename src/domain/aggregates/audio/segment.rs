@@ -17,6 +17,18 @@ use smol_str::SmolStr;
 use crate::domain::{vo::LocalizedText, Uuid7};
 
 // ---------------------------------------------------------------------------
+// Score validation — shared by `Word`'s validating ctors / mutators
+// ---------------------------------------------------------------------------
+
+/// A `[0,1]`-bounded probability/confidence score is valid iff it is finite
+/// (no NaN / ±∞) and within the closed unit interval. `f32::is_finite`
+/// already excludes NaN and infinities.
+#[inline]
+const fn is_valid_score(score: f32) -> bool {
+  score.is_finite() && score >= 0.0 && score <= 1.0
+}
+
+// ---------------------------------------------------------------------------
 // Word — nested VO
 // ---------------------------------------------------------------------------
 
@@ -25,6 +37,12 @@ use crate::domain::{vo::LocalizedText, Uuid7};
 /// Locked `audio_segments.md` §Nested value-objects. `score` ∈ `[0,1]`,
 /// **always present** (NaN-free per locked spec). Per-word `language`
 /// (BCP-47) carries code-switch / multilingual cues.
+///
+/// **No infallible constructor** — `score` carries the `[0,1]`-finite
+/// invariant, so construction goes through the validating
+/// [`Word::try_new`] / [`Word::try_from_parts`]; `with_score` /
+/// `set_score` are likewise fallible (`try_*`) so the invariant cannot be
+/// broken post-construction.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Word {
   text: SmolStr,
@@ -34,32 +52,34 @@ pub struct Word {
 }
 
 impl Word {
-  /// Construct from `(text, span, score)`; `language` starts `None` (use
-  /// [`Word::with_language`] to set).
+  /// Validating constructor from `(text, span, score)`; `language` starts
+  /// `None` (use [`Word::with_language`] to set).
+  ///
+  /// Rejects a `score` that is non-finite (NaN / ±∞) or outside `[0,1]`
+  /// (the locked per-word score invariant).
   #[inline]
-  pub fn new(text: impl Into<SmolStr>, span: TimeRange, score: f32) -> Self {
-    Self {
-      text: text.into(),
-      span,
-      score,
-      language: None,
-    }
+  pub fn try_new(text: impl Into<SmolStr>, span: TimeRange, score: f32) -> Result<Self, WordError> {
+    Self::try_from_parts(text, span, score, None)
   }
 
-  /// Construct with all four fields.
+  /// Validating constructor with all four fields. Rejects a `score` that
+  /// is non-finite (NaN / ±∞) or outside `[0,1]`.
   #[inline]
-  pub fn from_parts(
+  pub fn try_from_parts(
     text: impl Into<SmolStr>,
     span: TimeRange,
     score: f32,
     language: Option<Language>,
-  ) -> Self {
-    Self {
+  ) -> Result<Self, WordError> {
+    if !is_valid_score(score) {
+      return Err(WordError::ScoreOutOfRange);
+    }
+    Ok(Self {
       text: text.into(),
       span,
       score,
       language,
-    }
+    })
   }
 
   /// Word text token.
@@ -100,11 +120,29 @@ impl Word {
     self
   }
 
-  /// Builder: replace `score`.
+  /// Validating builder: replace `score`. Rejects a non-finite or
+  /// out-of-`[0,1]` value (keeps the locked score invariant).
+  ///
+  /// Not `const` — the error path drops `self`, which is not permitted in
+  /// a `const fn`.
   #[inline]
-  pub const fn with_score(mut self, score: f32) -> Self {
+  pub fn try_with_score(mut self, score: f32) -> Result<Self, WordError> {
+    if !is_valid_score(score) {
+      return Err(WordError::ScoreOutOfRange);
+    }
     self.score = score;
-    self
+    Ok(self)
+  }
+
+  /// Validating in-place mutator for `score`. Rejects a non-finite or
+  /// out-of-`[0,1]` value; on rejection `self` is left unchanged.
+  #[inline]
+  pub const fn try_set_score(&mut self, score: f32) -> Result<&mut Self, WordError> {
+    if !is_valid_score(score) {
+      return Err(WordError::ScoreOutOfRange);
+    }
+    self.score = score;
+    Ok(self)
   }
 
   /// Builder: replace `language`.
@@ -113,6 +151,17 @@ impl Word {
     self.language = v;
     self
   }
+}
+
+/// Error returned by [`Word`]'s validating constructors / mutators when a
+/// `score` cannot uphold the locked finite-`[0,1]` invariant.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant, thiserror::Error)]
+#[non_exhaustive]
+pub enum WordError {
+  /// `score` was non-finite (NaN / ±∞) or outside the closed `[0,1]`
+  /// interval.
+  #[error("Word score must be finite and within [0, 1]")]
+  ScoreOutOfRange,
 }
 
 // ---------------------------------------------------------------------------
@@ -254,6 +303,23 @@ impl<Id> AudioSegment<Id> {
     self.temperature
   }
 
+  // ----- Internal validation -----------------------------------------------
+
+  /// Returns `Err(WordSpanOutOfSegment)` if any word's `span` is not
+  /// contained in `self.span` (`word.start >= seg.start` and
+  /// `word.end <= seg.end`, compared on raw PTS — consistent with
+  /// `try_new`'s span check).
+  fn check_words(&self, words: &[Word]) -> Result<(), AudioSegmentError> {
+    let (seg_start, seg_end) = (self.span.start_pts(), self.span.end_pts());
+    for w in words {
+      let (w_start, w_end) = (w.span().start_pts(), w.span().end_pts());
+      if w_start < seg_start || w_end > seg_end {
+        return Err(AudioSegmentError::WordSpanOutOfSegment);
+      }
+    }
+    Ok(())
+  }
+
   // ----- Builders ----------------------------------------------------------
 
   /// Builder: replace `speaker`.
@@ -277,11 +343,25 @@ impl<Id> AudioSegment<Id> {
     self
   }
 
-  /// Builder: replace `words`.
+  /// Validating builder: replace `words`.
+  ///
+  /// Rejects the update unless **every** word's `span` is contained in
+  /// `self.span` (locked invariant: each `Word` span ⊆ the segment span);
+  /// containment is checked on raw PTS, mirroring `try_new`'s span check.
+  /// `Word`'s own ctors already guarantee finite-`[0,1]` scores, so no
+  /// score re-validation is needed here. On rejection `self` is returned
+  /// unchanged inside the `Err`.
   #[inline]
-  pub fn with_words(mut self, v: impl Into<std::vec::Vec<Word>>) -> Self {
-    self.words = v.into();
-    self
+  pub fn try_with_words(
+    mut self,
+    v: impl Into<std::vec::Vec<Word>>,
+  ) -> Result<Self, AudioSegmentError> {
+    let words = v.into();
+    if let Err(e) = self.check_words(&words) {
+      return Err(e);
+    }
+    self.words = words;
+    Ok(self)
   }
 
   /// Builder: replace `no_speech_prob`.
@@ -325,10 +405,18 @@ impl<Id> AudioSegment<Id> {
     self.language = v;
   }
 
-  /// In-place mutator for `words`.
+  /// Validating in-place mutator for `words`. Rejects the update unless
+  /// every word's `span` is contained in `self.span`; on rejection `self`
+  /// is left unchanged.
   #[inline]
-  pub fn set_words(&mut self, v: impl Into<std::vec::Vec<Word>>) {
-    self.words = v.into();
+  pub fn try_set_words(
+    &mut self,
+    v: impl Into<std::vec::Vec<Word>>,
+  ) -> Result<&mut Self, AudioSegmentError> {
+    let words = v.into();
+    self.check_words(&words)?;
+    self.words = words;
+    Ok(self)
   }
 
   /// In-place mutator for `no_speech_prob`.
@@ -350,8 +438,8 @@ impl<Id> AudioSegment<Id> {
   }
 }
 
-/// Error returned when [`AudioSegment::try_new`] cannot uphold the
-/// non-nil-id / non-nil-parent / non-inverted-span invariants.
+/// Error returned by [`AudioSegment`]'s validating constructor and
+/// word-list mutators when an invariant cannot be upheld.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant, thiserror::Error)]
 #[non_exhaustive]
 pub enum AudioSegmentError {
@@ -365,6 +453,11 @@ pub enum AudioSegmentError {
   /// `span.start > span.end` — inverted segment span (locked invariant).
   #[error("AudioSegment span.start must be <= span.end")]
   InvertedSpan,
+  /// A `Word` in the supplied word list has a `span` not contained in the
+  /// segment's own `span` (locked invariant: each word span ⊆ segment
+  /// span).
+  #[error("AudioSegment word span must be contained in the segment span")]
+  WordSpanOutOfSegment,
 }
 
 // ===========================================================================
@@ -459,15 +552,75 @@ mod tests {
   #[test]
   fn words_attach_and_carry_per_word_language() {
     let fr = Language::from_bcp47("fr").unwrap();
-    let w1 = Word::new("bon", span(0, 200), 0.95).with_language(Some(fr));
-    let w2 = Word::from_parts("jour", span(200, 400), 0.92, Some(fr));
+    let w1 = Word::try_new("bon", span(0, 200), 0.95)
+      .unwrap()
+      .with_language(Some(fr));
+    let w2 = Word::try_from_parts("jour", span(200, 400), 0.92, Some(fr)).unwrap();
     let s = AudioSegment::try_new(Uuid7::new(), Uuid7::new(), 0, span(0, 400))
       .unwrap()
-      .with_words(std::vec![w1.clone(), w2.clone()]);
+      .try_with_words(std::vec![w1.clone(), w2.clone()])
+      .unwrap();
     assert_eq!(s.words().len(), 2);
     assert_eq!(s.words()[0].text(), "bon");
     assert!((s.words()[0].score() - 0.95).abs() < f32::EPSILON);
     assert_eq!(s.words()[1].language(), Some(fr));
+  }
+
+  #[test]
+  fn word_try_new_rejects_non_finite_or_out_of_range_score() {
+    for bad in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, -0.1, 1.1] {
+      let r = Word::try_new("x", span(0, 100), bad);
+      assert_eq!(r.err(), Some(WordError::ScoreOutOfRange));
+    }
+    // boundary values are accepted
+    assert!(Word::try_new("x", span(0, 100), 0.0).is_ok());
+    assert!(Word::try_new("x", span(0, 100), 1.0).is_ok());
+    assert!(WordError::ScoreOutOfRange.is_score_out_of_range());
+  }
+
+  #[test]
+  fn word_try_with_score_and_try_set_score_validate() {
+    let w = Word::try_new("x", span(0, 100), 0.5).unwrap();
+    assert!(w.clone().try_with_score(f32::NAN).is_err());
+    assert!(w.clone().try_with_score(2.0).is_err());
+    assert!(w.clone().try_with_score(0.8).is_ok());
+
+    let mut w = w;
+    assert!(w.try_set_score(f32::NEG_INFINITY).is_err());
+    // rejection leaves the value unchanged
+    assert!((w.score() - 0.5).abs() < f32::EPSILON);
+    w.try_set_score(0.25).unwrap();
+    assert!((w.score() - 0.25).abs() < f32::EPSILON);
+  }
+
+  #[test]
+  fn try_with_words_rejects_word_span_outside_segment() {
+    let seg = AudioSegment::try_new(Uuid7::new(), Uuid7::new(), 0, span(100, 400)).unwrap();
+    // word starts before the segment
+    let early = Word::try_new("a", span(0, 200), 0.9).unwrap();
+    let r = seg.clone().try_with_words(std::vec![early]);
+    assert_eq!(r.err(), Some(AudioSegmentError::WordSpanOutOfSegment));
+    // word ends after the segment
+    let late = Word::try_new("b", span(300, 500), 0.9).unwrap();
+    let r = seg.clone().try_with_words(std::vec![late]);
+    assert_eq!(r.err(), Some(AudioSegmentError::WordSpanOutOfSegment));
+    assert!(AudioSegmentError::WordSpanOutOfSegment.is_word_span_out_of_segment());
+    // a fully-contained word is accepted
+    let ok = Word::try_new("c", span(150, 300), 0.9).unwrap();
+    assert!(seg.try_with_words(std::vec![ok]).is_ok());
+  }
+
+  #[test]
+  fn try_set_words_rejects_and_leaves_words_unchanged() {
+    let mut seg = AudioSegment::try_new(Uuid7::new(), Uuid7::new(), 0, span(100, 400)).unwrap();
+    let good = Word::try_new("c", span(150, 300), 0.9).unwrap();
+    seg.try_set_words(std::vec![good.clone()]).unwrap();
+    assert_eq!(seg.words().len(), 1);
+    let bad = Word::try_new("d", span(0, 50), 0.9).unwrap();
+    let r = seg.try_set_words(std::vec![bad]);
+    assert_eq!(r.err(), Some(AudioSegmentError::WordSpanOutOfSegment));
+    // the prior valid word list is still in place
+    assert_eq!(seg.words(), &[good]);
   }
 
   #[test]
@@ -488,7 +641,8 @@ mod tests {
     let speaker = Uuid7::new();
     s.set_speaker(Some(speaker));
     s.set_text(LocalizedText::from_src("hello"));
-    s.set_words(std::vec![Word::new("hi", span(0, 100), 0.9)]);
+    s.try_set_words(std::vec![Word::try_new("hi", span(0, 100), 0.9).unwrap()])
+      .unwrap();
     s.set_no_speech_prob(Some(0.01));
     assert_eq!(s.speaker(), Some(&speaker));
     assert_eq!(s.text().src(), "hello");
