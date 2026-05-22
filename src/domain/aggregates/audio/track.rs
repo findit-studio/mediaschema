@@ -45,6 +45,18 @@ const fn is_valid_ratio(v: Option<f32>) -> bool {
   }
 }
 
+/// A status that includes [`AudioIndexStatus::EXTRACTED`] (or any later
+/// bit, which the pipeline only sets *after* extraction) asserts the track
+/// has been probed — and the locked `audio_track.md` invariant requires a
+/// probed track to carry a real descriptor (`sample_rate > 0`,
+/// `channels > 0`). A status with no bit at or past `EXTRACTED` makes no
+/// such claim. `EXTRACTED` is the lowest bit, so "extracted-or-later" is
+/// simply "any bit set".
+#[inline]
+const fn status_asserts_descriptor(s: AudioIndexStatus) -> bool {
+  !s.is_empty()
+}
+
 // ---------------------------------------------------------------------------
 // AudioTrack
 // ---------------------------------------------------------------------------
@@ -79,7 +91,6 @@ pub struct AudioTrack<Id = Uuid7> {
   start_pts: Option<Timestamp>,
   language: Option<Language>,
   detected_language: Option<Language>,
-  language_mismatch: bool,
   disposition: TrackDisposition,
   is_primary: bool,
   auto_selected: bool,
@@ -132,7 +143,6 @@ impl AudioTrack<Uuid7> {
       start_pts: None,
       language: None,
       detected_language: None,
-      language_mismatch: false,
       disposition: TrackDisposition::empty(),
       is_primary: false,
       auto_selected: false,
@@ -153,6 +163,53 @@ impl AudioTrack<Uuid7> {
       index_errors: std::vec::Vec::new(),
     })
   }
+
+  /// Validating builder: replace the diarized `speakers` set.
+  ///
+  /// The speaker set is a *set*: the distinct-speaker count is
+  /// `speakers().len()`, so a duplicated id would inflate it
+  /// ([`AudioTrackError::DuplicateSpeaker`]). A nil `Uuid7` is not a real
+  /// `Speaker` identity and is rejected too
+  /// ([`AudioTrackError::NilSpeaker`]). On rejection `self` is returned
+  /// unchanged inside the `Err`.
+  pub fn try_with_speakers(
+    mut self,
+    v: impl Into<std::vec::Vec<Uuid7>>,
+  ) -> Result<Self, AudioTrackError> {
+    let speakers = v.into();
+    validate_speaker_set(&speakers)?;
+    self.speakers = speakers;
+    Ok(self)
+  }
+
+  /// Validating in-place mutator for the diarized `speakers` set. Rejects
+  /// a nil id ([`AudioTrackError::NilSpeaker`]) or a duplicate id
+  /// ([`AudioTrackError::DuplicateSpeaker`]); on rejection `self` is left
+  /// unchanged.
+  pub fn try_set_speakers(
+    &mut self,
+    v: impl Into<std::vec::Vec<Uuid7>>,
+  ) -> Result<&mut Self, AudioTrackError> {
+    let speakers = v.into();
+    validate_speaker_set(&speakers)?;
+    self.speakers = speakers;
+    Ok(self)
+  }
+}
+
+/// Validates a diarized speaker set for the canonical `Uuid7` identity:
+/// no nil ids, no duplicates. `O(n²)` is fine — a track's distinct speaker
+/// count is small.
+fn validate_speaker_set(speakers: &[Uuid7]) -> Result<(), AudioTrackError> {
+  for (i, id) in speakers.iter().enumerate() {
+    if id.is_nil() {
+      return Err(AudioTrackError::NilSpeaker);
+    }
+    if speakers[..i].contains(id) {
+      return Err(AudioTrackError::DuplicateSpeaker);
+    }
+  }
+  Ok(())
 }
 
 impl<Id> AudioTrack<Id> {
@@ -259,10 +316,19 @@ impl<Id> AudioTrack<Id> {
     self.detected_language
   }
 
-  /// `detected ≠ declared` (derived).
+  /// `detected ≠ declared` — **derived**, not stored.
+  ///
+  /// True iff both `language` and `detected_language` are present and
+  /// differ. If either side is absent there is nothing to compare, so the
+  /// answer is `false` (no *known* mismatch). Computing this on demand
+  /// makes it impossible for the flag to contradict the two language
+  /// fields it is derived from.
   #[inline]
-  pub const fn language_mismatch(&self) -> bool {
-    self.language_mismatch
+  pub fn language_mismatch(&self) -> bool {
+    match (self.language, self.detected_language) {
+      (Some(declared), Some(detected)) => declared != detected,
+      _ => false,
+    }
   }
 
   /// Disposition flags (`AV_DISPOSITION_*` bitflags).
@@ -405,18 +471,36 @@ impl<Id> AudioTrack<Id> {
     self
   }
 
-  /// Builder: replace `sample_rate`.
+  /// Validating builder: replace `sample_rate`.
+  ///
+  /// A probed track (`index_status` includes `EXTRACTED` or later) must
+  /// keep `sample_rate > 0`; resetting it to `0` once the descriptor has
+  /// been asserted is rejected with
+  /// [`AudioTrackError::ProbedDescriptorCleared`]. On rejection `self` is
+  /// returned unchanged inside the `Err`.
   #[inline]
-  pub const fn with_sample_rate(mut self, hz: u32) -> Self {
+  pub fn try_with_sample_rate(mut self, hz: u32) -> Result<Self, AudioTrackError> {
+    if hz == 0 && status_asserts_descriptor(self.index_status) {
+      return Err(AudioTrackError::ProbedDescriptorCleared);
+    }
     self.sample_rate = hz;
-    self
+    Ok(self)
   }
 
-  /// Builder: replace `channels`.
+  /// Validating builder: replace `channels`.
+  ///
+  /// A probed track (`index_status` includes `EXTRACTED` or later) must
+  /// keep `channels > 0`; resetting it to `0` once the descriptor has been
+  /// asserted is rejected with
+  /// [`AudioTrackError::ProbedDescriptorCleared`]. On rejection `self` is
+  /// returned unchanged inside the `Err`.
   #[inline]
-  pub const fn with_channels(mut self, channels: u16) -> Self {
+  pub fn try_with_channels(mut self, channels: u16) -> Result<Self, AudioTrackError> {
+    if channels == 0 && status_asserts_descriptor(self.index_status) {
+      return Err(AudioTrackError::ProbedDescriptorCleared);
+    }
     self.channels = channels;
-    self
+    Ok(self)
   }
 
   /// Builder: replace `channel_layout`.
@@ -479,13 +563,6 @@ impl<Id> AudioTrack<Id> {
   #[inline]
   pub const fn with_detected_language(mut self, v: Option<Language>) -> Self {
     self.detected_language = v;
-    self
-  }
-
-  /// Builder: replace `language_mismatch`.
-  #[inline]
-  pub const fn with_language_mismatch(mut self, v: bool) -> Self {
-    self.language_mismatch = v;
     self
   }
 
@@ -577,13 +654,6 @@ impl<Id> AudioTrack<Id> {
     self
   }
 
-  /// Builder: replace `speakers`.
-  #[inline]
-  pub fn with_speakers(mut self, v: impl Into<std::vec::Vec<Id>>) -> Self {
-    self.speakers = v.into();
-    self
-  }
-
   /// Builder: replace `tags`.
   #[inline]
   pub fn with_tags(mut self, v: Option<Tags>) -> Self {
@@ -612,11 +682,21 @@ impl<Id> AudioTrack<Id> {
     self
   }
 
-  /// Builder: replace `index_status`.
+  /// Validating builder: replace `index_status`.
+  ///
+  /// A status that includes `EXTRACTED` (or any later pipeline bit)
+  /// asserts the track has been probed, which the locked invariant ties to
+  /// a real descriptor: it is rejected with
+  /// [`AudioTrackError::ExtractedWithoutDescriptor`] while `sample_rate` or
+  /// `channels` is still `0`. On rejection `self` is returned unchanged
+  /// inside the `Err`.
   #[inline]
-  pub const fn with_index_status(mut self, v: AudioIndexStatus) -> Self {
+  pub fn try_with_index_status(mut self, v: AudioIndexStatus) -> Result<Self, AudioTrackError> {
+    if status_asserts_descriptor(v) && (self.sample_rate == 0 || self.channels == 0) {
+      return Err(AudioTrackError::ExtractedWithoutDescriptor);
+    }
     self.index_status = v;
-    self
+    Ok(self)
   }
 
   /// Builder: replace `index_errors`.
@@ -652,16 +732,28 @@ impl<Id> AudioTrack<Id> {
     self.profile = v.into();
   }
 
-  /// In-place mutator for `sample_rate`.
+  /// Validating in-place mutator for `sample_rate`. Rejects clearing the
+  /// rate to `0` once `index_status` asserts the descriptor
+  /// (`EXTRACTED`-or-later); on rejection `self` is left unchanged.
   #[inline]
-  pub const fn set_sample_rate(&mut self, hz: u32) {
+  pub const fn try_set_sample_rate(&mut self, hz: u32) -> Result<&mut Self, AudioTrackError> {
+    if hz == 0 && status_asserts_descriptor(self.index_status) {
+      return Err(AudioTrackError::ProbedDescriptorCleared);
+    }
     self.sample_rate = hz;
+    Ok(self)
   }
 
-  /// In-place mutator for `channels`.
+  /// Validating in-place mutator for `channels`. Rejects clearing the
+  /// channel count to `0` once `index_status` asserts the descriptor
+  /// (`EXTRACTED`-or-later); on rejection `self` is left unchanged.
   #[inline]
-  pub const fn set_channels(&mut self, channels: u16) {
+  pub const fn try_set_channels(&mut self, channels: u16) -> Result<&mut Self, AudioTrackError> {
+    if channels == 0 && status_asserts_descriptor(self.index_status) {
+      return Err(AudioTrackError::ProbedDescriptorCleared);
+    }
     self.channels = channels;
+    Ok(self)
   }
 
   /// In-place mutator for `channel_layout`.
@@ -716,12 +808,6 @@ impl<Id> AudioTrack<Id> {
   #[inline]
   pub const fn set_detected_language(&mut self, v: Option<Language>) {
     self.detected_language = v;
-  }
-
-  /// In-place mutator for `language_mismatch`.
-  #[inline]
-  pub const fn set_language_mismatch(&mut self, v: bool) {
-    self.language_mismatch = v;
   }
 
   /// In-place mutator for `disposition`.
@@ -799,12 +885,6 @@ impl<Id> AudioTrack<Id> {
     self.musicbrainz_recording_id = v.into();
   }
 
-  /// In-place mutator for `speakers`.
-  #[inline]
-  pub fn set_speakers(&mut self, v: impl Into<std::vec::Vec<Id>>) {
-    self.speakers = v.into();
-  }
-
   /// In-place mutator for `tags`.
   #[inline]
   pub fn set_tags(&mut self, v: Option<Tags>) {
@@ -829,10 +909,20 @@ impl<Id> AudioTrack<Id> {
     self.provenance = v;
   }
 
-  /// In-place mutator for `index_status`.
+  /// Validating in-place mutator for `index_status`. Rejects an
+  /// `EXTRACTED`-or-later status while `sample_rate` or `channels` is still
+  /// `0` ([`AudioTrackError::ExtractedWithoutDescriptor`]); on rejection
+  /// `self` is left unchanged.
   #[inline]
-  pub const fn set_index_status(&mut self, v: AudioIndexStatus) {
+  pub const fn try_set_index_status(
+    &mut self,
+    v: AudioIndexStatus,
+  ) -> Result<&mut Self, AudioTrackError> {
+    if status_asserts_descriptor(v) && (self.sample_rate == 0 || self.channels == 0) {
+      return Err(AudioTrackError::ExtractedWithoutDescriptor);
+    }
     self.index_status = v;
+    Ok(self)
   }
 
   /// In-place mutator for `index_errors`.
@@ -858,6 +948,24 @@ pub enum AudioTrackError {
   /// closed `[0,1]` interval.
   #[error("AudioTrack speech_ratio must be finite and within [0, 1]")]
   SpeechRatioOutOfRange,
+  /// An `index_status` at or past `EXTRACTED` was set while the track
+  /// still has no descriptor (`sample_rate == 0` or `channels == 0`) — a
+  /// probed track must carry a real descriptor.
+  #[error("AudioTrack index_status reached EXTRACTED while sample_rate/channels are still 0")]
+  ExtractedWithoutDescriptor,
+  /// `sample_rate` or `channels` was cleared to `0` while `index_status`
+  /// already asserts the descriptor (`EXTRACTED`-or-later) — a probed
+  /// track must keep `sample_rate > 0` and `channels > 0`.
+  #[error("AudioTrack sample_rate/channels cannot be cleared to 0 once the track is EXTRACTED")]
+  ProbedDescriptorCleared,
+  /// The diarized `speakers` set contained the same id twice — duplicates
+  /// would inflate the distinct-speaker count `speakers().len()`.
+  #[error("AudioTrack speakers set must not contain duplicate ids")]
+  DuplicateSpeaker,
+  /// The diarized `speakers` set contained the nil `Uuid7`, which is not a
+  /// real `Speaker` identity.
+  #[error("AudioTrack speakers set must not contain the nil UUID")]
+  NilSpeaker,
 }
 
 // ===========================================================================
@@ -905,8 +1013,10 @@ mod tests {
       .unwrap()
       .with_codec(AudioCodec::Aac)
       .with_profile("LC")
-      .with_sample_rate(48_000)
-      .with_channels(2)
+      .try_with_sample_rate(48_000)
+      .unwrap()
+      .try_with_channels(2)
+      .unwrap()
       .with_channel_layout(ChannelLayout::Stereo)
       .with_bit_rate(192_000)
       .with_lossless(false)
@@ -978,7 +1088,12 @@ mod tests {
     let err = ErrorInfo::new(ErrorCode::ProbeCorrupt, "could not probe");
     let t = AudioTrack::try_new(Uuid7::new(), Uuid7::new())
       .unwrap()
-      .with_index_status(AudioIndexStatus::EXTRACTED | AudioIndexStatus::VAD_DONE)
+      .try_with_sample_rate(48_000)
+      .unwrap()
+      .try_with_channels(2)
+      .unwrap()
+      .try_with_index_status(AudioIndexStatus::EXTRACTED | AudioIndexStatus::VAD_DONE)
+      .unwrap()
       .with_index_errors(std::vec![err.clone()]);
     assert!(t.index_status().contains(AudioIndexStatus::EXTRACTED));
     assert!(t.index_status().contains(AudioIndexStatus::VAD_DONE));
@@ -992,7 +1107,8 @@ mod tests {
     let g1 = Uuid7::new();
     let t = AudioTrack::try_new(Uuid7::new(), Uuid7::new())
       .unwrap()
-      .with_speakers(std::vec![s1])
+      .try_with_speakers(std::vec![s1])
+      .unwrap()
       .with_segments(std::vec![g1]);
     assert_eq!(t.speakers(), &[s1]);
     assert_eq!(t.segments(), &[g1]);
@@ -1002,12 +1118,12 @@ mod tests {
   fn setters_mutate_in_place() {
     let mut t = AudioTrack::try_new(Uuid7::new(), Uuid7::new()).unwrap();
     t.set_codec(AudioCodec::Opus);
-    t.set_sample_rate(48_000);
-    t.set_channels(2);
+    t.try_set_sample_rate(48_000).unwrap();
+    t.try_set_channels(2).unwrap();
     t.set_lossless(false);
     t.set_silent(true);
     t.set_content(Some(AudioContentKind::Music));
-    t.set_index_status(AudioIndexStatus::EXTRACTED);
+    t.try_set_index_status(AudioIndexStatus::EXTRACTED).unwrap();
     assert_eq!(t.codec(), &AudioCodec::Opus);
     assert_eq!(t.sample_rate(), 48_000);
     assert_eq!(t.channels(), 2);
@@ -1050,5 +1166,161 @@ mod tests {
     assert!((t.speech_ratio().unwrap() - 0.4).abs() < f32::EPSILON);
     t.try_set_speech_ratio(None).unwrap();
     assert!(t.speech_ratio().is_none());
+  }
+
+  // --- Finding 1: index_status gated on descriptor --------------------------
+
+  #[test]
+  fn extracted_status_rejected_without_descriptor() {
+    // Fresh track has 0/0 descriptor — EXTRACTED must be rejected.
+    let t = AudioTrack::try_new(Uuid7::new(), Uuid7::new()).unwrap();
+    assert_eq!(
+      t.clone()
+        .try_with_index_status(AudioIndexStatus::EXTRACTED)
+        .err(),
+      Some(AudioTrackError::ExtractedWithoutDescriptor)
+    );
+    // A later bit (still asserts a probed track) is rejected too.
+    assert_eq!(
+      t.clone()
+        .try_with_index_status(AudioIndexStatus::STT_DONE)
+        .err(),
+      Some(AudioTrackError::ExtractedWithoutDescriptor)
+    );
+    // Only sample_rate set — channels still 0 — still rejected.
+    let half = t.try_with_sample_rate(48_000).unwrap();
+    assert_eq!(
+      half
+        .try_with_index_status(AudioIndexStatus::EXTRACTED)
+        .err(),
+      Some(AudioTrackError::ExtractedWithoutDescriptor)
+    );
+    assert!(AudioTrackError::ExtractedWithoutDescriptor.is_extracted_without_descriptor());
+  }
+
+  #[test]
+  fn extracted_status_accepted_with_descriptor() {
+    // Boundary acceptance: a full descriptor admits EXTRACTED.
+    let t = AudioTrack::try_new(Uuid7::new(), Uuid7::new())
+      .unwrap()
+      .try_with_sample_rate(48_000)
+      .unwrap()
+      .try_with_channels(2)
+      .unwrap()
+      .try_with_index_status(AudioIndexStatus::EXTRACTED)
+      .unwrap();
+    assert_eq!(t.index_status(), AudioIndexStatus::EXTRACTED);
+    // The empty status makes no descriptor claim and is always accepted.
+    let mut fresh = AudioTrack::try_new(Uuid7::new(), Uuid7::new()).unwrap();
+    fresh
+      .try_set_index_status(AudioIndexStatus::empty())
+      .unwrap();
+  }
+
+  #[test]
+  fn clearing_descriptor_on_extracted_track_rejected() {
+    let mut t = AudioTrack::try_new(Uuid7::new(), Uuid7::new())
+      .unwrap()
+      .try_with_sample_rate(48_000)
+      .unwrap()
+      .try_with_channels(2)
+      .unwrap()
+      .try_with_index_status(AudioIndexStatus::EXTRACTED)
+      .unwrap();
+    // Resetting sample_rate / channels to 0 on a probed track is rejected,
+    // and leaves the prior value in place.
+    assert_eq!(
+      t.try_set_sample_rate(0).err(),
+      Some(AudioTrackError::ProbedDescriptorCleared)
+    );
+    assert_eq!(t.sample_rate(), 48_000);
+    assert_eq!(
+      t.try_set_channels(0).err(),
+      Some(AudioTrackError::ProbedDescriptorCleared)
+    );
+    assert_eq!(t.channels(), 2);
+    // The builder form rejects the same way.
+    assert_eq!(
+      t.clone().try_with_sample_rate(0).err(),
+      Some(AudioTrackError::ProbedDescriptorCleared)
+    );
+    // A non-zero replacement is still accepted on a probed track.
+    t.try_set_sample_rate(44_100).unwrap();
+    assert_eq!(t.sample_rate(), 44_100);
+    // On an unprobed track, clearing to 0 is fine.
+    let mut fresh = AudioTrack::try_new(Uuid7::new(), Uuid7::new()).unwrap();
+    fresh.try_set_sample_rate(0).unwrap();
+    fresh.try_set_channels(0).unwrap();
+    assert!(AudioTrackError::ProbedDescriptorCleared.is_probed_descriptor_cleared());
+  }
+
+  // --- Finding 2: speaker set invariant -------------------------------------
+
+  #[test]
+  fn try_with_speakers_rejects_duplicates() {
+    let s1 = Uuid7::new();
+    let t = AudioTrack::try_new(Uuid7::new(), Uuid7::new()).unwrap();
+    assert_eq!(
+      t.try_with_speakers(std::vec![s1, s1]).err(),
+      Some(AudioTrackError::DuplicateSpeaker)
+    );
+    assert!(AudioTrackError::DuplicateSpeaker.is_duplicate_speaker());
+  }
+
+  #[test]
+  fn try_with_speakers_rejects_nil() {
+    let t = AudioTrack::try_new(Uuid7::new(), Uuid7::new()).unwrap();
+    assert_eq!(
+      t.try_with_speakers(std::vec![Uuid7::nil()]).err(),
+      Some(AudioTrackError::NilSpeaker)
+    );
+    assert!(AudioTrackError::NilSpeaker.is_nil_speaker());
+  }
+
+  #[test]
+  fn try_set_speakers_rejects_and_leaves_value_unchanged() {
+    let s1 = Uuid7::new();
+    let s2 = Uuid7::new();
+    let mut t = AudioTrack::try_new(Uuid7::new(), Uuid7::new())
+      .unwrap()
+      .try_with_speakers(std::vec![s1, s2])
+      .unwrap();
+    // Distinct set accepted.
+    assert_eq!(t.speakers(), &[s1, s2]);
+    // Rejected duplicate leaves the prior value in place.
+    assert_eq!(
+      t.try_set_speakers(std::vec![s1, s1]).err(),
+      Some(AudioTrackError::DuplicateSpeaker)
+    );
+    assert_eq!(t.speakers(), &[s1, s2]);
+    // Rejected nil leaves the prior value in place.
+    assert_eq!(
+      t.try_set_speakers(std::vec![Uuid7::nil()]).err(),
+      Some(AudioTrackError::NilSpeaker)
+    );
+    assert_eq!(t.speakers(), &[s1, s2]);
+    // A fresh valid set replaces it.
+    t.try_set_speakers(std::vec![s2]).unwrap();
+    assert_eq!(t.speakers(), &[s2]);
+  }
+
+  // --- Finding 3: language_mismatch is derived ------------------------------
+
+  #[test]
+  fn language_mismatch_is_derived_from_languages() {
+    use mediaframe::lang::Language;
+    let en = Language::from_bcp47("en").unwrap();
+    let fr = Language::from_bcp47("fr").unwrap();
+    // Either side absent → no known mismatch.
+    let t = AudioTrack::try_new(Uuid7::new(), Uuid7::new()).unwrap();
+    assert!(!t.language_mismatch());
+    let t = t.with_language(Some(en));
+    assert!(!t.language_mismatch());
+    // Both present and equal → no mismatch.
+    let t = t.with_detected_language(Some(en));
+    assert!(!t.language_mismatch());
+    // Both present and differing → mismatch, with no way to contradict it.
+    let t = t.with_detected_language(Some(fr));
+    assert!(t.language_mismatch());
   }
 }
