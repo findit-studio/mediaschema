@@ -25,14 +25,12 @@ use crate::{
 pub struct SqliteMediaRow {
   pub id: std::vec::Vec<u8>,
   pub checksum: std::vec::Vec<u8>,
-  pub name: String,
   pub format: String,
   pub size: i64,
   /// `mediatime::Timestamp` is currently stored as raw `i64` nanoseconds
   /// since the track-zero base. NULL = absent. (Not jiff::Timestamp —
   /// this is media-time, not wall-clock.)
   pub duration_raw: Option<i64>,
-  pub created_at_ms: i64,
   /// `MediaKind` discriminant: 0=Video, 1=Audio.
   pub kind: i64,
   pub video: Option<std::vec::Vec<u8>>,
@@ -65,32 +63,30 @@ fn media_kind_from_i64(n: i64) -> Result<MediaKind, SqlxError> {
 impl From<&Media<Uuid7>> for SqliteMediaRow {
   fn from(m: &Media<Uuid7>) -> Self {
     Self {
-      id: m.id().as_bytes().to_vec(),
-      checksum: m.checksum().as_bytes().to_vec(),
-      name: m.name().to_owned(),
-      format: m.format().as_str().to_owned(),
+      id: m.id_ref().as_bytes().to_vec(),
+      checksum: m.checksum_ref().as_bytes().to_vec(),
+      format: m.format_ref().as_str().to_owned(),
       size: m.size() as i64,
       // `mediatime::Timestamp` doesn't expose a portable i64 accessor
       // in 0.1.6 — we treat duration as absent in the SQLite layer for
       // now and document the gap. Round-trip tests build Media without
       // a duration; consumers needing duration persistence can hold the
       // raw nanoseconds in a sidecar column.
-      duration_raw: m.duration().and_then(|_| None::<i64>),
-      created_at_ms: timestamp_to_millis(*m.created_at()),
+      duration_raw: m.duration_ref().and_then(|_| None::<i64>),
       kind: media_kind_to_i64(m.kind()),
-      video: m.video().map(|id| id.as_bytes().to_vec()),
-      audio: m.audio().map(|id| id.as_bytes().to_vec()),
-      subtitle: m.subtitle().map(|id| id.as_bytes().to_vec()),
+      video: m.video_ref().map(|id| id.as_bytes().to_vec()),
+      audio: m.audio_ref().map(|id| id.as_bytes().to_vec()),
+      subtitle: m.subtitle_ref().map(|id| id.as_bytes().to_vec()),
       error_flags: i64::from(m.error_flags().bits()),
       probe_error_json: m
-        .probe_error()
+        .probe_error_ref()
         .map(|e| to_json_string(&ErrorInfoDto::from(e)).expect("ErrorInfoDto serialises")),
-      capture_date_ms: m.capture_date().map(|t| timestamp_to_millis(*t)),
+      capture_date_ms: m.capture_date_ref().map(|t| timestamp_to_millis(*t)),
       device_json: m
-        .device()
+        .device_ref()
         .map(|d| to_json_string(&DeviceDto::from(d)).expect("DeviceDto serialises")),
       gps_json: m
-        .gps()
+        .gps_ref()
         .map(|g| to_json_string(&GeoLocationDto::from(g)).expect("GeoLocationDto serialises")),
     }
   }
@@ -109,11 +105,10 @@ impl TryFrom<SqliteMediaRow> for Media<Uuid7> {
     }
     let size = u64::try_from(r.size)
       .map_err(|e| SqlxError::UnknownDiscriminant(format!("Media.size: {e}")))?;
-    let created_at = millis_to_timestamp(r.created_at_ms)?;
     let kind = media_kind_from_i64(r.kind)?;
     // `Format::from_str` is infallible (unknown slugs → `Other`).
     let format = r.format.parse::<Format>().unwrap_or_default();
-    let mut m = Media::try_new(id, checksum, r.name, format, size, created_at, kind)
+    let mut m = Media::try_new(id, checksum, format, size, kind)
       .map_err(|e: MediaError| SqlxError::DomainConstructorRejected(e.to_string()))?;
 
     if let Some(v) = r.video {
@@ -174,19 +169,16 @@ mod tests {
     let m = Media::try_new(
       Uuid7::new(),
       fake_checksum(),
-      "clip.mp4",
       Format::Mp4,
       12_345,
-      ts(),
       MediaKind::Video,
     )
     .unwrap();
     let row: SqliteMediaRow = (&m).into();
     let m2: Media<Uuid7> = row.try_into().unwrap();
-    assert_eq!(m.id(), m2.id());
-    assert_eq!(m.checksum(), m2.checksum());
-    assert_eq!(m.name(), m2.name());
-    assert_eq!(m.format(), m2.format());
+    assert_eq!(m.id_ref(), m2.id_ref());
+    assert_eq!(m.checksum_ref(), m2.checksum_ref());
+    assert_eq!(m.format_ref(), m2.format_ref());
     assert_eq!(m.size(), m2.size());
     assert_eq!(m.kind(), m2.kind());
   }
@@ -198,10 +190,8 @@ mod tests {
     let m = Media::try_new(
       Uuid7::new(),
       fake_checksum(),
-      "clip.mp4",
       Format::Mp4,
       12_345,
-      ts(),
       MediaKind::Video,
     )
     .unwrap()
@@ -218,16 +208,16 @@ mod tests {
     .with_probe_error(Some(ErrorInfo::new(ErrorCode::ProbeCorrupt, "bad header")));
     let row: SqliteMediaRow = (&m).into();
     let m2: Media<Uuid7> = row.try_into().unwrap();
-    assert_eq!(m.video(), m2.video());
-    assert_eq!(m.audio(), m2.audio());
+    assert_eq!(m.video_ref(), m2.video_ref());
+    assert_eq!(m.audio_ref(), m2.audio_ref());
     assert_eq!(m.error_flags(), m2.error_flags());
-    assert!(m2.device().is_some());
-    assert_eq!(m2.device().unwrap().make(), "Apple");
-    let g = m2.gps().expect("gps set");
+    assert!(m2.device_ref().is_some());
+    assert_eq!(m2.device_ref().unwrap().make(), "Apple");
+    let g = m2.gps_ref().expect("gps set");
     assert_eq!(g.lat(), 37.7749);
     assert_eq!(g.altitude(), Some(20.0));
     assert_eq!(
-      m2.probe_error().map(|e| e.code()),
+      m2.probe_error_ref().map(|e| e.code()),
       Some(ErrorCode::ProbeCorrupt)
     );
   }
@@ -237,11 +227,9 @@ mod tests {
     let row = SqliteMediaRow {
       id: Uuid7::new().as_bytes().to_vec(),
       checksum: std::vec::Vec::from([0u8; 32]),
-      name: "x".to_owned(),
       format: "mp4".to_owned(),
       size: 0,
       duration_raw: None,
-      created_at_ms: 0,
       kind: 0,
       video: None,
       audio: None,
@@ -261,11 +249,9 @@ mod tests {
     let row = SqliteMediaRow {
       id: std::vec::Vec::from([0u8; 16]),
       checksum: fake_checksum().as_bytes().to_vec(),
-      name: "x".to_owned(),
       format: "mp4".to_owned(),
       size: 0,
       duration_raw: None,
-      created_at_ms: 0,
       kind: 0,
       video: None,
       audio: None,

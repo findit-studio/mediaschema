@@ -206,8 +206,12 @@ impl From<&Location<Uuid7>> for LocationDto {
   fn from(l: &Location<Uuid7>) -> Self {
     let local = l.unwrap_local_ref();
     Self::Local {
-      volume: local.volume().to_string(),
-      components: local.components().iter().map(SmolStr::to_string).collect(),
+      volume: local.volume_ref().to_string(),
+      components: local
+        .components_slice()
+        .iter()
+        .map(SmolStr::to_string)
+        .collect(),
     }
   }
 }

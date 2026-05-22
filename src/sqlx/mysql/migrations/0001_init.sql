@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS media (
 
 CREATE TABLE IF NOT EXISTS watched_location (
     id                    BINARY(16) NOT NULL,
-    root_json             JSON       NOT NULL,
+    volume                BINARY(16) NOT NULL UNIQUE,
     recursive             TINYINT    NOT NULL DEFAULT 0,
     enabled               TINYINT    NOT NULL DEFAULT 0,
     is_ejectable          TINYINT    NOT NULL DEFAULT 0,

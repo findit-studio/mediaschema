@@ -19,7 +19,7 @@ use crate::{
   sqlx::{
     dto::{
       from_json_str, millis_to_timestamp, timestamp_to_millis, to_json_string, uuid7_to_uuid,
-      uuid_to_uuid7, ErrorInfoDto, LocationDto,
+      uuid_to_uuid7, ErrorInfoDto,
     },
     SqlxError,
   },
@@ -41,11 +41,11 @@ pub struct PgSpeakerRow {
 impl From<&Speaker<Uuid7>> for PgSpeakerRow {
   fn from(s: &Speaker<Uuid7>) -> Self {
     Self {
-      id: uuid7_to_uuid(*s.id()),
-      parent: uuid7_to_uuid(*s.parent()),
+      id: uuid7_to_uuid(*s.id_ref()),
+      parent: uuid7_to_uuid(*s.parent_ref()),
       cluster_id: s.cluster_id() as i32,
       name: s.name().to_owned(),
-      speech_duration_ms: s.speech_duration().and_then(|_| None::<i64>),
+      speech_duration_ms: s.speech_duration_ref().and_then(|_| None::<i64>),
     }
   }
 }
@@ -77,10 +77,10 @@ pub struct PgUserTagRow {
 impl From<&UserTag<Uuid7>> for PgUserTagRow {
   fn from(t: &UserTag<Uuid7>) -> Self {
     Self {
-      id: uuid7_to_uuid(*t.id()),
+      id: uuid7_to_uuid(*t.id_ref()),
       name: t.name().to_owned(),
       color_rgba: t.color().map(|c| i64::from(c.bits())),
-      created_at_ms: timestamp_to_millis(*t.created_at()),
+      created_at_ms: timestamp_to_millis(*t.created_at_ref()),
     }
   }
 }
@@ -119,15 +119,15 @@ pub struct PgSceneAnnotationRow {
 
 impl From<&SceneAnnotation<Uuid7>> for PgSceneAnnotationRow {
   fn from(a: &SceneAnnotation<Uuid7>) -> Self {
-    let tag_strs: std::vec::Vec<String> = a.user_tags().iter().map(|t| t.to_string()).collect();
+    let tag_strs: std::vec::Vec<String> = a.user_tags_slice().iter().map(|t| t.to_string()).collect();
     Self {
-      id: uuid7_to_uuid(*a.id()),
-      scene: uuid7_to_uuid(*a.scene()),
+      id: uuid7_to_uuid(*a.id_ref()),
+      scene: uuid7_to_uuid(*a.scene_ref()),
       favorite: a.is_favorite(),
       user_tags_json: to_json_string(&tag_strs).unwrap_or_else(|_| "[]".to_owned()),
       rating: a.rating().map(i16::from),
       note: a.note().to_owned(),
-      updated_at_ms: timestamp_to_millis(*a.updated_at()),
+      updated_at_ms: timestamp_to_millis(*a.updated_at_ref()),
     }
   }
 }
@@ -174,7 +174,7 @@ impl TryFrom<PgSceneAnnotationRow> for SceneAnnotation<Uuid7> {
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct PgWatchedLocationRow {
   pub id: Uuid,
-  pub root_json: String,
+  pub volume: Uuid,
   pub recursive: bool,
   pub enabled: bool,
   pub is_ejectable: bool,
@@ -205,18 +205,20 @@ fn scan_status_from_i16(n: i16) -> Result<ScanStatus, SqlxError> {
 
 impl From<&WatchedLocation<Uuid7>> for PgWatchedLocationRow {
   fn from(w: &WatchedLocation<Uuid7>) -> Self {
-    let root_dto: LocationDto = w.root().into();
     Self {
-      id: uuid7_to_uuid(*w.id()),
-      root_json: to_json_string(&root_dto).expect("LocationDto serialises"),
+      id: uuid7_to_uuid(*w.id_ref()),
+      volume: uuid7_to_uuid(*w.volume_ref()),
       recursive: w.is_recursive(),
       enabled: w.is_enabled(),
       is_ejectable: w.is_ejectable(),
-      added_at_ms: timestamp_to_millis(*w.added_at()),
-      last_reconciled_at_ms: w.last_reconciled_at().map(|t| timestamp_to_millis(*t)),
-      last_reconcile_status: w.last_reconcile_status().copied().map(scan_status_to_i16),
+      added_at_ms: timestamp_to_millis(*w.added_at_ref()),
+      last_reconciled_at_ms: w.last_reconciled_at_ref().map(|t| timestamp_to_millis(*t)),
+      last_reconcile_status: w
+        .last_reconcile_status_ref()
+        .copied()
+        .map(scan_status_to_i16),
       last_error_json: w
-        .last_error()
+        .last_error_ref()
         .map(|e| to_json_string(&ErrorInfoDto::from(e)).expect("ErrorInfoDto serialises")),
     }
   }
@@ -227,15 +229,9 @@ impl TryFrom<PgWatchedLocationRow> for WatchedLocation<Uuid7> {
 
   fn try_from(r: PgWatchedLocationRow) -> Result<Self, Self::Error> {
     let id = uuid_to_uuid7(r.id)?;
-    let root_dto: LocationDto = from_json_str(&r.root_json)?;
+    let volume = uuid_to_uuid7(r.volume)?;
     let added_at = millis_to_timestamp(r.added_at_ms)?;
-    let (volume, components) = match root_dto {
-      LocationDto::Local { volume, components } => (volume, components),
-    };
-    let volume_uuid: Uuid7 = volume
-      .parse()
-      .map_err(|e: crate::domain::primitives::Uuid7Error| SqlxError::InvalidUuid(e.to_string()))?;
-    let mut w = WatchedLocation::try_new(id, volume_uuid, components, added_at)
+    let mut w = WatchedLocation::try_new(id, volume, added_at)
       .map_err(|e: WatchedLocationError| SqlxError::DomainConstructorRejected(e.to_string()))?
       .with_recursive(r.recursive)
       .with_enabled(r.enabled)
@@ -273,8 +269,8 @@ mod tests {
     let s = Speaker::try_new(Uuid7::new(), Uuid7::new(), 1, "x").unwrap();
     let row: PgSpeakerRow = (&s).into();
     let s2: Speaker<Uuid7> = row.try_into().unwrap();
-    assert_eq!(s.id(), s2.id());
-    assert_eq!(s.parent(), s2.parent());
+    assert_eq!(s.id_ref(), s2.id_ref());
+    assert_eq!(s.parent_ref(), s2.parent_ref());
   }
 
   #[test]
@@ -282,7 +278,7 @@ mod tests {
     let t = UserTag::try_new(Uuid7::new(), "n", ts()).unwrap();
     let row: PgUserTagRow = (&t).into();
     let t2: UserTag<Uuid7> = row.try_into().unwrap();
-    assert_eq!(t.id(), t2.id());
+    assert_eq!(t.id_ref(), t2.id_ref());
   }
 
   #[test]
@@ -292,20 +288,20 @@ mod tests {
       .with_favorite(true);
     let row: PgSceneAnnotationRow = (&a).into();
     let a2: SceneAnnotation<Uuid7> = row.try_into().unwrap();
-    assert_eq!(a.id(), a2.id());
+    assert_eq!(a.id_ref(), a2.id_ref());
     assert!(a2.is_favorite());
   }
 
   #[test]
   fn watched_location_roundtrip() {
-    let w = WatchedLocation::try_new(Uuid7::new(), Uuid7::new(), ["m"], ts())
+    let w = WatchedLocation::try_new(Uuid7::new(), Uuid7::new(), ts())
       .unwrap()
       .with_last_error(Some(ErrorInfo::new(ErrorCode::PathNotFound, "")));
     let row: PgWatchedLocationRow = (&w).into();
     let w2: WatchedLocation<Uuid7> = row.try_into().unwrap();
-    assert_eq!(w.id(), w2.id());
+    assert_eq!(w.id_ref(), w2.id_ref());
     assert_eq!(
-      w2.last_error().map(|e| e.code()),
+      w2.last_error_ref().map(|e| e.code()),
       Some(ErrorCode::PathNotFound)
     );
   }

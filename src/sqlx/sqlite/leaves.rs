@@ -17,7 +17,7 @@ use crate::{
   sqlx::{
     dto::{
       bytes_to_uuid7, from_json_str, millis_to_timestamp, timestamp_to_millis, to_json_string,
-      ErrorInfoDto, LocationDto,
+      ErrorInfoDto,
     },
     SqlxError,
   },
@@ -43,15 +43,15 @@ pub struct SqliteSpeakerRow {
 impl From<&Speaker<Uuid7>> for SqliteSpeakerRow {
   fn from(s: &Speaker<Uuid7>) -> Self {
     Self {
-      id: s.id().as_bytes().to_vec(),
-      parent: s.parent().as_bytes().to_vec(),
+      id: s.id_ref().as_bytes().to_vec(),
+      parent: s.parent_ref().as_bytes().to_vec(),
       cluster_id: i64::from(s.cluster_id()),
       name: s.name().to_owned(),
       // mediatime::Timestamp doesn't ship a portable to_i64; treat
       // speech_duration as a separate ms-since-track-start integer column.
       // For now we drop the duration on encode (it's None-by-default
       // anyway). Round-trip tests build Speakers without it.
-      speech_duration_ms: s.speech_duration().and_then(|_t| None::<i64>),
+      speech_duration_ms: s.speech_duration_ref().and_then(|_t| None::<i64>),
     }
   }
 }
@@ -87,10 +87,10 @@ pub struct SqliteUserTagRow {
 impl From<&UserTag<Uuid7>> for SqliteUserTagRow {
   fn from(t: &UserTag<Uuid7>) -> Self {
     Self {
-      id: t.id().as_bytes().to_vec(),
+      id: t.id_ref().as_bytes().to_vec(),
       name: t.name().to_owned(),
       color_rgba: t.color().map(|c| i64::from(c.bits())),
-      created_at_ms: timestamp_to_millis(*t.created_at()),
+      created_at_ms: timestamp_to_millis(*t.created_at_ref()),
     }
   }
 }
@@ -131,15 +131,15 @@ pub struct SqliteSceneAnnotationRow {
 
 impl From<&SceneAnnotation<Uuid7>> for SqliteSceneAnnotationRow {
   fn from(a: &SceneAnnotation<Uuid7>) -> Self {
-    let tag_strs: std::vec::Vec<String> = a.user_tags().iter().map(|t| t.to_string()).collect();
+    let tag_strs: std::vec::Vec<String> = a.user_tags_slice().iter().map(|t| t.to_string()).collect();
     Self {
-      id: a.id().as_bytes().to_vec(),
-      scene: a.scene().as_bytes().to_vec(),
+      id: a.id_ref().as_bytes().to_vec(),
+      scene: a.scene_ref().as_bytes().to_vec(),
       favorite: i64::from(a.is_favorite()),
       user_tags_json: to_json_string(&tag_strs).unwrap_or_else(|_| "[]".to_owned()),
       rating: a.rating().map(i64::from),
       note: a.note().to_owned(),
-      updated_at_ms: timestamp_to_millis(*a.updated_at()),
+      updated_at_ms: timestamp_to_millis(*a.updated_at_ref()),
     }
   }
 }
@@ -186,8 +186,8 @@ impl TryFrom<SqliteSceneAnnotationRow> for SceneAnnotation<Uuid7> {
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct SqliteWatchedLocationRow {
   pub id: std::vec::Vec<u8>,
-  /// JSON-encoded `LocationDto`.
-  pub root_json: String,
+  /// Stable id of the monitored storage volume (16-byte UUID).
+  pub volume: std::vec::Vec<u8>,
   pub recursive: i64,
   pub enabled: i64,
   pub is_ejectable: i64,
@@ -220,18 +220,17 @@ fn scan_status_from_i64(n: i64) -> Result<ScanStatus, SqlxError> {
 
 impl From<&WatchedLocation<Uuid7>> for SqliteWatchedLocationRow {
   fn from(w: &WatchedLocation<Uuid7>) -> Self {
-    let root_dto: LocationDto = w.root().into();
     Self {
-      id: w.id().as_bytes().to_vec(),
-      root_json: to_json_string(&root_dto).expect("LocationDto serialisation is infallible"),
+      id: w.id_ref().as_bytes().to_vec(),
+      volume: w.volume_ref().as_bytes().to_vec(),
       recursive: i64::from(w.is_recursive()),
       enabled: i64::from(w.is_enabled()),
       is_ejectable: i64::from(w.is_ejectable()),
-      added_at_ms: timestamp_to_millis(*w.added_at()),
-      last_reconciled_at_ms: w.last_reconciled_at().map(|t| timestamp_to_millis(*t)),
-      last_reconcile_status: w.last_reconcile_status().copied().map(scan_status_to_i64),
+      added_at_ms: timestamp_to_millis(*w.added_at_ref()),
+      last_reconciled_at_ms: w.last_reconciled_at_ref().map(|t| timestamp_to_millis(*t)),
+      last_reconcile_status: w.last_reconcile_status_ref().copied().map(scan_status_to_i64),
       last_error_json: w
-        .last_error()
+        .last_error_ref()
         .map(|e| to_json_string(&ErrorInfoDto::from(e)).expect("ErrorInfoDto serialises")),
     }
   }
@@ -242,17 +241,9 @@ impl TryFrom<SqliteWatchedLocationRow> for WatchedLocation<Uuid7> {
 
   fn try_from(r: SqliteWatchedLocationRow) -> Result<Self, Self::Error> {
     let id = bytes_to_uuid7(&r.id)?;
-    let root_dto: LocationDto = from_json_str(&r.root_json)?;
-    // We rebuild via `try_new` to keep the validation invariants. We need
-    // to extract volume + components from the deserialised DTO.
+    let volume = bytes_to_uuid7(&r.volume)?;
     let added_at = millis_to_timestamp(r.added_at_ms)?;
-    let (volume, components) = match root_dto {
-      LocationDto::Local { volume, components } => (volume, components),
-    };
-    let volume_uuid: Uuid7 = volume
-      .parse()
-      .map_err(|e: crate::domain::primitives::Uuid7Error| SqlxError::InvalidUuid(e.to_string()))?;
-    let mut w = WatchedLocation::try_new(id, volume_uuid, components, added_at)
+    let mut w = WatchedLocation::try_new(id, volume, added_at)
       .map_err(|e: WatchedLocationError| SqlxError::DomainConstructorRejected(e.to_string()))?
       .with_recursive(r.recursive != 0)
       .with_enabled(r.enabled != 0)
@@ -291,8 +282,8 @@ mod tests {
     let s = Speaker::try_new(Uuid7::new(), parent, 3, "Jane").unwrap();
     let row: SqliteSpeakerRow = (&s).into();
     let s2: Speaker<Uuid7> = row.try_into().unwrap();
-    assert_eq!(s2.id(), s.id());
-    assert_eq!(s2.parent(), s.parent());
+    assert_eq!(s2.id_ref(), s.id_ref());
+    assert_eq!(s2.parent_ref(), s.parent_ref());
     assert_eq!(s2.cluster_id(), s.cluster_id());
     assert_eq!(s2.name(), s.name());
   }
@@ -317,12 +308,12 @@ mod tests {
       .with_color(Some(Rgba::from_components(0x12, 0x34, 0x56, 0x78)));
     let row: SqliteUserTagRow = (&t).into();
     let t2: UserTag<Uuid7> = row.try_into().unwrap();
-    assert_eq!(t.id(), t2.id());
+    assert_eq!(t.id_ref(), t2.id_ref());
     assert_eq!(t.name(), t2.name());
     assert_eq!(t.color(), t2.color());
     assert_eq!(
-      t.created_at().as_millisecond(),
-      t2.created_at().as_millisecond()
+      t.created_at_ref().as_millisecond(),
+      t2.created_at_ref().as_millisecond()
     );
   }
 
@@ -351,10 +342,10 @@ mod tests {
       .with_note("nice");
     let row: SqliteSceneAnnotationRow = (&a).into();
     let a2: SceneAnnotation<Uuid7> = row.try_into().unwrap();
-    assert_eq!(a.id(), a2.id());
-    assert_eq!(a.scene(), a2.scene());
+    assert_eq!(a.id_ref(), a2.id_ref());
+    assert_eq!(a.scene_ref(), a2.scene_ref());
     assert!(a2.is_favorite());
-    assert_eq!(a2.user_tags(), &[t1, t2]);
+    assert_eq!(a2.user_tags_slice(), &[t1, t2]);
     assert_eq!(a2.rating(), Some(4));
     assert_eq!(a2.note(), "nice");
   }
@@ -362,7 +353,7 @@ mod tests {
   #[test]
   fn watched_location_roundtrip() {
     let vol = Uuid7::new();
-    let w = WatchedLocation::try_new(Uuid7::new(), vol, ["Movies", "2024"], ts())
+    let w = WatchedLocation::try_new(Uuid7::new(), vol, ts())
       .unwrap()
       .with_recursive(true)
       .with_enabled(true)
@@ -375,26 +366,23 @@ mod tests {
       )));
     let row: SqliteWatchedLocationRow = (&w).into();
     let w2: WatchedLocation<Uuid7> = row.try_into().unwrap();
-    assert_eq!(w.id(), w2.id());
+    assert_eq!(w.id_ref(), w2.id_ref());
     assert!(w2.is_recursive());
     assert!(w2.is_enabled());
     assert!(w2.is_ejectable());
-    assert_eq!(w.last_reconcile_status(), w2.last_reconcile_status());
-    assert!(w2.root().is_local());
-    let local = w2.root().unwrap_local_ref();
-    assert_eq!(local.volume(), &vol);
-    assert_eq!(local.components(), &["Movies", "2024"]);
+    assert_eq!(w.last_reconcile_status_ref(), w2.last_reconcile_status_ref());
+    assert_eq!(w2.volume_ref(), &vol);
     assert_eq!(
-      w2.last_error().map(|e| e.code()),
+      w2.last_error_ref().map(|e| e.code()),
       Some(ErrorCode::VolumeNotAvailable)
     );
   }
 
   #[test]
-  fn watched_location_row_invalid_root_json_rejected() {
+  fn watched_location_row_invalid_volume_rejected() {
     let row = SqliteWatchedLocationRow {
       id: Uuid7::new().as_bytes().to_vec(),
-      root_json: "not json".to_owned(),
+      volume: std::vec![0u8; 3], // not a 16-byte UUID
       recursive: 0,
       enabled: 0,
       is_ejectable: 0,
@@ -403,7 +391,6 @@ mod tests {
       last_reconcile_status: None,
       last_error_json: None,
     };
-    let err = WatchedLocation::<Uuid7>::try_from(row).unwrap_err();
-    assert!(err.is_invalid_json(), "got {err:?}");
+    assert!(WatchedLocation::<Uuid7>::try_from(row).is_err());
   }
 }

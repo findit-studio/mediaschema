@@ -16,7 +16,7 @@ use crate::{
   sqlx::{
     dto::{
       bytes_to_uuid7, from_json_str, millis_to_timestamp, timestamp_to_millis, to_json_string,
-      ErrorInfoDto, LocationDto,
+      ErrorInfoDto,
     },
     SqlxError,
   },
@@ -38,11 +38,11 @@ pub struct MySqlSpeakerRow {
 impl From<&Speaker<Uuid7>> for MySqlSpeakerRow {
   fn from(s: &Speaker<Uuid7>) -> Self {
     Self {
-      id: s.id().as_bytes().to_vec(),
-      parent: s.parent().as_bytes().to_vec(),
+      id: s.id_ref().as_bytes().to_vec(),
+      parent: s.parent_ref().as_bytes().to_vec(),
       cluster_id: s.cluster_id(),
       name: s.name().to_owned(),
-      speech_duration_ms: s.speech_duration().and_then(|_| None::<i64>),
+      speech_duration_ms: s.speech_duration_ref().and_then(|_| None::<i64>),
     }
   }
 }
@@ -73,10 +73,10 @@ pub struct MySqlUserTagRow {
 impl From<&UserTag<Uuid7>> for MySqlUserTagRow {
   fn from(t: &UserTag<Uuid7>) -> Self {
     Self {
-      id: t.id().as_bytes().to_vec(),
+      id: t.id_ref().as_bytes().to_vec(),
       name: t.name().to_owned(),
       color_rgba: t.color().map(|c| c.bits()),
-      created_at_ms: timestamp_to_millis(*t.created_at()),
+      created_at_ms: timestamp_to_millis(*t.created_at_ref()),
     }
   }
 }
@@ -113,15 +113,15 @@ pub struct MySqlSceneAnnotationRow {
 
 impl From<&SceneAnnotation<Uuid7>> for MySqlSceneAnnotationRow {
   fn from(a: &SceneAnnotation<Uuid7>) -> Self {
-    let tag_strs: std::vec::Vec<String> = a.user_tags().iter().map(|t| t.to_string()).collect();
+    let tag_strs: std::vec::Vec<String> = a.user_tags_slice().iter().map(|t| t.to_string()).collect();
     Self {
-      id: a.id().as_bytes().to_vec(),
-      scene: a.scene().as_bytes().to_vec(),
+      id: a.id_ref().as_bytes().to_vec(),
+      scene: a.scene_ref().as_bytes().to_vec(),
       favorite: i8::from(a.is_favorite()),
       user_tags_json: to_json_string(&tag_strs).unwrap_or_else(|_| "[]".to_owned()),
       rating: a.rating(),
       note: a.note().to_owned(),
-      updated_at_ms: timestamp_to_millis(*a.updated_at()),
+      updated_at_ms: timestamp_to_millis(*a.updated_at_ref()),
     }
   }
 }
@@ -160,7 +160,7 @@ impl TryFrom<MySqlSceneAnnotationRow> for SceneAnnotation<Uuid7> {
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct MySqlWatchedLocationRow {
   pub id: std::vec::Vec<u8>,
-  pub root_json: String,
+  pub volume: std::vec::Vec<u8>,
   pub recursive: i8,
   pub enabled: i8,
   pub is_ejectable: i8,
@@ -191,18 +191,17 @@ fn scan_status_from_i16(n: i16) -> Result<ScanStatus, SqlxError> {
 
 impl From<&WatchedLocation<Uuid7>> for MySqlWatchedLocationRow {
   fn from(w: &WatchedLocation<Uuid7>) -> Self {
-    let root_dto: LocationDto = w.root().into();
     Self {
-      id: w.id().as_bytes().to_vec(),
-      root_json: to_json_string(&root_dto).expect("LocationDto serialises"),
+      id: w.id_ref().as_bytes().to_vec(),
+      volume: w.volume_ref().as_bytes().to_vec(),
       recursive: i8::from(w.is_recursive()),
       enabled: i8::from(w.is_enabled()),
       is_ejectable: i8::from(w.is_ejectable()),
-      added_at_ms: timestamp_to_millis(*w.added_at()),
-      last_reconciled_at_ms: w.last_reconciled_at().map(|t| timestamp_to_millis(*t)),
-      last_reconcile_status: w.last_reconcile_status().copied().map(scan_status_to_i16),
+      added_at_ms: timestamp_to_millis(*w.added_at_ref()),
+      last_reconciled_at_ms: w.last_reconciled_at_ref().map(|t| timestamp_to_millis(*t)),
+      last_reconcile_status: w.last_reconcile_status_ref().copied().map(scan_status_to_i16),
       last_error_json: w
-        .last_error()
+        .last_error_ref()
         .map(|e| to_json_string(&ErrorInfoDto::from(e)).expect("ErrorInfoDto serialises")),
     }
   }
@@ -213,15 +212,9 @@ impl TryFrom<MySqlWatchedLocationRow> for WatchedLocation<Uuid7> {
 
   fn try_from(r: MySqlWatchedLocationRow) -> Result<Self, Self::Error> {
     let id = bytes_to_uuid7(&r.id)?;
-    let root_dto: LocationDto = from_json_str(&r.root_json)?;
+    let volume = bytes_to_uuid7(&r.volume)?;
     let added_at = millis_to_timestamp(r.added_at_ms)?;
-    let (volume, components) = match root_dto {
-      LocationDto::Local { volume, components } => (volume, components),
-    };
-    let volume_uuid: Uuid7 = volume
-      .parse()
-      .map_err(|e: crate::domain::primitives::Uuid7Error| SqlxError::InvalidUuid(e.to_string()))?;
-    let mut w = WatchedLocation::try_new(id, volume_uuid, components, added_at)
+    let mut w = WatchedLocation::try_new(id, volume, added_at)
       .map_err(|e: WatchedLocationError| SqlxError::DomainConstructorRejected(e.to_string()))?
       .with_recursive(r.recursive != 0)
       .with_enabled(r.enabled != 0)
@@ -260,8 +253,8 @@ mod tests {
     let s = Speaker::try_new(Uuid7::new(), parent, 3, "Jane").unwrap();
     let row: MySqlSpeakerRow = (&s).into();
     let s2: Speaker<Uuid7> = row.try_into().unwrap();
-    assert_eq!(s2.id(), s.id());
-    assert_eq!(s2.parent(), s.parent());
+    assert_eq!(s2.id_ref(), s.id_ref());
+    assert_eq!(s2.parent_ref(), s.parent_ref());
     assert_eq!(s2.cluster_id(), s.cluster_id());
     assert_eq!(s2.name(), s.name());
   }
@@ -273,7 +266,7 @@ mod tests {
       .with_color(Some(Rgba::from_bits(0xdeadbeef)));
     let row: MySqlUserTagRow = (&t).into();
     let t2: UserTag<Uuid7> = row.try_into().unwrap();
-    assert_eq!(t.id(), t2.id());
+    assert_eq!(t.id_ref(), t2.id_ref());
     assert_eq!(t.color(), t2.color());
   }
 
@@ -287,7 +280,7 @@ mod tests {
       .with_rating(Some(5));
     let row: MySqlSceneAnnotationRow = (&a).into();
     let a2: SceneAnnotation<Uuid7> = row.try_into().unwrap();
-    assert_eq!(a2.user_tags(), &[t1]);
+    assert_eq!(a2.user_tags_slice(), &[t1]);
     assert_eq!(a2.rating(), Some(5));
     assert!(a2.is_favorite());
   }
@@ -295,7 +288,7 @@ mod tests {
   #[test]
   fn watched_location_roundtrip() {
     let vol = Uuid7::new();
-    let w = WatchedLocation::try_new(Uuid7::new(), vol, ["a", "b"], ts())
+    let w = WatchedLocation::try_new(Uuid7::new(), vol, ts())
       .unwrap()
       .with_enabled(true)
       .with_last_error(Some(ErrorInfo::new(ErrorCode::PathNotFound, "gone")));
@@ -303,7 +296,7 @@ mod tests {
     let w2: WatchedLocation<Uuid7> = row.try_into().unwrap();
     assert!(w2.is_enabled());
     assert_eq!(
-      w2.last_error().map(|e| e.code()),
+      w2.last_error_ref().map(|e| e.code()),
       Some(ErrorCode::PathNotFound)
     );
   }

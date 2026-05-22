@@ -21,11 +21,9 @@ use crate::{
 pub struct PgMediaRow {
   pub id: Uuid,
   pub checksum: std::vec::Vec<u8>,
-  pub name: String,
   pub format: String,
   pub size: i64,
   pub duration_raw: Option<i64>,
-  pub created_at_ms: i64,
   pub kind: i16,
   pub video: Option<Uuid>,
   pub audio: Option<Uuid>,
@@ -57,27 +55,25 @@ fn media_kind_from_i16(n: i16) -> Result<MediaKind, SqlxError> {
 impl From<&Media<Uuid7>> for PgMediaRow {
   fn from(m: &Media<Uuid7>) -> Self {
     Self {
-      id: uuid7_to_uuid(*m.id()),
-      checksum: m.checksum().as_bytes().to_vec(),
-      name: m.name().to_owned(),
-      format: m.format().as_str().to_owned(),
+      id: uuid7_to_uuid(*m.id_ref()),
+      checksum: m.checksum_ref().as_bytes().to_vec(),
+      format: m.format_ref().as_str().to_owned(),
       size: m.size() as i64,
-      duration_raw: m.duration().and_then(|_| None::<i64>),
-      created_at_ms: timestamp_to_millis(*m.created_at()),
+      duration_raw: m.duration_ref().and_then(|_| None::<i64>),
       kind: media_kind_to_i16(m.kind()),
-      video: m.video().map(|id| uuid7_to_uuid(*id)),
-      audio: m.audio().map(|id| uuid7_to_uuid(*id)),
-      subtitle: m.subtitle().map(|id| uuid7_to_uuid(*id)),
+      video: m.video_ref().map(|id| uuid7_to_uuid(*id)),
+      audio: m.audio_ref().map(|id| uuid7_to_uuid(*id)),
+      subtitle: m.subtitle_ref().map(|id| uuid7_to_uuid(*id)),
       error_flags: i32::from(m.error_flags().bits()),
       probe_error_json: m
-        .probe_error()
+        .probe_error_ref()
         .map(|e| to_json_string(&ErrorInfoDto::from(e)).expect("ErrorInfoDto serialises")),
-      capture_date_ms: m.capture_date().map(|t| timestamp_to_millis(*t)),
+      capture_date_ms: m.capture_date_ref().map(|t| timestamp_to_millis(*t)),
       device_json: m
-        .device()
+        .device_ref()
         .map(|d| to_json_string(&DeviceDto::from(d)).expect("DeviceDto serialises")),
       gps_json: m
-        .gps()
+        .gps_ref()
         .map(|g| to_json_string(&GeoLocationDto::from(g)).expect("GeoLocationDto serialises")),
     }
   }
@@ -96,11 +92,10 @@ impl TryFrom<PgMediaRow> for Media<Uuid7> {
     }
     let size = u64::try_from(r.size)
       .map_err(|e| SqlxError::UnknownDiscriminant(format!("Media.size: {e}")))?;
-    let created_at = millis_to_timestamp(r.created_at_ms)?;
     let kind = media_kind_from_i16(r.kind)?;
     // `Format::from_str` is infallible (unknown slugs → `Other`).
     let format = r.format.parse::<Format>().unwrap_or_default();
-    let mut m = Media::try_new(id, checksum, r.name, format, size, created_at, kind)
+    let mut m = Media::try_new(id, checksum, format, size, kind)
       .map_err(|e: MediaError| SqlxError::DomainConstructorRejected(e.to_string()))?;
     if let Some(v) = r.video {
       m = m.with_video(Some(uuid_to_uuid7(v)?));
@@ -141,7 +136,6 @@ impl TryFrom<PgMediaRow> for Media<Uuid7> {
 mod tests {
   use super::*;
   use crate::domain::FileChecksum;
-  use jiff::Timestamp as JiffTimestamp;
 
   fn fake_checksum() -> FileChecksum {
     let mut b = [0u8; 32];
@@ -149,28 +143,16 @@ mod tests {
     FileChecksum::from_bytes(b)
   }
 
-  fn ts() -> JiffTimestamp {
-    JiffTimestamp::from_millisecond(1_700_000_000_000).unwrap()
-  }
-
   #[test]
   fn media_roundtrip() {
-    let m = Media::try_new(
-      Uuid7::new(),
-      fake_checksum(),
-      "f",
-      Format::Mp4,
-      1,
-      ts(),
-      MediaKind::Video,
-    )
-    .unwrap()
-    .with_device(Some(Device::new().with_make("Apple").with_model("iPhone")));
+    let m = Media::try_new(Uuid7::new(), fake_checksum(), Format::Mp4, 1, MediaKind::Video)
+      .unwrap()
+      .with_device(Some(Device::new().with_make("Apple").with_model("iPhone")));
     let row: PgMediaRow = (&m).into();
     let m2: Media<Uuid7> = row.try_into().unwrap();
-    assert_eq!(m.id(), m2.id());
-    assert_eq!(m.checksum(), m2.checksum());
-    assert_eq!(m2.device().unwrap().make(), "Apple");
+    assert_eq!(m.id_ref(), m2.id_ref());
+    assert_eq!(m.checksum_ref(), m2.checksum_ref());
+    assert_eq!(m2.device_ref().unwrap().make(), "Apple");
   }
 
   #[test]
@@ -178,11 +160,9 @@ mod tests {
     let row = PgMediaRow {
       id: uuid::Uuid::nil(),
       checksum: fake_checksum().as_bytes().to_vec(),
-      name: String::new(),
       format: String::new(),
       size: 0,
       duration_raw: None,
-      created_at_ms: 0,
       kind: 0,
       video: None,
       audio: None,

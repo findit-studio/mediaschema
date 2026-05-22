@@ -31,7 +31,7 @@ CREATE INDEX        IF NOT EXISTS idx_media_subtitle ON media(subtitle);
 
 CREATE TABLE IF NOT EXISTS watched_location (
     id                    uuid    NOT NULL PRIMARY KEY,
-    root_json             jsonb   NOT NULL,
+    volume                uuid    NOT NULL UNIQUE,
     recursive             boolean NOT NULL DEFAULT false,
     enabled               boolean NOT NULL DEFAULT false,
     is_ejectable          boolean NOT NULL DEFAULT false,
