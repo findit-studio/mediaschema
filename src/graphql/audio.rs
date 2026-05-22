@@ -47,7 +47,7 @@ impl GqlWord {
     self.0.text().to_string()
   }
   async fn span(&self) -> GqlMediaTimeRange {
-    GqlMediaTimeRange(*self.0.span())
+    GqlMediaTimeRange(*self.0.span_ref())
   }
   async fn score(&self) -> f32 {
     self.0.score()
@@ -102,19 +102,19 @@ impl GqlAudioTags {
     empty_as_none(self.0.comment())
   }
   async fn year(&self) -> Option<u32> {
-    self.0.year().map(u32::from)
+    Some(self.0.year()).filter(|&n| n != 0).map(u32::from)
   }
   async fn track_number(&self) -> Option<u32> {
-    self.0.track_number().map(u32::from)
+    Some(self.0.track_number()).filter(|&n| n != 0).map(u32::from)
   }
   async fn track_total(&self) -> Option<u32> {
-    self.0.track_total().map(u32::from)
+    Some(self.0.track_total()).filter(|&n| n != 0).map(u32::from)
   }
   async fn disc_number(&self) -> Option<u32> {
-    self.0.disc_number().map(u32::from)
+    Some(self.0.disc_number()).filter(|&n| n != 0).map(u32::from)
   }
   async fn disc_total(&self) -> Option<u32> {
-    self.0.disc_total().map(u32::from)
+    Some(self.0.disc_total()).filter(|&n| n != 0).map(u32::from)
   }
   async fn language(&self) -> Option<String> {
     self.0.language().map(|s| s.to_string())
@@ -298,12 +298,12 @@ impl From<GqlAudio> for Audio<Uuid7> {
 #[Object(name = "Audio")]
 impl GqlAudio {
   async fn id(&self) -> ID {
-    ID(self.0.id().to_string())
+    ID(self.0.id_ref().to_string())
   }
   async fn tracks(&self) -> std::vec::Vec<ID> {
     self
       .0
-      .tracks()
+      .tracks_slice()
       .iter()
       .map(|id| ID(id.to_string()))
       .collect()
@@ -337,10 +337,10 @@ impl From<GqlAudioTrack> for AudioTrack<Uuid7> {
 #[Object(name = "AudioTrack")]
 impl GqlAudioTrack {
   async fn id(&self) -> ID {
-    ID(self.0.id().to_string())
+    ID(self.0.id_ref().to_string())
   }
   async fn parent(&self) -> ID {
-    ID(self.0.parent().to_string())
+    ID(self.0.parent_ref().to_string())
   }
   async fn stream_index(&self) -> Option<u32> {
     self.0.stream_index()
@@ -351,7 +351,7 @@ impl GqlAudioTrack {
   /// FFmpeg codec short name (`as_str()`); `null` when the `Other("")`
   /// absent sentinel.
   async fn codec(&self) -> Option<String> {
-    empty_as_none(self.0.codec().as_str())
+    empty_as_none(self.0.codec_ref().as_str())
   }
   async fn profile(&self) -> Option<String> {
     empty_as_none(self.0.profile())
@@ -365,7 +365,7 @@ impl GqlAudioTrack {
   /// Channel-layout short name (`as_str()`); `null` when the
   /// `Other("")` absent sentinel.
   async fn channel_layout(&self) -> Option<String> {
-    empty_as_none(self.0.channel_layout().as_str())
+    empty_as_none(self.0.channel_layout_ref().as_str())
   }
   async fn bit_rate(&self) -> String {
     self.0.bit_rate().to_string()
@@ -381,10 +381,10 @@ impl GqlAudioTrack {
     self.0.is_lossless()
   }
   async fn duration(&self) -> Option<GqlMediaTimestamp> {
-    self.0.duration().copied().map(GqlMediaTimestamp)
+    self.0.duration_ref().copied().map(GqlMediaTimestamp)
   }
   async fn start_pts(&self) -> Option<GqlMediaTimestamp> {
-    self.0.start_pts().copied().map(GqlMediaTimestamp)
+    self.0.start_pts_ref().copied().map(GqlMediaTimestamp)
   }
   /// Declared language as a BCP-47 tag; `null` when absent.
   async fn language(&self) -> Option<String> {
@@ -421,10 +421,10 @@ impl GqlAudioTrack {
     self.0.is_silent()
   }
   async fn loudness(&self) -> Option<GqlLoudness> {
-    self.0.loudness().copied().map(GqlLoudness)
+    self.0.loudness_ref().copied().map(GqlLoudness)
   }
   async fn fingerprint(&self) -> Option<GqlAudioFingerprint> {
-    self.0.fingerprint().cloned().map(GqlAudioFingerprint)
+    self.0.fingerprint_ref().cloned().map(GqlAudioFingerprint)
   }
   async fn isrc(&self) -> Option<String> {
     empty_as_none(self.0.isrc())
@@ -438,27 +438,27 @@ impl GqlAudioTrack {
   async fn speakers(&self) -> std::vec::Vec<ID> {
     self
       .0
-      .speakers()
+      .speakers_slice()
       .iter()
       .map(|id| ID(id.to_string()))
       .collect()
   }
   async fn tags(&self) -> Option<GqlAudioTags> {
-    self.0.tags().cloned().map(GqlAudioTags)
+    self.0.tags_ref().cloned().map(GqlAudioTags)
   }
   async fn cover_art(&self) -> Option<GqlAudioCoverArt> {
-    self.0.cover_art().cloned().map(GqlAudioCoverArt)
+    self.0.cover_art_ref().cloned().map(GqlAudioCoverArt)
   }
   async fn segments(&self) -> std::vec::Vec<ID> {
     self
       .0
-      .segments()
+      .segments_slice()
       .iter()
       .map(|id| ID(id.to_string()))
       .collect()
   }
   async fn provenance(&self) -> GqlProvenance {
-    GqlProvenance(self.0.provenance().clone())
+    GqlProvenance(self.0.provenance_ref().clone())
   }
   async fn index_status(&self) -> GqlAudioIndexStatus {
     self.0.index_status().into()
@@ -466,7 +466,7 @@ impl GqlAudioTrack {
   async fn index_errors(&self) -> std::vec::Vec<GqlErrorInfo> {
     self
       .0
-      .index_errors()
+      .index_errors_slice()
       .iter()
       .cloned()
       .map(GqlErrorInfo)
@@ -498,28 +498,28 @@ impl From<GqlAudioSegment> for AudioSegment<Uuid7> {
 #[Object(name = "AudioSegment")]
 impl GqlAudioSegment {
   async fn id(&self) -> ID {
-    ID(self.0.id().to_string())
+    ID(self.0.id_ref().to_string())
   }
   async fn parent(&self) -> ID {
-    ID(self.0.parent().to_string())
+    ID(self.0.parent_ref().to_string())
   }
   async fn index(&self) -> u32 {
     self.0.index()
   }
   async fn span(&self) -> GqlMediaTimeRange {
-    GqlMediaTimeRange(*self.0.span())
+    GqlMediaTimeRange(*self.0.span_ref())
   }
   async fn speaker(&self) -> Option<ID> {
-    self.0.speaker().map(|id| ID(id.to_string()))
+    self.0.speaker_ref().map(|id| ID(id.to_string()))
   }
   async fn text(&self) -> GqlLocalizedText {
-    GqlLocalizedText(self.0.text().clone())
+    GqlLocalizedText(self.0.text_ref().clone())
   }
   async fn language(&self) -> Option<String> {
     self.0.language().map(|l| l.to_bcp47())
   }
   async fn words(&self) -> std::vec::Vec<GqlWord> {
-    self.0.words().iter().cloned().map(GqlWord).collect()
+    self.0.words_slice().iter().cloned().map(GqlWord).collect()
   }
   async fn no_speech_prob(&self) -> Option<f32> {
     self.0.no_speech_prob()
@@ -543,7 +543,7 @@ mod tests {
     let a = Audio::try_new(id).unwrap();
     let g: GqlAudio = a.clone().into();
     let back: Audio<Uuid7> = g.into();
-    assert_eq!(Audio::id(&back), Audio::id(&a));
+    assert_eq!(back.id_ref(), a.id_ref());
   }
 
   #[test]
@@ -561,7 +561,7 @@ mod tests {
   fn word_wrapper_roundtrips() {
     let tb = mediatime::Timebase::new(1, NonZeroU32::new(1000).unwrap());
     let span = mediatime::TimeRange::new(0, 500, tb);
-    let w = Word::new("hello", span, 0.9);
+    let w = Word::try_new("hello", span, 0.9).unwrap();
     let g: GqlWord = w.clone().into();
     let back: Word = g.into();
     assert_eq!(back, w);

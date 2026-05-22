@@ -18,8 +18,8 @@ use crate::domain::{
       ObjectDetection, PersonInstanceMaskDetection, PersonSegmentationMask, SaliencyRegion,
       SubjectDetection, TextDetection, VlmAnalysis,
     },
-    facet::IndexProgress as VideoIndexProgress,
   },
+  vo::IndexProgress as VideoIndexProgress,
   Keyframe, Scene, Uuid7, Video, VideoTrack,
 };
 
@@ -375,7 +375,7 @@ impl From<GqlVideo> for Video<Uuid7> {
 #[Object(name = "Video")]
 impl GqlVideo {
   async fn id(&self) -> ID {
-    ID(self.0.id().to_string())
+    ID(self.0.id_ref().to_string())
   }
   async fn total_scenes(&self) -> u32 {
     self.0.total_scenes()
@@ -383,13 +383,13 @@ impl GqlVideo {
   async fn tracks(&self) -> std::vec::Vec<ID> {
     self
       .0
-      .tracks()
+      .tracks_slice()
       .iter()
       .map(|id| ID(id.to_string()))
       .collect()
   }
   async fn track_progress(&self) -> GqlVideoIndexProgress {
-    GqlVideoIndexProgress(*self.0.track_progress())
+    GqlVideoIndexProgress(*self.0.track_progress_ref())
   }
 }
 
@@ -417,10 +417,10 @@ impl From<GqlVideoTrack> for VideoTrack<Uuid7> {
 #[Object(name = "VideoTrack")]
 impl GqlVideoTrack {
   async fn id(&self) -> ID {
-    ID(self.0.id().to_string())
+    ID(self.0.id_ref().to_string())
   }
   async fn parent(&self) -> ID {
-    ID(self.0.parent().to_string())
+    ID(self.0.parent_ref().to_string())
   }
   async fn stream_index(&self) -> Option<u32> {
     self.0.stream_index()
@@ -429,13 +429,13 @@ impl GqlVideoTrack {
     self.0.container_track_id().map(|v| v.to_string())
   }
   async fn start_pts(&self) -> Option<GqlMediaTimestamp> {
-    self.0.start_pts().copied().map(GqlMediaTimestamp)
+    self.0.start_pts_ref().copied().map(GqlMediaTimestamp)
   }
   async fn duration(&self) -> Option<GqlMediaTimestamp> {
-    self.0.duration().copied().map(GqlMediaTimestamp)
+    self.0.duration_ref().copied().map(GqlMediaTimestamp)
   }
   async fn codec(&self) -> GqlVideoCodec {
-    GqlVideoCodec(self.0.codec().clone())
+    GqlVideoCodec(self.0.codec_ref().clone())
   }
   async fn profile(&self) -> Option<String> {
     self.0.profile().map(|s| s.to_string())
@@ -484,10 +484,10 @@ impl GqlVideoTrack {
     self.0.pixel_format().to_u32()
   }
   async fn color(&self) -> GqlColorInfo {
-    GqlColorInfo(*self.0.color())
+    GqlColorInfo(*self.0.color_ref())
   }
   async fn hdr_static(&self) -> Option<GqlHdrStaticMetadata> {
-    self.0.hdr_static().copied().map(GqlHdrStaticMetadata)
+    self.0.hdr_static_ref().copied().map(GqlHdrStaticMetadata)
   }
   /// Display rotation as a degrees-style tag (`as_str()`, e.g. `"90"`).
   async fn rotation(&self) -> String {
@@ -541,7 +541,7 @@ impl GqlVideoTrack {
   async fn scenes(&self) -> std::vec::Vec<ID> {
     self
       .0
-      .scenes()
+      .scenes_slice()
       .iter()
       .map(|id| ID(id.to_string()))
       .collect()
@@ -552,14 +552,14 @@ impl GqlVideoTrack {
   async fn index_errors(&self) -> std::vec::Vec<GqlErrorInfo> {
     self
       .0
-      .index_errors()
+      .index_errors_slice()
       .iter()
       .cloned()
       .map(GqlErrorInfo)
       .collect()
   }
   async fn provenance(&self) -> GqlProvenance {
-    GqlProvenance(self.0.provenance().clone())
+    GqlProvenance(self.0.provenance_ref().clone())
   }
 }
 
@@ -587,16 +587,16 @@ impl From<GqlScene> for Scene<Uuid7> {
 #[Object(name = "Scene")]
 impl GqlScene {
   async fn id(&self) -> ID {
-    ID(self.0.id().to_string())
+    ID(self.0.id_ref().to_string())
   }
   async fn parent(&self) -> ID {
-    ID(self.0.parent().to_string())
+    ID(self.0.parent_ref().to_string())
   }
   async fn index(&self) -> u32 {
     self.0.index()
   }
   async fn span(&self) -> GqlMediaTimeRange {
-    GqlMediaTimeRange(*self.0.span())
+    GqlMediaTimeRange(*self.0.span_ref())
   }
   async fn detector(&self) -> GqlSceneDetector {
     self.0.detector().into()
@@ -604,7 +604,7 @@ impl GqlScene {
   async fn keyframes(&self) -> std::vec::Vec<ID> {
     self
       .0
-      .keyframes()
+      .keyframes_slice()
       .iter()
       .map(|id| ID(id.to_string()))
       .collect()
@@ -698,10 +698,10 @@ impl From<GqlObjectDetection> for ObjectDetection {
 #[Object(name = "ObjectDetection")]
 impl GqlObjectDetection {
   async fn detection(&self) -> GqlDetection {
-    GqlDetection(self.0.detection().clone())
+    GqlDetection(self.0.detection_ref().clone())
   }
   async fn bbox(&self) -> Option<GqlBoundingBox> {
-    self.0.bbox().copied().map(GqlBoundingBox)
+    self.0.bbox_ref().copied().map(GqlBoundingBox)
   }
 }
 
@@ -725,7 +725,7 @@ impl From<GqlActionDetection> for ActionDetection {
 #[Object(name = "ActionDetection")]
 impl GqlActionDetection {
   async fn detection(&self) -> GqlDetection {
-    GqlDetection(self.0.detection().clone())
+    GqlDetection(self.0.detection_ref().clone())
   }
 }
 
@@ -755,7 +755,7 @@ impl GqlTextDetection {
     self.0.confidence()
   }
   async fn bbox(&self) -> GqlBoundingBox {
-    GqlBoundingBox(*self.0.bbox())
+    GqlBoundingBox(*self.0.bbox_ref())
   }
 }
 
@@ -788,7 +788,7 @@ impl GqlBarcodeDetection {
     self.0.confidence()
   }
   async fn bbox(&self) -> GqlBoundingBox {
-    GqlBoundingBox(*self.0.bbox())
+    GqlBoundingBox(*self.0.bbox_ref())
   }
 }
 
@@ -812,7 +812,7 @@ impl From<GqlSaliencyRegion> for SaliencyRegion {
 #[Object(name = "SaliencyRegion")]
 impl GqlSaliencyRegion {
   async fn bbox(&self) -> GqlBoundingBox {
-    GqlBoundingBox(*self.0.bbox())
+    GqlBoundingBox(*self.0.bbox_ref())
   }
   async fn confidence(&self) -> f32 {
     self.0.confidence()
@@ -975,7 +975,7 @@ impl From<GqlBodyPoseDetection> for BodyPoseDetection {
 #[Object(name = "BodyPoseDetection")]
 impl GqlBodyPoseDetection {
   async fn bbox(&self) -> GqlBoundingBox {
-    GqlBoundingBox(*self.0.bbox())
+    GqlBoundingBox(*self.0.bbox_ref())
   }
   async fn confidence(&self) -> f32 {
     self.0.confidence()
@@ -983,7 +983,7 @@ impl GqlBodyPoseDetection {
   async fn joints(&self) -> std::vec::Vec<GqlBodyPoseJoint> {
     self
       .0
-      .joints()
+      .joints_slice()
       .iter()
       .cloned()
       .map(GqlBodyPoseJoint)
@@ -1011,7 +1011,7 @@ impl From<GqlHandPoseDetection> for HandPoseDetection {
 #[Object(name = "HandPoseDetection")]
 impl GqlHandPoseDetection {
   async fn bbox(&self) -> GqlBoundingBox {
-    GqlBoundingBox(*self.0.bbox())
+    GqlBoundingBox(*self.0.bbox_ref())
   }
   async fn confidence(&self) -> f32 {
     self.0.confidence()
@@ -1029,7 +1029,7 @@ impl GqlHandPoseDetection {
   async fn joints(&self) -> std::vec::Vec<GqlBodyPoseJoint> {
     self
       .0
-      .joints()
+      .joints_slice()
       .iter()
       .cloned()
       .map(GqlBodyPoseJoint)
@@ -1074,7 +1074,7 @@ impl GqlBodyPose3DDetection {
   async fn joints(&self) -> std::vec::Vec<GqlBodyPose3DJoint> {
     self
       .0
-      .joints()
+      .joints_slice()
       .iter()
       .cloned()
       .map(GqlBodyPose3DJoint)
@@ -1102,10 +1102,10 @@ impl From<GqlSubjectDetection> for SubjectDetection {
 #[Object(name = "SubjectDetection")]
 impl GqlSubjectDetection {
   async fn detection(&self) -> GqlDetection {
-    GqlDetection(self.0.detection().clone())
+    GqlDetection(self.0.detection_ref().clone())
   }
   async fn bbox(&self) -> GqlBoundingBox {
-    GqlBoundingBox(*self.0.bbox())
+    GqlBoundingBox(*self.0.bbox_ref())
   }
 }
 
@@ -1129,7 +1129,7 @@ impl From<GqlFaceDetection> for FaceDetection {
 #[Object(name = "FaceDetection")]
 impl GqlFaceDetection {
   async fn bbox(&self) -> GqlBoundingBox {
-    GqlBoundingBox(*self.0.bbox())
+    GqlBoundingBox(*self.0.bbox_ref())
   }
   async fn confidence(&self) -> f32 {
     self.0.confidence()
@@ -1200,7 +1200,7 @@ impl From<GqlFaceLandmarksDetection> for FaceLandmarksDetection {
 #[Object(name = "FaceLandmarksDetection")]
 impl GqlFaceLandmarksDetection {
   async fn bbox(&self) -> GqlBoundingBox {
-    GqlBoundingBox(*self.0.bbox())
+    GqlBoundingBox(*self.0.bbox_ref())
   }
   async fn confidence(&self) -> f32 {
     self.0.confidence()
@@ -1208,7 +1208,7 @@ impl GqlFaceLandmarksDetection {
   async fn regions(&self) -> std::vec::Vec<GqlFaceLandmarkRegion> {
     self
       .0
-      .regions()
+      .regions_slice()
       .iter()
       .cloned()
       .map(GqlFaceLandmarkRegion)
@@ -1236,7 +1236,7 @@ impl From<GqlPersonInstanceMaskDetection> for PersonInstanceMaskDetection {
 #[Object(name = "PersonInstanceMaskDetection")]
 impl GqlPersonInstanceMaskDetection {
   async fn bbox(&self) -> GqlBoundingBox {
-    GqlBoundingBox(*self.0.bbox())
+    GqlBoundingBox(*self.0.bbox_ref())
   }
   async fn confidence(&self) -> f32 {
     self.0.confidence()
@@ -1276,7 +1276,7 @@ impl From<GqlPersonSegmentationMask> for PersonSegmentationMask {
 #[Object(name = "PersonSegmentationMask")]
 impl GqlPersonSegmentationMask {
   async fn bbox(&self) -> GqlBoundingBox {
-    GqlBoundingBox(*self.0.bbox())
+    GqlBoundingBox(*self.0.bbox_ref())
   }
   async fn confidence(&self) -> f32 {
     self.0.confidence()
@@ -1315,7 +1315,7 @@ impl GqlHumanAnalysis {
   async fn subjects(&self) -> std::vec::Vec<GqlSubjectDetection> {
     self
       .0
-      .subjects()
+      .subjects_slice()
       .iter()
       .cloned()
       .map(GqlSubjectDetection)
@@ -1324,7 +1324,7 @@ impl GqlHumanAnalysis {
   async fn faces(&self) -> std::vec::Vec<GqlFaceDetection> {
     self
       .0
-      .faces()
+      .faces_slice()
       .iter()
       .copied()
       .map(GqlFaceDetection)
@@ -1333,7 +1333,7 @@ impl GqlHumanAnalysis {
   async fn body_poses(&self) -> std::vec::Vec<GqlBodyPoseDetection> {
     self
       .0
-      .body_poses()
+      .body_poses_slice()
       .iter()
       .cloned()
       .map(GqlBodyPoseDetection)
@@ -1342,7 +1342,7 @@ impl GqlHumanAnalysis {
   async fn hand_poses(&self) -> std::vec::Vec<GqlHandPoseDetection> {
     self
       .0
-      .hand_poses()
+      .hand_poses_slice()
       .iter()
       .cloned()
       .map(GqlHandPoseDetection)
@@ -1351,7 +1351,7 @@ impl GqlHumanAnalysis {
   async fn body_poses_3d(&self) -> std::vec::Vec<GqlBodyPose3DDetection> {
     self
       .0
-      .body_poses_3d()
+      .body_poses_3d_slice()
       .iter()
       .cloned()
       .map(GqlBodyPose3DDetection)
@@ -1360,7 +1360,7 @@ impl GqlHumanAnalysis {
   async fn instance_masks(&self) -> std::vec::Vec<GqlPersonInstanceMaskDetection> {
     self
       .0
-      .instance_masks()
+      .instance_masks_slice()
       .iter()
       .cloned()
       .map(GqlPersonInstanceMaskDetection)
@@ -1369,7 +1369,7 @@ impl GqlHumanAnalysis {
   async fn face_rectangles(&self) -> std::vec::Vec<GqlFaceDetection> {
     self
       .0
-      .face_rectangles()
+      .face_rectangles_slice()
       .iter()
       .copied()
       .map(GqlFaceDetection)
@@ -1378,7 +1378,7 @@ impl GqlHumanAnalysis {
   async fn face_landmarks(&self) -> std::vec::Vec<GqlFaceLandmarksDetection> {
     self
       .0
-      .face_landmarks()
+      .face_landmarks_slice()
       .iter()
       .cloned()
       .map(GqlFaceLandmarksDetection)
@@ -1387,7 +1387,7 @@ impl GqlHumanAnalysis {
   async fn segmentation_masks(&self) -> std::vec::Vec<GqlPersonSegmentationMask> {
     self
       .0
-      .segmentation_masks()
+      .segmentation_masks_slice()
       .iter()
       .cloned()
       .map(GqlPersonSegmentationMask)
@@ -1417,7 +1417,7 @@ impl GqlAnimalAnalysis {
   async fn subjects(&self) -> std::vec::Vec<GqlSubjectDetection> {
     self
       .0
-      .subjects()
+      .subjects_slice()
       .iter()
       .cloned()
       .map(GqlSubjectDetection)
@@ -1426,7 +1426,7 @@ impl GqlAnimalAnalysis {
   async fn body_poses(&self) -> std::vec::Vec<GqlBodyPoseDetection> {
     self
       .0
-      .body_poses()
+      .body_poses_slice()
       .iter()
       .cloned()
       .map(GqlBodyPoseDetection)
@@ -1516,19 +1516,19 @@ impl GqlVlmAnalysis {
   async fn categories(&self) -> std::vec::Vec<GqlLocalizedText> {
     self
       .0
-      .categories()
+      .categories_slice()
       .iter()
       .cloned()
       .map(GqlLocalizedText)
       .collect()
   }
   async fn description(&self) -> GqlLocalizedText {
-    GqlLocalizedText(self.0.description().clone())
+    GqlLocalizedText(self.0.description_ref().clone())
   }
   async fn tags(&self) -> std::vec::Vec<GqlLocalizedText> {
     self
       .0
-      .tags()
+      .tags_slice()
       .iter()
       .cloned()
       .map(GqlLocalizedText)
@@ -1540,7 +1540,7 @@ impl GqlVlmAnalysis {
   async fn objects(&self) -> std::vec::Vec<GqlLocalizedText> {
     self
       .0
-      .objects()
+      .objects_slice()
       .iter()
       .cloned()
       .map(GqlLocalizedText)
@@ -1549,7 +1549,7 @@ impl GqlVlmAnalysis {
   async fn subjects(&self) -> std::vec::Vec<GqlLocalizedText> {
     self
       .0
-      .subjects()
+      .subjects_slice()
       .iter()
       .cloned()
       .map(GqlLocalizedText)
@@ -1558,7 +1558,7 @@ impl GqlVlmAnalysis {
   async fn mood(&self) -> std::vec::Vec<GqlLocalizedText> {
     self
       .0
-      .mood()
+      .mood_slice()
       .iter()
       .cloned()
       .map(GqlLocalizedText)
@@ -1567,7 +1567,7 @@ impl GqlVlmAnalysis {
   async fn emotion(&self) -> std::vec::Vec<GqlLocalizedText> {
     self
       .0
-      .emotion()
+      .emotion_slice()
       .iter()
       .cloned()
       .map(GqlLocalizedText)
@@ -1576,7 +1576,7 @@ impl GqlVlmAnalysis {
   async fn lighting(&self) -> std::vec::Vec<GqlLocalizedText> {
     self
       .0
-      .lighting()
+      .lighting_slice()
       .iter()
       .cloned()
       .map(GqlLocalizedText)
@@ -1608,18 +1608,18 @@ impl From<GqlKeyframe> for Keyframe<Uuid7> {
 #[Object(name = "Keyframe")]
 impl GqlKeyframe {
   async fn id(&self) -> ID {
-    ID(self.0.id().to_string())
+    ID(self.0.id_ref().to_string())
   }
   async fn parent(&self) -> ID {
-    ID(self.0.parent().to_string())
+    ID(self.0.parent_ref().to_string())
   }
   async fn pts(&self) -> GqlMediaTimestamp {
-    GqlMediaTimestamp(*self.0.pts())
+    GqlMediaTimestamp(*self.0.pts_ref())
   }
   async fn mime(&self) -> Option<String> {
     empty_as_none(self.0.mime())
   }
-  async fn size(&self) -> u32 {
+  async fn size(&self) -> u64 {
     self.0.size()
   }
   async fn byte_len(&self) -> usize {
@@ -1638,7 +1638,7 @@ impl GqlKeyframe {
   async fn classifications(&self) -> std::vec::Vec<GqlDetection> {
     self
       .0
-      .classifications()
+      .classifications_slice()
       .iter()
       .cloned()
       .map(GqlDetection)
@@ -1647,22 +1647,22 @@ impl GqlKeyframe {
   async fn objects(&self) -> std::vec::Vec<GqlObjectDetection> {
     self
       .0
-      .objects()
+      .objects_slice()
       .iter()
       .cloned()
       .map(GqlObjectDetection)
       .collect()
   }
   async fn humans(&self) -> GqlHumanAnalysis {
-    GqlHumanAnalysis(self.0.humans().clone())
+    GqlHumanAnalysis(self.0.humans_ref().clone())
   }
   async fn animals(&self) -> GqlAnimalAnalysis {
-    GqlAnimalAnalysis(self.0.animals().clone())
+    GqlAnimalAnalysis(self.0.animals_ref().clone())
   }
   async fn actions(&self) -> std::vec::Vec<GqlActionDetection> {
     self
       .0
-      .actions()
+      .actions_slice()
       .iter()
       .cloned()
       .map(GqlActionDetection)
@@ -1671,7 +1671,7 @@ impl GqlKeyframe {
   async fn text_detections(&self) -> std::vec::Vec<GqlTextDetection> {
     self
       .0
-      .text_detections()
+      .text_detections_slice()
       .iter()
       .cloned()
       .map(GqlTextDetection)
@@ -1680,7 +1680,7 @@ impl GqlKeyframe {
   async fn barcodes(&self) -> std::vec::Vec<GqlBarcodeDetection> {
     self
       .0
-      .barcodes()
+      .barcodes_slice()
       .iter()
       .cloned()
       .map(GqlBarcodeDetection)
@@ -1689,7 +1689,7 @@ impl GqlKeyframe {
   async fn attention_saliency(&self) -> std::vec::Vec<GqlSaliencyRegion> {
     self
       .0
-      .attention_saliency()
+      .attention_saliency_slice()
       .iter()
       .copied()
       .map(GqlSaliencyRegion)
@@ -1698,38 +1698,38 @@ impl GqlKeyframe {
   async fn objectness_saliency(&self) -> std::vec::Vec<GqlSaliencyRegion> {
     self
       .0
-      .objectness_saliency()
+      .objectness_saliency_slice()
       .iter()
       .copied()
       .map(GqlSaliencyRegion)
       .collect()
   }
   async fn horizon(&self) -> GqlHorizonInfo {
-    GqlHorizonInfo(*self.0.horizon())
+    GqlHorizonInfo(*self.0.horizon_ref())
   }
   async fn document_segments(&self) -> std::vec::Vec<GqlDocumentSegment> {
     self
       .0
-      .document_segments()
+      .document_segments_slice()
       .iter()
       .copied()
       .map(GqlDocumentSegment)
       .collect()
   }
   async fn aesthetics(&self) -> GqlAesthetics {
-    GqlAesthetics(*self.0.aesthetics())
+    GqlAesthetics(*self.0.aesthetics_ref())
   }
   async fn colors(&self) -> std::vec::Vec<GqlDominantColor> {
     self
       .0
-      .colors()
+      .colors_slice()
       .iter()
       .cloned()
       .map(GqlDominantColor)
       .collect()
   }
   async fn vlm(&self) -> GqlVlmAnalysis {
-    GqlVlmAnalysis(self.0.vlm().clone())
+    GqlVlmAnalysis(self.0.vlm_ref().clone())
   }
 }
 
@@ -1765,6 +1765,6 @@ mod tests {
     .unwrap();
     let g: GqlKeyframe = k.clone().into();
     let back: Keyframe<Uuid7> = g.into();
-    assert_eq!(back.id(), k.id());
+    assert_eq!(back.id_ref(), k.id_ref());
   }
 }

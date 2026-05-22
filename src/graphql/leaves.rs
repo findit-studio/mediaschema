@@ -7,7 +7,7 @@ use crate::domain::{SceneAnnotation, Speaker, UserTag, Uuid7, WatchedLocation};
 
 use super::{
   enums::GqlScanStatus,
-  media::{GqlErrorInfo, GqlLocation, GqlRgba},
+  media::{GqlErrorInfo, GqlRgba},
   scalars::{empty_as_none, GqlJiffTimestamp, GqlMediaTimestamp},
 };
 
@@ -35,10 +35,10 @@ impl From<GqlSpeaker> for Speaker<Uuid7> {
 #[Object(name = "Speaker")]
 impl GqlSpeaker {
   async fn id(&self) -> ID {
-    ID(self.0.id().to_string())
+    ID(self.0.id_ref().to_string())
   }
   async fn parent(&self) -> ID {
-    ID(self.0.parent().to_string())
+    ID(self.0.parent_ref().to_string())
   }
   async fn cluster_id(&self) -> u32 {
     self.0.cluster_id()
@@ -47,7 +47,7 @@ impl GqlSpeaker {
     empty_as_none(self.0.name())
   }
   async fn speech_duration(&self) -> Option<GqlMediaTimestamp> {
-    self.0.speech_duration().copied().map(GqlMediaTimestamp)
+    self.0.speech_duration_ref().copied().map(GqlMediaTimestamp)
   }
 }
 
@@ -75,10 +75,12 @@ impl From<GqlWatchedLocation> for WatchedLocation<Uuid7> {
 #[Object(name = "WatchedLocation")]
 impl GqlWatchedLocation {
   async fn id(&self) -> ID {
-    ID(self.0.id().to_string())
+    ID(self.0.id_ref().to_string())
   }
-  async fn root(&self) -> GqlLocation {
-    self.0.root().clone().into()
+  /// Stable id of the monitored storage volume (`WatchedLocation` is
+  /// volume-scoped — the per-folder watch is application-layer config).
+  async fn volume(&self) -> ID {
+    ID(self.0.volume_ref().to_string())
   }
   async fn is_recursive(&self) -> bool {
     self.0.is_recursive()
@@ -90,16 +92,16 @@ impl GqlWatchedLocation {
     self.0.is_ejectable()
   }
   async fn added_at(&self) -> GqlJiffTimestamp {
-    GqlJiffTimestamp(*self.0.added_at())
+    GqlJiffTimestamp(*self.0.added_at_ref())
   }
   async fn last_reconciled_at(&self) -> Option<GqlJiffTimestamp> {
-    self.0.last_reconciled_at().copied().map(GqlJiffTimestamp)
+    self.0.last_reconciled_at_ref().copied().map(GqlJiffTimestamp)
   }
   async fn last_reconcile_status(&self) -> Option<GqlScanStatus> {
-    self.0.last_reconcile_status().copied().map(Into::into)
+    self.0.last_reconcile_status_ref().copied().map(Into::into)
   }
   async fn last_error(&self) -> Option<GqlErrorInfo> {
-    self.0.last_error().cloned().map(GqlErrorInfo)
+    self.0.last_error_ref().cloned().map(GqlErrorInfo)
   }
 }
 
@@ -127,7 +129,7 @@ impl From<GqlUserTag> for UserTag<Uuid7> {
 #[Object(name = "UserTag")]
 impl GqlUserTag {
   async fn id(&self) -> ID {
-    ID(self.0.id().to_string())
+    ID(self.0.id_ref().to_string())
   }
   async fn name(&self) -> String {
     self.0.name().to_string()
@@ -136,7 +138,7 @@ impl GqlUserTag {
     self.0.color().map(GqlRgba)
   }
   async fn created_at(&self) -> GqlJiffTimestamp {
-    GqlJiffTimestamp(*self.0.created_at())
+    GqlJiffTimestamp(*self.0.created_at_ref())
   }
 }
 
@@ -164,10 +166,10 @@ impl From<GqlSceneAnnotation> for SceneAnnotation<Uuid7> {
 #[Object(name = "SceneAnnotation")]
 impl GqlSceneAnnotation {
   async fn id(&self) -> ID {
-    ID(self.0.id().to_string())
+    ID(self.0.id_ref().to_string())
   }
   async fn scene(&self) -> ID {
-    ID(self.0.scene().to_string())
+    ID(self.0.scene_ref().to_string())
   }
   async fn is_favorite(&self) -> bool {
     self.0.is_favorite()
@@ -175,7 +177,7 @@ impl GqlSceneAnnotation {
   async fn user_tags(&self) -> std::vec::Vec<ID> {
     self
       .0
-      .user_tags()
+      .user_tags_slice()
       .iter()
       .map(|id| ID(id.to_string()))
       .collect()
@@ -187,7 +189,7 @@ impl GqlSceneAnnotation {
     empty_as_none(self.0.note())
   }
   async fn updated_at(&self) -> GqlJiffTimestamp {
-    GqlJiffTimestamp(*self.0.updated_at())
+    GqlJiffTimestamp(*self.0.updated_at_ref())
   }
 }
 

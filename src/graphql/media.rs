@@ -246,10 +246,10 @@ impl GqlLocalLocation {
 #[Object(name = "LocalLocation")]
 impl GqlLocalLocation {
   async fn volume(&self) -> Uuid7 {
-    *self.0.volume()
+    *self.0.volume_ref()
   }
   async fn components(&self) -> std::vec::Vec<String> {
-    self.0.components().iter().map(|s| s.to_string()).collect()
+    self.0.components_slice().iter().map(|s| s.to_string()).collect()
   }
 }
 
@@ -374,54 +374,48 @@ impl From<GqlMedia> for Media<Uuid7> {
 #[Object(name = "Media")]
 impl GqlMedia {
   async fn id(&self) -> ID {
-    ID(self.0.id().to_string())
+    ID(self.0.id_ref().to_string())
   }
   async fn checksum(&self) -> FileChecksum {
-    *self.0.checksum()
-  }
-  async fn name(&self) -> String {
-    self.0.name().to_string()
+    *self.0.checksum_ref()
   }
   /// Container format short name (`as_str()`); `null` when the
   /// `Other("")` absent sentinel.
   async fn format(&self) -> Option<String> {
-    empty_as_none(self.0.format().as_str())
+    empty_as_none(self.0.format_ref().as_str())
   }
   async fn size(&self) -> String {
     self.0.size().to_string()
   }
   async fn duration(&self) -> Option<GqlMediaTimestamp> {
-    self.0.duration().copied().map(GqlMediaTimestamp)
-  }
-  async fn created_at(&self) -> GqlJiffTimestamp {
-    GqlJiffTimestamp(*self.0.created_at())
+    self.0.duration_ref().copied().map(GqlMediaTimestamp)
   }
   async fn kind(&self) -> GqlMediaKind {
     self.0.kind().into()
   }
   async fn video(&self) -> Option<ID> {
-    self.0.video().map(|id| ID(id.to_string()))
+    self.0.video_ref().map(|id| ID(id.to_string()))
   }
   async fn audio(&self) -> Option<ID> {
-    self.0.audio().map(|id| ID(id.to_string()))
+    self.0.audio_ref().map(|id| ID(id.to_string()))
   }
   async fn subtitle(&self) -> Option<ID> {
-    self.0.subtitle().map(|id| ID(id.to_string()))
+    self.0.subtitle_ref().map(|id| ID(id.to_string()))
   }
   async fn error_flags(&self) -> GqlMediaErrorFlags {
     self.0.error_flags().into()
   }
   async fn probe_error(&self) -> Option<GqlErrorInfo> {
-    self.0.probe_error().cloned().map(GqlErrorInfo)
+    self.0.probe_error_ref().cloned().map(GqlErrorInfo)
   }
   async fn capture_date(&self) -> Option<GqlJiffTimestamp> {
-    self.0.capture_date().copied().map(GqlJiffTimestamp)
+    self.0.capture_date_ref().copied().map(GqlJiffTimestamp)
   }
   async fn device(&self) -> Option<GqlMediaDevice> {
-    self.0.device().cloned().map(GqlMediaDevice)
+    self.0.device_ref().cloned().map(GqlMediaDevice)
   }
   async fn gps(&self) -> Option<GqlMediaGeoLocation> {
-    self.0.gps().copied().map(GqlMediaGeoLocation)
+    self.0.gps_ref().copied().map(GqlMediaGeoLocation)
   }
 }
 
@@ -445,27 +439,18 @@ mod tests {
     let l = Location::try_local_uuid7(vol, ["Movies", "Holiday"]).unwrap();
     let g: GqlLocation = l.into();
     let local = g.as_local().expect("local variant");
-    assert_eq!(local.volume(), &vol);
-    assert_eq!(local.components(), &["Movies", "Holiday"]);
+    assert_eq!(local.volume_ref(), &vol);
+    assert_eq!(local.components_slice(), &["Movies", "Holiday"]);
   }
 
   #[test]
   fn media_wrapper_round_trips_through_try_new() {
     let id = Uuid7::new();
     let cs = FileChecksum::from_bytes([0x11; 32]);
-    let m = Media::try_new(
-      id,
-      cs,
-      "clip.mp4",
-      Format::Mp4,
-      1_234,
-      jiff::Timestamp::default(),
-      MediaKind::Video,
-    )
-    .unwrap();
+    let m = Media::try_new(id, cs, Format::Mp4, 1_234, MediaKind::Video).unwrap();
     let g: GqlMedia = m.clone().into();
     let back: Media<Uuid7> = g.into();
-    assert_eq!(back.name(), "clip.mp4");
+    assert_eq!(back.checksum_ref(), &cs);
   }
 
   #[test]

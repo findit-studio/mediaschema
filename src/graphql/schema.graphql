@@ -395,7 +395,6 @@ type Loudness {
 type Media {
 	id: ID!
 	checksum: FileChecksum!
-	name: String!
 	"""
 	Container format short name (`as_str()`); `null` when the
 	`Other("")` absent sentinel.
@@ -403,7 +402,6 @@ type Media {
 	format: String
 	size: String!
 	duration: MediaTimestamp
-	createdAt: JiffTimestamp!
 	kind: MediaKind!
 	video: ID
 	audio: ID
@@ -683,7 +681,7 @@ type SubtitleTrack {
 	"""
 	language: String
 	title: String
-	isImageBased: Boolean!
+	isImageBased: Boolean
 	"""
 	Disposition flag word (`AV_DISPOSITION_*` bits via `to_u32()`).
 	"""
@@ -866,7 +864,11 @@ type VlmAnalysis {
 
 type WatchedLocation {
 	id: ID!
-	root: Location!
+	"""
+	Stable id of the monitored storage volume (`WatchedLocation` is
+	volume-scoped — the per-folder watch is application-layer config).
+	"""
+	volume: ID!
 	isRecursive: Boolean!
 	isEnabled: Boolean!
 	isEjectable: Boolean!
