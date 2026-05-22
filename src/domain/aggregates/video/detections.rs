@@ -51,6 +51,11 @@ pub enum DetectionError {
   /// a degenerate / colinear quad is not a detection.
   #[error("document quad must enclose a non-zero area")]
   QuadZeroArea,
+  /// A document quadrilateral was non-simple (self-intersecting) — a
+  /// pair of non-adjacent edges crossed, or the corner sequence did not
+  /// follow a consistent winding order (a "bow-tie" quad).
+  #[error("document quad must be simple (non-self-intersecting, consistent winding)")]
+  QuadSelfIntersecting,
 }
 
 /// A calibrated detection confidence — a `f32` proven **finite** and
@@ -510,9 +515,11 @@ impl DocumentSegment {
   ///   ([`DetectionError::QuadCollapsedCorners`]);
   /// - a zero-area quad — the four corners are colinear / degenerate,
   ///   detected via the shoelace formula
-  ///   ([`DetectionError::QuadZeroArea`]).
-  ///
-  /// Self-intersection / winding-order are out of scope.
+  ///   ([`DetectionError::QuadZeroArea`]);
+  /// - a non-simple (self-intersecting) quad — a "bow-tie" where a pair
+  ///   of non-adjacent edges crosses, or the `TL → TR → BR → BL`
+  ///   corner sequence does not follow a consistent winding order
+  ///   ([`DetectionError::QuadSelfIntersecting`]).
   #[inline]
   pub const fn try_new(
     top_left: (f32, f32),
@@ -575,6 +582,20 @@ impl DocumentSegment {
     if twice_area == 0.0 {
       return Err(DetectionError::QuadZeroArea);
     }
+    // Simple-quad check. A bow-tie has non-zero shoelace area and four
+    // distinct corners yet is self-intersecting. Two guards:
+    //  1. consistent winding — the cross-products of every pair of
+    //     consecutive edges share one sign (a bow-tie flips sign);
+    //  2. non-adjacent edges do not cross — edge TL→TR vs BR→BL, and
+    //     edge TR→BR vs BL→TL.
+    if !consistent_winding(&corners) {
+      return Err(DetectionError::QuadSelfIntersecting);
+    }
+    if segments_intersect(corners[0], corners[1], corners[2], corners[3])
+      || segments_intersect(corners[1], corners[2], corners[3], corners[0])
+    {
+      return Err(DetectionError::QuadSelfIntersecting);
+    }
     Ok(Self {
       top_left,
       top_right,
@@ -622,6 +643,59 @@ const fn norm_pair(p: (f32, f32)) -> Result<(NormCoord, NormCoord), DetectionErr
     Err(e) => return Err(e),
   };
   Ok((x, y))
+}
+
+/// 2-D cross product of `b - a` and `c - a` — the signed area term used
+/// for orientation tests. All inputs are finite (`NormCoord`-validated),
+/// so the result is finite.
+#[inline]
+const fn cross(a: (f32, f32), b: (f32, f32), c: (f32, f32)) -> f32 {
+  (b.0 - a.0) * (c.1 - a.1) - (b.1 - a.1) * (c.0 - a.0)
+}
+
+/// True iff the four consecutive-edge turns of the `TL → TR → BR → BL`
+/// corner ring all share one sign — i.e. the quad is convex and wound
+/// consistently. A bow-tie (self-intersecting) quad flips orientation
+/// at the crossing and fails this test. Zero turns (a colinear vertex)
+/// are tolerated here; the zero-area guard already rejects a fully
+/// degenerate quad.
+#[inline]
+const fn consistent_winding(c: &[(f32, f32); 4]) -> bool {
+  let mut pos = false;
+  let mut neg = false;
+  let mut i = 0;
+  while i < 4 {
+    // Turn at vertex `i+1`: edge (i → i+1) followed by (i+1 → i+2).
+    let t = cross(c[i], c[(i + 1) % 4], c[(i + 2) % 4]);
+    if t > 0.0 {
+      pos = true;
+    } else if t < 0.0 {
+      neg = true;
+    }
+    i += 1;
+  }
+  !(pos && neg)
+}
+
+/// True iff open segment `p1→p2` and open segment `p3→p4` properly
+/// cross. Uses the standard orientation-sign test; collinear / shared-
+/// endpoint touching is **not** treated as a crossing (adjacent edges
+/// of a quad legitimately share a corner — only non-adjacent edges are
+/// passed here).
+#[inline]
+const fn segments_intersect(
+  p1: (f32, f32),
+  p2: (f32, f32),
+  p3: (f32, f32),
+  p4: (f32, f32),
+) -> bool {
+  let d1 = cross(p3, p4, p1);
+  let d2 = cross(p3, p4, p2);
+  let d3 = cross(p1, p2, p3);
+  let d4 = cross(p1, p2, p4);
+  // Proper crossing: each segment's endpoints straddle the other line.
+  ((d1 > 0.0 && d2 < 0.0) || (d1 < 0.0 && d2 > 0.0))
+    && ((d3 > 0.0 && d4 < 0.0) || (d3 < 0.0 && d4 > 0.0))
 }
 
 // ---------------------------------------------------------------------------
@@ -1907,5 +1981,37 @@ mod tests {
 
     // A proper non-degenerate quad still passes.
     assert!(DocumentSegment::try_new((0.1, 0.1), (0.9, 0.1), (0.9, 0.9), (0.1, 0.9), 0.9).is_ok());
+  }
+
+  #[test]
+  fn document_segment_rejects_self_intersecting_quad() {
+    // rev-4 finding 3: a bow-tie quad has four distinct in-range
+    // corners and a non-zero shoelace area, yet is self-intersecting.
+    // This one crosses the TL→TR vs BR→BL non-adjacent edge pair.
+    let bowtie = DocumentSegment::try_new(
+      (0.1, 0.1), // TL
+      (0.2, 0.2), // TR
+      (0.1, 0.2), // BR
+      (0.9, 0.1), // BL
+      0.9,
+    );
+    assert_eq!(bowtie.err(), Some(DetectionError::QuadSelfIntersecting));
+    assert!(DetectionError::QuadSelfIntersecting.is_quad_self_intersecting());
+
+    // A second bow-tie with non-zero shoelace area, crossing the other
+    // non-adjacent edge pair (TR→BR vs BL→TL).
+    let bowtie2 = DocumentSegment::try_new(
+      (0.1, 0.1), // TL
+      (0.1, 0.2), // TR
+      (0.2, 0.1), // BR
+      (0.2, 0.8), // BL
+      0.9,
+    );
+    assert_eq!(bowtie2.err(), Some(DetectionError::QuadSelfIntersecting));
+
+    // A normal convex document quad (slightly skewed) still passes.
+    assert!(
+      DocumentSegment::try_new((0.12, 0.10), (0.88, 0.14), (0.90, 0.86), (0.10, 0.90), 0.9).is_ok()
+    );
   }
 }

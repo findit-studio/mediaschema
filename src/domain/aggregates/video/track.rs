@@ -169,6 +169,52 @@ impl VideoTrack<Uuid7> {
       provenance: Provenance::new(),
     })
   }
+
+  /// Validate a `scenes` child-ref list: rejects any nil sentinel
+  /// ([`VideoTrackError::NilSceneRef`]) and any duplicate id
+  /// ([`VideoTrackError::DuplicateSceneRef`]). Each entry must be a
+  /// reference to a distinct, real child `Scene`.
+  fn validate_scenes(scenes: &[Uuid7]) -> Result<(), VideoTrackError> {
+    for (i, id) in scenes.iter().enumerate() {
+      if id.is_nil() {
+        return Err(VideoTrackError::NilSceneRef);
+      }
+      if scenes[..i].contains(id) {
+        return Err(VideoTrackError::DuplicateSceneRef);
+      }
+    }
+    Ok(())
+  }
+
+  /// Fallible builder: replace the `scenes` child-ref id-list.
+  ///
+  /// Rejects any nil ([`VideoTrackError::NilSceneRef`]) or duplicate
+  /// ([`VideoTrackError::DuplicateSceneRef`]) entry — every entry must
+  /// be a reference to a distinct, real child `Scene`. On error `self`
+  /// is returned untouched via the in-place mutator it delegates to.
+  #[inline]
+  pub fn try_with_scenes(
+    mut self,
+    v: impl Into<std::vec::Vec<Uuid7>>,
+  ) -> Result<Self, VideoTrackError> {
+    self.try_set_scenes(v)?;
+    Ok(self)
+  }
+
+  /// Fallible in-place mutator for `scenes` — see
+  /// [`VideoTrack::try_with_scenes`]. On success returns `&mut Self` so
+  /// it chains; on a nil or duplicate ref returns the matching
+  /// [`VideoTrackError`] and leaves `self` unchanged.
+  #[inline]
+  pub fn try_set_scenes(
+    &mut self,
+    v: impl Into<std::vec::Vec<Uuid7>>,
+  ) -> Result<&mut Self, VideoTrackError> {
+    let scenes = v.into();
+    Self::validate_scenes(&scenes)?;
+    self.scenes = scenes;
+    Ok(self)
+  }
 }
 
 impl<Id> VideoTrack<Id> {
@@ -530,6 +576,11 @@ impl<Id> VideoTrack<Id> {
   // --- frame / pixel / colour ---
   /// Fallible builder for `dimensions` (coded width × height).
   ///
+  /// `dimensions` must be either the exact `0x0` "unknown" sentinel or
+  /// have **both** axes non-zero — a partially-zero `Dimensions`
+  /// (e.g. `0x1080`, `1920x0`) is rejected with
+  /// [`VideoTrackError::PartialZeroDimensions`].
+  ///
   /// `visible_rect` is the clean-aperture crop *within* the coded
   /// frame, so a new `dimensions` must still contain the current
   /// `visible_rect` (if any). Shrinking the coded frame below an
@@ -542,11 +593,16 @@ impl<Id> VideoTrack<Id> {
   }
   /// Fallible in-place mutator for `dimensions` — see
   /// [`VideoTrack::try_with_dimensions`]. On success returns `&mut
-  /// Self`; if the current `visible_rect` would no longer fit, returns
-  /// [`VideoTrackError::CropExceedsDimensions`] and leaves `self`
-  /// unchanged.
+  /// Self`; on a partially-zero `Dimensions` returns
+  /// [`VideoTrackError::PartialZeroDimensions`], and if the current
+  /// `visible_rect` would no longer fit returns
+  /// [`VideoTrackError::CropExceedsDimensions`]; on either error
+  /// `self` is left unchanged.
   #[inline]
   pub fn try_set_dimensions(&mut self, v: Dimensions) -> Result<&mut Self, VideoTrackError> {
+    if !dimensions_valid(v) {
+      return Err(VideoTrackError::PartialZeroDimensions);
+    }
     if let Some(rect) = self.visible_rect {
       if !rect_fits_dimensions(rect, v) {
         return Err(VideoTrackError::CropExceedsDimensions);
@@ -557,11 +613,18 @@ impl<Id> VideoTrack<Id> {
   }
   /// Fallible builder for `visible_rect` (clean-aperture crop).
   ///
-  /// The crop must fit within the coded `dimensions`: `x + width <=
-  /// dimensions.width` and `y + height <= dimensions.height` (checked
-  /// addition). A crop that extends past the coded frame is rejected
-  /// with [`VideoTrackError::CropExceedsDimensions`]. `None` (no crop)
-  /// is always accepted.
+  /// A `Some(rect)` crop must:
+  /// - have non-zero `width` and `height` — a zero-extent crop is
+  ///   rejected with [`VideoTrackError::ZeroExtentCrop`];
+  /// - be set only when `dimensions` are *known* (not the `0x0`
+  ///   sentinel) — a crop with unknown dimensions is rejected with
+  ///   [`VideoTrackError::CropWithoutDimensions`];
+  /// - fit within the coded `dimensions`: `x + width <=
+  ///   dimensions.width` and `y + height <= dimensions.height`
+  ///   (checked addition) — otherwise
+  ///   [`VideoTrackError::CropExceedsDimensions`].
+  ///
+  /// `None` (no crop) is always accepted.
   #[inline]
   pub fn try_with_visible_rect(mut self, v: Option<Rect>) -> Result<Self, VideoTrackError> {
     self.try_set_visible_rect(v)?;
@@ -569,12 +632,18 @@ impl<Id> VideoTrack<Id> {
   }
   /// Fallible in-place mutator for `visible_rect` — see
   /// [`VideoTrack::try_with_visible_rect`]. On success returns `&mut
-  /// Self`; if the crop extends past the coded `dimensions`, returns
-  /// [`VideoTrackError::CropExceedsDimensions`] and leaves `self`
-  /// unchanged.
+  /// Self`; on a zero-extent crop, a crop without known dimensions, or
+  /// a crop past the coded `dimensions`, returns the matching
+  /// [`VideoTrackError`] and leaves `self` unchanged.
   #[inline]
   pub fn try_set_visible_rect(&mut self, v: Option<Rect>) -> Result<&mut Self, VideoTrackError> {
     if let Some(rect) = v {
+      if rect.width() == 0 || rect.height() == 0 {
+        return Err(VideoTrackError::ZeroExtentCrop);
+      }
+      if !dimensions_known(self.dimensions) {
+        return Err(VideoTrackError::CropWithoutDimensions);
+      }
       if !rect_fits_dimensions(rect, self.dimensions) {
         return Err(VideoTrackError::CropExceedsDimensions);
       }
@@ -702,16 +771,7 @@ impl<Id> VideoTrack<Id> {
     self.auto_selected = v;
   }
 
-  // --- scenes / indexing / provenance ---
-  #[inline]
-  pub fn with_scenes(mut self, v: impl Into<std::vec::Vec<Id>>) -> Self {
-    self.scenes = v.into();
-    self
-  }
-  #[inline]
-  pub fn set_scenes(&mut self, v: impl Into<std::vec::Vec<Id>>) {
-    self.scenes = v.into();
-  }
+  // --- indexing / provenance ---
   #[inline]
   pub const fn with_index_status(mut self, v: VideoIndexStatus) -> Self {
     self.index_status = v;
@@ -744,6 +804,23 @@ impl<Id> VideoTrack<Id> {
 // ---------------------------------------------------------------------------
 // Crop-geometry helper
 // ---------------------------------------------------------------------------
+
+/// True iff `dims` is a *valid* coded `Dimensions`: either the exact
+/// `0x0` "unknown" sentinel, or **both** axes non-zero. A partially-zero
+/// `Dimensions` (`0x1080`, `1920x0`) is rejected — it is neither a real
+/// frame size nor the unknown sentinel.
+#[inline]
+const fn dimensions_valid(dims: Dimensions) -> bool {
+  let (w, h) = (dims.width(), dims.height());
+  (w == 0 && h == 0) || (w != 0 && h != 0)
+}
+
+/// True iff `dims` is *known* — i.e. not the `0x0` "unknown" sentinel.
+/// A `visible_rect` crop is meaningful only against known dimensions.
+#[inline]
+const fn dimensions_known(dims: Dimensions) -> bool {
+  dims.width() != 0 && dims.height() != 0
+}
 
 /// True iff `rect` (clean-aperture crop) fits entirely within `dims`
 /// (coded frame): `rect.x + rect.width <= dims.width` and `rect.y +
@@ -789,6 +866,28 @@ pub enum VideoTrackError {
   /// crop.
   #[error("VideoTrack visible_rect crop must fit within the coded dimensions")]
   CropExceedsDimensions,
+  /// `dimensions` had exactly one axis zero (e.g. `0x1080`, `1920x0`).
+  /// Coded dimensions must be either the `0x0` "unknown" sentinel or
+  /// have both axes non-zero.
+  #[error("VideoTrack dimensions must be 0x0 (unknown) or have both axes non-zero")]
+  PartialZeroDimensions,
+  /// A `visible_rect` crop had zero `width` or `height` — a zero-extent
+  /// crop is degenerate.
+  #[error("VideoTrack visible_rect crop must have non-zero width and height")]
+  ZeroExtentCrop,
+  /// A `visible_rect` crop was set while `dimensions` were unknown (the
+  /// `0x0` sentinel) — a crop is only meaningful against known coded
+  /// dimensions.
+  #[error("VideoTrack visible_rect crop requires known (non-zero) dimensions")]
+  CropWithoutDimensions,
+  /// A `scenes` entry was the nil sentinel — every entry must reference
+  /// a real child `Scene`.
+  #[error("VideoTrack scenes ref must not be the nil UUID")]
+  NilSceneRef,
+  /// A `scenes` entry was a duplicate — every child `Scene` ref must be
+  /// distinct.
+  #[error("VideoTrack scenes refs must be unique")]
+  DuplicateSceneRef,
 }
 
 // ===========================================================================
@@ -851,7 +950,8 @@ mod tests {
       .with_pixel_format(PixelFormat::from_u32(0x0a)) // yuv420p10le-ish
       .with_has_b_frames(true)
       .with_is_primary(true)
-      .with_scenes(std::vec![s1, s2])
+      .try_with_scenes(std::vec![s1, s2])
+      .unwrap()
       .with_index_status(VideoIndexStatus::PROBED)
       .with_index_errors(std::vec![ErrorInfo::code_only(ErrorCode::SceneDetectionFailed)])
       .with_provenance(Provenance::from_parts("qwen2-vl-7b", "v0.3.0", "p@1", "idx-0.1.0"));
@@ -875,7 +975,7 @@ mod tests {
     t.try_set_dimensions(Dimensions::new(0, 0)).unwrap();
     t.set_is_primary(false);
     t.set_index_status(VideoIndexStatus::empty());
-    t.set_scenes(std::vec::Vec::<Uuid7>::new());
+    t.try_set_scenes(std::vec::Vec::<Uuid7>::new()).unwrap();
     assert_eq!(t.bit_rate(), 0);
     assert_eq!(t.dimensions(), Dimensions::new(0, 0));
     assert!(!t.is_primary());
@@ -1005,5 +1105,102 @@ mod tests {
     assert!(t.visible_rect().is_none());
     // With no crop, any `dimensions` is accepted.
     t.try_set_dimensions(Dimensions::new(0, 0)).unwrap();
+  }
+
+  #[test]
+  fn scenes_reject_nil_and_duplicate_refs() {
+    // rev-4 finding 1: the infallible scene-list setter let a
+    // `VideoTrack<Uuid7>` persist a nil ref or `[same, same]`.
+    let t = VideoTrack::try_new(Uuid7::new(), Uuid7::new()).unwrap();
+    let s = Uuid7::new();
+
+    // A nil ref is rejected through the consuming builder...
+    assert_eq!(
+      t.clone().try_with_scenes(std::vec![Uuid7::nil()]).err(),
+      Some(VideoTrackError::NilSceneRef)
+    );
+    // ...and a duplicate ref.
+    assert_eq!(
+      t.clone().try_with_scenes(std::vec![s, s]).err(),
+      Some(VideoTrackError::DuplicateSceneRef)
+    );
+
+    // The in-place setter rejects both and leaves `self` unchanged.
+    let mut t = t;
+    assert_eq!(
+      t.try_set_scenes(std::vec![Uuid7::nil()]).err(),
+      Some(VideoTrackError::NilSceneRef)
+    );
+    assert_eq!(
+      t.try_set_scenes(std::vec![s, s]).err(),
+      Some(VideoTrackError::DuplicateSceneRef)
+    );
+    assert!(t.scenes().is_empty());
+    assert!(VideoTrackError::NilSceneRef.is_nil_scene_ref());
+    assert!(VideoTrackError::DuplicateSceneRef.is_duplicate_scene_ref());
+
+    // A list of distinct, non-nil refs is accepted.
+    let s2 = Uuid7::new();
+    t.try_set_scenes(std::vec![s, s2]).unwrap();
+    assert_eq!(t.scenes().len(), 2);
+  }
+
+  #[test]
+  fn dimensions_reject_partial_zero() {
+    // rev-4 finding 2: `Dimensions::new(0, 1080)` (one axis zero)
+    // passed the round-3 crop check.
+    let mut t = VideoTrack::try_new(Uuid7::new(), Uuid7::new()).unwrap();
+    assert_eq!(
+      t.try_set_dimensions(Dimensions::new(0, 1080)).err(),
+      Some(VideoTrackError::PartialZeroDimensions)
+    );
+    assert_eq!(
+      t.try_set_dimensions(Dimensions::new(1920, 0)).err(),
+      Some(VideoTrackError::PartialZeroDimensions)
+    );
+    assert_eq!(t.dimensions(), Dimensions::new(0, 0));
+    assert!(VideoTrackError::PartialZeroDimensions.is_partial_zero_dimensions());
+    // `0x0` (unknown) and fully-non-zero are both accepted.
+    t.try_set_dimensions(Dimensions::new(0, 0)).unwrap();
+    t.try_set_dimensions(Dimensions::new(1920, 1080)).unwrap();
+  }
+
+  #[test]
+  fn crop_rejects_zero_extent_and_unknown_dimensions() {
+    // rev-4 finding 2: a zero-extent rect, and a crop with no known
+    // dimensions, were both accepted by the round-3 containment check.
+    let t = VideoTrack::try_new(Uuid7::new(), Uuid7::new()).unwrap();
+
+    // A crop set while dimensions are unknown (`0x0`) is rejected.
+    assert_eq!(
+      t.clone()
+        .try_with_visible_rect(Some(Rect::new(0, 0, 100, 100)))
+        .err(),
+      Some(VideoTrackError::CropWithoutDimensions)
+    );
+    assert!(VideoTrackError::CropWithoutDimensions.is_crop_without_dimensions());
+
+    let t = t.try_with_dimensions(Dimensions::new(1920, 1080)).unwrap();
+
+    // A zero-width / zero-height crop is rejected.
+    assert_eq!(
+      t.clone()
+        .try_with_visible_rect(Some(Rect::new(0, 0, 0, 1080)))
+        .err(),
+      Some(VideoTrackError::ZeroExtentCrop)
+    );
+    assert_eq!(
+      t.clone()
+        .try_with_visible_rect(Some(Rect::new(0, 0, 1920, 0)))
+        .err(),
+      Some(VideoTrackError::ZeroExtentCrop)
+    );
+    assert!(VideoTrackError::ZeroExtentCrop.is_zero_extent_crop());
+
+    // A normal non-zero crop within known dimensions still passes.
+    let t = t
+      .try_with_visible_rect(Some(Rect::new(10, 10, 100, 100)))
+      .unwrap();
+    assert_eq!(t.visible_rect(), Some(Rect::new(10, 10, 100, 100)));
   }
 }
