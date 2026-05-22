@@ -41,14 +41,14 @@ bitflags! {
 
 impl MediaErrorFlags {
   /// Canonical no-arg constructor — the empty flag set.
-  #[inline]
+  #[inline(always)]
   pub const fn new() -> Self {
     Self::empty()
   }
 }
 
 impl Default for MediaErrorFlags {
-  #[inline]
+  #[inline(always)]
   fn default() -> Self {
     Self::new()
   }
@@ -86,7 +86,7 @@ bitflags! {
 impl VideoIndexStatus {
   /// Canonical no-arg constructor — the empty flag set.
   /// [`Default::default`] is `Self::new()`.
-  #[inline]
+  #[inline(always)]
   pub const fn new() -> Self {
     Self::empty()
   }
@@ -113,7 +113,7 @@ impl VideoIndexStatus {
 }
 
 impl Default for VideoIndexStatus {
-  #[inline]
+  #[inline(always)]
   fn default() -> Self {
     Self::new()
   }
@@ -150,7 +150,7 @@ bitflags! {
 impl AudioIndexStatus {
   /// Canonical no-arg constructor — the empty flag set.
   /// [`Default::default`] is `Self::new()`.
-  #[inline]
+  #[inline(always)]
   pub const fn new() -> Self {
     Self::empty()
   }
@@ -179,7 +179,7 @@ impl AudioIndexStatus {
 }
 
 impl Default for AudioIndexStatus {
-  #[inline]
+  #[inline(always)]
   fn default() -> Self {
     Self::new()
   }
@@ -207,7 +207,7 @@ bitflags! {
 impl SubtitleIndexStatus {
   /// Canonical no-arg constructor — the empty flag set.
   /// [`Default::default`] is `Self::new()`.
-  #[inline]
+  #[inline(always)]
   pub const fn new() -> Self {
     Self::empty()
   }
@@ -260,7 +260,7 @@ impl SubtitleIndexStatus {
 }
 
 impl Default for SubtitleIndexStatus {
-  #[inline]
+  #[inline(always)]
   fn default() -> Self {
     Self::new()
   }

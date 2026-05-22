@@ -147,56 +147,56 @@ impl SubtitleTrack<Uuid7> {
 
 impl<Id> SubtitleTrack<Id> {
   /// Canonical identity (cues FK to this).
-  #[inline]
+  #[inline(always)]
   pub const fn id(&self) -> &Id {
     &self.id
   }
 
   /// FK → `Subtitle.id`.
-  #[inline]
+  #[inline(always)]
   pub const fn parent(&self) -> &Id {
     &self.parent
   }
 
   /// Source-locator stream index (ffmpeg/WebCodecs); `None` for
   /// external files.
-  #[inline]
+  #[inline(always)]
   pub const fn stream_index(&self) -> Option<u32> {
     self.stream_index
   }
 
   /// Container-specific track id (kept only if the pipeline uses it).
-  #[inline]
+  #[inline(always)]
   pub const fn container_track_id(&self) -> Option<u64> {
     self.container_track_id
   }
 
   /// Subtitle codec (`Other("")` = absent).
-  #[inline]
+  #[inline(always)]
   pub const fn codec(&self) -> &SubtitleCodec {
     &self.codec
   }
 
   /// Text vs bitmap container form ([`Format::default`] = absent).
-  #[inline]
+  #[inline(always)]
   pub const fn format(&self) -> &Format {
     &self.format
   }
 
   /// Where the bytes came from (embedded / sidecar / external).
-  #[inline]
+  #[inline(always)]
   pub const fn origin(&self) -> &TrackOrigin {
     &self.origin
   }
 
   /// Language tag ([`Language::default`] = `und` / undetermined).
-  #[inline]
+  #[inline(always)]
   pub const fn language(&self) -> &Language {
     &self.language
   }
 
   /// Track title/label (`""` = absent — string-rule, no `Option`).
-  #[inline]
+  #[inline(always)]
   pub fn title(&self) -> &str {
     self.title.as_str()
   }
@@ -272,130 +272,130 @@ impl<Id> SubtitleTrack<Id> {
   }
 
   /// FFmpeg `AV_DISPOSITION_*` bits as a [`TrackDisposition`] bitflags.
-  #[inline]
+  #[inline(always)]
   pub const fn disposition(&self) -> TrackDisposition {
     self.disposition
   }
 
   /// Primary subtitle for this `Subtitle` facet.
-  #[inline]
+  #[inline(always)]
   pub const fn is_primary(&self) -> bool {
     self.is_primary
   }
 
   /// Selected by the default-track selection heuristic.
-  #[inline]
+  #[inline(always)]
   pub const fn auto_selected(&self) -> bool {
     self.auto_selected
   }
 
   /// Per-track duration. TODO(mediaframe): switch to
   /// `mediatime::TrackTime` once available (see `Speaker` note).
-  #[inline]
+  #[inline(always)]
   pub const fn duration(&self) -> Option<&Timestamp> {
     self.duration.as_ref()
   }
 
   /// Σ of the cue aggregate's len (denormalised; truth = cue aggregate).
-  #[inline]
+  #[inline(always)]
   pub const fn cue_count(&self) -> u32 {
     self.cue_count
   }
 
   /// Forward refs to the per-track `SubtitleCue` segment aggregate.
-  #[inline]
+  #[inline(always)]
   pub const fn cues(&self) -> &[Id] {
     self.cues.as_slice()
   }
 
   /// Parse / OCR reproducibility (shared per-track [`Provenance`] VO).
-  #[inline]
+  #[inline(always)]
   pub const fn provenance(&self) -> &Provenance {
     &self.provenance
   }
 
   /// External `.srt`/`.vtt` location (`None` for embedded).
-  #[inline]
+  #[inline(always)]
   pub const fn source_path(&self) -> Option<&Location<Id>> {
     self.source_path.as_ref()
   }
 
   /// Checksum of the external file (`None` for embedded).
-  #[inline]
+  #[inline(always)]
   pub const fn source_checksum(&self) -> Option<&FileChecksum> {
     self.source_checksum.as_ref()
   }
 
   /// Charset (`""` = absent / detector-driven).
-  #[inline]
+  #[inline(always)]
   pub fn character_encoding(&self) -> &str {
     self.character_encoding.as_str()
   }
 
   /// BOM sniffed at parse time.
-  #[inline]
+  #[inline(always)]
   pub const fn bom_present(&self) -> bool {
     self.bom_present
   }
 
   /// SDH (deaf / hard-of-hearing) — finer than the disposition
   /// `HEARING_IMPAIRED` bit.
-  #[inline]
+  #[inline(always)]
   pub const fn is_sdh(&self) -> bool {
     self.is_sdh
   }
 
   /// CEA-608/708 closed-caption stream lifted to a track.
-  #[inline]
+  #[inline(always)]
   pub const fn is_closed_caption(&self) -> bool {
     self.is_closed_caption
   }
 
   /// Computed: subtitle language ≠ audio language.
-  #[inline]
+  #[inline(always)]
   pub const fn is_translation(&self) -> bool {
     self.is_translation
   }
 
   /// Subtitle role (selection / search facet).
-  #[inline]
+  #[inline(always)]
   pub const fn kind(&self) -> SubtitleKind {
     self.kind
   }
 
   /// Subtitled duration ÷ track duration (partial/truncated detection).
-  #[inline]
+  #[inline(always)]
   pub const fn coverage_ratio(&self) -> Option<f32> {
     self.coverage_ratio
   }
 
   /// Parsed but zero cues (a defect to surface).
-  #[inline]
+  #[inline(always)]
   pub const fn is_empty(&self) -> bool {
     self.is_empty
   }
 
   /// First cue start. TODO(mediaframe): switch to `mediatime::TrackTime`.
-  #[inline]
+  #[inline(always)]
   pub const fn first_cue(&self) -> Option<&Timestamp> {
     self.first_cue.as_ref()
   }
 
   /// Last cue start. TODO(mediaframe): switch to `mediatime::TrackTime`.
-  #[inline]
+  #[inline(always)]
   pub const fn last_cue(&self) -> Option<&Timestamp> {
     self.last_cue.as_ref()
   }
 
   /// Per-kind pipeline-stage bits (bit = stage succeeded).
-  #[inline]
+  #[inline(always)]
   pub const fn index_status(&self) -> SubtitleIndexStatus {
     self.index_status
   }
 
   /// Per-track error truth (stage-coded `ErrorInfo.code`). Drives
   /// `Media.error_flags.SUBTITLE_ERROR` rollup.
-  #[inline]
+  #[inline(always)]
   pub const fn index_errors(&self) -> &[ErrorInfo] {
     self.index_errors.as_slice()
   }
@@ -405,371 +405,427 @@ impl<Id> SubtitleTrack<Id> {
   // -------------------------------------------------------------------
 
   /// Builder: replace `stream_index`.
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub const fn with_stream_index(mut self, v: Option<u32>) -> Self {
     self.stream_index = v;
     self
   }
 
   /// Builder: replace `container_track_id`.
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub const fn with_container_track_id(mut self, v: Option<u64>) -> Self {
     self.container_track_id = v;
     self
   }
 
   /// Builder: replace `codec`.
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub fn with_codec(mut self, v: SubtitleCodec) -> Self {
     self.codec = v;
     self
   }
 
   /// Builder: replace `format`.
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub fn with_format(mut self, v: Format) -> Self {
     self.format = v;
     self
   }
 
   /// Builder: replace `origin`.
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub const fn with_origin(mut self, v: TrackOrigin) -> Self {
     self.origin = v;
     self
   }
 
   /// Builder: replace `language`.
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub const fn with_language(mut self, v: Language) -> Self {
     self.language = v;
     self
   }
 
   /// Builder: replace `title`.
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub fn with_title(mut self, v: impl Into<SmolStr>) -> Self {
     self.title = v.into();
     self
   }
 
   /// Builder: replace `disposition`.
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub const fn with_disposition(mut self, v: TrackDisposition) -> Self {
     self.disposition = v;
     self
   }
 
   /// Builder: replace `is_primary`.
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub const fn with_primary(mut self, v: bool) -> Self {
     self.is_primary = v;
     self
   }
 
   /// Builder: replace `auto_selected`.
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub const fn with_auto_selected(mut self, v: bool) -> Self {
     self.auto_selected = v;
     self
   }
 
   /// Builder: replace `duration`.
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub fn with_duration(mut self, v: Option<Timestamp>) -> Self {
     self.duration = v;
     self
   }
 
   /// Builder: replace `cue_count`.
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub const fn with_cue_count(mut self, v: u32) -> Self {
     self.cue_count = v;
     self
   }
 
   /// Builder: replace `cues`.
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub fn with_cues(mut self, v: impl Into<std::vec::Vec<Id>>) -> Self {
     self.cues = v.into();
     self
   }
 
   /// Builder: replace `provenance`.
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub fn with_provenance(mut self, v: Provenance) -> Self {
     self.provenance = v;
     self
   }
 
   /// Builder: replace `source_path`.
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub fn with_source_path(mut self, v: Option<Location<Id>>) -> Self {
     self.source_path = v;
     self
   }
 
   /// Builder: replace `source_checksum`.
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub fn with_source_checksum(mut self, v: Option<FileChecksum>) -> Self {
     self.source_checksum = v;
     self
   }
 
   /// Builder: replace `character_encoding`.
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub fn with_character_encoding(mut self, v: impl Into<SmolStr>) -> Self {
     self.character_encoding = v.into();
     self
   }
 
   /// Builder: replace `bom_present`.
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub const fn with_bom_present(mut self, v: bool) -> Self {
     self.bom_present = v;
     self
   }
 
   /// Builder: replace `is_sdh`.
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub const fn with_sdh(mut self, v: bool) -> Self {
     self.is_sdh = v;
     self
   }
 
   /// Builder: replace `is_closed_caption`.
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub const fn with_closed_caption(mut self, v: bool) -> Self {
     self.is_closed_caption = v;
     self
   }
 
   /// Builder: replace `is_translation`.
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub const fn with_translation(mut self, v: bool) -> Self {
     self.is_translation = v;
     self
   }
 
   /// Builder: replace `kind`.
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub const fn with_kind(mut self, v: SubtitleKind) -> Self {
     self.kind = v;
     self
   }
 
   /// Builder: replace `coverage_ratio`.
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub const fn with_coverage_ratio(mut self, v: Option<f32>) -> Self {
     self.coverage_ratio = v;
     self
   }
 
   /// Builder: replace `is_empty`.
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub const fn with_empty(mut self, v: bool) -> Self {
     self.is_empty = v;
     self
   }
 
   /// Builder: replace `first_cue`.
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub fn with_first_cue(mut self, v: Option<Timestamp>) -> Self {
     self.first_cue = v;
     self
   }
 
   /// Builder: replace `last_cue`.
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub fn with_last_cue(mut self, v: Option<Timestamp>) -> Self {
     self.last_cue = v;
     self
   }
 
   /// Builder: replace `index_status`.
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub const fn with_index_status(mut self, v: SubtitleIndexStatus) -> Self {
     self.index_status = v;
     self
   }
 
   /// Builder: replace `index_errors`.
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub fn with_index_errors(mut self, v: impl Into<std::vec::Vec<ErrorInfo>>) -> Self {
     self.index_errors = v.into();
     self
   }
 
   // -------------------------------------------------------------------
-  // In-place setters (`set_*` return ()).
+  // In-place setters (`set_*` return `&mut Self` for chaining).
   // -------------------------------------------------------------------
 
   /// In-place mutator for `stream_index`.
-  #[inline]
-  pub const fn set_stream_index(&mut self, v: Option<u32>) {
+  #[inline(always)]
+  pub const fn set_stream_index(&mut self, v: Option<u32>) -> &mut Self {
     self.stream_index = v;
+    self
   }
 
   /// In-place mutator for `container_track_id`.
-  #[inline]
-  pub const fn set_container_track_id(&mut self, v: Option<u64>) {
+  #[inline(always)]
+  pub const fn set_container_track_id(&mut self, v: Option<u64>) -> &mut Self {
     self.container_track_id = v;
+    self
   }
 
   /// In-place mutator for `codec`.
-  #[inline]
-  pub fn set_codec(&mut self, v: SubtitleCodec) {
+  #[inline(always)]
+  pub fn set_codec(&mut self, v: SubtitleCodec) -> &mut Self {
     self.codec = v;
+    self
   }
 
   /// In-place mutator for `format`.
-  #[inline]
-  pub fn set_format(&mut self, v: Format) {
+  #[inline(always)]
+  pub fn set_format(&mut self, v: Format) -> &mut Self {
     self.format = v;
+    self
   }
 
   /// In-place mutator for `origin`.
-  #[inline]
-  pub fn set_origin(&mut self, v: TrackOrigin) {
+  #[inline(always)]
+  pub fn set_origin(&mut self, v: TrackOrigin) -> &mut Self {
     self.origin = v;
+    self
   }
 
   /// In-place mutator for `language`.
-  #[inline]
-  pub fn set_language(&mut self, v: Language) {
+  #[inline(always)]
+  pub fn set_language(&mut self, v: Language) -> &mut Self {
     self.language = v;
+    self
   }
 
   /// In-place mutator for `title`.
-  #[inline]
-  pub fn set_title(&mut self, v: impl Into<SmolStr>) {
+  #[inline(always)]
+  pub fn set_title(&mut self, v: impl Into<SmolStr>) -> &mut Self {
     self.title = v.into();
+    self
   }
 
   /// In-place mutator for `disposition`.
-  #[inline]
-  pub fn set_disposition(&mut self, v: TrackDisposition) {
+  #[inline(always)]
+  pub fn set_disposition(&mut self, v: TrackDisposition) -> &mut Self {
     self.disposition = v;
+    self
   }
 
   /// In-place mutator for `is_primary`.
-  #[inline]
-  pub const fn set_primary(&mut self, v: bool) {
+  #[inline(always)]
+  pub const fn set_primary(&mut self, v: bool) -> &mut Self {
     self.is_primary = v;
+    self
   }
 
   /// In-place mutator for `auto_selected`.
-  #[inline]
-  pub const fn set_auto_selected(&mut self, v: bool) {
+  #[inline(always)]
+  pub const fn set_auto_selected(&mut self, v: bool) -> &mut Self {
     self.auto_selected = v;
+    self
   }
 
   /// In-place mutator for `duration`.
-  #[inline]
-  pub fn set_duration(&mut self, v: Option<Timestamp>) {
+  #[inline(always)]
+  pub fn set_duration(&mut self, v: Option<Timestamp>) -> &mut Self {
     self.duration = v;
+    self
   }
 
   /// In-place mutator for `cue_count`.
-  #[inline]
-  pub const fn set_cue_count(&mut self, v: u32) {
+  #[inline(always)]
+  pub const fn set_cue_count(&mut self, v: u32) -> &mut Self {
     self.cue_count = v;
+    self
   }
 
   /// In-place mutator for `cues`.
-  #[inline]
-  pub fn set_cues(&mut self, v: impl Into<std::vec::Vec<Id>>) {
+  #[inline(always)]
+  pub fn set_cues(&mut self, v: impl Into<std::vec::Vec<Id>>) -> &mut Self {
     self.cues = v.into();
+    self
   }
 
   /// In-place mutator for `provenance`.
-  #[inline]
-  pub fn set_provenance(&mut self, v: Provenance) {
+  #[inline(always)]
+  pub fn set_provenance(&mut self, v: Provenance) -> &mut Self {
     self.provenance = v;
+    self
   }
 
   /// In-place mutator for `source_path`.
-  #[inline]
-  pub fn set_source_path(&mut self, v: Option<Location<Id>>) {
+  #[inline(always)]
+  pub fn set_source_path(&mut self, v: Option<Location<Id>>) -> &mut Self {
     self.source_path = v;
+    self
   }
 
   /// In-place mutator for `source_checksum`.
-  #[inline]
-  pub fn set_source_checksum(&mut self, v: Option<FileChecksum>) {
+  #[inline(always)]
+  pub fn set_source_checksum(&mut self, v: Option<FileChecksum>) -> &mut Self {
     self.source_checksum = v;
+    self
   }
 
   /// In-place mutator for `character_encoding`.
-  #[inline]
-  pub fn set_character_encoding(&mut self, v: impl Into<SmolStr>) {
+  #[inline(always)]
+  pub fn set_character_encoding(&mut self, v: impl Into<SmolStr>) -> &mut Self {
     self.character_encoding = v.into();
+    self
   }
 
   /// In-place mutator for `bom_present`.
-  #[inline]
-  pub const fn set_bom_present(&mut self, v: bool) {
+  #[inline(always)]
+  pub const fn set_bom_present(&mut self, v: bool) -> &mut Self {
     self.bom_present = v;
+    self
   }
 
   /// In-place mutator for `is_sdh`.
-  #[inline]
-  pub const fn set_sdh(&mut self, v: bool) {
+  #[inline(always)]
+  pub const fn set_sdh(&mut self, v: bool) -> &mut Self {
     self.is_sdh = v;
+    self
   }
 
   /// In-place mutator for `is_closed_caption`.
-  #[inline]
-  pub const fn set_closed_caption(&mut self, v: bool) {
+  #[inline(always)]
+  pub const fn set_closed_caption(&mut self, v: bool) -> &mut Self {
     self.is_closed_caption = v;
+    self
   }
 
   /// In-place mutator for `is_translation`.
-  #[inline]
-  pub const fn set_translation(&mut self, v: bool) {
+  #[inline(always)]
+  pub const fn set_translation(&mut self, v: bool) -> &mut Self {
     self.is_translation = v;
+    self
   }
 
   /// In-place mutator for `kind`.
-  #[inline]
-  pub const fn set_kind(&mut self, v: SubtitleKind) {
+  #[inline(always)]
+  pub const fn set_kind(&mut self, v: SubtitleKind) -> &mut Self {
     self.kind = v;
+    self
   }
 
   /// In-place mutator for `coverage_ratio`.
-  #[inline]
-  pub const fn set_coverage_ratio(&mut self, v: Option<f32>) {
+  #[inline(always)]
+  pub const fn set_coverage_ratio(&mut self, v: Option<f32>) -> &mut Self {
     self.coverage_ratio = v;
+    self
   }
 
   /// In-place mutator for `is_empty`.
-  #[inline]
-  pub const fn set_empty(&mut self, v: bool) {
+  #[inline(always)]
+  pub const fn set_empty(&mut self, v: bool) -> &mut Self {
     self.is_empty = v;
+    self
   }
 
   /// In-place mutator for `first_cue`.
-  #[inline]
-  pub fn set_first_cue(&mut self, v: Option<Timestamp>) {
+  #[inline(always)]
+  pub fn set_first_cue(&mut self, v: Option<Timestamp>) -> &mut Self {
     self.first_cue = v;
+    self
   }
 
   /// In-place mutator for `last_cue`.
-  #[inline]
-  pub fn set_last_cue(&mut self, v: Option<Timestamp>) {
+  #[inline(always)]
+  pub fn set_last_cue(&mut self, v: Option<Timestamp>) -> &mut Self {
     self.last_cue = v;
+    self
   }
 
   /// In-place mutator for `index_status`.
-  #[inline]
-  pub const fn set_index_status(&mut self, v: SubtitleIndexStatus) {
+  #[inline(always)]
+  pub const fn set_index_status(&mut self, v: SubtitleIndexStatus) -> &mut Self {
     self.index_status = v;
+    self
   }
 
   /// In-place mutator for `index_errors`.
-  #[inline]
-  pub fn set_index_errors(&mut self, v: impl Into<std::vec::Vec<ErrorInfo>>) {
+  #[inline(always)]
+  pub fn set_index_errors(&mut self, v: impl Into<std::vec::Vec<ErrorInfo>>) -> &mut Self {
     self.index_errors = v.into();
+    self
   }
 }
 

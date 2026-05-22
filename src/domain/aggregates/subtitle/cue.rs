@@ -148,52 +148,52 @@ impl SubtitleCue<Uuid7> {
 
 impl<Id> SubtitleCue<Id> {
   /// Canonical identity (also the LanceDB embedding key).
-  #[inline]
+  #[inline(always)]
   pub const fn id(&self) -> &Id {
     &self.id
   }
 
   /// FK → `SubtitleTrack.id`.
-  #[inline]
+  #[inline(always)]
   pub const fn parent(&self) -> &Id {
     &self.parent
   }
 
   /// 0-based cue ordinal within the parent track.
-  #[inline]
+  #[inline(always)]
   pub const fn index(&self) -> u32 {
     self.index
   }
 
   /// On-screen interval in media-time.
-  #[inline]
+  #[inline(always)]
   pub const fn span(&self) -> &TimeRange {
     &self.span
   }
 
   /// Parsed plain text (styling stripped); both `src` and `translated`
   /// fields `""` = absent.
-  #[inline]
+  #[inline(always)]
   pub const fn text(&self) -> &LocalizedText {
     &self.text
   }
 
   /// Original markup retained for render fidelity (ASS/SSA);
   /// `""` = none (string-rule: no `Option`).
-  #[inline]
+  #[inline(always)]
   pub fn styled_text(&self) -> &str {
     self.styled_text.as_str()
   }
 
   /// Inline rendered cue bitmap (PGS/DVBSUB); empty = none.
-  #[inline]
+  #[inline(always)]
   pub fn image(&self) -> &[u8] {
     &self.image
   }
 
   /// Text extracted from `image` by the OCR stage; kept distinct from
   /// `text`. Both `src` and `translated` fields `""` = absent.
-  #[inline]
+  #[inline(always)]
   pub const fn ocr_text(&self) -> &LocalizedText {
     &self.ocr_text
   }
@@ -206,7 +206,7 @@ impl<Id> SubtitleCue<Id> {
   /// obtained through the domain API this predicate is always `false`.
   /// It is kept as a defensive check for cues reconstructed by other
   /// means (e.g. a future deserializer that bypasses `try_new`).
-  #[inline]
+  #[inline(always)]
   pub fn is_blank(&self) -> bool {
     self.text.is_empty() && self.ocr_text.is_empty() && self.image.is_empty()
   }
@@ -216,21 +216,24 @@ impl<Id> SubtitleCue<Id> {
   // -------------------------------------------------------------------
 
   /// Builder: replace `index`.
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub const fn with_index(mut self, v: u32) -> Self {
     self.index = v;
     self
   }
 
   /// Builder: replace `span`.
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub const fn with_span(mut self, v: TimeRange) -> Self {
     self.span = v;
     self
   }
 
   /// Builder: replace `styled_text` (render-only; no invariant).
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub fn with_styled_text(mut self, v: impl Into<SmolStr>) -> Self {
     self.styled_text = v.into();
     self
@@ -241,21 +244,21 @@ impl<Id> SubtitleCue<Id> {
   // -------------------------------------------------------------------
 
   /// In-place mutator for `index`.
-  #[inline]
+  #[inline(always)]
   pub const fn set_index(&mut self, v: u32) -> &mut Self {
     self.index = v;
     self
   }
 
   /// In-place mutator for `span`.
-  #[inline]
+  #[inline(always)]
   pub const fn set_span(&mut self, v: TimeRange) -> &mut Self {
     self.span = v;
     self
   }
 
   /// In-place mutator for `styled_text` (render-only; no invariant).
-  #[inline]
+  #[inline(always)]
   pub fn set_styled_text(&mut self, v: impl Into<SmolStr>) -> &mut Self {
     self.styled_text = v.into();
     self

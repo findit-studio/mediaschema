@@ -38,7 +38,7 @@ pub struct IndexProgress {
 impl IndexProgress {
   /// Canonical no-arg constructor — every field zero (no tracks, no
   /// progress). [`Default::default`] is `Self::new()`.
-  #[inline]
+  #[inline(always)]
   pub const fn new() -> Self {
     Self {
       total: 0,
@@ -48,7 +48,7 @@ impl IndexProgress {
   }
 
   /// Construct from the three counts directly.
-  #[inline]
+  #[inline(always)]
   pub const fn from_parts(total: u32, indexed: u32, failed: u32) -> Self {
     Self {
       total,
@@ -58,62 +58,68 @@ impl IndexProgress {
   }
 
   /// Total child tracks.
-  #[inline]
+  #[inline(always)]
   pub const fn total(&self) -> u32 {
     self.total
   }
 
   /// Tracks whose pipeline is fully indexed (per the kind-specific
   /// `is_fully_indexed` predicate).
-  #[inline]
+  #[inline(always)]
   pub const fn indexed(&self) -> u32 {
     self.indexed
   }
 
   /// Tracks whose derived stage is `Failed` (any retained live error).
   /// Drives the `Media.error_flags.SUBTITLE_ERROR` bit.
-  #[inline]
+  #[inline(always)]
   pub const fn failed(&self) -> u32 {
     self.failed
   }
 
   /// Builder: replace `total`.
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub const fn with_total(mut self, total: u32) -> Self {
     self.total = total;
     self
   }
 
   /// Builder: replace `indexed`.
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub const fn with_indexed(mut self, indexed: u32) -> Self {
     self.indexed = indexed;
     self
   }
 
   /// Builder: replace `failed`.
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub const fn with_failed(mut self, failed: u32) -> Self {
     self.failed = failed;
     self
   }
 
   /// In-place mutator for `total`.
-  #[inline]
-  pub const fn set_total(&mut self, total: u32) {
+  #[inline(always)]
+  pub const fn set_total(&mut self, total: u32) -> &mut Self {
     self.total = total;
+    self
   }
 
   /// In-place mutator for `indexed`.
-  #[inline]
-  pub const fn set_indexed(&mut self, indexed: u32) {
+  #[inline(always)]
+  pub const fn set_indexed(&mut self, indexed: u32) -> &mut Self {
     self.indexed = indexed;
+    self
   }
 
   /// In-place mutator for `failed`.
-  #[inline]
-  pub const fn set_failed(&mut self, failed: u32) {
+  #[inline(always)]
+  pub const fn set_failed(&mut self, failed: u32) -> &mut Self {
     self.failed = failed;
+    self
   }
 }
 
@@ -157,54 +163,58 @@ impl Subtitle<Uuid7> {
 
 impl<Id> Subtitle<Id> {
   /// Canonical identity (referenced by `Media.subtitle`).
-  #[inline]
+  #[inline(always)]
   pub const fn id(&self) -> &Id {
     &self.id
   }
 
   /// FK → `Media.id`.
-  #[inline]
+  #[inline(always)]
   pub const fn parent(&self) -> &Id {
     &self.parent
   }
 
   /// Forward refs to child `SubtitleTrack`s.
-  #[inline]
+  #[inline(always)]
   pub const fn tracks(&self) -> &[Id] {
     self.tracks.as_slice()
   }
 
   /// Roll-up of each `SubtitleTrack`'s derived stage (denormalised
   /// cache; truth = per-track `SubtitleIndexStatus` + `index_errors`).
-  #[inline]
+  #[inline(always)]
   pub const fn track_progress(&self) -> &IndexProgress {
     &self.track_progress
   }
 
   /// Builder: replace `tracks`.
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub fn with_tracks(mut self, tracks: impl Into<std::vec::Vec<Id>>) -> Self {
     self.tracks = tracks.into();
     self
   }
 
   /// Builder: replace `track_progress`.
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub const fn with_track_progress(mut self, progress: IndexProgress) -> Self {
     self.track_progress = progress;
     self
   }
 
   /// In-place mutator for `tracks`.
-  #[inline]
-  pub fn set_tracks(&mut self, tracks: impl Into<std::vec::Vec<Id>>) {
+  #[inline(always)]
+  pub fn set_tracks(&mut self, tracks: impl Into<std::vec::Vec<Id>>) -> &mut Self {
     self.tracks = tracks.into();
+    self
   }
 
   /// In-place mutator for `track_progress`.
-  #[inline]
-  pub const fn set_track_progress(&mut self, progress: IndexProgress) {
+  #[inline(always)]
+  pub const fn set_track_progress(&mut self, progress: IndexProgress) -> &mut Self {
     self.track_progress = progress;
+    self
   }
 }
 
