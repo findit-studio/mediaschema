@@ -64,6 +64,26 @@ arbitrary = ["std", "buffa", "dep:arbitrary", "buffa?/arbitrary", "buffa-types?/
 # `quickcheck::Arbitrary` on the buffa wrapper types (`Bytes` /
 # `UnknownFields` / `MessageField` / `EnumValue`), which is a buffa-side
 # change. Until then `arbitrary` is the supported test-generation feature.
+# `mongodb` — bson `Document` ↔ domain mapping + per-collection `IndexModel`
+# constructors. Off by default; pulls `std` (heap-tier domain types) and
+# `json` (the serde derives the bson crate's serde-path leans on for
+# UUID/binary round-tripping). Deployer wires the returned `IndexModel`s
+# into an actual `::mongodb::Client`.
+mongodb = ["std", "json", "dep:mongodb", "dep:bson"]
+
+# ---------------------------------------------------------------------------
+# Downstream backend: `sqlx` row-mapping (Postgres / MySQL / SQLite). Each
+# backend is its own feature so consumers pay only for the database driver
+# they want. **Off by default** — none of these are in the `default` set.
+#
+# All three depend on `std` (heap-using aggregates + `jiff::Timestamp`).
+#
+# Each backend additionally pulls in the matching `sqlx/<driver>` feature
+# so `sqlx::FromRow` is implemented for the per-backend row type alias.
+sqlx-postgres = ["std", "dep:sqlx", "sqlx/postgres", "sqlx/uuid"]
+sqlx-mysql    = ["std", "dep:sqlx", "sqlx/mysql",    "sqlx/uuid"]
+sqlx-sqlite   = ["std", "dep:sqlx", "sqlx/sqlite",   "sqlx/uuid"]
+
 # Optional GraphQL backend (`src/graphql/`). Mirrors the full domain
 # aggregate surface as `#[Object]` resolvers behind manual impls
 # (domain fields are private, so `SimpleObject`'s public-field path
@@ -118,9 +138,30 @@ bitflags = { version = "2", default-features = false }
 # in the domain layer + the optional backends (buffa / sqlx / mongodb / graphql).
 thiserror = { version = "2", default-features = false }
 jiff = { version = "0.2", default-features = false, features = ["std"] }
-serde = { version = "1", optional = true }
+serde = { version = "1", optional = true, features = ["derive"] }
 serde_json = { version = "1", optional = true }
+# `sqlx` is optional and only enabled by one of the three `sqlx-<driver>`
+# features. `runtime-tokio` is needed because sqlx 0.8 requires a runtime
+# feature; `macros` enables `#[derive(sqlx::FromRow)]`. `default-features
+# = false` keeps us off the `native-tls` default so no OpenSSL dep is
+# pulled. The per-driver feature (`postgres` / `mysql` / `sqlite`) is
+# selected by the `sqlx-<driver>` umbrella feature.
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "macros"], optional = true }
 arbitrary = { version = "1", optional = true, features = ["derive"] }
+# Optional backend: bson `Document` ↔ domain + `IndexModel` for each
+# collection. `mongodb` 3.x needs its default feature set
+# (rustls-tls + dns-resolver + the async-tokio runtime) — building
+# `default-features = false` fails to compile the crate's own client
+# module (`tokio-runtime` / `sync` are not exposed feature names in 3.x).
+# **Deviation from the original brief**: the instructions said
+# `default-features = false, features = ["tokio-runtime"]`, but
+# `tokio-runtime` is not a `mongodb` 3.x feature (the runtime is on by
+# default and not gated), so we depend on the default set instead. No
+# MSRV regression (`mongodb` 3.6.0 declares `rust-version = "1.82"`,
+# safely under our 1.95 floor).
+mongodb = { version = "3", optional = true }
+bson = { version = "2", optional = true, default-features = false, features = ["chrono-0_4"] }
+
 # Optional GraphQL backend dep. `default-features = false` strips the
 # graphiql / playground / handlebars / fast_chemail / tempfile bundle
 # (we only need the schema-builder + macros). 7.x is the latest line
