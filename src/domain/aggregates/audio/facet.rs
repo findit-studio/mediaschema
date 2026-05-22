@@ -198,15 +198,24 @@ impl<Id> Audio<Id> {
 
   /// Builder: replace `tracks`.
   ///
-  /// Replacing the track list invalidates any prior indexing rollup, so
-  /// `track_progress` is reset to `{ total = new tracks.len(), indexed = 0,
-  /// failed = 0 }` — keeping the `track_progress.total() == tracks.len()`
-  /// invariant. Use [`Audio::try_with_track_progress`] afterwards to record
-  /// real progress against the new list.
+  /// Replacing the track list with a **different** list invalidates the two
+  /// rollups derived from it: `track_progress` is reset to
+  /// `{ total = new tracks.len(), indexed = 0, failed = 0 }` (keeping the
+  /// `track_progress.total() == tracks.len()` invariant) and `total_segments`
+  /// — `Σ AudioTrack.segments.len()`, which cannot be recomputed from the
+  /// id-only `tracks` list — is reset to `0`. Use
+  /// [`Audio::try_with_track_progress`] / [`Audio::with_total_segments`]
+  /// afterwards to record real values against the new list.
+  ///
+  /// Reapplying the **identical** track-id list (same ids, same order) is a
+  /// no-op for both rollups, so an idempotent save/retry that re-sets the
+  /// current list does not wipe valid progress.
   #[inline]
-  pub fn with_tracks(mut self, tracks: impl Into<std::vec::Vec<Id>>) -> Self {
-    self.tracks = tracks.into();
-    self.reset_track_progress();
+  pub fn with_tracks(mut self, tracks: impl Into<std::vec::Vec<Id>>) -> Self
+  where
+    Id: PartialEq,
+  {
+    self.replace_tracks(tracks.into());
     self
   }
 
@@ -234,12 +243,17 @@ impl<Id> Audio<Id> {
 
   /// In-place mutator for `tracks`.
   ///
-  /// As with [`Audio::with_tracks`], resets `track_progress` to
-  /// `{ total = new tracks.len(), indexed = 0, failed = 0 }`.
+  /// As with [`Audio::with_tracks`], replacing the track list with a
+  /// **different** list resets `track_progress` to
+  /// `{ total = new tracks.len(), indexed = 0, failed = 0 }` and resets
+  /// `total_segments` to `0`; reapplying the **identical** list leaves both
+  /// rollups untouched.
   #[inline]
-  pub fn set_tracks(&mut self, tracks: impl Into<std::vec::Vec<Id>>) {
-    self.tracks = tracks.into();
-    self.reset_track_progress();
+  pub fn set_tracks(&mut self, tracks: impl Into<std::vec::Vec<Id>>)
+  where
+    Id: PartialEq,
+  {
+    self.replace_tracks(tracks.into());
   }
 
   /// In-place mutator for `total_segments`.
@@ -267,13 +281,32 @@ impl<Id> Audio<Id> {
     u32::try_from(self.tracks.len()).unwrap_or(u32::MAX)
   }
 
-  /// Resets `track_progress` to the fresh rollup over the current `tracks`
-  /// (`total = tracks.len()`, `indexed = 0`, `failed = 0`).
+  /// Shared track-list replacement for [`Audio::with_tracks`] /
+  /// [`Audio::set_tracks`].
+  ///
+  /// Reapplying the **identical** id list (same ids, same order) is treated
+  /// as a no-op so an idempotent save/retry does not wipe valid rollups. A
+  /// **different** list invalidates both rollups derived from `tracks`:
+  /// `track_progress` is reset to the fresh rollup over the new list
+  /// (`total = tracks.len()`, `indexed = 0`, `failed = 0`) and
+  /// `total_segments` — `Σ AudioTrack.segments.len()`, not recomputable from
+  /// the id-only list — is reset to `0`.
   #[inline]
-  fn reset_track_progress(&mut self) {
+  fn replace_tracks(&mut self, tracks: std::vec::Vec<Id>)
+  where
+    Id: PartialEq,
+  {
+    if self.tracks == tracks {
+      // Identical list ⇒ rollups remain valid; nothing to invalidate.
+      return;
+    }
+    self.tracks = tracks;
     // `indexed + failed = 0 <= total`, so the invariant always holds.
     self.track_progress =
       IndexProgress::try_new(self.tracks_len(), 0, 0).expect("0 + 0 never exceeds total");
+    // `total_segments` cannot be recomputed from the id-only `tracks` list,
+    // so a changed track list invalidates it — reset to 0.
+    self.total_segments = 0;
   }
 }
 
@@ -385,6 +418,44 @@ mod tests {
       &IndexProgress::try_new(1, 0, 0).unwrap()
     );
     assert_eq!(a.track_progress().total() as usize, a.tracks().len());
+  }
+
+  #[test]
+  fn reapplying_identical_track_list_preserves_both_rollups() {
+    let t1 = Uuid7::new();
+    let t2 = Uuid7::new();
+    let mut a = Audio::try_new(Uuid7::new())
+      .unwrap()
+      .with_tracks(std::vec![t1, t2])
+      .with_total_segments(17)
+      .try_with_track_progress(IndexProgress::try_new(2, 1, 1).unwrap())
+      .unwrap();
+    // idempotent re-set of the SAME id list (same order) ⇒ no invalidation
+    a.set_tracks(std::vec![t1, t2]);
+    assert_eq!(a.total_segments(), 17);
+    assert_eq!(
+      a.track_progress(),
+      &IndexProgress::try_new(2, 1, 1).unwrap()
+    );
+  }
+
+  #[test]
+  fn changing_track_list_invalidates_both_rollups() {
+    let t1 = Uuid7::new();
+    let t2 = Uuid7::new();
+    let mut a = Audio::try_new(Uuid7::new())
+      .unwrap()
+      .with_tracks(std::vec![t1, t2])
+      .with_total_segments(17)
+      .try_with_track_progress(IndexProgress::try_new(2, 1, 1).unwrap())
+      .unwrap();
+    // a DIFFERENT track list invalidates total_segments + track_progress
+    a.set_tracks(std::vec![Uuid7::new()]);
+    assert_eq!(a.total_segments(), 0);
+    assert_eq!(a.track_progress().total(), 1);
+    assert_eq!(a.track_progress().total() as usize, a.tracks().len());
+    assert_eq!(a.track_progress().indexed(), 0);
+    assert_eq!(a.track_progress().failed(), 0);
   }
 
   #[test]
