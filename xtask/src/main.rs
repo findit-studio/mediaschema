@@ -42,10 +42,6 @@ fn gen() {
         // json/arbitrary generically, so no extra dependency or feature
         // wiring is required.
         .use_bytes_type()
-        .type_attribute(
-            ".",
-            "#[cfg_attr(feature = \"quickcheck\", derive(::mediaschema_derive::QuickcheckArbitrary))]",
-        )
         .compile()
         .expect("buffa codegen failed");
 

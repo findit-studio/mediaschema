@@ -24,6 +24,7 @@ pub mod cue;
 pub mod facet;
 pub mod track;
 
+pub use crate::domain::vo::IndexProgress;
 pub use cue::{SubtitleCue, SubtitleCueError};
-pub use facet::{IndexProgress, Subtitle, SubtitleError};
+pub use facet::{Subtitle, SubtitleError};
 pub use track::{SubtitleTrack, SubtitleTrackError};
