@@ -233,13 +233,13 @@ mod tests {
   /// Build a wire `Location` (`Local` arm) carrying just a volume UUID.
   fn wire_local(volume: &Uuid7) -> wire::Location {
     wire::Location {
-      kind: Some(wire::location::Kind::Local(::buffa::alloc::boxed::Box::new(
-        wire::Local {
+      kind: Some(wire::location::Kind::Local(
+        ::buffa::alloc::boxed::Box::new(wire::Local {
           volume: ::buffa::MessageField::some(wire::Id::from(volume)),
           components: std::vec::Vec::new(),
           __buffa_unknown_fields: Default::default(),
-        },
-      ))),
+        }),
+      )),
       __buffa_unknown_fields: Default::default(),
     }
   }

@@ -97,7 +97,128 @@ CREATE TABLE IF NOT EXISTS scene_annotation_user_tag (
     KEY idx_saut_user_tag (user_tag)
 );
 
--- The facet + track + per-track-analysis tables (audio, video, subtitle,
--- audio_track, video_track, subtitle_track, audio_segment, scene,
--- keyframe, subtitle_cue) are tracked as a follow-up — see the SQLite
--- schema for the same scope note.
+-- Audio-cluster: the `Audio` facet + `AudioTrack` + `AudioSegment`
+-- (+ the `Word` / `index_errors` child tables). Nested value-objects are
+-- flattened into real columns; collections ride in child tables with an
+-- `ordinal` order column; reverse-FK `Vec<Id>` fields are not stored.
+
+CREATE TABLE IF NOT EXISTS audio (
+    id                     BINARY(16) NOT NULL,
+    parent                 BINARY(16) NOT NULL,
+    total_segments         BIGINT     NOT NULL DEFAULT 0,
+    track_progress_total   BIGINT     NOT NULL DEFAULT 0,
+    track_progress_indexed BIGINT     NOT NULL DEFAULT 0,
+    track_progress_failed  BIGINT     NOT NULL DEFAULT 0,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_audio_parent (parent)
+);
+
+CREATE TABLE IF NOT EXISTS audio_track (
+    id                        BINARY(16)   NOT NULL,
+    audio_id                  BINARY(16)   NOT NULL,
+    stream_index              BIGINT,
+    container_track_id        BIGINT,
+    codec                     VARCHAR(64)  NOT NULL,
+    profile                   VARCHAR(64)  NOT NULL,
+    sample_rate               BIGINT       NOT NULL DEFAULT 0,
+    channels                  INT          NOT NULL DEFAULT 0,
+    channel_layout            VARCHAR(64)  NOT NULL,
+    bit_rate                  BIGINT       NOT NULL DEFAULT 0,
+    bit_rate_mode             INT,
+    bits_per_sample           INT,
+    is_lossless               TINYINT      NOT NULL DEFAULT 0,
+    duration_pts              BIGINT,
+    duration_tb_num           BIGINT,
+    duration_tb_den           BIGINT,
+    start_pts                 BIGINT,
+    start_pts_tb_num          BIGINT,
+    start_pts_tb_den          BIGINT,
+    language                  VARCHAR(64),
+    detected_language         VARCHAR(64),
+    disposition               BIGINT       NOT NULL DEFAULT 0,
+    is_primary                TINYINT      NOT NULL DEFAULT 0,
+    auto_selected             TINYINT      NOT NULL DEFAULT 0,
+    content                   SMALLINT,
+    speech_ratio              FLOAT,
+    is_silent                 TINYINT      NOT NULL DEFAULT 0,
+    has_loudness              TINYINT      NOT NULL DEFAULT 0,
+    loudness_integrated_lufs  FLOAT,
+    loudness_range_lu         FLOAT,
+    loudness_true_peak_dbtp   FLOAT,
+    loudness_sample_peak_dbfs FLOAT,
+    fingerprint_algo          VARCHAR(64),
+    fingerprint_value         BLOB,
+    isrc                      VARCHAR(64)  NOT NULL,
+    acoustid                  VARCHAR(64)  NOT NULL,
+    musicbrainz_recording_id  VARCHAR(64)  NOT NULL,
+    has_tags                  TINYINT      NOT NULL DEFAULT 0,
+    tags_title                TEXT,
+    tags_artist               TEXT,
+    tags_album_artist         TEXT,
+    tags_album                TEXT,
+    tags_composer             TEXT,
+    tags_genre                TEXT,
+    tags_comment              TEXT,
+    tags_year                 INT,
+    tags_track_number         INT,
+    tags_track_total          INT,
+    tags_disc_number          INT,
+    tags_disc_total           INT,
+    tags_language             VARCHAR(64),
+    cover_art_mime            VARCHAR(255),
+    cover_art_data            LONGBLOB,
+    provenance_model_name     VARCHAR(255) NOT NULL,
+    provenance_model_version  VARCHAR(255) NOT NULL,
+    provenance_prompt_version VARCHAR(255) NOT NULL,
+    provenance_indexer_version VARCHAR(255) NOT NULL,
+    index_status              BIGINT       NOT NULL DEFAULT 0,
+    PRIMARY KEY (id),
+    KEY idx_audio_track_audio_id (audio_id)
+);
+
+CREATE TABLE IF NOT EXISTS audio_track_index_error (
+    audio_track BINARY(16) NOT NULL,
+    ordinal     INT        NOT NULL,
+    code        INT        NOT NULL,
+    message     TEXT       NOT NULL,
+    PRIMARY KEY (audio_track, ordinal),
+    KEY idx_atie_audio_track (audio_track)
+);
+
+CREATE TABLE IF NOT EXISTS audio_segment (
+    id              BINARY(16)   NOT NULL,
+    parent          BINARY(16)   NOT NULL,
+    `index`         BIGINT       NOT NULL,
+    span_start_pts  BIGINT       NOT NULL,
+    span_end_pts    BIGINT       NOT NULL,
+    span_tb_num     BIGINT       NOT NULL,
+    span_tb_den     BIGINT       NOT NULL,
+    speaker         BINARY(16),
+    text_src        TEXT         NOT NULL,
+    text_translated TEXT         NOT NULL,
+    language        VARCHAR(64),
+    no_speech_prob  FLOAT,
+    avg_logprob     FLOAT,
+    temperature     FLOAT,
+    PRIMARY KEY (id),
+    KEY idx_audio_segment_parent (parent)
+);
+
+CREATE TABLE IF NOT EXISTS audio_segment_word (
+    audio_segment  BINARY(16) NOT NULL,
+    ordinal        INT        NOT NULL,
+    text           TEXT       NOT NULL,
+    span_start_pts BIGINT     NOT NULL,
+    span_end_pts   BIGINT     NOT NULL,
+    span_tb_num    BIGINT     NOT NULL,
+    span_tb_den    BIGINT     NOT NULL,
+    score          FLOAT      NOT NULL,
+    language       VARCHAR(64),
+    PRIMARY KEY (audio_segment, ordinal),
+    KEY idx_asw_audio_segment (audio_segment)
+);
+
+-- The video + subtitle facet/track/per-track-analysis tables (video,
+-- subtitle, video_track, subtitle_track, scene, keyframe, subtitle_cue)
+-- are tracked as a follow-up — see the SQLite schema for the same scope
+-- note.
