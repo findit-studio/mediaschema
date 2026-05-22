@@ -9,12 +9,11 @@
 //!
 //! - [`error`] — backend-specific [`SqlxError`] (`Debug + Clone + PartialEq +
 //!   Eq + IsVariant + non_exhaustive`, implements [`core::error::Error`]).
-//! - [`dto`] — serde-serializable DTOs mirroring the cross-cutting
-//!   value-objects (`Provenance`, `LocalizedText`, the mediaframe
-//!   capture `Device` / `GeoLocation`, `ErrorInfo`, the structured
-//!   `Location` oneof) plus helpers for the 16-byte UUID / 32-byte
-//!   checksum byte conversions. The DTOs are shared across all three
-//!   backends.
+//! - [`dto`] — shared row-mapping helpers for the 16-byte UUID /
+//!   32-byte checksum / ms-timestamp conversions. Nested value-objects
+//!   are no longer stored as JSON DTOs — each scalar VO is flattened
+//!   into its own real columns and the one many-to-many collection
+//!   rides in a join table.
 //! - [`postgres`] / [`mysql`] / [`sqlite`] — per-backend modules. Each
 //!   ships row structs with `sqlx::FromRow` derives, `TryFrom` impls
 //!   going to/from the domain aggregates, the canonical `schema.sql`
@@ -29,11 +28,14 @@
 //! - **File checksum** (`FileChecksum`): `BYTEA` (Postgres),
 //!   `BINARY(32)` (MySQL), `BLOB(32)` (SQLite). Round-trip via
 //!   [`dto::bytes_to_checksum`].
-//! - **Nested value-objects** (`Provenance`, `LocalizedText`, capture
-//!   `Device`, capture `GeoLocation`, `ErrorInfo`, `Location`): stored
-//!   as `JSONB` (Postgres) / `JSON` (MySQL) / `TEXT` containing JSON
-//!   (SQLite). The DTO module owns the canonical wire shape so all
-//!   three backends round-trip identical bytes.
+//! - **Nested value-objects** (capture `Device`, capture `GeoLocation`,
+//!   `ErrorInfo`): flattened into real, individually-indexable columns
+//!   (e.g. `Device` → `device_make` / `device_model`, `ErrorInfo` →
+//!   `*_error_code` / `*_error_message`). Presence is encoded by the
+//!   discriminating column's nullability — no JSON columns.
+//! - **Collections** (`SceneAnnotation::user_tags`): a many-to-many
+//!   join table (`scene_annotation_user_tag`) with an `ordinal` column
+//!   preserving the in-aggregate order.
 //! - **Domain enums** (`MediaKind`, `ScanStatus`, `SubtitleKind`,
 //!   `AudioContentKind`, the `*IndexStage` types): mapped to `SMALLINT`
 //!   (Postgres) / `TINYINT` (MySQL) / `INTEGER` (SQLite) via the enum
@@ -51,22 +53,18 @@
 //! Fully mapped (round-trip tests + schema): `Media` (incl. the
 //! published [`mediaframe::container::Format`] container slug and the
 //! [`mediaframe::capture::Device`] / [`mediaframe::capture::GeoLocation`]
-//! EXIF descriptors, bridged through `dto::DeviceDto` / `dto::GeoLocationDto`),
-//! `WatchedLocation`, `Speaker`, `UserTag`, `SceneAnnotation`, plus the
-//! three facet aggregates (`Audio`, `Video`, `Subtitle`) and the
-//! `IndexProgress` VO.
+//! EXIF descriptors, flattened into real columns),
+//! `WatchedLocation`, `Speaker`, `UserTag`, `SceneAnnotation` (with its
+//! `scene_annotation_user_tag` join table).
 //!
 //! The track-level aggregates (`AudioTrack`, `VideoTrack`,
 //! `SubtitleTrack`) and per-track analysis aggregates (`AudioSegment`,
 //! `Scene`, `Keyframe`, `SubtitleCue`) carry deep nested
 //! [`mediaframe`] descriptor VOs (codecs, `ChannelLayout`, `Loudness`,
 //! `Fingerprint`, `PixelFormat`, `color::Info`, `Dimensions`, the frame
-//! geometry enums, subtitle `Format` / `TrackOrigin`, …). The published
-//! `mediaframe 0.1.0` types carry **no serde derives**, so each would
-//! need its own hand-rolled `*Dto` bridge (as `DeviceDto` /
-//! `GeoLocationDto` do here); their full row-struct surface is **tracked
-//! as a follow-up PR** to keep this revision focused. The per-backend
-//! `schema.sql` includes commented stubs for the deferred tables.
+//! geometry enums, subtitle `Format` / `TrackOrigin`, …). Their
+//! flattened-column row-struct surface is **tracked as a follow-up PR**
+//! to keep this revision focused.
 
 pub mod dto;
 pub mod error;

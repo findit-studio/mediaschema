@@ -7,11 +7,12 @@ use mediaframe::{
 use uuid::Uuid;
 
 use crate::{
-  domain::{aggregates::media::MediaError, ErrorInfo, Media, MediaErrorFlags, MediaKind, Uuid7},
+  domain::{
+    aggregates::media::MediaError, ErrorCode, ErrorInfo, Media, MediaErrorFlags, MediaKind, Uuid7,
+  },
   sqlx::{
     dto::{
-      bytes_to_checksum, from_json_str, millis_to_timestamp, timestamp_to_millis, to_json_string,
-      uuid7_to_uuid, uuid_to_uuid7, DeviceDto, ErrorInfoDto, GeoLocationDto,
+      bytes_to_checksum, millis_to_timestamp, timestamp_to_millis, uuid7_to_uuid, uuid_to_uuid7,
     },
     SqlxError,
   },
@@ -29,10 +30,18 @@ pub struct PgMediaRow {
   pub audio: Option<Uuid>,
   pub subtitle: Option<Uuid>,
   pub error_flags: i32,
-  pub probe_error_json: Option<String>,
+  /// `ErrorInfo.code` as the verified `u32` wire value; NULL = no probe
+  /// error. Discriminates presence of the flattened `ErrorInfo` VO.
+  pub probe_error_code: Option<i32>,
+  pub probe_error_message: Option<String>,
   pub capture_date_ms: Option<i64>,
-  pub device_json: Option<String>,
-  pub gps_json: Option<String>,
+  /// Capture `Device.make`; both `device_*` NULL = absent `Device`.
+  pub device_make: Option<String>,
+  pub device_model: Option<String>,
+  /// `GeoLocation.lat`; NULL discriminates an absent `GeoLocation`.
+  pub gps_lat: Option<f64>,
+  pub gps_lon: Option<f64>,
+  pub gps_altitude: Option<f32>,
 }
 
 fn media_kind_to_i16(k: MediaKind) -> i16 {
@@ -54,6 +63,9 @@ fn media_kind_from_i16(n: i16) -> Result<MediaKind, SqlxError> {
 
 impl From<&Media<Uuid7>> for PgMediaRow {
   fn from(m: &Media<Uuid7>) -> Self {
+    let probe_error = m.probe_error_ref();
+    let device = m.device_ref();
+    let gps = m.gps_ref();
     Self {
       id: uuid7_to_uuid(*m.id_ref()),
       checksum: m.checksum_ref().as_bytes().to_vec(),
@@ -65,16 +77,14 @@ impl From<&Media<Uuid7>> for PgMediaRow {
       audio: m.audio_ref().map(|id| uuid7_to_uuid(*id)),
       subtitle: m.subtitle_ref().map(|id| uuid7_to_uuid(*id)),
       error_flags: i32::from(m.error_flags().bits()),
-      probe_error_json: m
-        .probe_error_ref()
-        .map(|e| to_json_string(&ErrorInfoDto::from(e)).expect("ErrorInfoDto serialises")),
+      probe_error_code: probe_error.map(|e| e.code().as_u32() as i32),
+      probe_error_message: probe_error.map(|e| e.message().to_owned()),
       capture_date_ms: m.capture_date_ref().map(|t| timestamp_to_millis(*t)),
-      device_json: m
-        .device_ref()
-        .map(|d| to_json_string(&DeviceDto::from(d)).expect("DeviceDto serialises")),
-      gps_json: m
-        .gps_ref()
-        .map(|g| to_json_string(&GeoLocationDto::from(g)).expect("GeoLocationDto serialises")),
+      device_make: device.map(|d| d.make().to_owned()),
+      device_model: device.map(|d| d.model().to_owned()),
+      gps_lat: gps.map(GeoLocation::lat),
+      gps_lon: gps.map(GeoLocation::lon),
+      gps_altitude: gps.and_then(GeoLocation::altitude),
     }
   }
 }
@@ -109,20 +119,34 @@ impl TryFrom<PgMediaRow> for Media<Uuid7> {
     let flag_bits = u16::try_from(r.error_flags)
       .map_err(|e| SqlxError::UnknownDiscriminant(format!("Media.error_flags: {e}")))?;
     m = m.with_error_flags(MediaErrorFlags::from_bits_truncate(flag_bits));
-    if let Some(j) = r.probe_error_json {
-      let dto: ErrorInfoDto = from_json_str(&j)?;
-      m = m.with_probe_error(Some(ErrorInfo::from(dto)));
+    if let Some(code) = r.probe_error_code {
+      let code = u32::try_from(code)
+        .map_err(|e| SqlxError::UnknownDiscriminant(format!("Media.probe_error_code: {e}")))?;
+      m = m.with_probe_error(Some(ErrorInfo::new(
+        ErrorCode::from_u32(code),
+        r.probe_error_message.unwrap_or_default(),
+      )));
     }
     if let Some(ms) = r.capture_date_ms {
       m = m.with_capture_date(Some(millis_to_timestamp(ms)?));
     }
-    if let Some(j) = r.device_json {
-      let dto: DeviceDto = from_json_str(&j)?;
-      m = m.with_device(Some(Device::from(dto)));
+    if r.device_make.is_some() || r.device_model.is_some() {
+      m = m.with_device(Some(
+        Device::new()
+          .with_make(r.device_make.unwrap_or_default())
+          .with_model(r.device_model.unwrap_or_default()),
+      ));
     }
-    if let Some(j) = r.gps_json {
-      let dto: GeoLocationDto = from_json_str(&j)?;
-      m = m.with_gps(Some(GeoLocation::try_from(dto)?));
+    if let Some(lat) = r.gps_lat {
+      let lon = r.gps_lon.ok_or_else(|| {
+        SqlxError::DomainConstructorRejected(
+          "Media.gps_lon missing while gps_lat present".to_owned(),
+        )
+      })?;
+      m = m.with_gps(Some(
+        GeoLocation::try_new(lat, lon, r.gps_altitude)
+          .map_err(|e| SqlxError::DomainConstructorRejected(format!("GeoLocation: {e}")))?,
+      ));
     }
     Ok(m)
   }
@@ -145,14 +169,35 @@ mod tests {
 
   #[test]
   fn media_roundtrip() {
-    let m = Media::try_new(Uuid7::new(), fake_checksum(), Format::Mp4, 1, MediaKind::Video)
-      .unwrap()
-      .with_device(Some(Device::new().with_make("Apple").with_model("iPhone")));
+    let m = Media::try_new(
+      Uuid7::new(),
+      fake_checksum(),
+      Format::Mp4,
+      1,
+      MediaKind::Video,
+    )
+    .unwrap()
+    .with_device(Some(Device::new().with_make("Apple").with_model("iPhone")))
+    .with_gps(Some(
+      GeoLocation::try_new(37.7749, -122.4194, Some(20.0)).unwrap(),
+    ))
+    .with_probe_error(Some(ErrorInfo::new(ErrorCode::ProbeCorrupt, "bad header")));
     let row: PgMediaRow = (&m).into();
     let m2: Media<Uuid7> = row.try_into().unwrap();
     assert_eq!(m.id_ref(), m2.id_ref());
     assert_eq!(m.checksum_ref(), m2.checksum_ref());
     assert_eq!(m2.device_ref().unwrap().make(), "Apple");
+    let g = m2.gps_ref().unwrap();
+    assert_eq!(g.lat(), 37.7749);
+    assert_eq!(g.altitude(), Some(20.0));
+    assert_eq!(
+      m2.probe_error_ref().map(|e| e.code()),
+      Some(ErrorCode::ProbeCorrupt)
+    );
+    assert_eq!(
+      m2.probe_error_ref().map(|e| e.message()),
+      Some("bad header")
+    );
   }
 
   #[test]
@@ -168,10 +213,14 @@ mod tests {
       audio: None,
       subtitle: None,
       error_flags: 0,
-      probe_error_json: None,
+      probe_error_code: None,
+      probe_error_message: None,
       capture_date_ms: None,
-      device_json: None,
-      gps_json: None,
+      device_make: None,
+      device_model: None,
+      gps_lat: None,
+      gps_lon: None,
+      gps_altitude: None,
     };
     let err = Media::<Uuid7>::try_from(row).unwrap_err();
     assert!(err.is_invalid_uuid());

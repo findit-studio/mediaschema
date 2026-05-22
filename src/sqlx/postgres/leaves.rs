@@ -1,8 +1,9 @@
 //! PostgreSQL row structs for the leaf aggregates.
 //!
 //! UUIDs are native `uuid` (`uuid::Uuid`), checksums are `BYTEA`
-//! (`Vec<u8>`), JSON columns are `JSONB` read as `String` (queries must
-//! select `column::text`). Wall-clock timestamps are `BIGINT`
+//! (`Vec<u8>`). Nested value-objects are flattened into real columns;
+//! `SceneAnnotation::user_tags` rides in the `scene_annotation_user_tag`
+//! join table. Wall-clock timestamps are `BIGINT`
 //! milliseconds-since-epoch.
 
 use uuid::Uuid;
@@ -14,13 +15,11 @@ use crate::{
       speaker::SpeakerError,
       watched_location::WatchedLocationError,
     },
-    Rgba, ScanStatus, SceneAnnotation, Speaker, UserTag, Uuid7, WatchedLocation,
+    ErrorCode, ErrorInfo, Rgba, ScanStatus, SceneAnnotation, Speaker, UserTag, Uuid7,
+    WatchedLocation,
   },
   sqlx::{
-    dto::{
-      from_json_str, millis_to_timestamp, timestamp_to_millis, to_json_string, uuid7_to_uuid,
-      uuid_to_uuid7, ErrorInfoDto,
-    },
+    dto::{millis_to_timestamp, timestamp_to_millis, uuid7_to_uuid, uuid_to_uuid7},
     SqlxError,
   },
 };
@@ -103,7 +102,7 @@ impl TryFrom<PgUserTagRow> for UserTag<Uuid7> {
 }
 
 // ---------------------------------------------------------------------------
-// SceneAnnotationRow
+// SceneAnnotationRow + join table
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
@@ -111,43 +110,71 @@ pub struct PgSceneAnnotationRow {
   pub id: Uuid,
   pub scene: Uuid,
   pub favorite: bool,
-  pub user_tags_json: String,
   pub rating: Option<i16>,
   pub note: String,
   pub updated_at_ms: i64,
 }
 
-impl From<&SceneAnnotation<Uuid7>> for PgSceneAnnotationRow {
+/// One `scene_annotation_user_tag` join row: a single (annotation, tag)
+/// edge with the tag's `ordinal` position in `SceneAnnotation::user_tags`.
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct PgSceneAnnotationUserTagRow {
+  pub scene_annotation: Uuid,
+  pub user_tag: Uuid,
+  pub ordinal: i32,
+}
+
+impl From<&SceneAnnotation<Uuid7>>
+  for (
+    PgSceneAnnotationRow,
+    std::vec::Vec<PgSceneAnnotationUserTagRow>,
+  )
+{
   fn from(a: &SceneAnnotation<Uuid7>) -> Self {
-    let tag_strs: std::vec::Vec<String> = a.user_tags_slice().iter().map(|t| t.to_string()).collect();
-    Self {
-      id: uuid7_to_uuid(*a.id_ref()),
+    let annotation = uuid7_to_uuid(*a.id_ref());
+    let joins = a
+      .user_tags_slice()
+      .iter()
+      .enumerate()
+      .map(|(i, tag)| PgSceneAnnotationUserTagRow {
+        scene_annotation: annotation,
+        user_tag: uuid7_to_uuid(*tag),
+        ordinal: i as i32,
+      })
+      .collect();
+    let row = PgSceneAnnotationRow {
+      id: annotation,
       scene: uuid7_to_uuid(*a.scene_ref()),
       favorite: a.is_favorite(),
-      user_tags_json: to_json_string(&tag_strs).unwrap_or_else(|_| "[]".to_owned()),
       rating: a.rating().map(i16::from),
       note: a.note().to_owned(),
       updated_at_ms: timestamp_to_millis(*a.updated_at_ref()),
-    }
+    };
+    (row, joins)
   }
 }
 
-impl TryFrom<PgSceneAnnotationRow> for SceneAnnotation<Uuid7> {
+impl
+  TryFrom<(
+    PgSceneAnnotationRow,
+    std::vec::Vec<PgSceneAnnotationUserTagRow>,
+  )> for SceneAnnotation<Uuid7>
+{
   type Error = SqlxError;
 
-  fn try_from(r: PgSceneAnnotationRow) -> Result<Self, Self::Error> {
+  fn try_from(
+    (r, mut joins): (
+      PgSceneAnnotationRow,
+      std::vec::Vec<PgSceneAnnotationUserTagRow>,
+    ),
+  ) -> Result<Self, Self::Error> {
     let id = uuid_to_uuid7(r.id)?;
     let scene = uuid_to_uuid7(r.scene)?;
     let updated_at = millis_to_timestamp(r.updated_at_ms)?;
-    let tag_strs: std::vec::Vec<String> = from_json_str(&r.user_tags_json)?;
-    let mut tags = std::vec::Vec::with_capacity(tag_strs.len());
-    for s in tag_strs {
-      tags.push(
-        s.parse()
-          .map_err(|e: crate::domain::primitives::Uuid7Error| {
-            SqlxError::InvalidUuid(format!("SceneAnnotation.user_tags: {e}"))
-          })?,
-      );
+    joins.sort_by_key(|j| j.ordinal);
+    let mut tags = std::vec::Vec::with_capacity(joins.len());
+    for j in joins {
+      tags.push(uuid_to_uuid7(j.user_tag)?);
     }
     let rating = match r.rating {
       None => None,
@@ -181,7 +208,10 @@ pub struct PgWatchedLocationRow {
   pub added_at_ms: i64,
   pub last_reconciled_at_ms: Option<i64>,
   pub last_reconcile_status: Option<i16>,
-  pub last_error_json: Option<String>,
+  /// `ErrorInfo.code` as the verified `u32` wire value; NULL = no error.
+  /// Discriminates presence of the flattened `ErrorInfo` VO.
+  pub last_error_code: Option<i32>,
+  pub last_error_message: Option<String>,
 }
 
 fn scan_status_to_i16(s: ScanStatus) -> i16 {
@@ -205,6 +235,7 @@ fn scan_status_from_i16(n: i16) -> Result<ScanStatus, SqlxError> {
 
 impl From<&WatchedLocation<Uuid7>> for PgWatchedLocationRow {
   fn from(w: &WatchedLocation<Uuid7>) -> Self {
+    let last_error = w.last_error_ref();
     Self {
       id: uuid7_to_uuid(*w.id_ref()),
       volume: uuid7_to_uuid(*w.volume_ref()),
@@ -217,9 +248,8 @@ impl From<&WatchedLocation<Uuid7>> for PgWatchedLocationRow {
         .last_reconcile_status_ref()
         .copied()
         .map(scan_status_to_i16),
-      last_error_json: w
-        .last_error_ref()
-        .map(|e| to_json_string(&ErrorInfoDto::from(e)).expect("ErrorInfoDto serialises")),
+      last_error_code: last_error.map(|e| e.code().as_u32() as i32),
+      last_error_message: last_error.map(|e| e.message().to_owned()),
     }
   }
 }
@@ -242,9 +272,14 @@ impl TryFrom<PgWatchedLocationRow> for WatchedLocation<Uuid7> {
     if let Some(s) = r.last_reconcile_status {
       w = w.with_last_reconcile_status(Some(scan_status_from_i16(s)?));
     }
-    if let Some(j) = r.last_error_json {
-      let dto: ErrorInfoDto = from_json_str(&j)?;
-      w = w.with_last_error(Some(dto.into()));
+    if let Some(code) = r.last_error_code {
+      let code = u32::try_from(code).map_err(|e| {
+        SqlxError::UnknownDiscriminant(format!("WatchedLocation.last_error_code: {e}"))
+      })?;
+      w = w.with_last_error(Some(ErrorInfo::new(
+        ErrorCode::from_u32(code),
+        r.last_error_message.unwrap_or_default(),
+      )));
     }
     Ok(w)
   }
@@ -257,7 +292,6 @@ impl TryFrom<PgWatchedLocationRow> for WatchedLocation<Uuid7> {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::domain::{ErrorCode, ErrorInfo};
   use jiff::Timestamp as JiffTimestamp;
 
   fn ts() -> JiffTimestamp {
@@ -283,13 +317,39 @@ mod tests {
 
   #[test]
   fn scene_annotation_roundtrip() {
+    let t1 = Uuid7::new();
+    let t2 = Uuid7::new();
     let a = SceneAnnotation::try_new(Uuid7::new(), Uuid7::new(), ts())
       .unwrap()
-      .with_favorite(true);
-    let row: PgSceneAnnotationRow = (&a).into();
-    let a2: SceneAnnotation<Uuid7> = row.try_into().unwrap();
+      .with_favorite(true)
+      .with_user_tags(std::vec![t1, t2]);
+    let tuple: (
+      PgSceneAnnotationRow,
+      std::vec::Vec<PgSceneAnnotationUserTagRow>,
+    ) = (&a).into();
+    assert_eq!(tuple.1.len(), 2);
+    let a2: SceneAnnotation<Uuid7> = tuple.try_into().unwrap();
     assert_eq!(a.id_ref(), a2.id_ref());
     assert!(a2.is_favorite());
+    assert_eq!(a2.user_tags_slice(), &[t1, t2]);
+  }
+
+  #[test]
+  fn scene_annotation_join_rows_rebuild_in_ordinal_order() {
+    let t1 = Uuid7::new();
+    let t2 = Uuid7::new();
+    let t3 = Uuid7::new();
+    let a = SceneAnnotation::try_new(Uuid7::new(), Uuid7::new(), ts())
+      .unwrap()
+      .with_user_tags(std::vec![t1, t2, t3]);
+    let (row, mut joins): (
+      PgSceneAnnotationRow,
+      std::vec::Vec<PgSceneAnnotationUserTagRow>,
+    ) = (&a).into();
+    // Shuffle the join rows — TryFrom must sort by ordinal.
+    joins.reverse();
+    let a2: SceneAnnotation<Uuid7> = (row, joins).try_into().unwrap();
+    assert_eq!(a2.user_tags_slice(), &[t1, t2, t3]);
   }
 
   #[test]

@@ -1,8 +1,9 @@
 //! MySQL row structs for the leaf aggregates.
 //!
-//! UUIDs are `BINARY(16)` (`Vec<u8>` in sqlx), checksums `BINARY(32)`,
-//! JSON-shaped nested VOs are `JSON` columns read as `String`,
-//! wall-clock timestamps are `BIGINT` ms-since-epoch (`i64`).
+//! UUIDs are `BINARY(16)` (`Vec<u8>` in sqlx), checksums `BINARY(32)`.
+//! Nested value-objects are flattened into real columns;
+//! `SceneAnnotation::user_tags` rides in the `scene_annotation_user_tag`
+//! join table. Wall-clock timestamps are `BIGINT` ms-since-epoch (`i64`).
 
 use crate::{
   domain::{
@@ -11,13 +12,11 @@ use crate::{
       speaker::SpeakerError,
       watched_location::WatchedLocationError,
     },
-    Rgba, ScanStatus, SceneAnnotation, Speaker, UserTag, Uuid7, WatchedLocation,
+    ErrorCode, ErrorInfo, Rgba, ScanStatus, SceneAnnotation, Speaker, UserTag, Uuid7,
+    WatchedLocation,
   },
   sqlx::{
-    dto::{
-      bytes_to_uuid7, from_json_str, millis_to_timestamp, timestamp_to_millis, to_json_string,
-      ErrorInfoDto,
-    },
+    dto::{bytes_to_uuid7, millis_to_timestamp, timestamp_to_millis},
     SqlxError,
   },
 };
@@ -97,7 +96,7 @@ impl TryFrom<MySqlUserTagRow> for UserTag<Uuid7> {
 }
 
 // ---------------------------------------------------------------------------
-// SceneAnnotationRow
+// SceneAnnotationRow + join table
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
@@ -105,43 +104,71 @@ pub struct MySqlSceneAnnotationRow {
   pub id: std::vec::Vec<u8>,
   pub scene: std::vec::Vec<u8>,
   pub favorite: i8,
-  pub user_tags_json: String,
   pub rating: Option<u8>,
   pub note: String,
   pub updated_at_ms: i64,
 }
 
-impl From<&SceneAnnotation<Uuid7>> for MySqlSceneAnnotationRow {
+/// One `scene_annotation_user_tag` join row: a single (annotation, tag)
+/// edge with the tag's `ordinal` position in `SceneAnnotation::user_tags`.
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct MySqlSceneAnnotationUserTagRow {
+  pub scene_annotation: std::vec::Vec<u8>,
+  pub user_tag: std::vec::Vec<u8>,
+  pub ordinal: i32,
+}
+
+impl From<&SceneAnnotation<Uuid7>>
+  for (
+    MySqlSceneAnnotationRow,
+    std::vec::Vec<MySqlSceneAnnotationUserTagRow>,
+  )
+{
   fn from(a: &SceneAnnotation<Uuid7>) -> Self {
-    let tag_strs: std::vec::Vec<String> = a.user_tags_slice().iter().map(|t| t.to_string()).collect();
-    Self {
-      id: a.id_ref().as_bytes().to_vec(),
+    let annotation = a.id_ref().as_bytes().to_vec();
+    let joins = a
+      .user_tags_slice()
+      .iter()
+      .enumerate()
+      .map(|(i, tag)| MySqlSceneAnnotationUserTagRow {
+        scene_annotation: annotation.clone(),
+        user_tag: tag.as_bytes().to_vec(),
+        ordinal: i as i32,
+      })
+      .collect();
+    let row = MySqlSceneAnnotationRow {
+      id: annotation,
       scene: a.scene_ref().as_bytes().to_vec(),
       favorite: i8::from(a.is_favorite()),
-      user_tags_json: to_json_string(&tag_strs).unwrap_or_else(|_| "[]".to_owned()),
       rating: a.rating(),
       note: a.note().to_owned(),
       updated_at_ms: timestamp_to_millis(*a.updated_at_ref()),
-    }
+    };
+    (row, joins)
   }
 }
 
-impl TryFrom<MySqlSceneAnnotationRow> for SceneAnnotation<Uuid7> {
+impl
+  TryFrom<(
+    MySqlSceneAnnotationRow,
+    std::vec::Vec<MySqlSceneAnnotationUserTagRow>,
+  )> for SceneAnnotation<Uuid7>
+{
   type Error = SqlxError;
 
-  fn try_from(r: MySqlSceneAnnotationRow) -> Result<Self, Self::Error> {
+  fn try_from(
+    (r, mut joins): (
+      MySqlSceneAnnotationRow,
+      std::vec::Vec<MySqlSceneAnnotationUserTagRow>,
+    ),
+  ) -> Result<Self, Self::Error> {
     let id = bytes_to_uuid7(&r.id)?;
     let scene = bytes_to_uuid7(&r.scene)?;
     let updated_at = millis_to_timestamp(r.updated_at_ms)?;
-    let tag_strs: std::vec::Vec<String> = from_json_str(&r.user_tags_json)?;
-    let mut tags = std::vec::Vec::with_capacity(tag_strs.len());
-    for s in tag_strs {
-      tags.push(
-        s.parse()
-          .map_err(|e: crate::domain::primitives::Uuid7Error| {
-            SqlxError::InvalidUuid(format!("SceneAnnotation.user_tags: {e}"))
-          })?,
-      );
+    joins.sort_by_key(|j| j.ordinal);
+    let mut tags = std::vec::Vec::with_capacity(joins.len());
+    for j in joins {
+      tags.push(bytes_to_uuid7(&j.user_tag)?);
     }
     let ann = SceneAnnotation::try_new(id, scene, updated_at)
       .map_err(|e: SceneAnnotationError| SqlxError::DomainConstructorRejected(e.to_string()))?
@@ -167,7 +194,10 @@ pub struct MySqlWatchedLocationRow {
   pub added_at_ms: i64,
   pub last_reconciled_at_ms: Option<i64>,
   pub last_reconcile_status: Option<i16>,
-  pub last_error_json: Option<String>,
+  /// `ErrorInfo.code` as the verified `u32` wire value; NULL = no error.
+  /// Discriminates presence of the flattened `ErrorInfo` VO.
+  pub last_error_code: Option<i32>,
+  pub last_error_message: Option<String>,
 }
 
 fn scan_status_to_i16(s: ScanStatus) -> i16 {
@@ -191,6 +221,7 @@ fn scan_status_from_i16(n: i16) -> Result<ScanStatus, SqlxError> {
 
 impl From<&WatchedLocation<Uuid7>> for MySqlWatchedLocationRow {
   fn from(w: &WatchedLocation<Uuid7>) -> Self {
+    let last_error = w.last_error_ref();
     Self {
       id: w.id_ref().as_bytes().to_vec(),
       volume: w.volume_ref().as_bytes().to_vec(),
@@ -199,10 +230,12 @@ impl From<&WatchedLocation<Uuid7>> for MySqlWatchedLocationRow {
       is_ejectable: i8::from(w.is_ejectable()),
       added_at_ms: timestamp_to_millis(*w.added_at_ref()),
       last_reconciled_at_ms: w.last_reconciled_at_ref().map(|t| timestamp_to_millis(*t)),
-      last_reconcile_status: w.last_reconcile_status_ref().copied().map(scan_status_to_i16),
-      last_error_json: w
-        .last_error_ref()
-        .map(|e| to_json_string(&ErrorInfoDto::from(e)).expect("ErrorInfoDto serialises")),
+      last_reconcile_status: w
+        .last_reconcile_status_ref()
+        .copied()
+        .map(scan_status_to_i16),
+      last_error_code: last_error.map(|e| e.code().as_u32() as i32),
+      last_error_message: last_error.map(|e| e.message().to_owned()),
     }
   }
 }
@@ -225,9 +258,14 @@ impl TryFrom<MySqlWatchedLocationRow> for WatchedLocation<Uuid7> {
     if let Some(s) = r.last_reconcile_status {
       w = w.with_last_reconcile_status(Some(scan_status_from_i16(s)?));
     }
-    if let Some(j) = r.last_error_json {
-      let dto: ErrorInfoDto = from_json_str(&j)?;
-      w = w.with_last_error(Some(dto.into()));
+    if let Some(code) = r.last_error_code {
+      let code = u32::try_from(code).map_err(|e| {
+        SqlxError::UnknownDiscriminant(format!("WatchedLocation.last_error_code: {e}"))
+      })?;
+      w = w.with_last_error(Some(ErrorInfo::new(
+        ErrorCode::from_u32(code),
+        r.last_error_message.unwrap_or_default(),
+      )));
     }
     Ok(w)
   }
@@ -240,7 +278,6 @@ impl TryFrom<MySqlWatchedLocationRow> for WatchedLocation<Uuid7> {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::domain::{ErrorCode, ErrorInfo};
   use jiff::Timestamp as JiffTimestamp;
 
   fn ts() -> JiffTimestamp {
@@ -278,11 +315,31 @@ mod tests {
       .with_favorite(true)
       .with_user_tags(std::vec![t1])
       .with_rating(Some(5));
-    let row: MySqlSceneAnnotationRow = (&a).into();
-    let a2: SceneAnnotation<Uuid7> = row.try_into().unwrap();
+    let tuple: (
+      MySqlSceneAnnotationRow,
+      std::vec::Vec<MySqlSceneAnnotationUserTagRow>,
+    ) = (&a).into();
+    assert_eq!(tuple.1.len(), 1);
+    let a2: SceneAnnotation<Uuid7> = tuple.try_into().unwrap();
     assert_eq!(a2.user_tags_slice(), &[t1]);
     assert_eq!(a2.rating(), Some(5));
     assert!(a2.is_favorite());
+  }
+
+  #[test]
+  fn scene_annotation_join_rows_rebuild_in_ordinal_order() {
+    let t1 = Uuid7::new();
+    let t2 = Uuid7::new();
+    let a = SceneAnnotation::try_new(Uuid7::new(), Uuid7::new(), ts())
+      .unwrap()
+      .with_user_tags(std::vec![t1, t2]);
+    let (row, mut joins): (
+      MySqlSceneAnnotationRow,
+      std::vec::Vec<MySqlSceneAnnotationUserTagRow>,
+    ) = (&a).into();
+    joins.reverse();
+    let a2: SceneAnnotation<Uuid7> = (row, joins).try_into().unwrap();
+    assert_eq!(a2.user_tags_slice(), &[t1, t2]);
   }
 
   #[test]
@@ -299,6 +356,7 @@ mod tests {
       w2.last_error_ref().map(|e| e.code()),
       Some(ErrorCode::PathNotFound)
     );
+    assert_eq!(w2.last_error_ref().map(|e| e.message()), Some("gone"));
   }
 
   #[test]

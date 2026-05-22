@@ -2,27 +2,31 @@
 --
 -- Identity columns are native `uuid`.
 -- Checksum columns are `BYTEA` (32 bytes).
--- Nested VOs ride as `JSONB`. Row structs decode them as `String`;
--- queries SELECTing those columns should append `::text`.
+-- Nested value-objects are flattened into real, individually-indexable
+-- columns; many-to-many collections ride in dedicated join tables.
 -- Wall-clock timestamps are BIGINT ms-since-epoch.
 
 CREATE TABLE IF NOT EXISTS media (
-    id              uuid    NOT NULL PRIMARY KEY,
-    checksum        bytea   NOT NULL,
-    name            text    NOT NULL,
-    format          text    NOT NULL,
-    size            bigint  NOT NULL,
-    duration_raw    bigint,
-    created_at_ms   bigint  NOT NULL,
-    kind            smallint NOT NULL,
-    video           uuid,
-    audio           uuid,
-    subtitle        uuid,
-    error_flags     integer NOT NULL DEFAULT 0,
-    probe_error_json jsonb,
-    capture_date_ms bigint,
-    device_json     jsonb,
-    gps_json        jsonb
+    id                  uuid    NOT NULL PRIMARY KEY,
+    checksum            bytea   NOT NULL,
+    name                text    NOT NULL,
+    format              text    NOT NULL,
+    size                bigint  NOT NULL,
+    duration_raw        bigint,
+    created_at_ms       bigint  NOT NULL,
+    kind                smallint NOT NULL,
+    video               uuid,
+    audio               uuid,
+    subtitle            uuid,
+    error_flags         integer NOT NULL DEFAULT 0,
+    probe_error_code    integer,
+    probe_error_message text,
+    capture_date_ms     bigint,
+    device_make         text,
+    device_model        text,
+    gps_lat             double precision,
+    gps_lon             double precision,
+    gps_altitude        real
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_media_checksum ON media(checksum);
 CREATE INDEX        IF NOT EXISTS idx_media_video    ON media(video);
@@ -38,7 +42,8 @@ CREATE TABLE IF NOT EXISTS watched_location (
     added_at_ms           bigint  NOT NULL,
     last_reconciled_at_ms bigint,
     last_reconcile_status smallint,
-    last_error_json       jsonb
+    last_error_code       integer,
+    last_error_message    text
 );
 
 CREATE TABLE IF NOT EXISTS speaker (
@@ -61,12 +66,19 @@ CREATE TABLE IF NOT EXISTS scene_annotation (
     id              uuid    NOT NULL PRIMARY KEY,
     scene           uuid    NOT NULL,
     favorite        boolean NOT NULL DEFAULT false,
-    user_tags_json  jsonb   NOT NULL,
     rating          smallint,
     note            text    NOT NULL,
     updated_at_ms   bigint  NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_scene_annotation_scene ON scene_annotation(scene);
+
+CREATE TABLE IF NOT EXISTS scene_annotation_user_tag (
+    scene_annotation  uuid    NOT NULL,
+    user_tag          uuid    NOT NULL,
+    ordinal           integer NOT NULL,
+    PRIMARY KEY (scene_annotation, user_tag)
+);
+CREATE INDEX IF NOT EXISTS idx_saut_user_tag ON scene_annotation_user_tag (user_tag);
 
 -- The facet + track + per-track-analysis tables (audio, video, subtitle,
 -- audio_track, video_track, subtitle_track, audio_segment, scene,
