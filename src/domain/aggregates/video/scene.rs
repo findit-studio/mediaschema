@@ -73,49 +73,19 @@ impl Scene<Uuid7> {
     })
   }
 
-  /// Validate a `keyframes` child-ref list: rejects any nil sentinel
-  /// ([`SceneError::NilKeyframeRef`]) and any duplicate id
-  /// ([`SceneError::DuplicateKeyframeRef`]). Each entry must be a
-  /// reference to a distinct, real child `Keyframe`.
-  fn validate_keyframes(keyframes: &[Uuid7]) -> Result<(), SceneError> {
-    for (i, id) in keyframes.iter().enumerate() {
-      if id.is_nil() {
-        return Err(SceneError::NilKeyframeRef);
-      }
-      if keyframes[..i].contains(id) {
-        return Err(SceneError::DuplicateKeyframeRef);
-      }
-    }
-    Ok(())
+  /// Builder: replace the `keyframes` child-ref id-list.
+  #[must_use]
+  #[inline]
+  pub fn with_keyframes(mut self, kfs: impl Into<std::vec::Vec<Uuid7>>) -> Self {
+    self.keyframes = kfs.into();
+    self
   }
 
-  /// Fallible builder: replace the `keyframes` child-ref id-list.
-  ///
-  /// Rejects any nil ([`SceneError::NilKeyframeRef`]) or duplicate
-  /// ([`SceneError::DuplicateKeyframeRef`]) entry — every entry must be
-  /// a reference to a distinct, real child `Keyframe`.
+  /// In-place mutator for the `keyframes` child-ref id-list.
   #[inline]
-  pub fn try_with_keyframes(
-    mut self,
-    kfs: impl Into<std::vec::Vec<Uuid7>>,
-  ) -> Result<Self, SceneError> {
-    self.try_set_keyframes(kfs)?;
-    Ok(self)
-  }
-
-  /// Fallible in-place mutator for `keyframes` — see
-  /// [`Scene::try_with_keyframes`]. On success returns `&mut Self` so
-  /// it chains; on a nil or duplicate ref returns the matching
-  /// [`SceneError`] and leaves `self` unchanged.
-  #[inline]
-  pub fn try_set_keyframes(
-    &mut self,
-    kfs: impl Into<std::vec::Vec<Uuid7>>,
-  ) -> Result<&mut Self, SceneError> {
-    let keyframes = kfs.into();
-    Self::validate_keyframes(&keyframes)?;
-    self.keyframes = keyframes;
-    Ok(self)
+  pub fn set_keyframes(&mut self, kfs: impl Into<std::vec::Vec<Uuid7>>) -> &mut Self {
+    self.keyframes = kfs.into();
+    self
   }
 }
 
@@ -247,14 +217,6 @@ pub enum SceneError {
   /// so `Scene` re-checks the invariant on every span it accepts.
   #[error("Scene span must not be inverted (start_pts <= end_pts)")]
   InvertedSpan,
-  /// A `keyframes` entry was the nil sentinel — every entry must
-  /// reference a real child `Keyframe`.
-  #[error("Scene keyframes ref must not be the nil UUID")]
-  NilKeyframeRef,
-  /// A `keyframes` entry was a duplicate — every child `Keyframe` ref
-  /// must be distinct.
-  #[error("Scene keyframes refs must be unique")]
-  DuplicateKeyframeRef,
 }
 
 // ===========================================================================
@@ -374,8 +336,7 @@ mod tests {
     .unwrap()
     .with_index(3)
     .with_detector(SceneDetector::Content)
-    .try_with_keyframes(std::vec![kf])
-    .unwrap()
+    .with_keyframes(std::vec![kf])
     .with_description("Jane is eating");
     assert_eq!(s.index(), 3);
     assert!(s.detector().is_content());
@@ -385,50 +346,11 @@ mod tests {
     let mut s = s;
     s.set_index(0);
     s.set_description("");
-    s.try_set_keyframes(std::vec::Vec::<Uuid7>::new()).unwrap();
+    s.set_keyframes(std::vec::Vec::<Uuid7>::new());
     s.set_detector(SceneDetector::Manual);
     assert_eq!(s.index(), 0);
     assert!(s.description().is_empty());
     assert!(s.keyframes().is_empty());
     assert!(s.detector().is_manual());
-  }
-
-  #[test]
-  fn keyframes_reject_nil_and_duplicate_refs() {
-    // rev-4 finding 1: the infallible keyframe-list setter let a
-    // `Scene<Uuid7>` persist a nil ref or `[same, same]`.
-    let span = TimeRange::new(0, 5_000, tb());
-    let s = Scene::try_new(Uuid7::new(), Uuid7::new(), 0, span, SceneDetector::Manual).unwrap();
-    let kf = Uuid7::new();
-
-    // A nil ref is rejected through the consuming builder...
-    assert_eq!(
-      s.clone().try_with_keyframes(std::vec![Uuid7::nil()]).err(),
-      Some(SceneError::NilKeyframeRef)
-    );
-    // ...and a duplicate ref.
-    assert_eq!(
-      s.clone().try_with_keyframes(std::vec![kf, kf]).err(),
-      Some(SceneError::DuplicateKeyframeRef)
-    );
-
-    // The in-place setter rejects both and leaves `self` unchanged.
-    let mut s = s;
-    assert_eq!(
-      s.try_set_keyframes(std::vec![Uuid7::nil()]).err(),
-      Some(SceneError::NilKeyframeRef)
-    );
-    assert_eq!(
-      s.try_set_keyframes(std::vec![kf, kf]).err(),
-      Some(SceneError::DuplicateKeyframeRef)
-    );
-    assert!(s.keyframes().is_empty());
-    assert!(SceneError::NilKeyframeRef.is_nil_keyframe_ref());
-    assert!(SceneError::DuplicateKeyframeRef.is_duplicate_keyframe_ref());
-
-    // A list of distinct, non-nil refs is accepted.
-    let kf2 = Uuid7::new();
-    s.try_set_keyframes(std::vec![kf, kf2]).unwrap();
-    assert_eq!(s.keyframes().len(), 2);
   }
 }

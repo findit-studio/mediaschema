@@ -170,50 +170,19 @@ impl VideoTrack<Uuid7> {
     })
   }
 
-  /// Validate a `scenes` child-ref list: rejects any nil sentinel
-  /// ([`VideoTrackError::NilSceneRef`]) and any duplicate id
-  /// ([`VideoTrackError::DuplicateSceneRef`]). Each entry must be a
-  /// reference to a distinct, real child `Scene`.
-  fn validate_scenes(scenes: &[Uuid7]) -> Result<(), VideoTrackError> {
-    for (i, id) in scenes.iter().enumerate() {
-      if id.is_nil() {
-        return Err(VideoTrackError::NilSceneRef);
-      }
-      if scenes[..i].contains(id) {
-        return Err(VideoTrackError::DuplicateSceneRef);
-      }
-    }
-    Ok(())
+  /// Builder: replace the `scenes` child-ref id-list.
+  #[must_use]
+  #[inline]
+  pub fn with_scenes(mut self, v: impl Into<std::vec::Vec<Uuid7>>) -> Self {
+    self.scenes = v.into();
+    self
   }
 
-  /// Fallible builder: replace the `scenes` child-ref id-list.
-  ///
-  /// Rejects any nil ([`VideoTrackError::NilSceneRef`]) or duplicate
-  /// ([`VideoTrackError::DuplicateSceneRef`]) entry — every entry must
-  /// be a reference to a distinct, real child `Scene`. On error `self`
-  /// is returned untouched via the in-place mutator it delegates to.
+  /// In-place mutator for the `scenes` child-ref id-list.
   #[inline]
-  pub fn try_with_scenes(
-    mut self,
-    v: impl Into<std::vec::Vec<Uuid7>>,
-  ) -> Result<Self, VideoTrackError> {
-    self.try_set_scenes(v)?;
-    Ok(self)
-  }
-
-  /// Fallible in-place mutator for `scenes` — see
-  /// [`VideoTrack::try_with_scenes`]. On success returns `&mut Self` so
-  /// it chains; on a nil or duplicate ref returns the matching
-  /// [`VideoTrackError`] and leaves `self` unchanged.
-  #[inline]
-  pub fn try_set_scenes(
-    &mut self,
-    v: impl Into<std::vec::Vec<Uuid7>>,
-  ) -> Result<&mut Self, VideoTrackError> {
-    let scenes = v.into();
-    Self::validate_scenes(&scenes)?;
-    self.scenes = scenes;
-    Ok(self)
+  pub fn set_scenes(&mut self, v: impl Into<std::vec::Vec<Uuid7>>) -> &mut Self {
+    self.scenes = v.into();
+    self
   }
 }
 
@@ -880,14 +849,6 @@ pub enum VideoTrackError {
   /// dimensions.
   #[error("VideoTrack visible_rect crop requires known (non-zero) dimensions")]
   CropWithoutDimensions,
-  /// A `scenes` entry was the nil sentinel — every entry must reference
-  /// a real child `Scene`.
-  #[error("VideoTrack scenes ref must not be the nil UUID")]
-  NilSceneRef,
-  /// A `scenes` entry was a duplicate — every child `Scene` ref must be
-  /// distinct.
-  #[error("VideoTrack scenes refs must be unique")]
-  DuplicateSceneRef,
 }
 
 // ===========================================================================
@@ -950,8 +911,7 @@ mod tests {
       .with_pixel_format(PixelFormat::from_u32(0x0a)) // yuv420p10le-ish
       .with_has_b_frames(true)
       .with_is_primary(true)
-      .try_with_scenes(std::vec![s1, s2])
-      .unwrap()
+      .with_scenes(std::vec![s1, s2])
       .with_index_status(VideoIndexStatus::PROBED)
       .with_index_errors(std::vec![ErrorInfo::code_only(ErrorCode::SceneDetectionFailed)])
       .with_provenance(Provenance::from_parts("qwen2-vl-7b", "v0.3.0", "p@1", "idx-0.1.0"));
@@ -975,7 +935,7 @@ mod tests {
     t.try_set_dimensions(Dimensions::new(0, 0)).unwrap();
     t.set_is_primary(false);
     t.set_index_status(VideoIndexStatus::empty());
-    t.try_set_scenes(std::vec::Vec::<Uuid7>::new()).unwrap();
+    t.set_scenes(std::vec::Vec::<Uuid7>::new());
     assert_eq!(t.bit_rate(), 0);
     assert_eq!(t.dimensions(), Dimensions::new(0, 0));
     assert!(!t.is_primary());
@@ -1105,44 +1065,6 @@ mod tests {
     assert!(t.visible_rect().is_none());
     // With no crop, any `dimensions` is accepted.
     t.try_set_dimensions(Dimensions::new(0, 0)).unwrap();
-  }
-
-  #[test]
-  fn scenes_reject_nil_and_duplicate_refs() {
-    // rev-4 finding 1: the infallible scene-list setter let a
-    // `VideoTrack<Uuid7>` persist a nil ref or `[same, same]`.
-    let t = VideoTrack::try_new(Uuid7::new(), Uuid7::new()).unwrap();
-    let s = Uuid7::new();
-
-    // A nil ref is rejected through the consuming builder...
-    assert_eq!(
-      t.clone().try_with_scenes(std::vec![Uuid7::nil()]).err(),
-      Some(VideoTrackError::NilSceneRef)
-    );
-    // ...and a duplicate ref.
-    assert_eq!(
-      t.clone().try_with_scenes(std::vec![s, s]).err(),
-      Some(VideoTrackError::DuplicateSceneRef)
-    );
-
-    // The in-place setter rejects both and leaves `self` unchanged.
-    let mut t = t;
-    assert_eq!(
-      t.try_set_scenes(std::vec![Uuid7::nil()]).err(),
-      Some(VideoTrackError::NilSceneRef)
-    );
-    assert_eq!(
-      t.try_set_scenes(std::vec![s, s]).err(),
-      Some(VideoTrackError::DuplicateSceneRef)
-    );
-    assert!(t.scenes().is_empty());
-    assert!(VideoTrackError::NilSceneRef.is_nil_scene_ref());
-    assert!(VideoTrackError::DuplicateSceneRef.is_duplicate_scene_ref());
-
-    // A list of distinct, non-nil refs is accepted.
-    let s2 = Uuid7::new();
-    t.try_set_scenes(std::vec![s, s2]).unwrap();
-    assert_eq!(t.scenes().len(), 2);
   }
 
   #[test]

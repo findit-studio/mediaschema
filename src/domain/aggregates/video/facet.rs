@@ -164,72 +164,47 @@ impl Video<Uuid7> {
     })
   }
 
-  /// Validate a candidate `Uuid7` track id-list: rejects any nil
-  /// sentinel ([`VideoError::NilTrackRef`]) and any duplicate id
-  /// ([`VideoError::DuplicateTrackRef`]). Each entry is a reference to
-  /// a child `VideoTrack`, which itself rejects nil ids/parents.
-  fn validate_tracks(tracks: &[Uuid7]) -> Result<(), VideoError> {
-    for (i, id) in tracks.iter().enumerate() {
-      if id.is_nil() {
-        return Err(VideoError::NilTrackRef);
-      }
-      if tracks[..i].contains(id) {
-        return Err(VideoError::DuplicateTrackRef);
-      }
-    }
-    Ok(())
-  }
-
-  /// Fallible builder: replace the `tracks` id-list.
+  /// Builder: replace the `tracks` id-list.
   ///
-  /// Rejects any nil ([`VideoError::NilTrackRef`]) or duplicate
-  /// ([`VideoError::DuplicateTrackRef`]) entry — every entry must be a
-  /// valid, distinct child `VideoTrack` reference.
+  /// A *changed* track list invalidates any prior indexing progress, so
+  /// `track_progress` is reset to `{total = new tracks.len(), indexed =
+  /// 0, failed = 0}` — keeping the invariant `track_progress.total() ==
+  /// tracks.len()`. Any track-list change also resets `total_scenes` to
+  /// 0 (the rollup sums scenes across the *current* tracks and is
+  /// meaningless across a different track set).
   ///
-  /// On success a changed track list invalidates any prior indexing
-  /// progress, so `track_progress` is reset to `{total = new
-  /// tracks.len(), indexed = 0, failed = 0}` — keeping the invariant
-  /// `track_progress.total() == tracks.len()`. Any track-list change
-  /// also resets `total_scenes` to 0 (the rollup sums scenes across the
-  /// *current* tracks and is meaningless across a different track set).
+  /// Reapplying the *identical* track-id list (same ids, same order) —
+  /// an idempotent save/retry — leaves `track_progress` and
+  /// `total_scenes` untouched, so completed/failed progress and the
+  /// scene count survive a no-op re-set.
+  #[must_use]
   #[inline]
-  pub fn try_with_tracks(
-    mut self,
-    tracks: impl Into<std::vec::Vec<Uuid7>>,
-  ) -> Result<Self, VideoError> {
-    self.try_set_tracks(tracks)?;
-    Ok(self)
+  pub fn with_tracks(mut self, tracks: impl Into<std::vec::Vec<Uuid7>>) -> Self {
+    self.set_tracks(tracks);
+    self
   }
 
-  /// Fallible in-place mutator for `tracks`.
+  /// In-place mutator for `tracks`.
   ///
-  /// Rejects any nil ([`VideoError::NilTrackRef`]) or duplicate
-  /// ([`VideoError::DuplicateTrackRef`]) entry and leaves `self`
-  /// unchanged on error.
-  ///
-  /// On success, a *changed* track list invalidates any prior indexing
-  /// progress, so `track_progress` is reset to `{total = new
-  /// tracks.len(), indexed = 0, failed = 0}` — keeping the invariant
-  /// `track_progress.total() == tracks.len()`. A track-list change also
-  /// resets `total_scenes` to 0 (the rollup sums scenes across the
-  /// *current* tracks and is meaningless across a different track set).
+  /// A *changed* track list invalidates any prior indexing progress, so
+  /// `track_progress` is reset to `{total = new tracks.len(), indexed =
+  /// 0, failed = 0}` — keeping the invariant `track_progress.total() ==
+  /// tracks.len()`. A track-list change also resets `total_scenes` to 0
+  /// (the rollup sums scenes across the *current* tracks and is
+  /// meaningless across a different track set).
   ///
   /// Reapplying the *identical* track-id list (same ids, same order) —
   /// an idempotent save/retry — leaves `track_progress` and
   /// `total_scenes` untouched, so completed/failed progress and the
   /// scene count survive a no-op re-set.
   #[inline]
-  pub fn try_set_tracks(
-    &mut self,
-    tracks: impl Into<std::vec::Vec<Uuid7>>,
-  ) -> Result<&mut Self, VideoError> {
+  pub fn set_tracks(&mut self, tracks: impl Into<std::vec::Vec<Uuid7>>) -> &mut Self {
     let tracks = tracks.into();
-    Self::validate_tracks(&tracks)?;
     // An idempotent re-set with the identical id list (same ids, same
     // order) leaves the rollups alone — the invariant is "reset when
     // the track list *changes*", not "reset on every call".
     if self.tracks == tracks {
-      return Ok(self);
+      return self;
     }
     self.tracks = tracks;
     // `tracks.len()` (`usize`) saturates into the `u32` rollup total;
@@ -243,7 +218,7 @@ impl Video<Uuid7> {
     // track-list change (not just emptying); this also upholds the
     // `tracks.is_empty() ⇒ total_scenes == 0` invariant.
     self.total_scenes = 0;
-    Ok(self)
+    self
   }
 }
 
@@ -346,15 +321,6 @@ pub enum VideoError {
   /// over exactly the facet's tracks.
   #[error("Video track_progress total must equal tracks.len()")]
   TrackProgressMismatch,
-  /// A track id-list contained the nil `Uuid7` sentinel — a nil ref
-  /// is not a valid child `VideoTrack` reference (`VideoTrack::try_new`
-  /// rejects nil ids).
-  #[error("Video tracks must not contain the nil UUID")]
-  NilTrackRef,
-  /// A track id-list contained the same `Uuid7` more than once — a
-  /// facet references each child track at most once.
-  #[error("Video tracks must not contain duplicate ids")]
-  DuplicateTrackRef,
   /// `total_scenes` was set to a non-zero count while `tracks` is
   /// empty — scenes belong to tracks, so a track-less facet has no
   /// scenes.
@@ -397,8 +363,7 @@ mod tests {
     // `tracks.is_empty() ⇒ total_scenes == 0` invariant.
     let v = Video::try_new(Uuid7::new())
       .unwrap()
-      .try_with_tracks(std::vec![t1, t2])
-      .unwrap()
+      .with_tracks(std::vec![t1, t2])
       .try_with_total_scenes(7)
       .unwrap()
       .try_with_track_progress(p)
@@ -410,7 +375,7 @@ mod tests {
 
     let mut v = v;
     v.try_set_total_scenes(0).unwrap();
-    v.try_set_tracks(std::vec::Vec::<Uuid7>::new()).unwrap();
+    v.set_tracks(std::vec::Vec::<Uuid7>::new());
     // Empty track list ⇒ `try_set_tracks` resets progress to the empty
     // rollup.
     v.try_set_track_progress(IndexProgress::new()).unwrap();
@@ -423,47 +388,19 @@ mod tests {
   fn with_tracks_resets_progress_to_match_track_count() {
     // rev-2 finding: `try_with_tracks` must not leave a stale `{0,0,0}`
     // rollup on a non-empty track list.
-    let v = Video::try_new(Uuid7::new())
-      .unwrap()
-      .try_with_tracks(std::vec![Uuid7::new(), Uuid7::new(), Uuid7::new()])
-      .unwrap();
+    let v = Video::try_new(Uuid7::new()).unwrap().with_tracks(std::vec![
+      Uuid7::new(),
+      Uuid7::new(),
+      Uuid7::new()
+    ]);
     assert_eq!(v.track_progress().total(), 3);
     assert_eq!(v.track_progress().indexed(), 0);
     assert_eq!(v.track_progress().failed(), 0);
 
     // Changing the list re-syncs the rollup total.
     let mut v = v;
-    v.try_set_tracks(std::vec![Uuid7::new()]).unwrap();
+    v.set_tracks(std::vec![Uuid7::new()]);
     assert_eq!(v.track_progress().total(), 1);
-  }
-
-  #[test]
-  fn try_set_tracks_rejects_nil_and_duplicate_refs() {
-    // rev-3 finding 1: a nil track ref is an invalid child reference.
-    let mut v = Video::try_new(Uuid7::new()).unwrap();
-    assert_eq!(
-      v.try_set_tracks(std::vec![Uuid7::new(), Uuid7::nil()])
-        .err(),
-      Some(VideoError::NilTrackRef)
-    );
-    assert!(VideoError::NilTrackRef.is_nil_track_ref());
-    // A duplicate id references the same child track twice.
-    let dup = Uuid7::new();
-    assert_eq!(
-      v.try_set_tracks(std::vec![dup, dup]).err(),
-      Some(VideoError::DuplicateTrackRef)
-    );
-    assert!(VideoError::DuplicateTrackRef.is_duplicate_track_ref());
-    // On rejection the track list is left untouched (still empty).
-    assert!(v.tracks().is_empty());
-    // The consuming builder rejects identically.
-    assert_eq!(
-      Video::try_new(Uuid7::new())
-        .unwrap()
-        .try_with_tracks(std::vec![Uuid7::nil()])
-        .err(),
-      Some(VideoError::NilTrackRef)
-    );
   }
 
   #[test]
@@ -495,12 +432,11 @@ mod tests {
     // reset `total_scenes` to 0 (scenes belong to tracks).
     let mut v = Video::try_new(Uuid7::new())
       .unwrap()
-      .try_with_tracks(std::vec![Uuid7::new(), Uuid7::new()])
-      .unwrap()
+      .with_tracks(std::vec![Uuid7::new(), Uuid7::new()])
       .try_with_total_scenes(9)
       .unwrap();
     assert_eq!(v.total_scenes(), 9);
-    v.try_set_tracks(std::vec::Vec::<Uuid7>::new()).unwrap();
+    v.set_tracks(std::vec::Vec::<Uuid7>::new());
     assert!(v.tracks().is_empty());
     assert_eq!(v.total_scenes(), 0);
   }
@@ -512,13 +448,12 @@ mod tests {
     // reset the stale rollup to 0, not only when the list is emptied.
     let mut v = Video::try_new(Uuid7::new())
       .unwrap()
-      .try_with_tracks(std::vec![Uuid7::new()])
-      .unwrap()
+      .with_tracks(std::vec![Uuid7::new()])
       .try_with_total_scenes(7)
       .unwrap();
     assert_eq!(v.total_scenes(), 7);
     // `[old]` → `[new]` is a different track set: the count is stale.
-    v.try_set_tracks(std::vec![Uuid7::new()]).unwrap();
+    v.set_tracks(std::vec![Uuid7::new()]);
     assert_eq!(v.tracks().len(), 1);
     assert_eq!(v.total_scenes(), 0);
 
@@ -526,8 +461,7 @@ mod tests {
     let v = v
       .try_with_total_scenes(4)
       .unwrap()
-      .try_with_tracks(std::vec![Uuid7::new(), Uuid7::new()])
-      .unwrap();
+      .with_tracks(std::vec![Uuid7::new(), Uuid7::new()]);
     assert_eq!(v.total_scenes(), 0);
   }
 
@@ -540,8 +474,7 @@ mod tests {
     let t2 = Uuid7::new();
     let mut v = Video::try_new(Uuid7::new())
       .unwrap()
-      .try_with_tracks(std::vec![t1, t2])
-      .unwrap()
+      .with_tracks(std::vec![t1, t2])
       .try_with_total_scenes(7)
       .unwrap()
       .try_with_track_progress(IndexProgress::try_new(2, 1, 1).unwrap())
@@ -553,7 +486,7 @@ mod tests {
     );
 
     // Same ids, same order ⇒ no-op: rollups survive.
-    v.try_set_tracks(std::vec![t1, t2]).unwrap();
+    v.set_tracks(std::vec![t1, t2]);
     assert_eq!(v.total_scenes(), 7);
     assert_eq!(
       v.track_progress(),
@@ -561,7 +494,7 @@ mod tests {
     );
 
     // A genuinely different list ⇒ both rollups reset.
-    v.try_set_tracks(std::vec![t2, t1]).unwrap();
+    v.set_tracks(std::vec![t2, t1]);
     assert_eq!(v.total_scenes(), 0);
     assert_eq!(
       v.track_progress(),
@@ -584,8 +517,7 @@ mod tests {
     assert!(v.try_set_track_progress(IndexProgress::new()).is_ok());
 
     // Two tracks — a 2-total rollup is accepted, a 1-total is not.
-    v.try_set_tracks(std::vec![Uuid7::new(), Uuid7::new()])
-      .unwrap();
+    v.set_tracks(std::vec![Uuid7::new(), Uuid7::new()]);
     assert!(v
       .try_set_track_progress(IndexProgress::try_new(2, 1, 1).unwrap())
       .is_ok());
