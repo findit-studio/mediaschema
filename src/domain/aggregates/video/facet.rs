@@ -9,113 +9,7 @@
 
 use derive_more::IsVariant;
 
-use crate::domain::Uuid7;
-
-// ---------------------------------------------------------------------------
-// IndexProgress — child-track rollup shared across all three facets
-// ---------------------------------------------------------------------------
-
-// NOTE: `IndexProgress` is the locked cross-cutting rollup (`schema/README.md`
-// — "Indexing model-correction") shared by `Video`/`Audio`/`Subtitle` facets.
-// It lives here because this PR ships the video cluster only; the audio +
-// subtitle parallel PRs may temporarily duplicate it — a follow-up will hoist
-// the single canonical definition to `src/domain/vo.rs` and re-export from
-// each facet. Until then, treat the video-cluster definition as the source.
-
-/// Per-kind facet rollup of `{total, indexed, failed}` over the facet's
-/// child tracks. **Denormalised cache** — the source of truth lives on each
-/// `*Track`'s `index_status` + `index_errors`; the facet maintains this so
-/// list queries don't have to re-aggregate across tracks.
-///
-/// Invariant: `indexed + failed <= total`. Validated at the type boundary
-/// via [`IndexProgress::try_new`]; mutators preserve the invariant by
-/// rejecting any update that would violate it.
-///
-/// **Default convention**: `Default::default()` calls
-/// [`IndexProgress::new`] — the empty rollup `{0, 0, 0}`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct IndexProgress {
-  total: u32,
-  indexed: u32,
-  failed: u32,
-}
-
-impl IndexProgress {
-  /// Canonical no-arg constructor — the empty rollup (`{0, 0, 0}`).
-  #[inline(always)]
-  pub const fn new() -> Self {
-    Self {
-      total: 0,
-      indexed: 0,
-      failed: 0,
-    }
-  }
-
-  /// Validating constructor: rejects `indexed + failed > total` (the
-  /// rollup invariant). `u32` saturates before the addition would
-  /// overflow.
-  pub const fn try_new(total: u32, indexed: u32, failed: u32) -> Result<Self, IndexProgressError> {
-    // `u32::checked_add` is const fn since 1.61.
-    let sum = match indexed.checked_add(failed) {
-      Some(s) => s,
-      None => return Err(IndexProgressError::SumOverflows),
-    };
-    if sum > total {
-      return Err(IndexProgressError::SumExceedsTotal);
-    }
-    Ok(Self {
-      total,
-      indexed,
-      failed,
-    })
-  }
-
-  /// Total child tracks the facet owns.
-  #[inline(always)]
-  pub const fn total(&self) -> u32 {
-    self.total
-  }
-
-  /// Tracks that finished indexing successfully.
-  #[inline(always)]
-  pub const fn indexed(&self) -> u32 {
-    self.indexed
-  }
-
-  /// Tracks whose indexing failed (`index_errors` non-empty at the time
-  /// of last rollup maintenance).
-  #[inline(always)]
-  pub const fn failed(&self) -> u32 {
-    self.failed
-  }
-
-  /// True iff the facet has at least one failed track — the locked
-  /// "kind container's error signal" rule (`failed > 0` ⇒ drill down).
-  #[inline(always)]
-  pub const fn has_failures(&self) -> bool {
-    self.failed > 0
-  }
-}
-
-impl Default for IndexProgress {
-  #[inline(always)]
-  fn default() -> Self {
-    Self::new()
-  }
-}
-
-/// Error returned when [`IndexProgress::try_new`] cannot uphold the
-/// `indexed + failed <= total` invariant. Unit-only enum.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant, thiserror::Error)]
-#[non_exhaustive]
-pub enum IndexProgressError {
-  /// `indexed + failed > total` — would overcount.
-  #[error("IndexProgress: indexed + failed must not exceed total")]
-  SumExceedsTotal,
-  /// `indexed + failed` overflows `u32` — definitely overcounts.
-  #[error("IndexProgress: indexed + failed overflows u32")]
-  SumOverflows,
-}
+use crate::domain::{vo::IndexProgress, Uuid7};
 
 // ---------------------------------------------------------------------------
 // Video — the thin facet aggregate
@@ -335,6 +229,7 @@ pub enum VideoError {
 #[cfg(all(test, feature = "std"))]
 mod tests {
   use super::*;
+  use crate::domain::vo::IndexProgressError;
 
   #[test]
   fn try_new_happy_path() {

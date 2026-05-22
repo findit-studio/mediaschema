@@ -31,7 +31,7 @@ pub use curation::{SceneAnnotation, UserTag};
 pub use media::Media;
 pub use media_file::MediaFile;
 pub use speaker::Speaker;
-pub use subtitle::{IndexProgress, Subtitle, SubtitleCue, SubtitleTrack};
+pub use subtitle::{Subtitle, SubtitleCue, SubtitleTrack};
 #[cfg(any(feature = "std", feature = "alloc"))]
 pub use video::{Keyframe, Scene, Video, VideoTrack};
 pub use watched_location::WatchedLocation;
