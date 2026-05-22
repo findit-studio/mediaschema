@@ -23,6 +23,8 @@ use mediaframe::{
 use mediatime::Timestamp;
 use smol_str::SmolStr;
 
+#[cfg(any(feature = "std", feature = "alloc"))]
+use crate::domain::SubtitleIndexStage;
 use crate::domain::{
   primitives::{ErrorInfo, FileChecksum, Location},
   vo::Provenance,
@@ -242,13 +244,31 @@ impl<Id> SubtitleTrack<Id> {
     self.image_based().unwrap_or(true)
   }
 
-  /// Whether this track's container form is image-based (PGS/DVBSUB/…),
-  /// derived from **both** `codec` and `format`. An unknown /
-  /// unclassified track degrades to `false` — use [`Self::requires_ocr`]
-  /// for the conservative completion-gating signal.
+  /// Whether this track's indexing pipeline is fully complete.
+  ///
+  /// The completion-facing public path. OCR gating is derived
+  /// **internally** from [`Self::requires_ocr`] — callers cannot pass a
+  /// wrong `bool` and accidentally mark an unclassified (possibly
+  /// image-based) track as complete without `OCR_DONE`. An unknown
+  /// codec + unknown format track conservatively requires OCR, so it can
+  /// never report fully-indexed until `OCR_DONE` is set.
   #[inline]
-  pub fn is_image_based(&self) -> bool {
-    self.image_based().unwrap_or(false)
+  pub fn is_fully_indexed(&self) -> bool {
+    self.index_status.is_fully_indexed(self.requires_ocr())
+  }
+
+  /// Coarse derived [`SubtitleIndexStage`] for this track's indexing
+  /// lifecycle.
+  ///
+  /// The completion-facing public path. Like [`Self::is_fully_indexed`],
+  /// OCR gating is derived **internally** from [`Self::requires_ocr`]
+  /// (and the structured `index_errors`), so callers cannot reintroduce
+  /// the OCR-bypass bug by passing a wrong `bool`.
+  #[cfg(any(feature = "std", feature = "alloc"))]
+  #[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
+  #[inline]
+  pub fn index_stage(&self) -> SubtitleIndexStage {
+    SubtitleIndexStage::from_status(self.index_status, self.requires_ocr(), &self.index_errors)
   }
 
   /// FFmpeg `AV_DISPOSITION_*` bits as a [`TrackDisposition`] bitflags.
@@ -786,7 +806,12 @@ mod tests {
     assert_eq!(t.origin(), &TrackOrigin::default());
     assert_eq!(t.language(), &Language::default());
     assert!(t.title().is_empty());
-    assert!(!t.is_image_based());
+    // Fresh track: unknown codec + unknown format ⇒ unclassified, so
+    // OCR is conservatively required and it is not yet fully indexed.
+    assert_eq!(t.image_based(), None);
+    assert!(t.requires_ocr());
+    assert!(!t.is_fully_indexed());
+    assert!(t.index_stage().is_pending());
     assert_eq!(t.disposition(), TrackDisposition::default());
     assert!(!t.is_primary());
     assert!(!t.auto_selected());
@@ -838,7 +863,6 @@ mod tests {
     // `Format::Srt` + `SubtitleCodec::Subrip` are both text → not
     // image-based, OCR not required.
     assert_eq!(t.image_based(), Some(false));
-    assert!(!t.is_image_based());
     assert!(!t.requires_ocr());
     assert_eq!(t.disposition(), TrackDisposition::from_u32(0x0040));
     assert!(t.is_primary());
@@ -897,7 +921,6 @@ mod tests {
     assert_eq!(t.format(), &Format::default());
     assert_eq!(t.codec().is_image_based(), Some(true));
     assert_eq!(t.image_based(), Some(true));
-    assert!(t.is_image_based());
     assert!(t.requires_ocr(), "known bitmap codec must require OCR");
   }
 
@@ -918,7 +941,6 @@ mod tests {
       .with_codec(SubtitleCodec::Ass)
       .with_format(Format::Ass);
     assert_eq!(t.image_based(), Some(false));
-    assert!(!t.is_image_based());
     assert!(!t.requires_ocr());
   }
 
@@ -932,11 +954,40 @@ mod tests {
       .with_codec(SubtitleCodec::Other(SmolStr::new("mystery")))
       .with_format(Format::Other(SmolStr::new("mystery")));
     assert_eq!(t.image_based(), None);
-    assert!(!t.is_image_based());
     assert!(
       t.requires_ocr(),
       "an unclassified track must never under-require OCR"
     );
+  }
+
+  #[test]
+  fn unknown_track_with_text_complete_bits_is_not_done() {
+    // Regression (Codex round-2): an unknown-codec + unknown-format
+    // track with every *text*-pipeline stage bit set must NOT report
+    // fully-indexed / Done. `requires_ocr()` is conservatively `true`,
+    // so `OCR_DONE` is part of the effective mask and is absent here.
+    // The aggregate methods derive OCR gating internally — a caller
+    // cannot pass a wrong `bool` to bypass it.
+    use SubtitleIndexStatus as S;
+    let t = SubtitleTrack::try_new(Uuid7::new(), Uuid7::new())
+      .unwrap()
+      .with_codec(SubtitleCodec::Other(SmolStr::new("mystery")))
+      .with_format(Format::Other(SmolStr::new("mystery")))
+      .with_index_status(S::TRACKS_DISCOVERED | S::CUES_EXTRACTED | S::SEARCH_INDEXED);
+    assert!(t.requires_ocr());
+    assert!(
+      !t.is_fully_indexed(),
+      "unclassified track without OCR_DONE must not be fully indexed"
+    );
+    assert_ne!(
+      t.index_stage(),
+      SubtitleIndexStage::Done,
+      "unclassified track without OCR_DONE must not reach Done"
+    );
+    // Adding `OCR_DONE` completes it once OCR really ran.
+    let done = t.with_index_status(S::fully_indexed_mask(true));
+    assert!(done.is_fully_indexed());
+    assert_eq!(done.index_stage(), SubtitleIndexStage::Done);
   }
 
   #[test]
