@@ -563,15 +563,14 @@ message TrackTag {
 
 message VideoMeta {
   bytes id = 1;
-  reserved 2;
-  string name = 3;
-  VideoFormat format = 4;
-  Dimensions dimensions = 5;
-  uint64 size = 6;
-  TrackTime time = 7;
-  double frame_rate = 8;
-  uint64 bit_rate = 9;
-  int64 created_at = 10;
+  string name = 2;
+  VideoFormat format = 3;
+  Dimensions dimensions = 4;
+  uint64 size = 5;
+  TrackTime time = 6;
+  double frame_rate = 7;
+  uint64 bit_rate = 8;
+  int64 created_at = 9;
 }
 
 message VideoTrackMeta {
@@ -591,13 +590,30 @@ message VideoStreamMeta {
   mediatime.v1.Timebase time_base = 6;
 }
 
+// Per-copy metadata `name` (field 3) and `created_at` (field 6) were
+// removed when the domain split content (`Media`) from physical copy
+// (`MediaFile`) — those concerns now live on the `MediaFile` message
+// below.
 message MediaMeta {
   bytes id = 1;
   bytes checksum = 2;
-  string name = 3;
-  uint64 size = 4;
-  TrackTime time = 5;
-  int64 created_at = 6;
+  uint64 size = 3;
+  TrackTime time = 4;
+}
+
+// Per-copy file record. N MediaFiles may point at one Media (same content,
+// multiple physical copies on disk). `created_at` is the filesystem birth
+// time, ms since epoch; legacy `0` sentinel = absent (the wire-decode
+// adapter collapses it to `None`). `watch_volume` is carried on the wire
+// so a single message round-trips losslessly — the bridge is 1:1 and does
+// not join WatchedLocation to re-derive the volume from `watched_location_id`.
+message MediaFile {
+  bytes id = 1;
+  bytes media_id = 2;
+  int64 created_at = 3;
+  Location location = 4;
+  bytes watched_location_id = 5;
+  bytes watch_volume = 6;
 }
 
 message SceneMeta {
@@ -650,11 +666,9 @@ message FailedFile {
 message Video {
   VideoMeta meta = 1;
   repeated bytes scenes = 2;
-  reserved 3 to 7;
-  uint32 index_status = 8;
-  optional ErrorInfo index_error = 9;
-  reserved 10;
-  uint32 error_status = 11;
+  uint32 index_status = 3;
+  optional ErrorInfo index_error = 4;
+  uint32 error_status = 5;
 }
 
 // `disposition` bits (VideoTrackDisposition, §6.4): DEFAULT=0x1, DUB=0x2,
@@ -696,9 +710,8 @@ message Media {
 // CUES_EXTRACTED=0x02, OCR_DONE=0x04, SEARCH_INDEXED=0x08.
 message Subtitle {
   SubtitleMeta meta = 1;
-  reserved 2;
-  uint32 index_status = 3;
-  optional ErrorInfo index_error = 4;
+  uint32 index_status = 2;
+  optional ErrorInfo index_error = 3;
 }
 
 // `disposition` bits (SubtitleTrackDisposition, §6.4): DEFAULT=0x1, DUB=0x2,
@@ -746,9 +759,7 @@ message Scene {
   uint32 people_count = 7;
   repeated bytes tag_ids = 8;
   repeated string vision_provider = 9;
-  reserved 10;
-  repeated string smart_folders = 11;
-  reserved 12;
+  repeated string smart_folders = 10;
 }
 
 // Pure-Rust struct (scene_vlm.rs, no hand-rolled Encode); field tags
@@ -799,12 +810,11 @@ message Keyframe {
 
 message AudioMeta {
   bytes id = 1;
-  reserved 2;
-  string name = 3;
-  string container = 4;
-  uint64 size = 5;
-  TrackTime time = 6;
-  int64 created_at = 7;
+  string name = 2;
+  string container = 3;
+  uint64 size = 4;
+  TrackTime time = 5;
+  int64 created_at = 6;
 }
 
 message AudioStreamMeta {
@@ -930,8 +940,7 @@ message TrackRecord {
   optional Timecode timecode = 14;
   TrackClassificationType classification = 15;
   uint32 stop_reason = 16;
-  reserved 17;
-  repeated TrackTag tags = 18;
+  repeated TrackTag tags = 17;
   optional Ebur128 ebur_128 = 1000;
   optional Clap clap = 1001;
   optional Ced ced = 1002;
@@ -947,10 +956,9 @@ message TrackRecord {
 message Audio {
   AudioMeta meta = 1;
   repeated bytes analyses = 2;
-  reserved 3, 4;
-  AudioSummary summary = 5;
-  uint32 index_status = 6;
-  optional ErrorInfo index_error = 7;
+  AudioSummary summary = 3;
+  uint32 index_status = 4;
+  optional ErrorInfo index_error = 5;
 }
 
 // `disposition` bits (AudioTrackDisposition, §6.4): DEFAULT=0x1, DUB=0x2,
@@ -962,15 +970,14 @@ message Audio {
 // MULTILAYER=0x200000.
 message AudioTrack {
   AudioTrackMeta meta = 1;
-  reserved 2;
-  AudioStreamMeta stream = 3;
-  uint32 disposition = 4;
-  AudioTrackRole role = 5;
-  bool is_primary = 6;
-  bool auto_selected = 7;
-  string selection_reason = 8;
-  bytes audio_id = 9;
-  optional ErrorInfo index_error = 10;
+  AudioStreamMeta stream = 2;
+  uint32 disposition = 3;
+  AudioTrackRole role = 4;
+  bool is_primary = 5;
+  bool auto_selected = 6;
+  string selection_reason = 7;
+  bytes audio_id = 8;
+  optional ErrorInfo index_error = 9;
 }
 
 // ── Batch 10: audio file record (§6.5 audio aggregates table; §6.8 #1) ──────
@@ -1010,8 +1017,7 @@ message AudioFileRecord {
   string lyrics = 25;
   repeated string tag_types = 26;
   optional AudioCoverArt cover_art = 27;
-  reserved 28 to 30;
-  int64 created_at = 31;
+  int64 created_at = 28;
 }
 
 // ── SP3: findit `network` domain (consolidated into media.v1) ──
