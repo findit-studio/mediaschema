@@ -11,10 +11,12 @@
 
 pub mod curation;
 pub mod media;
+pub mod media_file;
 pub mod speaker;
 pub mod watched_location;
 
 pub use curation::{SceneAnnotation, UserTag};
 pub use media::Media;
+pub use media_file::MediaFile;
 pub use speaker::Speaker;
 pub use watched_location::WatchedLocation;

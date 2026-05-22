@@ -1,10 +1,16 @@
-//! `Media<Id>` — root / file entity (locked `schema/media.md` r8).
+//! `Media<Id>` — shared content row (locked `schema/media.md` r9).
 //!
-//! The indexed media **file** itself. All file-level scalar metadata lives
-//! here and nowhere else; the kind facets are thin aggregates and
-//! stream/codec data is per-track. `Media` is the architectural root of
-//! the domain — every other aggregate transitively descends from it via
-//! the three optional facet FKs (`video`/`audio`/`subtitle`).
+//! The indexed media **content** — one row per content hash. Many physical
+//! copies of the same bytes (the same file duplicated across
+//! folders/volumes) collapse to **one** `Media`; the copy-specific
+//! metadata (file name, path, filesystem creation time, discovering watch)
+//! lives on the per-copy [`MediaFile`](super::MediaFile) aggregate, and
+//! `files: Vec<Id>` is the reverse lookup to those copies. All
+//! **content-intrinsic** scalar metadata lives here and nowhere else; the
+//! kind facets are thin aggregates and stream/codec data is per-track.
+//! `Media` is the architectural root of the domain — every other aggregate
+//! transitively descends from it via the three optional facet FKs
+//! (`video`/`audio`/`subtitle`).
 //!
 //! ## Cross-cutting (locked)
 //!
@@ -42,15 +48,19 @@ use mediaframe::{
   container::Format,
 };
 use mediatime::Timestamp as MediaTimestamp;
-use smol_str::SmolStr;
 
 use crate::domain::{ErrorInfo, FileChecksum, MediaErrorFlags, MediaKind, Uuid7};
 
-/// The indexed media file — the architectural root of the domain.
+/// The indexed media content — the architectural root of the domain.
+///
+/// **The content row, one per content hash.** Per-copy metadata (name,
+/// path, filesystem creation time, discovering watch) lives on
+/// [`MediaFile`](super::MediaFile); `files` is the reverse lookup to this
+/// content's copies.
 ///
 /// **No `Default` impl** — defaulting to `{ id: nil, checksum: zero, … }`
-/// would represent an orphan file with no real identity. Construct via
-/// [`Media::try_new`] (validating: rejects nil `id` and zero
+/// would represent an orphan content row with no real identity. Construct
+/// via [`Media::try_new`] (validating: rejects nil `id` and zero
 /// `checksum`).
 ///
 /// **Fields are private**; access via getters and `with_*` / `set_*`
@@ -59,13 +69,14 @@ use crate::domain::{ErrorInfo, FileChecksum, MediaErrorFlags, MediaKind, Uuid7};
 pub struct Media<Id = Uuid7> {
   id: Id,
   checksum: FileChecksum,
-  name: SmolStr,
   /// **Container** format (MP4/MKV/MKA/…). Codec is per-track.
   format: Format,
   size: u64,
   duration: Option<MediaTimestamp>,
-  created_at: JiffTimestamp,
   kind: MediaKind,
+  /// Reverse lookup → this content's [`MediaFile`](super::MediaFile)
+  /// copies (the reverse side of `MediaFile.media_id`).
+  files: std::vec::Vec<Id>,
   /// FK → `Video` facet (`None` = no video stream on this file).
   video: Option<Id>,
   /// FK → `Audio` facet (`None` = no audio stream).
@@ -90,19 +101,19 @@ pub struct Media<Id = Uuid7> {
 impl Media<Uuid7> {
   /// Validating constructor for the canonical `Uuid7` identity type.
   ///
-  /// Rejects nil `id` (every file must have a real identity) and the
-  /// zero `checksum` sentinel ("not yet computed" — a probed file
+  /// Rejects nil `id` (every content row must have a real identity) and
+  /// the zero `checksum` sentinel ("not yet computed" — a probed file
   /// always has its content hash before reaching the domain). Other
-  /// scalar fields are caller-supplied; facet FKs default to `None`
-  /// and are filled in via `with_video` / `with_audio` /
-  /// `with_subtitle` after the corresponding facet aggregates land.
+  /// content-intrinsic fields are caller-supplied; `files` starts empty
+  /// (filled via `push_file` / `with_files` as copies are discovered) and
+  /// facet FKs default to `None`, filled in via `with_video` /
+  /// `with_audio` / `with_subtitle` after the corresponding facet
+  /// aggregates land.
   pub fn try_new(
     id: Uuid7,
     checksum: FileChecksum,
-    name: impl Into<SmolStr>,
     format: Format,
     size: u64,
-    created_at: JiffTimestamp,
     kind: MediaKind,
   ) -> Result<Self, MediaError> {
     if id.is_nil() {
@@ -114,12 +125,11 @@ impl Media<Uuid7> {
     Ok(Self {
       id,
       checksum,
-      name: name.into(),
       format,
       size,
       duration: None,
-      created_at,
       kind,
+      files: std::vec::Vec::new(),
       video: None,
       audio: None,
       subtitle: None,
@@ -145,12 +155,6 @@ impl<Id> Media<Id> {
     &self.checksum
   }
 
-  /// File name (`""` = absent).
-  #[inline]
-  pub fn name(&self) -> &str {
-    self.name.as_str()
-  }
-
   /// Container format (MP4/MKV/MKA/…).
   #[inline]
   pub const fn format(&self) -> &Format {
@@ -169,16 +173,17 @@ impl<Id> Media<Id> {
     self.duration.as_ref()
   }
 
-  /// Wall-clock creation time.
-  #[inline]
-  pub const fn created_at(&self) -> &JiffTimestamp {
-    &self.created_at
-  }
-
   /// Top-level media kind.
   #[inline]
   pub const fn kind(&self) -> MediaKind {
     self.kind
+  }
+
+  /// Reverse lookup → this content's [`MediaFile`](super::MediaFile)
+  /// copies (projects the slice, never `&Vec`).
+  #[inline]
+  pub fn files(&self) -> &[Id] {
+    self.files.as_slice()
   }
 
   /// FK → `Video` facet.
@@ -238,6 +243,20 @@ impl<Id> Media<Id> {
     self
   }
 
+  /// Builder: replace the whole `files` reverse-lookup list.
+  #[inline]
+  pub fn with_files(mut self, files: std::vec::Vec<Id>) -> Self {
+    self.files = files;
+    self
+  }
+
+  /// Builder: append one `MediaFile` id to the reverse-lookup list.
+  #[inline]
+  pub fn push_file(mut self, file: Id) -> Self {
+    self.files.push(file);
+    self
+  }
+
   /// Builder: set the `Video` facet FK.
   #[inline]
   pub fn with_video(mut self, video: Option<Id>) -> Self {
@@ -273,10 +292,18 @@ impl<Id> Media<Id> {
     self
   }
 
-  /// Builder: replace `capture_date`.
+  /// Builder: replace `capture_date`, collapsing the 0-ms wire sentinel
+  /// to `None`.
+  ///
+  /// The wire encodes `capture_date == 0` (Unix epoch, ms) as absent, so
+  /// storing `Some(<0-ms timestamp>)` would round-trip back to `None` and
+  /// lose data. To keep the domain incapable of holding the sentinel as a
+  /// real date, a `Some(t)` whose `t.as_millisecond() == 0` is collapsed
+  /// to `None` here. (`Timestamp::as_millisecond` is not `const`, so this
+  /// builder is not `const`.)
   #[inline]
-  pub const fn with_capture_date(mut self, t: Option<JiffTimestamp>) -> Self {
-    self.capture_date = t;
+  pub fn with_capture_date(mut self, t: Option<JiffTimestamp>) -> Self {
+    self.capture_date = normalize_capture_date(t);
     self
   }
 
@@ -300,6 +327,19 @@ impl<Id> Media<Id> {
   #[inline]
   pub fn set_duration(&mut self, d: Option<MediaTimestamp>) {
     self.duration = d;
+  }
+
+  /// In-place mutator: replace the whole `files` reverse-lookup list.
+  #[inline]
+  pub fn set_files(&mut self, files: std::vec::Vec<Id>) {
+    self.files = files;
+  }
+
+  /// In-place mutator: append one `MediaFile` id to the reverse-lookup
+  /// list.
+  #[inline]
+  pub fn add_file(&mut self, file: Id) {
+    self.files.push(file);
   }
 
   /// In-place mutator for the `Video` facet FK.
@@ -332,10 +372,11 @@ impl<Id> Media<Id> {
     self.probe_error = e;
   }
 
-  /// In-place mutator for `capture_date`.
+  /// In-place mutator for `capture_date`, collapsing the 0-ms wire
+  /// sentinel to `None` (see [`Media::with_capture_date`]).
   #[inline]
-  pub const fn set_capture_date(&mut self, t: Option<JiffTimestamp>) {
-    self.capture_date = t;
+  pub fn set_capture_date(&mut self, t: Option<JiffTimestamp>) {
+    self.capture_date = normalize_capture_date(t);
   }
 
   /// In-place mutator for `device`.
@@ -348,6 +389,20 @@ impl<Id> Media<Id> {
   #[inline]
   pub const fn set_gps(&mut self, g: Option<GeoLocation>) {
     self.gps = g;
+  }
+}
+
+/// Collapse the 0-ms `capture_date` wire sentinel to `None`.
+///
+/// The wire codec encodes `0` (Unix epoch, ms) as "absent", so a real
+/// `Some(<0-ms>)` would be indistinguishable from `None` after a
+/// round-trip. Normalising on the way in keeps the domain incapable of
+/// holding the sentinel as a genuine date.
+#[inline]
+fn normalize_capture_date(t: Option<JiffTimestamp>) -> Option<JiffTimestamp> {
+  match t {
+    Some(ts) if ts.as_millisecond() == 0 => None,
+    other => other,
   }
 }
 
@@ -380,30 +435,25 @@ mod tests {
     FileChecksum::from_bytes(bytes)
   }
 
-  fn ts() -> JiffTimestamp {
-    JiffTimestamp::default()
+  /// A real (non-epoch) capture timestamp — `JiffTimestamp::default()`
+  /// is 0 ms (Unix epoch), which `with_capture_date` collapses to `None`,
+  /// so capture-date tests must use a non-zero instant.
+  fn real_ts() -> JiffTimestamp {
+    JiffTimestamp::from_millisecond(1_700_000_000_000).expect("valid timestamp")
   }
 
   #[test]
   fn try_new_happy_path() {
     let id = Uuid7::new();
     let cs = fake_checksum();
-    let m = Media::try_new(
-      id,
-      cs,
-      "clip.mp4",
-      Format::Mp4,
-      12_345,
-      ts(),
-      MediaKind::Video,
-    )
-    .expect("valid construction must succeed");
+    let m = Media::try_new(id, cs, Format::Mp4, 12_345, MediaKind::Video)
+      .expect("valid construction must succeed");
     assert_eq!(m.id(), &id);
     assert_eq!(m.checksum(), &cs);
-    assert_eq!(m.name(), "clip.mp4");
     assert_eq!(m.format(), &Format::Mp4);
     assert_eq!(m.size(), 12_345);
     assert!(m.kind().is_video());
+    assert!(m.files().is_empty(), "files start empty on construction");
     assert!(m.video().is_none());
     assert!(m.audio().is_none());
     assert!(m.subtitle().is_none());
@@ -420,10 +470,8 @@ mod tests {
     let r = Media::try_new(
       Uuid7::nil(),
       fake_checksum(),
-      "x",
       Format::Mp4,
       0,
-      ts(),
       MediaKind::Video,
     );
     assert_eq!(r.err(), Some(MediaError::NilId));
@@ -435,14 +483,58 @@ mod tests {
     let r = Media::try_new(
       Uuid7::new(),
       FileChecksum::new(),
-      "x",
       Format::Mp4,
       0,
-      ts(),
       MediaKind::Video,
     );
     assert_eq!(r.err(), Some(MediaError::ZeroChecksum));
     assert!(MediaError::ZeroChecksum.is_zero_checksum());
+  }
+
+  #[test]
+  fn files_round_trip() {
+    let a = Uuid7::new();
+    let b = Uuid7::new();
+    let m = Media::try_new(
+      Uuid7::new(),
+      fake_checksum(),
+      Format::Mp4,
+      0,
+      MediaKind::Video,
+    )
+    .unwrap()
+    .push_file(a)
+    .with_files(vec![a, b]);
+    assert_eq!(m.files(), &[a, b]);
+
+    // In-place vocabulary mirrors the builders.
+    let mut m = m;
+    let c = Uuid7::new();
+    m.add_file(c);
+    assert_eq!(m.files(), &[a, b, c]);
+    m.set_files(vec![c]);
+    assert_eq!(m.files(), &[c]);
+  }
+
+  #[test]
+  fn capture_date_collapses_zero_ms_sentinel() {
+    let m = Media::try_new(Uuid7::new(), fake_checksum(), Format::Mp4, 0, MediaKind::Video)
+      .unwrap()
+      // Epoch (0 ms) is the wire "absent" sentinel — must collapse to None.
+      .with_capture_date(Some(JiffTimestamp::default()));
+    assert!(
+      m.capture_date().is_none(),
+      "0-ms capture_date must collapse to None"
+    );
+
+    // A real instant survives.
+    let m = m.with_capture_date(Some(real_ts()));
+    assert_eq!(m.capture_date(), Some(&real_ts()));
+
+    // The in-place setter collapses identically.
+    let mut m = m;
+    m.set_capture_date(Some(JiffTimestamp::default()));
+    assert!(m.capture_date().is_none());
   }
 
   #[test]
@@ -451,24 +543,16 @@ mod tests {
     let video_id = Uuid7::new();
     let audio_id = Uuid7::new();
     let gps = GeoLocation::try_new(37.7749, -122.4194, Some(20.0)).expect("valid coordinates");
-    let m = Media::try_new(
-      id,
-      fake_checksum(),
-      "clip.mp4",
-      Format::Mp4,
-      12_345,
-      ts(),
-      MediaKind::Video,
-    )
-    .unwrap()
-    .with_video(Some(video_id))
-    .with_audio(Some(audio_id))
-    .with_error_flags(MediaErrorFlags::VIDEO_ERROR)
-    .with_capture_date(Some(ts()))
-    .with_device(Some(
-      Device::new().with_make("Apple").with_model("iPhone 15 Pro"),
-    ))
-    .with_gps(Some(gps));
+    let m = Media::try_new(id, fake_checksum(), Format::Mp4, 12_345, MediaKind::Video)
+      .unwrap()
+      .with_video(Some(video_id))
+      .with_audio(Some(audio_id))
+      .with_error_flags(MediaErrorFlags::VIDEO_ERROR)
+      .with_capture_date(Some(real_ts()))
+      .with_device(Some(
+        Device::new().with_make("Apple").with_model("iPhone 15 Pro"),
+      ))
+      .with_gps(Some(gps));
 
     assert_eq!(m.video(), Some(&video_id));
     assert_eq!(m.audio(), Some(&audio_id));
@@ -489,10 +573,8 @@ mod tests {
     let mut m = Media::try_new(
       Uuid7::new(),
       fake_checksum(),
-      "clip.mp4",
       Format::Mp4,
       0,
-      ts(),
       MediaKind::Video,
     )
     .unwrap();

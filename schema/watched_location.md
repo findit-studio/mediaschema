@@ -1,13 +1,22 @@
-# `WatchedLocation<Id>` — a monitored source root  *(rev 5 — LOCKED, user-approved)*
+# `WatchedLocation<Id>` — a monitored source root  *(rev 6 — LOCKED, user-approved)*
 
 ## Domain meaning
 
 A filesystem root the **monitor watches for file events** (create/modify/
 delete/move). On an event it **triggers (re)index of the affected file or
 subfolder** — content-addressed, so re-index re-hashes and dedups. It is **not
-a scanner and not a media owner**: no media count, no scan rollup, no
-`Media` link (a path is not identity — your clarification). Pure monitor
-config + monitor health. (Supersedes findit-proto's scan-rollup framing.)
+a scanner and not a media owner**: no media count, no scan rollup. Pure
+monitor config + monitor health. (Supersedes findit-proto's scan-rollup
+framing.)
+
+**WL ↔ file linkage (rev 6).** The content/copy split adds a per-copy
+[`MediaFile`](media_file.md) record, and **each `MediaFile` *is* linked to
+the `WatchedLocation` that discovered it** via the non-optional
+`MediaFile.watched_location_id` FK. This is a *file-copy* link, not a
+content link: a path is discovery provenance, not identity, so there is
+still **no `Media` ↔ `WatchedLocation` link** — the content row is keyed by
+hash. `WatchedLocation` itself stays config + health only (it stores no
+back-list of files); the link lives on the `MediaFile` side.
 
 ## Cross-cutting (locked)
 
@@ -44,9 +53,20 @@ facts.
 notifications); on a create/modify/delete/move event, **trigger (re)index of
 the affected file or subfolder**. Content-addressed, so re-index re-hashes →
 same hash = same `Media` (dedup); a path is discovery provenance, not
-identity. Therefore the schema models **no `Media`↔`WatchedLocation` link, no
-media count, no scan rollup** — "what exists" lives in `Media` (by hash), not
-here. (Supersedes findit-proto's scan-rollup framing.)
+identity. The schema therefore models **no `Media` ↔ `WatchedLocation`
+link, no media count, no scan rollup** — "what exists" (content) lives in
+`Media`, keyed by hash. The *file copy* discovered through a watch **is**
+recorded — as a [`MediaFile`](media_file.md) with a non-optional
+`watched_location_id` FK back to this `WatchedLocation` (rev 6).
+(Supersedes findit-proto's scan-rollup framing.)
+
+**Cascade rule (rev 6).** Deleting a `WatchedLocation` **cascades** to its
+`MediaFile`s: every file copy discovered through that watch is removed
+(`ON DELETE CASCADE` on `MediaFile.watched_location_id`). This is what makes
+the `MediaFile.watched_location_id` FK safely **non-optional** — it can
+never dangle. A `Media` content row is *not* deleted by the cascade: it
+persists as long as **≥1** `MediaFile` still references it, and becomes
+reclaimable only once its last copy is gone.
 
 **Removable volumes (your point).** `root` is a `Local { volume: Id, … }`;
 the volume Id is the **stable UUID at `<mount>/.findit_index/.id`** (survives
@@ -60,9 +80,12 @@ reconcile sweep), a *non-ejectable* root vanishing is the real
 ## Resolved (your calls)
 
 - **WL-scope:** **keep** `WatchedLocation` in mediaschema.
-- **WL-link:** **not added** — no `Media.source`, no `MediaLocation`
-  aggregate. (Content-addressed; linkage out of schema scope.) Locked
-  `media.md` untouched.
+- **WL-link:** *(updated rev 6)* still **no `Media` ↔ `WatchedLocation`
+  link** (content is hash-keyed; a path is not content identity) — but the
+  content/copy split *does* link the per-copy
+  [`MediaFile`](media_file.md) to its discovering `WatchedLocation` via the
+  non-optional `MediaFile.watched_location_id` FK, with a WL-deletion
+  cascade. The link is on the file-copy side, not on `Media`.
 - **WL-loc:** **deferred** — `Location` stays `Local` + the thin future
   `RemoteUrl` stub; object storage (structured `Object`/`StorageProvider`) is
   a later pass; locked `primitives.md` **not** reopened. `WatchedLocation` is
@@ -87,12 +110,26 @@ reconcile sweep), a *non-ejectable* root vanishing is the real
 - **sqlx**: `watched_location` table; `id` PK; `root` UNIQUE on
   `(volume_id, components)` (structured `Location`, `Local` only for now);
   `is_ejectable`/`last_reconcile*`/`last_error` columns. No `Media` FK/join,
-  no count.
-- **mongodb**: `_id`=UUIDv7; single collection.
+  no count. The `media_file.watched_location_id` FK references this table
+  **`ON DELETE CASCADE`** (rev 6 cascade rule) — deleting a watch drops its
+  file copies.
+- **mongodb**: `_id`=UUIDv7; single collection. The cascade is enforced by
+  the indexer (delete the watch's `media_file` documents in the same op).
 - **graphql**: management surface only (CRUD watch folders + monitor
-  health/last-reconcile); no "media here" resolver (no schema link).
+  health/last-reconcile); a "files discovered here" resolver may join
+  `media_file` on `watched_location_id`, but there is still no direct
+  `Media` resolver (no `Media` link).
 
-**Status: LOCKED (rev 5) — user-approved.** FS-event monitor (not scanner);
+**Status: LOCKED (rev 6) — user-approved.** *(rev 6: content/copy split.
+The rev-5 "no `Media` ↔ `WatchedLocation` link, no sighting record"
+position is **refined** — there is now a per-copy
+[`MediaFile`](media_file.md) record, and `MediaFile.watched_location_id`
+is the **non-optional** FK linking each file copy to the `WatchedLocation`
+that discovered it. Deleting a `WatchedLocation` **cascades** to its
+`MediaFile`s, so the FK never dangles; a `Media` content row persists as
+long as ≥1 `MediaFile` references it. There is still **no `Media` ↔
+`WatchedLocation` link** — content is hash-keyed; the link is on the
+file-copy side.)* FS-event monitor (not scanner);
 no `Media` link / count / globs (content-addressed); `Local`-only (WL-loc
 deferred — `RemoteUrl`/object storage a later pass); WL-sched out; single
 `is_ejectable` field (no `Volume` aggregate); `last_reconcile*` kept
