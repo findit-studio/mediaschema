@@ -199,12 +199,56 @@ impl<Id> SubtitleTrack<Id> {
     self.title.as_str()
   }
 
-  /// Whether this track's container form requires OCR (PGS/DVBSUB/…).
-  /// Derived from [`Format::is_image_based`]; an unknown / unclassified
-  /// `Other` format degrades to `false`.
+  /// Tri-state image-based classification, derived from **both**
+  /// `codec` and `format`.
+  ///
+  /// - `Some(true)`: a known bitmap on either axis ⇒ image-based,
+  ///   requires OCR. A known bitmap codec forces `true` even when the
+  ///   `format` is a default / unclassified `Other`.
+  /// - `Some(false)`: every classifiable axis says text-based and
+  ///   neither says bitmap.
+  /// - `None`: **both** axes are unknown / unclassified (`Other`) — the
+  ///   track cannot be classified, so the caller must not assume
+  ///   text-based.
+  ///
+  /// This is the lossless signal; [`Self::requires_ocr`] is the
+  /// conservative `bool` projection used by the stage / progress
+  /// rollups.
+  #[inline]
+  pub fn image_based(&self) -> Option<bool> {
+    match (self.codec.is_image_based(), self.format.is_image_based()) {
+      // A known bitmap on either axis is decisive.
+      (Some(true), _) | (_, Some(true)) => Some(true),
+      // Otherwise, if either axis classifies it as text-based, trust it.
+      (Some(false), _) | (_, Some(false)) => Some(false),
+      // Neither axis could classify the track.
+      (None, None) => None,
+    }
+  }
+
+  /// Whether this track requires an OCR pipeline stage — the
+  /// **conservative** `bool` projection of [`Self::image_based`].
+  ///
+  /// An unknown / unclassified track (`image_based() == None`) maps to
+  /// `true`: OCR is *required*. Under-requiring OCR would let a
+  /// `SEARCH_INDEXED` completion check pass without `OCR_DONE`,
+  /// silently skipping OCR for what may be image subtitles. Pass this
+  /// into [`SubtitleIndexStatus::is_fully_indexed`] /
+  /// `SubtitleIndexStage::from_status` so unknown never under-requires
+  /// OCR.
+  #[inline]
+  pub fn requires_ocr(&self) -> bool {
+    // `None` (unclassified) → `true`: conservative, never skip OCR.
+    self.image_based().unwrap_or(true)
+  }
+
+  /// Whether this track's container form is image-based (PGS/DVBSUB/…),
+  /// derived from **both** `codec` and `format`. An unknown /
+  /// unclassified track degrades to `false` — use [`Self::requires_ocr`]
+  /// for the conservative completion-gating signal.
   #[inline]
   pub fn is_image_based(&self) -> bool {
-    self.format.is_image_based().unwrap_or(false)
+    self.image_based().unwrap_or(false)
   }
 
   /// FFmpeg `AV_DISPOSITION_*` bits as a [`TrackDisposition`] bitflags.
@@ -791,8 +835,11 @@ mod tests {
     assert_eq!(t.origin(), &TrackOrigin::External);
     assert_eq!(t.language(), &lang);
     assert_eq!(t.title(), "English (SDH)");
-    // `Format::Srt` is a text format → not image-based.
+    // `Format::Srt` + `SubtitleCodec::Subrip` are both text → not
+    // image-based, OCR not required.
+    assert_eq!(t.image_based(), Some(false));
     assert!(!t.is_image_based());
+    assert!(!t.requires_ocr());
     assert_eq!(t.disposition(), TrackDisposition::from_u32(0x0040));
     assert!(t.is_primary());
     assert!(t.auto_selected());
@@ -835,6 +882,72 @@ mod tests {
       .contains(SubtitleIndexStatus::TRACKS_DISCOVERED));
     assert_eq!(t.index_errors().len(), 1);
     assert_eq!(t.index_errors()[0], err);
+  }
+
+  #[test]
+  fn image_based_known_bitmap_codec_forces_ocr_despite_default_format() {
+    // A PGS track with a known bitmap codec but a default / unclassified
+    // `Other` format MUST still be treated as image-based — the bug was
+    // that `is_image_based()` looked only at `format` and degraded the
+    // `Other` to `false`, silently skipping OCR.
+    let t = SubtitleTrack::try_new(Uuid7::new(), Uuid7::new())
+      .unwrap()
+      .with_codec(SubtitleCodec::HdmvPgsSubtitle)
+      .with_format(Format::default());
+    assert_eq!(t.format(), &Format::default());
+    assert_eq!(t.codec().is_image_based(), Some(true));
+    assert_eq!(t.image_based(), Some(true));
+    assert!(t.is_image_based());
+    assert!(t.requires_ocr(), "known bitmap codec must require OCR");
+  }
+
+  #[test]
+  fn image_based_dvbsub_codec_with_other_format() {
+    let t = SubtitleTrack::try_new(Uuid7::new(), Uuid7::new())
+      .unwrap()
+      .with_codec(SubtitleCodec::DvbSubtitle)
+      .with_format(Format::Other(SmolStr::new("weird")));
+    assert_eq!(t.image_based(), Some(true));
+    assert!(t.requires_ocr());
+  }
+
+  #[test]
+  fn image_based_text_codec_and_format_not_ocr() {
+    let t = SubtitleTrack::try_new(Uuid7::new(), Uuid7::new())
+      .unwrap()
+      .with_codec(SubtitleCodec::Ass)
+      .with_format(Format::Ass);
+    assert_eq!(t.image_based(), Some(false));
+    assert!(!t.is_image_based());
+    assert!(!t.requires_ocr());
+  }
+
+  #[test]
+  fn image_based_unknown_on_both_axes_conservatively_requires_ocr() {
+    // Neither axis classifies the track → `image_based()` is `None`,
+    // and `requires_ocr()` is conservatively `true` so a completion
+    // check can never pass without `OCR_DONE`.
+    let t = SubtitleTrack::try_new(Uuid7::new(), Uuid7::new())
+      .unwrap()
+      .with_codec(SubtitleCodec::Other(SmolStr::new("mystery")))
+      .with_format(Format::Other(SmolStr::new("mystery")));
+    assert_eq!(t.image_based(), None);
+    assert!(!t.is_image_based());
+    assert!(
+      t.requires_ocr(),
+      "an unclassified track must never under-require OCR"
+    );
+  }
+
+  #[test]
+  fn image_based_known_bitmap_format_with_other_codec() {
+    // Mirror case: bitmap `format`, unknown `Other` codec.
+    let t = SubtitleTrack::try_new(Uuid7::new(), Uuid7::new())
+      .unwrap()
+      .with_codec(SubtitleCodec::Other(SmolStr::default()))
+      .with_format(Format::PgsSub);
+    assert_eq!(t.image_based(), Some(true));
+    assert!(t.requires_ocr());
   }
 
   #[test]
