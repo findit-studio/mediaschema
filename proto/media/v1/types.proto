@@ -591,13 +591,32 @@ message VideoStreamMeta {
   mediatime.v1.Timebase time_base = 6;
 }
 
+// Per-copy metadata `name` (field 3) and `created_at` (field 6) were
+// removed when the domain split content (`Media`) from physical copy
+// (`MediaFile`) — those concerns now live on the `MediaFile` message
+// below. Field numbers and names reserved to prevent accidental reuse.
 message MediaMeta {
   bytes id = 1;
   bytes checksum = 2;
-  string name = 3;
   uint64 size = 4;
   TrackTime time = 5;
-  int64 created_at = 6;
+  reserved 3, 6;
+  reserved "name", "created_at";
+}
+
+// Per-copy file record. N MediaFiles may point at one Media (same content,
+// multiple physical copies on disk). `created_at` is the filesystem birth
+// time, ms since epoch; legacy `0` sentinel = absent (the wire-decode
+// adapter collapses it to `None`). `watch_volume` is carried on the wire
+// so a single message round-trips losslessly — the bridge is 1:1 and does
+// not join WatchedLocation to re-derive the volume from `watched_location_id`.
+message MediaFile {
+  bytes id = 1;
+  bytes media_id = 2;
+  int64 created_at = 3;
+  Location location = 4;
+  bytes watched_location_id = 5;
+  bytes watch_volume = 6;
 }
 
 message SceneMeta {
