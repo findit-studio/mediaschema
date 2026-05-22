@@ -120,6 +120,7 @@ pub mod __buffa {
         #[cfg(feature = "json")]
         reg.register_json_any(super::__VIDEO_STREAM_META_JSON_ANY);
         #[cfg(feature = "json")] reg.register_json_any(super::__MEDIA_META_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__MEDIA_FILE_JSON_ANY);
         #[cfg(feature = "json")] reg.register_json_any(super::__SCENE_META_JSON_ANY);
         #[cfg(feature = "json")] reg.register_json_any(super::__SUBTITLE_META_JSON_ANY);
         #[cfg(feature = "json")]

@@ -1577,10 +1577,8 @@ fn batch4_sp2_roundtrip() {
   rt(&MediaMeta {
     id: vec![1].into(),
     checksum: (1u8..=32).collect(),
-    name: "a".into(),
     size: 10,
     time: sp2_track_time_one(),
-    created_at: 1,
     ..Default::default()
   });
   rt(&MediaMeta::default());
@@ -1762,10 +1760,8 @@ fn make_media_meta() -> buffa::MessageField<mediaschema::MediaMeta> {
   buffa::MessageField::some(mediaschema::MediaMeta {
     id: vec![1].into(),
     checksum: (1u8..=32).collect(),
-    name: "movie.mp4".into(),
     size: 99_000_000,
     time: sp2_track_time_one(),
-    created_at: 1_700_000_000,
     ..Default::default()
   })
 }
