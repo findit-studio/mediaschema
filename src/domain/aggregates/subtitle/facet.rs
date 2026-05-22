@@ -164,26 +164,26 @@ impl Subtitle<Uuid7> {
 impl<Id> Subtitle<Id> {
   /// Canonical identity (referenced by `Media.subtitle`).
   #[inline(always)]
-  pub const fn id(&self) -> &Id {
+  pub const fn id_ref(&self) -> &Id {
     &self.id
   }
 
   /// FK → `Media.id`.
   #[inline(always)]
-  pub const fn parent(&self) -> &Id {
+  pub const fn parent_ref(&self) -> &Id {
     &self.parent
   }
 
   /// Forward refs to child `SubtitleTrack`s.
   #[inline(always)]
-  pub const fn tracks(&self) -> &[Id] {
+  pub const fn tracks_slice(&self) -> &[Id] {
     self.tracks.as_slice()
   }
 
   /// Roll-up of each `SubtitleTrack`'s derived stage (denormalised
   /// cache; truth = per-track `SubtitleIndexStatus` + `index_errors`).
   #[inline(always)]
-  pub const fn track_progress(&self) -> &IndexProgress {
+  pub const fn track_progress_ref(&self) -> &IndexProgress {
     &self.track_progress
   }
 
@@ -245,9 +245,9 @@ mod tests {
   fn try_new_happy_path() {
     let parent = Uuid7::new();
     let s = Subtitle::try_new(Uuid7::new(), parent).expect("valid construction must succeed");
-    assert_eq!(s.parent(), &parent);
-    assert!(s.tracks().is_empty());
-    assert_eq!(s.track_progress(), &IndexProgress::new());
+    assert_eq!(s.parent_ref(), &parent);
+    assert!(s.tracks_slice().is_empty());
+    assert_eq!(s.track_progress_ref(), &IndexProgress::new());
   }
 
   #[test]
@@ -272,12 +272,12 @@ mod tests {
       .unwrap()
       .with_tracks(std::vec![t1, t2])
       .with_track_progress(IndexProgress::from_parts(2, 1, 0));
-    assert_eq!(s.tracks().len(), 2);
-    assert!(s.tracks().contains(&t1));
-    assert!(s.tracks().contains(&t2));
-    assert_eq!(s.track_progress().total(), 2);
-    assert_eq!(s.track_progress().indexed(), 1);
-    assert_eq!(s.track_progress().failed(), 0);
+    assert_eq!(s.tracks_slice().len(), 2);
+    assert!(s.tracks_slice().contains(&t1));
+    assert!(s.tracks_slice().contains(&t2));
+    assert_eq!(s.track_progress_ref().total(), 2);
+    assert_eq!(s.track_progress_ref().indexed(), 1);
+    assert_eq!(s.track_progress_ref().failed(), 0);
   }
 
   #[test]
@@ -285,8 +285,8 @@ mod tests {
     let mut s = Subtitle::try_new(Uuid7::new(), Uuid7::new()).unwrap();
     s.set_tracks(std::vec![Uuid7::new()]);
     s.set_track_progress(IndexProgress::from_parts(1, 0, 1));
-    assert_eq!(s.tracks().len(), 1);
-    assert_eq!(s.track_progress().failed(), 1);
+    assert_eq!(s.tracks_slice().len(), 1);
+    assert_eq!(s.track_progress_ref().failed(), 1);
   }
 
   #[test]

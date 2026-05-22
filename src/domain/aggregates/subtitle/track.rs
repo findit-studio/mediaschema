@@ -148,13 +148,13 @@ impl SubtitleTrack<Uuid7> {
 impl<Id> SubtitleTrack<Id> {
   /// Canonical identity (cues FK to this).
   #[inline(always)]
-  pub const fn id(&self) -> &Id {
+  pub const fn id_ref(&self) -> &Id {
     &self.id
   }
 
   /// FK → `Subtitle.id`.
   #[inline(always)]
-  pub const fn parent(&self) -> &Id {
+  pub const fn parent_ref(&self) -> &Id {
     &self.parent
   }
 
@@ -173,25 +173,25 @@ impl<Id> SubtitleTrack<Id> {
 
   /// Subtitle codec (`Other("")` = absent).
   #[inline(always)]
-  pub const fn codec(&self) -> &SubtitleCodec {
+  pub const fn codec_ref(&self) -> &SubtitleCodec {
     &self.codec
   }
 
   /// Text vs bitmap container form ([`Format::default`] = absent).
   #[inline(always)]
-  pub const fn format(&self) -> &Format {
+  pub const fn format_ref(&self) -> &Format {
     &self.format
   }
 
   /// Where the bytes came from (embedded / sidecar / external).
   #[inline(always)]
-  pub const fn origin(&self) -> &TrackOrigin {
+  pub const fn origin_ref(&self) -> &TrackOrigin {
     &self.origin
   }
 
   /// Language tag ([`Language::default`] = `und` / undetermined).
   #[inline(always)]
-  pub const fn language(&self) -> &Language {
+  pub const fn language_ref(&self) -> &Language {
     &self.language
   }
 
@@ -292,7 +292,7 @@ impl<Id> SubtitleTrack<Id> {
   /// Per-track duration. TODO(mediaframe): switch to
   /// `mediatime::TrackTime` once available (see `Speaker` note).
   #[inline(always)]
-  pub const fn duration(&self) -> Option<&Timestamp> {
+  pub const fn duration_ref(&self) -> Option<&Timestamp> {
     self.duration.as_ref()
   }
 
@@ -304,25 +304,25 @@ impl<Id> SubtitleTrack<Id> {
 
   /// Forward refs to the per-track `SubtitleCue` segment aggregate.
   #[inline(always)]
-  pub const fn cues(&self) -> &[Id] {
+  pub const fn cues_slice(&self) -> &[Id] {
     self.cues.as_slice()
   }
 
   /// Parse / OCR reproducibility (shared per-track [`Provenance`] VO).
   #[inline(always)]
-  pub const fn provenance(&self) -> &Provenance {
+  pub const fn provenance_ref(&self) -> &Provenance {
     &self.provenance
   }
 
   /// External `.srt`/`.vtt` location (`None` for embedded).
   #[inline(always)]
-  pub const fn source_path(&self) -> Option<&Location<Id>> {
+  pub const fn source_path_ref(&self) -> Option<&Location<Id>> {
     self.source_path.as_ref()
   }
 
   /// Checksum of the external file (`None` for embedded).
   #[inline(always)]
-  pub const fn source_checksum(&self) -> Option<&FileChecksum> {
+  pub const fn source_checksum_ref(&self) -> Option<&FileChecksum> {
     self.source_checksum.as_ref()
   }
 
@@ -377,13 +377,13 @@ impl<Id> SubtitleTrack<Id> {
 
   /// First cue start. TODO(mediaframe): switch to `mediatime::TrackTime`.
   #[inline(always)]
-  pub const fn first_cue(&self) -> Option<&Timestamp> {
+  pub const fn first_cue_ref(&self) -> Option<&Timestamp> {
     self.first_cue.as_ref()
   }
 
   /// Last cue start. TODO(mediaframe): switch to `mediatime::TrackTime`.
   #[inline(always)]
-  pub const fn last_cue(&self) -> Option<&Timestamp> {
+  pub const fn last_cue_ref(&self) -> Option<&Timestamp> {
     self.last_cue.as_ref()
   }
 
@@ -396,7 +396,7 @@ impl<Id> SubtitleTrack<Id> {
   /// Per-track error truth (stage-coded `ErrorInfo.code`). Drives
   /// `Media.error_flags.SUBTITLE_ERROR` rollup.
   #[inline(always)]
-  pub const fn index_errors(&self) -> &[ErrorInfo] {
+  pub const fn index_errors_slice(&self) -> &[ErrorInfo] {
     self.index_errors.as_slice()
   }
 
@@ -856,11 +856,11 @@ mod tests {
   fn try_new_happy_path() {
     let parent = Uuid7::new();
     let t = SubtitleTrack::try_new(Uuid7::new(), parent).expect("valid construction must succeed");
-    assert_eq!(t.parent(), &parent);
-    assert_eq!(t.codec(), &SubtitleCodec::Other(SmolStr::default()));
-    assert_eq!(t.format(), &Format::default());
-    assert_eq!(t.origin(), &TrackOrigin::default());
-    assert_eq!(t.language(), &Language::default());
+    assert_eq!(t.parent_ref(), &parent);
+    assert_eq!(t.codec_ref(), &SubtitleCodec::Other(SmolStr::default()));
+    assert_eq!(t.format_ref(), &Format::default());
+    assert_eq!(t.origin_ref(), &TrackOrigin::default());
+    assert_eq!(t.language_ref(), &Language::default());
     assert!(t.title().is_empty());
     // Fresh track: unknown codec + unknown format ⇒ unclassified, so
     // OCR is conservatively required and it is not yet fully indexed.
@@ -871,15 +871,15 @@ mod tests {
     assert_eq!(t.disposition(), TrackDisposition::default());
     assert!(!t.is_primary());
     assert!(!t.auto_selected());
-    assert!(t.duration().is_none());
+    assert!(t.duration_ref().is_none());
     assert_eq!(t.cue_count(), 0);
-    assert!(t.cues().is_empty());
-    assert_eq!(t.provenance(), &Provenance::new());
-    assert!(t.source_path().is_none());
-    assert!(t.source_checksum().is_none());
+    assert!(t.cues_slice().is_empty());
+    assert_eq!(t.provenance_ref(), &Provenance::new());
+    assert!(t.source_path_ref().is_none());
+    assert!(t.source_checksum_ref().is_none());
     assert!(t.character_encoding().is_empty());
     assert_eq!(t.index_status(), SubtitleIndexStatus::new());
-    assert!(t.index_errors().is_empty());
+    assert!(t.index_errors_slice().is_empty());
   }
 
   #[test]
@@ -911,10 +911,10 @@ mod tests {
       .with_auto_selected(true)
       .with_kind(SubtitleKind::ForcedNarrative)
       .with_sdh(true);
-    assert_eq!(t.codec(), &SubtitleCodec::Subrip);
-    assert_eq!(t.format(), &Format::Srt);
-    assert_eq!(t.origin(), &TrackOrigin::External);
-    assert_eq!(t.language(), &lang);
+    assert_eq!(t.codec_ref(), &SubtitleCodec::Subrip);
+    assert_eq!(t.format_ref(), &Format::Srt);
+    assert_eq!(t.origin_ref(), &TrackOrigin::External);
+    assert_eq!(t.language_ref(), &lang);
     assert_eq!(t.title(), "English (SDH)");
     // `Format::Srt` + `SubtitleCodec::Subrip` are both text → not
     // image-based, OCR not required.
@@ -935,10 +935,10 @@ mod tests {
       .unwrap()
       .with_cues(std::vec![c1, c2])
       .with_cue_count(2);
-    assert_eq!(t.cues().len(), 2);
+    assert_eq!(t.cues_slice().len(), 2);
     assert_eq!(t.cue_count(), 2);
-    assert!(t.cues().contains(&c1));
-    assert!(t.cues().contains(&c2));
+    assert!(t.cues_slice().contains(&c1));
+    assert!(t.cues_slice().contains(&c2));
   }
 
   #[test]
@@ -947,7 +947,7 @@ mod tests {
     let t = SubtitleTrack::try_new(Uuid7::new(), Uuid7::new())
       .unwrap()
       .with_provenance(prov.clone());
-    assert_eq!(t.provenance(), &prov);
+    assert_eq!(t.provenance_ref(), &prov);
   }
 
   #[test]
@@ -960,8 +960,8 @@ mod tests {
     assert!(t
       .index_status()
       .contains(SubtitleIndexStatus::TRACKS_DISCOVERED));
-    assert_eq!(t.index_errors().len(), 1);
-    assert_eq!(t.index_errors()[0], err);
+    assert_eq!(t.index_errors_slice().len(), 1);
+    assert_eq!(t.index_errors_slice()[0], err);
   }
 
   #[test]
@@ -974,8 +974,8 @@ mod tests {
       .unwrap()
       .with_codec(SubtitleCodec::HdmvPgsSubtitle)
       .with_format(Format::default());
-    assert_eq!(t.format(), &Format::default());
-    assert_eq!(t.codec().is_image_based(), Some(true));
+    assert_eq!(t.format_ref(), &Format::default());
+    assert_eq!(t.codec_ref().is_image_based(), Some(true));
     assert_eq!(t.image_based(), Some(true));
     assert!(t.requires_ocr(), "known bitmap codec must require OCR");
   }
@@ -1070,10 +1070,10 @@ mod tests {
     t.set_primary(true);
     t.set_kind(SubtitleKind::CommentaryText);
     t.set_index_status(SubtitleIndexStatus::CUES_EXTRACTED);
-    assert_eq!(t.codec(), &SubtitleCodec::Ass);
-    assert_eq!(t.format(), &Format::Ass);
-    assert_eq!(t.origin(), &TrackOrigin::Embedded);
-    assert_eq!(t.language(), &lang);
+    assert_eq!(t.codec_ref(), &SubtitleCodec::Ass);
+    assert_eq!(t.format_ref(), &Format::Ass);
+    assert_eq!(t.origin_ref(), &TrackOrigin::Embedded);
+    assert_eq!(t.language_ref(), &lang);
     assert_eq!(t.title(), "Japanese");
     assert_eq!(t.disposition(), TrackDisposition::from_u32(0x0001));
     assert!(t.is_primary());

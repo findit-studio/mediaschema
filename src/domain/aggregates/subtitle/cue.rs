@@ -149,13 +149,13 @@ impl SubtitleCue<Uuid7> {
 impl<Id> SubtitleCue<Id> {
   /// Canonical identity (also the LanceDB embedding key).
   #[inline(always)]
-  pub const fn id(&self) -> &Id {
+  pub const fn id_ref(&self) -> &Id {
     &self.id
   }
 
   /// FK → `SubtitleTrack.id`.
   #[inline(always)]
-  pub const fn parent(&self) -> &Id {
+  pub const fn parent_ref(&self) -> &Id {
     &self.parent
   }
 
@@ -167,14 +167,14 @@ impl<Id> SubtitleCue<Id> {
 
   /// On-screen interval in media-time.
   #[inline(always)]
-  pub const fn span(&self) -> &TimeRange {
+  pub const fn span_ref(&self) -> &TimeRange {
     &self.span
   }
 
   /// Parsed plain text (styling stripped); both `src` and `translated`
   /// fields `""` = absent.
   #[inline(always)]
-  pub const fn text(&self) -> &LocalizedText {
+  pub const fn text_ref(&self) -> &LocalizedText {
     &self.text
   }
 
@@ -194,7 +194,7 @@ impl<Id> SubtitleCue<Id> {
   /// Text extracted from `image` by the OCR stage; kept distinct from
   /// `text`. Both `src` and `translated` fields `""` = absent.
   #[inline(always)]
-  pub const fn ocr_text(&self) -> &LocalizedText {
+  pub const fn ocr_text_ref(&self) -> &LocalizedText {
     &self.ocr_text
   }
 
@@ -383,13 +383,13 @@ mod tests {
       LocalizedText::from_src("Hello"),
     )
     .expect("valid text cue must construct");
-    assert_eq!(c.parent(), &parent);
+    assert_eq!(c.parent_ref(), &parent);
     assert_eq!(c.index(), 0);
-    assert_eq!(c.span(), &span());
-    assert_eq!(c.text().src(), "Hello");
+    assert_eq!(c.span_ref(), &span());
+    assert_eq!(c.text_ref().src(), "Hello");
     assert!(c.styled_text().is_empty());
     assert!(c.image().is_empty());
-    assert!(c.ocr_text().is_empty());
+    assert!(c.ocr_text_ref().is_empty());
     assert!(!c.is_blank());
   }
 
@@ -467,7 +467,7 @@ mod tests {
     .expect("bitmap cue with image + ocr_text must construct");
     assert_eq!(c.index(), 5);
     assert_eq!(c.image(), bitmap.as_slice());
-    assert_eq!(c.ocr_text().src(), "Hello (OCR)");
+    assert_eq!(c.ocr_text_ref().src(), "Hello (OCR)");
     assert!(!c.is_blank());
   }
 
@@ -568,7 +568,7 @@ mod tests {
     .try_with_ocr_text(LocalizedText::from_src("OCR"))
     .expect("ocr_text with an image present is valid");
     assert_eq!(c.image(), &[7u8]);
-    assert_eq!(c.ocr_text().src(), "OCR");
+    assert_eq!(c.ocr_text_ref().src(), "OCR");
   }
 
   #[test]
@@ -583,8 +583,11 @@ mod tests {
     .unwrap();
     let r = c.try_set_ocr_text(LocalizedText::from_src("OCR"));
     assert_eq!(r.err(), Some(SubtitleCueError::OcrTextWithoutImage));
-    assert!(c.ocr_text().is_empty(), "rejected setter must not mutate");
-    assert_eq!(c.text().src(), "hi");
+    assert!(
+      c.ocr_text_ref().is_empty(),
+      "rejected setter must not mutate"
+    );
+    assert_eq!(c.text_ref().src(), "hi");
   }
 
   #[test]
@@ -599,7 +602,7 @@ mod tests {
     .unwrap();
     let r = c.try_set_text(LocalizedText::new());
     assert_eq!(r.err(), Some(SubtitleCueError::BlankCue));
-    assert_eq!(c.text().src(), "hi", "rejected setter must not mutate");
+    assert_eq!(c.text_ref().src(), "hi", "rejected setter must not mutate");
   }
 
   #[test]
@@ -617,7 +620,7 @@ mod tests {
     c.try_set_ocr_text(LocalizedText::from_src("OCR"))
       .expect("ocr_text with image present is valid");
     assert_eq!(c.image(), &[3u8]);
-    assert_eq!(c.ocr_text().src(), "OCR");
+    assert_eq!(c.ocr_text_ref().src(), "OCR");
   }
 
   #[test]
