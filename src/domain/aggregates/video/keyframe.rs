@@ -134,15 +134,15 @@ impl Keyframe<Uuid7> {
 impl<Id> Keyframe<Id> {
   // --- identity / source ---
   #[inline]
-  pub const fn id(&self) -> &Id {
+  pub const fn id_ref(&self) -> &Id {
     &self.id
   }
   #[inline]
-  pub const fn parent(&self) -> &Id {
+  pub const fn parent_ref(&self) -> &Id {
     &self.parent
   }
   #[inline]
-  pub const fn pts(&self) -> &Timestamp {
+  pub const fn pts_ref(&self) -> &Timestamp {
     &self.pts
   }
 
@@ -176,63 +176,63 @@ impl<Id> Keyframe<Id> {
 
   // --- apple-vision ---
   #[inline]
-  pub fn classifications(&self) -> &[Detection] {
+  pub fn classifications_slice(&self) -> &[Detection] {
     &self.classifications
   }
   #[inline]
-  pub fn objects(&self) -> &[ObjectDetection] {
+  pub fn objects_slice(&self) -> &[ObjectDetection] {
     &self.objects
   }
   #[inline]
-  pub const fn humans(&self) -> &HumanAnalysis {
+  pub const fn humans_ref(&self) -> &HumanAnalysis {
     &self.humans
   }
   #[inline]
-  pub const fn animals(&self) -> &AnimalAnalysis {
+  pub const fn animals_ref(&self) -> &AnimalAnalysis {
     &self.animals
   }
   #[inline]
-  pub fn actions(&self) -> &[ActionDetection] {
+  pub fn actions_slice(&self) -> &[ActionDetection] {
     &self.actions
   }
   #[inline]
-  pub fn text_detections(&self) -> &[TextDetection] {
+  pub fn text_detections_slice(&self) -> &[TextDetection] {
     &self.text_detections
   }
   #[inline]
-  pub fn barcodes(&self) -> &[BarcodeDetection] {
+  pub fn barcodes_slice(&self) -> &[BarcodeDetection] {
     &self.barcodes
   }
   #[inline]
-  pub fn attention_saliency(&self) -> &[SaliencyRegion] {
+  pub fn attention_saliency_slice(&self) -> &[SaliencyRegion] {
     &self.attention_saliency
   }
   #[inline]
-  pub fn objectness_saliency(&self) -> &[SaliencyRegion] {
+  pub fn objectness_saliency_slice(&self) -> &[SaliencyRegion] {
     &self.objectness_saliency
   }
   #[inline]
-  pub const fn horizon(&self) -> &HorizonInfo {
+  pub const fn horizon_ref(&self) -> &HorizonInfo {
     &self.horizon
   }
   #[inline]
-  pub fn document_segments(&self) -> &[DocumentSegment] {
+  pub fn document_segments_slice(&self) -> &[DocumentSegment] {
     &self.document_segments
   }
   #[inline]
-  pub const fn aesthetics(&self) -> &Aesthetics {
+  pub const fn aesthetics_ref(&self) -> &Aesthetics {
     &self.aesthetics
   }
 
   // --- colorthief ---
   #[inline]
-  pub fn colors(&self) -> &[DominantColor] {
+  pub fn colors_slice(&self) -> &[DominantColor] {
     &self.colors
   }
 
   // --- VLM ---
   #[inline]
-  pub const fn vlm(&self) -> &VlmAnalysis {
+  pub const fn vlm_ref(&self) -> &VlmAnalysis {
     &self.vlm
   }
 }
@@ -240,23 +240,27 @@ impl<Id> Keyframe<Id> {
 // Builders + setters per the encapsulation rule.
 impl<Id> Keyframe<Id> {
   // --- artifact ---
+  #[must_use]
   #[inline]
   pub fn with_data(mut self, v: impl Into<Bytes>) -> Self {
     self.data = v.into();
     self
   }
   #[inline]
-  pub fn set_data(&mut self, v: impl Into<Bytes>) {
+  pub fn set_data(&mut self, v: impl Into<Bytes>) -> &mut Self {
     self.data = v.into();
+    self
   }
+  #[must_use]
   #[inline]
   pub fn with_mime(mut self, v: impl Into<SmolStr>) -> Self {
     self.mime = v.into();
     self
   }
   #[inline]
-  pub fn set_mime(&mut self, v: impl Into<SmolStr>) {
+  pub fn set_mime(&mut self, v: impl Into<SmolStr>) -> &mut Self {
     self.mime = v.into();
+    self
   }
   /// Fallible builder for `dimensions`, re-validating the locked
   /// non-zero-extent invariant (`width > 0 && height > 0`). Rejects a
@@ -282,146 +286,185 @@ impl<Id> Keyframe<Id> {
     self.dimensions = v;
     Ok(self)
   }
+  #[must_use]
   #[inline]
   pub const fn with_extractor(mut self, v: KeyframeExtractor) -> Self {
     self.extractor = v;
     self
   }
   #[inline]
-  pub const fn set_extractor(&mut self, v: KeyframeExtractor) {
+  pub const fn set_extractor(&mut self, v: KeyframeExtractor) -> &mut Self {
     self.extractor = v;
+    self
   }
 
   // --- apple-vision ---
+  #[must_use]
   #[inline]
   pub fn with_classifications(mut self, v: impl Into<std::vec::Vec<Detection>>) -> Self {
     self.classifications = v.into();
     self
   }
   #[inline]
-  pub fn set_classifications(&mut self, v: impl Into<std::vec::Vec<Detection>>) {
+  pub fn set_classifications(&mut self, v: impl Into<std::vec::Vec<Detection>>) -> &mut Self {
     self.classifications = v.into();
+    self
   }
+  #[must_use]
   #[inline]
   pub fn with_objects(mut self, v: impl Into<std::vec::Vec<ObjectDetection>>) -> Self {
     self.objects = v.into();
     self
   }
   #[inline]
-  pub fn set_objects(&mut self, v: impl Into<std::vec::Vec<ObjectDetection>>) {
+  pub fn set_objects(&mut self, v: impl Into<std::vec::Vec<ObjectDetection>>) -> &mut Self {
     self.objects = v.into();
+    self
   }
+  #[must_use]
   #[inline]
   pub fn with_humans(mut self, v: HumanAnalysis) -> Self {
     self.humans = v;
     self
   }
   #[inline]
-  pub fn set_humans(&mut self, v: HumanAnalysis) {
+  pub fn set_humans(&mut self, v: HumanAnalysis) -> &mut Self {
     self.humans = v;
+    self
   }
+  #[must_use]
   #[inline]
   pub fn with_animals(mut self, v: AnimalAnalysis) -> Self {
     self.animals = v;
     self
   }
   #[inline]
-  pub fn set_animals(&mut self, v: AnimalAnalysis) {
+  pub fn set_animals(&mut self, v: AnimalAnalysis) -> &mut Self {
     self.animals = v;
+    self
   }
+  #[must_use]
   #[inline]
   pub fn with_actions(mut self, v: impl Into<std::vec::Vec<ActionDetection>>) -> Self {
     self.actions = v.into();
     self
   }
   #[inline]
-  pub fn set_actions(&mut self, v: impl Into<std::vec::Vec<ActionDetection>>) {
+  pub fn set_actions(&mut self, v: impl Into<std::vec::Vec<ActionDetection>>) -> &mut Self {
     self.actions = v.into();
+    self
   }
+  #[must_use]
   #[inline]
   pub fn with_text_detections(mut self, v: impl Into<std::vec::Vec<TextDetection>>) -> Self {
     self.text_detections = v.into();
     self
   }
   #[inline]
-  pub fn set_text_detections(&mut self, v: impl Into<std::vec::Vec<TextDetection>>) {
+  pub fn set_text_detections(&mut self, v: impl Into<std::vec::Vec<TextDetection>>) -> &mut Self {
     self.text_detections = v.into();
+    self
   }
+  #[must_use]
   #[inline]
   pub fn with_barcodes(mut self, v: impl Into<std::vec::Vec<BarcodeDetection>>) -> Self {
     self.barcodes = v.into();
     self
   }
   #[inline]
-  pub fn set_barcodes(&mut self, v: impl Into<std::vec::Vec<BarcodeDetection>>) {
+  pub fn set_barcodes(&mut self, v: impl Into<std::vec::Vec<BarcodeDetection>>) -> &mut Self {
     self.barcodes = v.into();
+    self
   }
+  #[must_use]
   #[inline]
   pub fn with_attention_saliency(mut self, v: impl Into<std::vec::Vec<SaliencyRegion>>) -> Self {
     self.attention_saliency = v.into();
     self
   }
   #[inline]
-  pub fn set_attention_saliency(&mut self, v: impl Into<std::vec::Vec<SaliencyRegion>>) {
+  pub fn set_attention_saliency(
+    &mut self,
+    v: impl Into<std::vec::Vec<SaliencyRegion>>,
+  ) -> &mut Self {
     self.attention_saliency = v.into();
+    self
   }
+  #[must_use]
   #[inline]
   pub fn with_objectness_saliency(mut self, v: impl Into<std::vec::Vec<SaliencyRegion>>) -> Self {
     self.objectness_saliency = v.into();
     self
   }
   #[inline]
-  pub fn set_objectness_saliency(&mut self, v: impl Into<std::vec::Vec<SaliencyRegion>>) {
+  pub fn set_objectness_saliency(
+    &mut self,
+    v: impl Into<std::vec::Vec<SaliencyRegion>>,
+  ) -> &mut Self {
     self.objectness_saliency = v.into();
+    self
   }
+  #[must_use]
   #[inline]
   pub const fn with_horizon(mut self, v: HorizonInfo) -> Self {
     self.horizon = v;
     self
   }
   #[inline]
-  pub const fn set_horizon(&mut self, v: HorizonInfo) {
+  pub const fn set_horizon(&mut self, v: HorizonInfo) -> &mut Self {
     self.horizon = v;
+    self
   }
+  #[must_use]
   #[inline]
   pub fn with_document_segments(mut self, v: impl Into<std::vec::Vec<DocumentSegment>>) -> Self {
     self.document_segments = v.into();
     self
   }
   #[inline]
-  pub fn set_document_segments(&mut self, v: impl Into<std::vec::Vec<DocumentSegment>>) {
+  pub fn set_document_segments(
+    &mut self,
+    v: impl Into<std::vec::Vec<DocumentSegment>>,
+  ) -> &mut Self {
     self.document_segments = v.into();
+    self
   }
+  #[must_use]
   #[inline]
   pub const fn with_aesthetics(mut self, v: Aesthetics) -> Self {
     self.aesthetics = v;
     self
   }
   #[inline]
-  pub const fn set_aesthetics(&mut self, v: Aesthetics) {
+  pub const fn set_aesthetics(&mut self, v: Aesthetics) -> &mut Self {
     self.aesthetics = v;
+    self
   }
 
   // --- colorthief ---
+  #[must_use]
   #[inline]
   pub fn with_colors(mut self, v: impl Into<std::vec::Vec<DominantColor>>) -> Self {
     self.colors = v.into();
     self
   }
   #[inline]
-  pub fn set_colors(&mut self, v: impl Into<std::vec::Vec<DominantColor>>) {
+  pub fn set_colors(&mut self, v: impl Into<std::vec::Vec<DominantColor>>) -> &mut Self {
     self.colors = v.into();
+    self
   }
 
   // --- VLM ---
+  #[must_use]
   #[inline]
   pub fn with_vlm(mut self, v: VlmAnalysis) -> Self {
     self.vlm = v;
     self
   }
   #[inline]
-  pub fn set_vlm(&mut self, v: VlmAnalysis) {
+  pub fn set_vlm(&mut self, v: VlmAnalysis) -> &mut Self {
     self.vlm = v;
+    self
   }
 }
 
@@ -470,14 +513,14 @@ mod tests {
       KeyframeExtractor::CompositeQuality,
     )
     .unwrap();
-    assert_eq!(kf.parent(), &parent);
-    assert_eq!(kf.pts(), &ts);
+    assert_eq!(kf.parent_ref(), &parent);
+    assert_eq!(kf.pts_ref(), &ts);
     assert_eq!(kf.dimensions(), Dimensions::new(320, 180));
     assert!(kf.extractor().is_composite_quality());
     assert!(kf.data().is_empty());
-    assert!(kf.classifications().is_empty());
-    assert!(kf.colors().is_empty());
-    assert_eq!(kf.vlm().shot_type(), "");
+    assert!(kf.classifications_slice().is_empty());
+    assert!(kf.colors_slice().is_empty());
+    assert_eq!(kf.vlm_ref().shot_type(), "");
   }
 
   #[test]
@@ -553,11 +596,11 @@ mod tests {
     // `size` is derived from `data` — 3 bytes in ⇒ size 3.
     assert_eq!(kf.size(), 3);
     assert_eq!(kf.data().len(), 3);
-    assert_eq!(kf.classifications().len(), 1);
-    assert_eq!(kf.classifications()[0].label(), "dog");
-    assert_eq!(kf.vlm().description().src(), "a dog running");
-    assert_eq!(kf.vlm().tags().len(), 1);
-    assert_eq!(kf.vlm().shot_type(), "medium-shot");
+    assert_eq!(kf.classifications_slice().len(), 1);
+    assert_eq!(kf.classifications_slice()[0].label(), "dog");
+    assert_eq!(kf.vlm_ref().description_ref().src(), "a dog running");
+    assert_eq!(kf.vlm_ref().tags_slice().len(), 1);
+    assert_eq!(kf.vlm_ref().shot_type(), "medium-shot");
 
     let mut kf = kf;
     kf.set_mime("");

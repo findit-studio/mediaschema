@@ -226,7 +226,7 @@ impl<Id> Video<Id> {
   /// Canonical identity (referenced by `Media.video`; child
   /// `VideoTrack.parent` points here).
   #[inline]
-  pub const fn id(&self) -> &Id {
+  pub const fn id_ref(&self) -> &Id {
     &self.id
   }
 
@@ -239,13 +239,13 @@ impl<Id> Video<Id> {
 
   /// Refs → child [`VideoTrack`](super::track::VideoTrack)s.
   #[inline]
-  pub const fn tracks(&self) -> &[Id] {
+  pub const fn tracks_slice(&self) -> &[Id] {
     self.tracks.as_slice()
   }
 
   /// Per-kind indexing rollup over the facet's tracks.
   #[inline]
-  pub const fn track_progress(&self) -> &IndexProgress {
+  pub const fn track_progress_ref(&self) -> &IndexProgress {
     &self.track_progress
   }
 
@@ -340,10 +340,10 @@ mod tests {
   fn try_new_happy_path() {
     let id = Uuid7::new();
     let v = Video::try_new(id).unwrap();
-    assert_eq!(v.id(), &id);
+    assert_eq!(v.id_ref(), &id);
     assert_eq!(v.total_scenes(), 0);
-    assert!(v.tracks().is_empty());
-    assert_eq!(v.track_progress(), &IndexProgress::new());
+    assert!(v.tracks_slice().is_empty());
+    assert_eq!(v.track_progress_ref(), &IndexProgress::new());
   }
 
   #[test]
@@ -369,38 +369,38 @@ mod tests {
       .try_with_track_progress(p)
       .unwrap();
     assert_eq!(v.total_scenes(), 7);
-    assert_eq!(v.tracks().len(), 2);
-    assert!(v.tracks().contains(&t1));
-    assert_eq!(v.track_progress(), &p);
+    assert_eq!(v.tracks_slice().len(), 2);
+    assert!(v.tracks_slice().contains(&t1));
+    assert_eq!(v.track_progress_ref(), &p);
 
     let mut v = v;
     v.try_set_total_scenes(0).unwrap();
     v.set_tracks(std::vec::Vec::<Uuid7>::new());
-    // Empty track list ⇒ `try_set_tracks` resets progress to the empty
+    // Empty track list ⇒ `set_tracks` resets progress to the empty
     // rollup.
     v.try_set_track_progress(IndexProgress::new()).unwrap();
     assert_eq!(v.total_scenes(), 0);
-    assert!(v.tracks().is_empty());
-    assert_eq!(v.track_progress(), &IndexProgress::new());
+    assert!(v.tracks_slice().is_empty());
+    assert_eq!(v.track_progress_ref(), &IndexProgress::new());
   }
 
   #[test]
   fn with_tracks_resets_progress_to_match_track_count() {
-    // rev-2 finding: `try_with_tracks` must not leave a stale `{0,0,0}`
+    // rev-2 finding: `with_tracks` must not leave a stale `{0,0,0}`
     // rollup on a non-empty track list.
     let v = Video::try_new(Uuid7::new()).unwrap().with_tracks(std::vec![
       Uuid7::new(),
       Uuid7::new(),
       Uuid7::new()
     ]);
-    assert_eq!(v.track_progress().total(), 3);
-    assert_eq!(v.track_progress().indexed(), 0);
-    assert_eq!(v.track_progress().failed(), 0);
+    assert_eq!(v.track_progress_ref().total(), 3);
+    assert_eq!(v.track_progress_ref().indexed(), 0);
+    assert_eq!(v.track_progress_ref().failed(), 0);
 
     // Changing the list re-syncs the rollup total.
     let mut v = v;
     v.set_tracks(std::vec![Uuid7::new()]);
-    assert_eq!(v.track_progress().total(), 1);
+    assert_eq!(v.track_progress_ref().total(), 1);
   }
 
   #[test]
@@ -437,7 +437,7 @@ mod tests {
       .unwrap();
     assert_eq!(v.total_scenes(), 9);
     v.set_tracks(std::vec::Vec::<Uuid7>::new());
-    assert!(v.tracks().is_empty());
+    assert!(v.tracks_slice().is_empty());
     assert_eq!(v.total_scenes(), 0);
   }
 
@@ -454,7 +454,7 @@ mod tests {
     assert_eq!(v.total_scenes(), 7);
     // `[old]` → `[new]` is a different track set: the count is stale.
     v.set_tracks(std::vec![Uuid7::new()]);
-    assert_eq!(v.tracks().len(), 1);
+    assert_eq!(v.tracks_slice().len(), 1);
     assert_eq!(v.total_scenes(), 0);
 
     // The consuming builder resets identically.
@@ -481,7 +481,7 @@ mod tests {
       .unwrap();
     assert_eq!(v.total_scenes(), 7);
     assert_eq!(
-      v.track_progress(),
+      v.track_progress_ref(),
       &IndexProgress::try_new(2, 1, 1).unwrap()
     );
 
@@ -489,7 +489,7 @@ mod tests {
     v.set_tracks(std::vec![t1, t2]);
     assert_eq!(v.total_scenes(), 7);
     assert_eq!(
-      v.track_progress(),
+      v.track_progress_ref(),
       &IndexProgress::try_new(2, 1, 1).unwrap()
     );
 
@@ -497,7 +497,7 @@ mod tests {
     v.set_tracks(std::vec![t2, t1]);
     assert_eq!(v.total_scenes(), 0);
     assert_eq!(
-      v.track_progress(),
+      v.track_progress_ref(),
       &IndexProgress::try_new(2, 0, 0).unwrap()
     );
   }

@@ -92,13 +92,13 @@ impl Scene<Uuid7> {
 impl<Id> Scene<Id> {
   /// Canonical identity (also the LanceDB vector key).
   #[inline]
-  pub const fn id(&self) -> &Id {
+  pub const fn id_ref(&self) -> &Id {
     &self.id
   }
 
   /// FK → `VideoTrack.id`.
   #[inline]
-  pub const fn parent(&self) -> &Id {
+  pub const fn parent_ref(&self) -> &Id {
     &self.parent
   }
 
@@ -110,7 +110,7 @@ impl<Id> Scene<Id> {
 
   /// Media-time span (`mediatime::TimeRange`).
   #[inline]
-  pub const fn span(&self) -> &TimeRange {
+  pub const fn span_ref(&self) -> &TimeRange {
     &self.span
   }
 
@@ -123,7 +123,7 @@ impl<Id> Scene<Id> {
   /// Refs → child [`Keyframe`](super::keyframe::Keyframe)s — these
   /// **are** the scene's thumbnails.
   #[inline]
-  pub const fn keyframes(&self) -> &[Id] {
+  pub const fn keyframes_slice(&self) -> &[Id] {
     self.keyframes.as_slice()
   }
 
@@ -134,6 +134,7 @@ impl<Id> Scene<Id> {
   }
 
   /// Builder: replace `index`.
+  #[must_use]
   #[inline]
   pub const fn with_index(mut self, index: u32) -> Self {
     self.index = index;
@@ -167,6 +168,7 @@ impl<Id> Scene<Id> {
   }
 
   /// Builder: replace `detector`.
+  #[must_use]
   #[inline]
   pub const fn with_detector(mut self, detector: SceneDetector) -> Self {
     self.detector = detector;
@@ -174,6 +176,7 @@ impl<Id> Scene<Id> {
   }
 
   /// Builder: replace `description`.
+  #[must_use]
   #[inline]
   pub fn with_description(mut self, description: impl Into<SmolStr>) -> Self {
     self.description = description.into();
@@ -182,20 +185,23 @@ impl<Id> Scene<Id> {
 
   /// In-place mutator for `index`.
   #[inline]
-  pub const fn set_index(&mut self, index: u32) {
+  pub const fn set_index(&mut self, index: u32) -> &mut Self {
     self.index = index;
+    self
   }
 
   /// In-place mutator for `detector`.
   #[inline]
-  pub const fn set_detector(&mut self, detector: SceneDetector) {
+  pub const fn set_detector(&mut self, detector: SceneDetector) -> &mut Self {
     self.detector = detector;
+    self
   }
 
   /// In-place mutator for `description`.
   #[inline]
-  pub fn set_description(&mut self, description: impl Into<SmolStr>) {
+  pub fn set_description(&mut self, description: impl Into<SmolStr>) -> &mut Self {
     self.description = description.into();
+    self
   }
 }
 
@@ -240,11 +246,11 @@ mod tests {
     let parent = Uuid7::new();
     let span = TimeRange::new(5_000, 10_000, tb());
     let s = Scene::try_new(Uuid7::new(), parent, 0, span, SceneDetector::Adaptive).unwrap();
-    assert_eq!(s.parent(), &parent);
+    assert_eq!(s.parent_ref(), &parent);
     assert_eq!(s.index(), 0);
-    assert_eq!(s.span(), &span);
+    assert_eq!(s.span_ref(), &span);
     assert!(s.detector().is_adaptive());
-    assert!(s.keyframes().is_empty());
+    assert!(s.keyframes_slice().is_empty());
     assert!(s.description().is_empty());
   }
 
@@ -298,12 +304,12 @@ mod tests {
       s.try_set_span(inverted).err(),
       Some(SceneError::InvertedSpan)
     );
-    assert_eq!(s.span(), &span);
+    assert_eq!(s.span_ref(), &span);
 
     // A valid replacement span is accepted.
     let next = TimeRange::new(100, 200, tb());
     s.try_set_span(next).unwrap();
-    assert_eq!(s.span(), &next);
+    assert_eq!(s.span_ref(), &next);
 
     // Same for the consuming builder.
     let inverted2 = TimeRange::new(3_000, 9_000, tb()).with_start(10_000);
@@ -319,7 +325,7 @@ mod tests {
     let span = TimeRange::new(7_000, 7_000, tb());
     let s = Scene::try_new(Uuid7::new(), Uuid7::new(), 0, span, SceneDetector::Manual)
       .expect("instantaneous span allowed");
-    assert_eq!(s.span().start_pts(), s.span().end_pts());
+    assert_eq!(s.span_ref().start_pts(), s.span_ref().end_pts());
   }
 
   #[test]
@@ -340,7 +346,7 @@ mod tests {
     .with_description("Jane is eating");
     assert_eq!(s.index(), 3);
     assert!(s.detector().is_content());
-    assert_eq!(s.keyframes(), &[kf]);
+    assert_eq!(s.keyframes_slice(), &[kf]);
     assert_eq!(s.description(), "Jane is eating");
 
     let mut s = s;
@@ -350,7 +356,7 @@ mod tests {
     s.set_detector(SceneDetector::Manual);
     assert_eq!(s.index(), 0);
     assert!(s.description().is_empty());
-    assert!(s.keyframes().is_empty());
+    assert!(s.keyframes_slice().is_empty());
     assert!(s.detector().is_manual());
   }
 }

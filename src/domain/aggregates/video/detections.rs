@@ -165,6 +165,7 @@ impl Detection {
   }
 
   /// Builder: replace label.
+  #[must_use]
   #[inline]
   pub fn with_label(mut self, label: impl Into<SmolStr>) -> Self {
     self.label = label.into();
@@ -181,8 +182,9 @@ impl Detection {
 
   /// In-place mutator for label.
   #[inline]
-  pub fn set_label(&mut self, label: impl Into<SmolStr>) {
+  pub fn set_label(&mut self, label: impl Into<SmolStr>) -> &mut Self {
     self.label = label.into();
+    self
   }
 
   /// Fallible in-place mutator for `confidence`, re-validating the
@@ -298,23 +300,24 @@ pub struct ObjectDetection {
 impl ObjectDetection {
   /// Construct.
   #[inline]
-  pub fn new(detection: Detection, bbox: Option<BoundingBox>) -> Self {
+  pub const fn new(detection: Detection, bbox: Option<BoundingBox>) -> Self {
     Self { detection, bbox }
   }
 
   /// Inner `{label, confidence}`.
   #[inline]
-  pub const fn detection(&self) -> &Detection {
+  pub const fn detection_ref(&self) -> &Detection {
     &self.detection
   }
 
   /// Optional bounding box.
   #[inline]
-  pub const fn bbox(&self) -> Option<&BoundingBox> {
+  pub const fn bbox_ref(&self) -> Option<&BoundingBox> {
     self.bbox.as_ref()
   }
 
   /// Builder: replace bbox.
+  #[must_use]
   #[inline]
   pub const fn with_bbox(mut self, bbox: Option<BoundingBox>) -> Self {
     self.bbox = bbox;
@@ -323,8 +326,9 @@ impl ObjectDetection {
 
   /// In-place mutator for bbox.
   #[inline]
-  pub const fn set_bbox(&mut self, bbox: Option<BoundingBox>) {
+  pub const fn set_bbox(&mut self, bbox: Option<BoundingBox>) -> &mut Self {
     self.bbox = bbox;
+    self
   }
 }
 
@@ -343,7 +347,7 @@ impl ActionDetection {
 
   /// Inner `{label, confidence}`.
   #[inline]
-  pub const fn detection(&self) -> &Detection {
+  pub const fn detection_ref(&self) -> &Detection {
     &self.detection
   }
 }
@@ -384,7 +388,7 @@ impl TextDetection {
   }
   /// Bounding box.
   #[inline]
-  pub const fn bbox(&self) -> &BoundingBox {
+  pub const fn bbox_ref(&self) -> &BoundingBox {
     &self.bbox
   }
 }
@@ -433,7 +437,7 @@ impl BarcodeDetection {
   }
   /// Bounding box.
   #[inline]
-  pub const fn bbox(&self) -> &BoundingBox {
+  pub const fn bbox_ref(&self) -> &BoundingBox {
     &self.bbox
   }
 }
@@ -458,7 +462,7 @@ impl SaliencyRegion {
 
   /// Bounding box.
   #[inline]
-  pub const fn bbox(&self) -> &BoundingBox {
+  pub const fn bbox_ref(&self) -> &BoundingBox {
     &self.bbox
   }
   /// Confidence (finite, `0.0..=1.0`).
@@ -868,7 +872,7 @@ impl BodyPoseDetection {
 
   /// Bounding box.
   #[inline]
-  pub const fn bbox(&self) -> &BoundingBox {
+  pub const fn bbox_ref(&self) -> &BoundingBox {
     &self.bbox
   }
   /// Confidence (finite, `0.0..=1.0`).
@@ -878,7 +882,7 @@ impl BodyPoseDetection {
   }
   /// Pose joints.
   #[inline]
-  pub fn joints(&self) -> &[BodyPoseJoint] {
+  pub fn joints_slice(&self) -> &[BodyPoseJoint] {
     &self.joints
   }
 }
@@ -912,7 +916,7 @@ impl HandPoseDetection {
 
   /// Bounding box.
   #[inline]
-  pub const fn bbox(&self) -> &BoundingBox {
+  pub const fn bbox_ref(&self) -> &BoundingBox {
     &self.bbox
   }
   /// Confidence (finite, `0.0..=1.0`).
@@ -927,7 +931,7 @@ impl HandPoseDetection {
   }
   /// Hand pose joints.
   #[inline]
-  pub fn joints(&self) -> &[BodyPoseJoint] {
+  pub fn joints_slice(&self) -> &[BodyPoseJoint] {
     &self.joints
   }
 }
@@ -978,7 +982,7 @@ impl BodyPose3DDetection {
   }
   /// 3-D joints.
   #[inline]
-  pub fn joints(&self) -> &[BodyPose3DJoint] {
+  pub fn joints_slice(&self) -> &[BodyPose3DJoint] {
     &self.joints
   }
 }
@@ -1003,13 +1007,13 @@ impl SubjectDetection {
 
   /// Inner `{label, confidence}`.
   #[inline]
-  pub const fn detection(&self) -> &Detection {
+  pub const fn detection_ref(&self) -> &Detection {
     &self.detection
   }
 
   /// Bounding box.
   #[inline]
-  pub const fn bbox(&self) -> &BoundingBox {
+  pub const fn bbox_ref(&self) -> &BoundingBox {
     &self.bbox
   }
 }
@@ -1055,7 +1059,7 @@ impl FaceDetection {
 
   /// Bounding box.
   #[inline]
-  pub const fn bbox(&self) -> &BoundingBox {
+  pub const fn bbox_ref(&self) -> &BoundingBox {
     &self.bbox
   }
   /// Confidence (finite, `0.0..=1.0`).
@@ -1155,7 +1159,7 @@ impl FaceLandmarksDetection {
 
   /// Bounding box.
   #[inline]
-  pub const fn bbox(&self) -> &BoundingBox {
+  pub const fn bbox_ref(&self) -> &BoundingBox {
     &self.bbox
   }
   /// Confidence (finite, `0.0..=1.0`).
@@ -1165,7 +1169,7 @@ impl FaceLandmarksDetection {
   }
   /// Landmark regions.
   #[inline]
-  pub fn regions(&self) -> &[FaceLandmarkRegion] {
+  pub fn regions_slice(&self) -> &[FaceLandmarkRegion] {
     &self.regions
   }
 }
@@ -1230,7 +1234,7 @@ impl PersonInstanceMaskDetection {
 
   /// Bounding box.
   #[inline]
-  pub const fn bbox(&self) -> &BoundingBox {
+  pub const fn bbox_ref(&self) -> &BoundingBox {
     &self.bbox
   }
   /// Confidence (finite, `0.0..=1.0`).
@@ -1298,7 +1302,7 @@ impl PersonSegmentationMask {
 
   /// Bounding box.
   #[inline]
-  pub const fn bbox(&self) -> &BoundingBox {
+  pub const fn bbox_ref(&self) -> &BoundingBox {
     &self.bbox
   }
   /// Confidence (finite, `0.0..=1.0`).
@@ -1326,7 +1330,7 @@ impl PersonSegmentationMask {
 /// `faces`, `body_poses`, `hand_poses`, `body_poses_3d`,
 /// `instance_masks`, `face_rectangles`, `face_landmarks`,
 /// `segmentation_masks`).
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct HumanAnalysis {
   subjects: std::vec::Vec<SubjectDetection>,
   faces: std::vec::Vec<FaceDetection>,
@@ -1340,79 +1344,94 @@ pub struct HumanAnalysis {
 }
 
 impl HumanAnalysis {
-  /// Empty block.
+  /// Empty block — the canonical no-arg constructor.
   #[inline]
-  pub fn new() -> Self {
-    Self::default()
+  pub const fn new() -> Self {
+    Self {
+      subjects: std::vec::Vec::new(),
+      faces: std::vec::Vec::new(),
+      body_poses: std::vec::Vec::new(),
+      hand_poses: std::vec::Vec::new(),
+      body_poses_3d: std::vec::Vec::new(),
+      instance_masks: std::vec::Vec::new(),
+      face_rectangles: std::vec::Vec::new(),
+      face_landmarks: std::vec::Vec::new(),
+      segmentation_masks: std::vec::Vec::new(),
+    }
   }
 
   /// Subjects.
   #[inline]
-  pub fn subjects(&self) -> &[SubjectDetection] {
+  pub fn subjects_slice(&self) -> &[SubjectDetection] {
     &self.subjects
   }
   /// Faces.
   #[inline]
-  pub fn faces(&self) -> &[FaceDetection] {
+  pub fn faces_slice(&self) -> &[FaceDetection] {
     &self.faces
   }
   /// 2-D body poses.
   #[inline]
-  pub fn body_poses(&self) -> &[BodyPoseDetection] {
+  pub fn body_poses_slice(&self) -> &[BodyPoseDetection] {
     &self.body_poses
   }
   /// 2-D hand poses.
   #[inline]
-  pub fn hand_poses(&self) -> &[HandPoseDetection] {
+  pub fn hand_poses_slice(&self) -> &[HandPoseDetection] {
     &self.hand_poses
   }
   /// 3-D body poses.
   #[inline]
-  pub fn body_poses_3d(&self) -> &[BodyPose3DDetection] {
+  pub fn body_poses_3d_slice(&self) -> &[BodyPose3DDetection] {
     &self.body_poses_3d
   }
   /// Per-person instance masks.
   #[inline]
-  pub fn instance_masks(&self) -> &[PersonInstanceMaskDetection] {
+  pub fn instance_masks_slice(&self) -> &[PersonInstanceMaskDetection] {
     &self.instance_masks
   }
   /// Face rectangles (apple-vision face-detect request).
   #[inline]
-  pub fn face_rectangles(&self) -> &[FaceDetection] {
+  pub fn face_rectangles_slice(&self) -> &[FaceDetection] {
     &self.face_rectangles
   }
   /// Face-landmark detections.
   #[inline]
-  pub fn face_landmarks(&self) -> &[FaceLandmarksDetection] {
+  pub fn face_landmarks_slice(&self) -> &[FaceLandmarksDetection] {
     &self.face_landmarks
   }
   /// Whole-frame person segmentation masks.
   #[inline]
-  pub fn segmentation_masks(&self) -> &[PersonSegmentationMask] {
+  pub fn segmentation_masks_slice(&self) -> &[PersonSegmentationMask] {
     &self.segmentation_masks
   }
 
   // --- builders ---
+  #[must_use]
   #[inline]
   pub fn with_subjects(mut self, v: impl Into<std::vec::Vec<SubjectDetection>>) -> Self {
     self.subjects = v.into();
     self
   }
+  #[must_use]
   #[inline]
   pub fn with_faces(mut self, v: impl Into<std::vec::Vec<FaceDetection>>) -> Self {
     self.faces = v.into();
     self
   }
+  #[must_use]
   #[inline]
   pub fn with_body_poses(mut self, v: impl Into<std::vec::Vec<BodyPoseDetection>>) -> Self {
     self.body_poses = v.into();
     self
   }
+  #[must_use]
   #[inline]
   pub fn with_hand_poses(mut self, v: impl Into<std::vec::Vec<HandPoseDetection>>) -> Self {
     self.hand_poses = v.into();
     self
   }
+  #[must_use]
   #[inline]
   pub fn with_body_poses_3d(mut self, v: impl Into<std::vec::Vec<BodyPose3DDetection>>) -> Self {
     self.body_poses_3d = v.into();
@@ -1426,6 +1445,7 @@ impl HumanAnalysis {
     self.instance_masks = v.into();
     self
   }
+  #[must_use]
   #[inline]
   pub fn with_face_rectangles(mut self, v: impl Into<std::vec::Vec<FaceDetection>>) -> Self {
     self.face_rectangles = v.into();
@@ -1450,75 +1470,108 @@ impl HumanAnalysis {
 
   // --- setters ---
   #[inline]
-  pub fn set_subjects(&mut self, v: impl Into<std::vec::Vec<SubjectDetection>>) {
+  pub fn set_subjects(&mut self, v: impl Into<std::vec::Vec<SubjectDetection>>) -> &mut Self {
     self.subjects = v.into();
+    self
   }
   #[inline]
-  pub fn set_faces(&mut self, v: impl Into<std::vec::Vec<FaceDetection>>) {
+  pub fn set_faces(&mut self, v: impl Into<std::vec::Vec<FaceDetection>>) -> &mut Self {
     self.faces = v.into();
+    self
   }
   #[inline]
-  pub fn set_body_poses(&mut self, v: impl Into<std::vec::Vec<BodyPoseDetection>>) {
+  pub fn set_body_poses(&mut self, v: impl Into<std::vec::Vec<BodyPoseDetection>>) -> &mut Self {
     self.body_poses = v.into();
+    self
   }
   #[inline]
-  pub fn set_hand_poses(&mut self, v: impl Into<std::vec::Vec<HandPoseDetection>>) {
+  pub fn set_hand_poses(&mut self, v: impl Into<std::vec::Vec<HandPoseDetection>>) -> &mut Self {
     self.hand_poses = v.into();
+    self
   }
   #[inline]
-  pub fn set_body_poses_3d(&mut self, v: impl Into<std::vec::Vec<BodyPose3DDetection>>) {
+  pub fn set_body_poses_3d(
+    &mut self,
+    v: impl Into<std::vec::Vec<BodyPose3DDetection>>,
+  ) -> &mut Self {
     self.body_poses_3d = v.into();
+    self
   }
   #[inline]
-  pub fn set_instance_masks(&mut self, v: impl Into<std::vec::Vec<PersonInstanceMaskDetection>>) {
+  pub fn set_instance_masks(
+    &mut self,
+    v: impl Into<std::vec::Vec<PersonInstanceMaskDetection>>,
+  ) -> &mut Self {
     self.instance_masks = v.into();
+    self
   }
   #[inline]
-  pub fn set_face_rectangles(&mut self, v: impl Into<std::vec::Vec<FaceDetection>>) {
+  pub fn set_face_rectangles(&mut self, v: impl Into<std::vec::Vec<FaceDetection>>) -> &mut Self {
     self.face_rectangles = v.into();
+    self
   }
   #[inline]
-  pub fn set_face_landmarks(&mut self, v: impl Into<std::vec::Vec<FaceLandmarksDetection>>) {
+  pub fn set_face_landmarks(
+    &mut self,
+    v: impl Into<std::vec::Vec<FaceLandmarksDetection>>,
+  ) -> &mut Self {
     self.face_landmarks = v.into();
+    self
   }
   #[inline]
-  pub fn set_segmentation_masks(&mut self, v: impl Into<std::vec::Vec<PersonSegmentationMask>>) {
+  pub fn set_segmentation_masks(
+    &mut self,
+    v: impl Into<std::vec::Vec<PersonSegmentationMask>>,
+  ) -> &mut Self {
     self.segmentation_masks = v.into();
+    self
+  }
+}
+
+impl Default for HumanAnalysis {
+  #[inline]
+  fn default() -> Self {
+    Self::new()
   }
 }
 
 /// Apple-vision animal analysis block.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct AnimalAnalysis {
   subjects: std::vec::Vec<SubjectDetection>,
   body_poses: std::vec::Vec<BodyPoseDetection>,
 }
 
 impl AnimalAnalysis {
-  /// Empty block.
+  /// Empty block — the canonical no-arg constructor.
   #[inline]
-  pub fn new() -> Self {
-    Self::default()
+  pub const fn new() -> Self {
+    Self {
+      subjects: std::vec::Vec::new(),
+      body_poses: std::vec::Vec::new(),
+    }
   }
 
   /// Subjects.
   #[inline]
-  pub fn subjects(&self) -> &[SubjectDetection] {
+  pub fn subjects_slice(&self) -> &[SubjectDetection] {
     &self.subjects
   }
   /// Body poses.
   #[inline]
-  pub fn body_poses(&self) -> &[BodyPoseDetection] {
+  pub fn body_poses_slice(&self) -> &[BodyPoseDetection] {
     &self.body_poses
   }
 
   /// Builder: replace subjects.
+  #[must_use]
   #[inline]
   pub fn with_subjects(mut self, v: impl Into<std::vec::Vec<SubjectDetection>>) -> Self {
     self.subjects = v.into();
     self
   }
   /// Builder: replace body poses.
+  #[must_use]
   #[inline]
   pub fn with_body_poses(mut self, v: impl Into<std::vec::Vec<BodyPoseDetection>>) -> Self {
     self.body_poses = v.into();
@@ -1526,13 +1579,22 @@ impl AnimalAnalysis {
   }
   /// Setter: subjects.
   #[inline]
-  pub fn set_subjects(&mut self, v: impl Into<std::vec::Vec<SubjectDetection>>) {
+  pub fn set_subjects(&mut self, v: impl Into<std::vec::Vec<SubjectDetection>>) -> &mut Self {
     self.subjects = v.into();
+    self
   }
   /// Setter: body poses.
   #[inline]
-  pub fn set_body_poses(&mut self, v: impl Into<std::vec::Vec<BodyPoseDetection>>) {
+  pub fn set_body_poses(&mut self, v: impl Into<std::vec::Vec<BodyPoseDetection>>) -> &mut Self {
     self.body_poses = v.into();
+    self
+  }
+}
+
+impl Default for AnimalAnalysis {
+  #[inline]
+  fn default() -> Self {
+    Self::new()
   }
 }
 
@@ -1630,7 +1692,7 @@ impl DominantColor {
 /// open-vocab field is `LocalizedText` / `Vec<LocalizedText>` per rev 14
 /// — the VLM emits these in its response language. `shot_type` stays
 /// plain `SmolStr` (controlled vocabulary, future enum).
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct VlmAnalysis {
   categories: std::vec::Vec<LocalizedText>,
   description: LocalizedText,
@@ -1644,25 +1706,37 @@ pub struct VlmAnalysis {
 }
 
 impl VlmAnalysis {
-  /// Empty analysis (every field empty / `""`).
+  /// Empty analysis (every field empty / `""`) — the canonical no-arg
+  /// constructor. Not `const fn`: `LocalizedText::new` / `SmolStr`'s
+  /// default are not `const`.
   #[inline]
   pub fn new() -> Self {
-    Self::default()
+    Self {
+      categories: std::vec::Vec::new(),
+      description: LocalizedText::new(),
+      tags: std::vec::Vec::new(),
+      shot_type: SmolStr::default(),
+      objects: std::vec::Vec::new(),
+      subjects: std::vec::Vec::new(),
+      mood: std::vec::Vec::new(),
+      emotion: std::vec::Vec::new(),
+      lighting: std::vec::Vec::new(),
+    }
   }
 
   /// Scene categories.
   #[inline]
-  pub fn categories(&self) -> &[LocalizedText] {
+  pub fn categories_slice(&self) -> &[LocalizedText] {
     &self.categories
   }
   /// Free-form description.
   #[inline]
-  pub const fn description(&self) -> &LocalizedText {
+  pub const fn description_ref(&self) -> &LocalizedText {
     &self.description
   }
   /// VLM-suggested tags.
   #[inline]
-  pub fn tags(&self) -> &[LocalizedText] {
+  pub fn tags_slice(&self) -> &[LocalizedText] {
     &self.tags
   }
   /// Shot type (controlled — `""` = absent).
@@ -1672,71 +1746,80 @@ impl VlmAnalysis {
   }
   /// VLM open-vocab objects (distinct from apple-vision `objects`).
   #[inline]
-  pub fn objects(&self) -> &[LocalizedText] {
+  pub fn objects_slice(&self) -> &[LocalizedText] {
     &self.objects
   }
   /// VLM open-vocab subjects.
   #[inline]
-  pub fn subjects(&self) -> &[LocalizedText] {
+  pub fn subjects_slice(&self) -> &[LocalizedText] {
     &self.subjects
   }
   /// Mood labels.
   #[inline]
-  pub fn mood(&self) -> &[LocalizedText] {
+  pub fn mood_slice(&self) -> &[LocalizedText] {
     &self.mood
   }
   /// Emotion labels.
   #[inline]
-  pub fn emotion(&self) -> &[LocalizedText] {
+  pub fn emotion_slice(&self) -> &[LocalizedText] {
     &self.emotion
   }
   /// Lighting labels.
   #[inline]
-  pub fn lighting(&self) -> &[LocalizedText] {
+  pub fn lighting_slice(&self) -> &[LocalizedText] {
     &self.lighting
   }
 
   // --- builders ---
+  #[must_use]
   #[inline]
   pub fn with_categories(mut self, v: impl Into<std::vec::Vec<LocalizedText>>) -> Self {
     self.categories = v.into();
     self
   }
+  #[must_use]
   #[inline]
   pub fn with_description(mut self, v: LocalizedText) -> Self {
     self.description = v;
     self
   }
+  #[must_use]
   #[inline]
   pub fn with_tags(mut self, v: impl Into<std::vec::Vec<LocalizedText>>) -> Self {
     self.tags = v.into();
     self
   }
+  #[must_use]
   #[inline]
   pub fn with_shot_type(mut self, v: impl Into<SmolStr>) -> Self {
     self.shot_type = v.into();
     self
   }
+  #[must_use]
   #[inline]
   pub fn with_objects(mut self, v: impl Into<std::vec::Vec<LocalizedText>>) -> Self {
     self.objects = v.into();
     self
   }
+  #[must_use]
   #[inline]
   pub fn with_subjects(mut self, v: impl Into<std::vec::Vec<LocalizedText>>) -> Self {
     self.subjects = v.into();
     self
   }
+  #[must_use]
   #[inline]
   pub fn with_mood(mut self, v: impl Into<std::vec::Vec<LocalizedText>>) -> Self {
     self.mood = v.into();
     self
   }
+  #[must_use]
   #[inline]
   pub fn with_emotion(mut self, v: impl Into<std::vec::Vec<LocalizedText>>) -> Self {
     self.emotion = v.into();
     self
   }
+  #[must_use]
   #[inline]
   pub fn with_lighting(mut self, v: impl Into<std::vec::Vec<LocalizedText>>) -> Self {
     self.lighting = v.into();
@@ -1745,40 +1828,56 @@ impl VlmAnalysis {
 
   // --- setters ---
   #[inline]
-  pub fn set_categories(&mut self, v: impl Into<std::vec::Vec<LocalizedText>>) {
+  pub fn set_categories(&mut self, v: impl Into<std::vec::Vec<LocalizedText>>) -> &mut Self {
     self.categories = v.into();
+    self
   }
   #[inline]
-  pub fn set_description(&mut self, v: LocalizedText) {
+  pub fn set_description(&mut self, v: LocalizedText) -> &mut Self {
     self.description = v;
+    self
   }
   #[inline]
-  pub fn set_tags(&mut self, v: impl Into<std::vec::Vec<LocalizedText>>) {
+  pub fn set_tags(&mut self, v: impl Into<std::vec::Vec<LocalizedText>>) -> &mut Self {
     self.tags = v.into();
+    self
   }
   #[inline]
-  pub fn set_shot_type(&mut self, v: impl Into<SmolStr>) {
+  pub fn set_shot_type(&mut self, v: impl Into<SmolStr>) -> &mut Self {
     self.shot_type = v.into();
+    self
   }
   #[inline]
-  pub fn set_objects(&mut self, v: impl Into<std::vec::Vec<LocalizedText>>) {
+  pub fn set_objects(&mut self, v: impl Into<std::vec::Vec<LocalizedText>>) -> &mut Self {
     self.objects = v.into();
+    self
   }
   #[inline]
-  pub fn set_subjects(&mut self, v: impl Into<std::vec::Vec<LocalizedText>>) {
+  pub fn set_subjects(&mut self, v: impl Into<std::vec::Vec<LocalizedText>>) -> &mut Self {
     self.subjects = v.into();
+    self
   }
   #[inline]
-  pub fn set_mood(&mut self, v: impl Into<std::vec::Vec<LocalizedText>>) {
+  pub fn set_mood(&mut self, v: impl Into<std::vec::Vec<LocalizedText>>) -> &mut Self {
     self.mood = v.into();
+    self
   }
   #[inline]
-  pub fn set_emotion(&mut self, v: impl Into<std::vec::Vec<LocalizedText>>) {
+  pub fn set_emotion(&mut self, v: impl Into<std::vec::Vec<LocalizedText>>) -> &mut Self {
     self.emotion = v.into();
+    self
   }
   #[inline]
-  pub fn set_lighting(&mut self, v: impl Into<std::vec::Vec<LocalizedText>>) {
+  pub fn set_lighting(&mut self, v: impl Into<std::vec::Vec<LocalizedText>>) -> &mut Self {
     self.lighting = v.into();
+    self
+  }
+}
+
+impl Default for VlmAnalysis {
+  #[inline]
+  fn default() -> Self {
+    Self::new()
   }
 }
 
