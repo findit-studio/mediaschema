@@ -55,6 +55,13 @@ CREATE TABLE IF NOT EXISTS media_file (
 );
 CREATE INDEX IF NOT EXISTS idx_media_file_media_id            ON media_file(media_id);
 CREATE INDEX IF NOT EXISTS idx_media_file_watched_location_id ON media_file(watched_location_id);
+-- Natural-key uniqueness of a copy: one path per volume. SQLite
+-- UNIQUE-indexes TEXT natively, so the index uses the path column
+-- directly; the mysql dialect carries an extra `location_path_hash`
+-- column to dodge InnoDB's prefix-length requirement on variable-length
+-- TEXT and indexes `(location_volume, location_path_hash)` there.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_media_file_path
+    ON media_file(location_volume, location_path);
 
 CREATE TABLE IF NOT EXISTS speaker (
     id                  BLOB    NOT NULL PRIMARY KEY,

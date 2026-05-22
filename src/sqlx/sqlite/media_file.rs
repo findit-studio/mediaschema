@@ -6,6 +6,10 @@
 //! joined by `/`. Path segments never contain `/`, so the join is lossless
 //! and the column stays prefix-queryable. Wall-clock `created_at` is
 //! `INTEGER` milliseconds-since-epoch, NULL = absent.
+//!
+//! `UNIQUE (location_volume, location_path)` enforces one-copy-per-path
+//! directly on the path column — SQLite UNIQUE-indexes `TEXT` natively
+//! and needs no fixed-width hash sidecar (the mysql dialect carries one).
 
 use crate::{
   domain::{Location, MediaFile, Uuid7},
@@ -86,6 +90,59 @@ impl TryFrom<SqliteMediaFileRow> for MediaFile<Uuid7> {
   }
 }
 
+/// Borrowed view of [`SqliteMediaFileRow`] — zero-copy decode from `&'r Row`.
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct SqliteMediaFileRowRef<'r> {
+  pub id: &'r [u8],
+  pub media_id: &'r [u8],
+  pub created_at_ms: Option<i64>,
+  pub location_volume: &'r [u8],
+  pub location_path: &'r str,
+  pub watched_location_id: &'r [u8],
+  pub watch_volume: &'r [u8],
+}
+
+impl SqliteMediaFileRow {
+  /// Cheap borrow — produces a [`SqliteMediaFileRowRef`] referencing `self`.
+  pub fn as_ref(&self) -> SqliteMediaFileRowRef<'_> {
+    SqliteMediaFileRowRef {
+      id: &self.id,
+      media_id: &self.media_id,
+      created_at_ms: self.created_at_ms,
+      location_volume: &self.location_volume,
+      location_path: &self.location_path,
+      watched_location_id: &self.watched_location_id,
+      watch_volume: &self.watch_volume,
+    }
+  }
+}
+
+impl<'r> TryFrom<SqliteMediaFileRowRef<'r>> for MediaFile<Uuid7> {
+  type Error = SqlxError;
+
+  fn try_from(r: SqliteMediaFileRowRef<'r>) -> Result<Self, Self::Error> {
+    let id = bytes_to_uuid7(r.id)?;
+    let media_id = bytes_to_uuid7(r.media_id)?;
+    let location_volume = bytes_to_uuid7(r.location_volume)?;
+    let watched_location_id = bytes_to_uuid7(r.watched_location_id)?;
+    let watch_volume = bytes_to_uuid7(r.watch_volume)?;
+    let created_at = match r.created_at_ms {
+      None => None,
+      Some(ms) => Some(millis_to_timestamp(ms)?),
+    };
+    let location = Location::try_local_uuid7(location_volume, r.location_path.split('/'))
+      .map_err(|e| SqlxError::DomainConstructorRejected(format!("MediaFile.location: {e}")))?;
+    Ok(MediaFile::from_parts(
+      id,
+      media_id,
+      created_at,
+      location,
+      watched_location_id,
+      watch_volume,
+    ))
+  }
+}
+
 // ===========================================================================
 // Tests
 // ===========================================================================
@@ -113,6 +170,24 @@ mod tests {
     let f2: MediaFile<Uuid7> = row.try_into().unwrap();
     assert_eq!(f, f2);
     assert_eq!(f2.name(), "clip.mp4");
+  }
+
+  #[test]
+  fn media_file_ref_roundtrip() {
+    let vol = Uuid7::new();
+    let wl = WatchedLocation::try_new(Uuid7::new(), vol, JiffTimestamp::default()).unwrap();
+    let location = Location::try_local_uuid7(vol, ["Movies", "2024", "clip.mp4"]).unwrap();
+    let f = MediaFile::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      Some(JiffTimestamp::from_millisecond(1_700_000_000_000).unwrap()),
+      location,
+      &wl,
+    )
+    .unwrap();
+    let row: SqliteMediaFileRow = (&f).into();
+    let f2: MediaFile<Uuid7> = row.as_ref().try_into().unwrap();
+    assert_eq!(f, f2);
   }
 
   #[test]
