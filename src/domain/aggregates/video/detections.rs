@@ -56,6 +56,12 @@ pub enum DetectionError {
   /// follow a consistent winding order (a "bow-tie" quad).
   #[error("document quad must be simple (non-self-intersecting, consistent winding)")]
   QuadSelfIntersecting,
+  /// A segmentation mask had a zero or partial-zero `dimensions` — a
+  /// mask always has real geometry, so both `width` and `height` must
+  /// be greater than zero (there is no `0x0` "unknown" sentinel for a
+  /// mask, unlike a track's coded dimensions).
+  #[error("mask dimensions width and height must be greater than zero")]
+  MaskDimensionsDegenerate,
 }
 
 /// A calibrated detection confidence — a `f32` proven **finite** and
@@ -1159,6 +1165,17 @@ impl FaceLandmarksDetection {
   }
 }
 
+/// Rejects a zero / partial-zero mask `dimensions` — a segmentation
+/// mask always has real geometry, so both `width` and `height` must be
+/// greater than zero.
+#[inline]
+const fn validate_mask_dimensions(dimensions: Dimensions) -> Result<(), DetectionError> {
+  if dimensions.width() == 0 || dimensions.height() == 0 {
+    return Err(DetectionError::MaskDimensionsDegenerate);
+  }
+  Ok(())
+}
+
 /// Apple-vision person-instance segmentation mask.
 ///
 /// `data` is the raw mask bytes (alpha 8 by convention, but
@@ -1174,7 +1191,10 @@ pub struct PersonInstanceMaskDetection {
 
 impl PersonInstanceMaskDetection {
   /// Validating constructor — rejects a non-finite / out-of-range
-  /// `confidence` with [`DetectionError::ConfidenceOutOfRange`].
+  /// `confidence` with [`DetectionError::ConfidenceOutOfRange`], and a
+  /// zero / partial-zero `dimensions` with
+  /// [`DetectionError::MaskDimensionsDegenerate`] (a mask always has
+  /// real geometry).
   #[inline]
   pub fn try_new(
     bbox: BoundingBox,
@@ -1183,6 +1203,7 @@ impl PersonInstanceMaskDetection {
     dimensions: Dimensions,
     data: impl Into<Bytes>,
   ) -> Result<Self, DetectionError> {
+    validate_mask_dimensions(dimensions)?;
     Ok(Self {
       bbox,
       confidence: Confidence::try_new(confidence)?,
@@ -1230,7 +1251,10 @@ pub struct PersonSegmentationMask {
 
 impl PersonSegmentationMask {
   /// Validating constructor — rejects a non-finite / out-of-range
-  /// `confidence` with [`DetectionError::ConfidenceOutOfRange`].
+  /// `confidence` with [`DetectionError::ConfidenceOutOfRange`], and a
+  /// zero / partial-zero `dimensions` with
+  /// [`DetectionError::MaskDimensionsDegenerate`] (a mask always has
+  /// real geometry).
   #[inline]
   pub fn try_new(
     bbox: BoundingBox,
@@ -1238,6 +1262,7 @@ impl PersonSegmentationMask {
     dimensions: Dimensions,
     data: impl Into<Bytes>,
   ) -> Result<Self, DetectionError> {
+    validate_mask_dimensions(dimensions)?;
     Ok(Self {
       bbox,
       confidence: Confidence::try_new(confidence)?,
@@ -2013,5 +2038,52 @@ mod tests {
     assert!(
       DocumentSegment::try_new((0.12, 0.10), (0.88, 0.14), (0.90, 0.86), (0.10, 0.90), 0.9).is_ok()
     );
+  }
+
+  #[test]
+  fn instance_mask_rejects_zero_dimensions() {
+    // rev-5 finding 3: a mask always has real geometry — a zero or
+    // partial-zero `Dimensions` is not a valid mask.
+    let bbox = BoundingBox::try_new(0.1, 0.1, 0.5, 0.5).unwrap();
+    assert_eq!(
+      PersonInstanceMaskDetection::try_new(bbox, 0.9, 0, Dimensions::new(0, 0), &b""[..]).err(),
+      Some(DetectionError::MaskDimensionsDegenerate)
+    );
+    // Partial-zero (zero width, non-zero height) is also rejected.
+    assert_eq!(
+      PersonInstanceMaskDetection::try_new(bbox, 0.9, 0, Dimensions::new(0, 32), &b""[..]).err(),
+      Some(DetectionError::MaskDimensionsDegenerate)
+    );
+    // Partial-zero (non-zero width, zero height) is also rejected.
+    assert_eq!(
+      PersonInstanceMaskDetection::try_new(bbox, 0.9, 0, Dimensions::new(32, 0), &b""[..]).err(),
+      Some(DetectionError::MaskDimensionsDegenerate)
+    );
+    assert!(DetectionError::MaskDimensionsDegenerate.is_mask_dimensions_degenerate());
+    // A real, fully non-zero mask geometry passes.
+    assert!(
+      PersonInstanceMaskDetection::try_new(bbox, 0.9, 0, Dimensions::new(64, 48), &b""[..]).is_ok()
+    );
+  }
+
+  #[test]
+  fn segmentation_mask_rejects_zero_dimensions() {
+    // rev-5 finding 3: whole-frame segmentation masks share the
+    // non-zero geometry invariant.
+    let bbox = BoundingBox::try_new(0.0, 0.0, 1.0, 1.0).unwrap();
+    assert_eq!(
+      PersonSegmentationMask::try_new(bbox, 0.9, Dimensions::new(0, 0), &b""[..]).err(),
+      Some(DetectionError::MaskDimensionsDegenerate)
+    );
+    assert_eq!(
+      PersonSegmentationMask::try_new(bbox, 0.9, Dimensions::new(0, 32), &b""[..]).err(),
+      Some(DetectionError::MaskDimensionsDegenerate)
+    );
+    assert_eq!(
+      PersonSegmentationMask::try_new(bbox, 0.9, Dimensions::new(32, 0), &b""[..]).err(),
+      Some(DetectionError::MaskDimensionsDegenerate)
+    );
+    // A real, fully non-zero mask geometry passes.
+    assert!(PersonSegmentationMask::try_new(bbox, 0.9, Dimensions::new(64, 48), &b""[..]).is_ok());
   }
 }

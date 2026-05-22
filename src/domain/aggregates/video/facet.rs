@@ -189,8 +189,9 @@ impl Video<Uuid7> {
   /// On success a changed track list invalidates any prior indexing
   /// progress, so `track_progress` is reset to `{total = new
   /// tracks.len(), indexed = 0, failed = 0}` — keeping the invariant
-  /// `track_progress.total() == tracks.len()`. Emptying the list also
-  /// resets `total_scenes` to 0 (scenes belong to tracks).
+  /// `track_progress.total() == tracks.len()`. Any track-list change
+  /// also resets `total_scenes` to 0 (the rollup sums scenes across the
+  /// *current* tracks and is meaningless across a different track set).
   #[inline]
   pub fn try_with_tracks(
     mut self,
@@ -209,9 +210,9 @@ impl Video<Uuid7> {
   /// On success a changed track list invalidates any prior indexing
   /// progress, so `track_progress` is reset to `{total = new
   /// tracks.len(), indexed = 0, failed = 0}` — keeping the invariant
-  /// `track_progress.total() == tracks.len()`. Emptying the list also
-  /// resets `total_scenes` to 0 (scenes belong to tracks, so a
-  /// track-less facet has none).
+  /// `track_progress.total() == tracks.len()`. Any track-list change
+  /// also resets `total_scenes` to 0 (the rollup sums scenes across the
+  /// *current* tracks and is meaningless across a different track set).
   #[inline]
   pub fn try_set_tracks(
     &mut self,
@@ -226,11 +227,12 @@ impl Video<Uuid7> {
     let total = u32::try_from(self.tracks.len()).unwrap_or(u32::MAX);
     self.track_progress = IndexProgress::try_new(total, 0, 0)
       .expect("freshly-reset rollup {total, 0, 0} always upholds the IndexProgress invariant");
-    // An empty track list cannot have scenes — reset the rollup so the
-    // `tracks.is_empty() ⇒ total_scenes == 0` invariant holds.
-    if self.tracks.is_empty() {
-      self.total_scenes = 0;
-    }
+    // `total_scenes` is the sum of scenes across the *current* child
+    // tracks — meaningless once the track set changes. Reset it on any
+    // track-list change (not just emptying), the same unconditional
+    // reset applied to `track_progress`; this also upholds the
+    // `tracks.is_empty() ⇒ total_scenes == 0` invariant.
+    self.total_scenes = 0;
     Ok(self)
   }
 }
@@ -490,6 +492,32 @@ mod tests {
     assert_eq!(v.total_scenes(), 9);
     v.try_set_tracks(std::vec::Vec::<Uuid7>::new()).unwrap();
     assert!(v.tracks().is_empty());
+    assert_eq!(v.total_scenes(), 0);
+  }
+
+  #[test]
+  fn replacing_tracks_resets_total_scenes() {
+    // rev-5 finding 2: `total_scenes` sums scenes across the *current*
+    // tracks — replacing the track set (non-empty → non-empty) must
+    // reset the stale rollup to 0, not only when the list is emptied.
+    let mut v = Video::try_new(Uuid7::new())
+      .unwrap()
+      .try_with_tracks(std::vec![Uuid7::new()])
+      .unwrap()
+      .try_with_total_scenes(7)
+      .unwrap();
+    assert_eq!(v.total_scenes(), 7);
+    // `[old]` → `[new]` is a different track set: the count is stale.
+    v.try_set_tracks(std::vec![Uuid7::new()]).unwrap();
+    assert_eq!(v.tracks().len(), 1);
+    assert_eq!(v.total_scenes(), 0);
+
+    // The consuming builder resets identically.
+    let v = v
+      .try_with_total_scenes(4)
+      .unwrap()
+      .try_with_tracks(std::vec![Uuid7::new(), Uuid7::new()])
+      .unwrap();
     assert_eq!(v.total_scenes(), 0);
   }
 
