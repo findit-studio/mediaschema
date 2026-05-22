@@ -22,6 +22,23 @@ use smol_str::SmolStr;
 
 use crate::domain::Uuid7;
 
+// ---------------------------------------------------------------------------
+// Duration validation — shared by `speech_duration`'s validating mutators
+// ---------------------------------------------------------------------------
+
+/// `speech_duration` is semantically a non-negative duration. A
+/// `mediatime::Timestamp` is negative iff its `pts()` is negative — the
+/// timebase numerator/denominator are always positive (`u32` / `NonZeroU32`),
+/// so the sign is carried entirely by the PTS value. `None` (absent) is not
+/// negative.
+#[inline]
+const fn is_negative_duration(d: Option<Timestamp>) -> bool {
+  match d {
+    None => false,
+    Some(ts) => ts.pts() < 0,
+  }
+}
+
 /// One distinct voice in an `AudioTrack`. The track's speaker set is
 /// `AudioTrack.speakers: Vec<Id> → Speaker`; each `AudioSegment.speaker:
 /// Option<Id> → Speaker`.
@@ -112,12 +129,21 @@ impl<Id> Speaker<Id> {
     self
   }
 
-  /// Builder: replace `speech_duration` and return `self`.
-  #[inline(always)]
-  #[must_use]
-  pub fn with_speech_duration(mut self, d: Option<Timestamp>) -> Self {
+  /// Validating builder: replace `speech_duration` and return `self`.
+  ///
+  /// `speech_duration` is semantically a non-negative duration, but
+  /// `mediatime::Timestamp` is an offset type that admits negative PTS — a
+  /// negative speaking time is meaningless and is rejected with
+  /// [`SpeakerError::NegativeSpeechDuration`]. `None` (not yet rolled up)
+  /// and a zero / positive `Timestamp` are accepted. On rejection `self` is
+  /// returned unchanged inside the `Err`.
+  #[inline]
+  pub fn try_with_speech_duration(mut self, d: Option<Timestamp>) -> Result<Self, SpeakerError> {
+    if is_negative_duration(d) {
+      return Err(SpeakerError::NegativeSpeechDuration);
+    }
     self.speech_duration = d;
-    self
+    Ok(self)
   }
 
   /// Builder: replace `cluster_id` and return `self`.
@@ -135,11 +161,20 @@ impl<Id> Speaker<Id> {
     self
   }
 
-  /// In-place mutator for `speech_duration`.
-  #[inline(always)]
-  pub fn set_speech_duration(&mut self, d: Option<Timestamp>) -> &mut Self {
+  /// Validating in-place mutator for `speech_duration`. Rejects a negative
+  /// `Timestamp` ([`SpeakerError::NegativeSpeechDuration`]); `None` and a
+  /// zero / positive `Timestamp` are accepted. On rejection `self` is left
+  /// unchanged.
+  #[inline]
+  pub const fn try_set_speech_duration(
+    &mut self,
+    d: Option<Timestamp>,
+  ) -> Result<&mut Self, SpeakerError> {
+    if is_negative_duration(d) {
+      return Err(SpeakerError::NegativeSpeechDuration);
+    }
     self.speech_duration = d;
-    self
+    Ok(self)
   }
 
   /// In-place mutator for `cluster_id`.
@@ -150,8 +185,8 @@ impl<Id> Speaker<Id> {
   }
 }
 
-/// Error returned when [`Speaker::try_new`] cannot uphold the
-/// non-nil-id / non-nil-parent invariants. Unit-only enum.
+/// Error returned by [`Speaker`]'s validating constructor and
+/// `speech_duration` mutators when an invariant cannot be upheld.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant, thiserror::Error)]
 #[non_exhaustive]
 pub enum SpeakerError {
@@ -163,6 +198,10 @@ pub enum SpeakerError {
   /// no `AudioTrack` reference.
   #[error("Speaker parent (AudioTrack) must not be the nil UUID")]
   NilParent,
+  /// A `Some(_)` `speech_duration` carried a negative `Timestamp` — a
+  /// speaker's total speaking time cannot be negative.
+  #[error("Speaker speech_duration must not be negative")]
+  NegativeSpeechDuration,
 }
 
 // ===========================================================================
@@ -218,5 +257,61 @@ mod tests {
     s.set_cluster_id(0);
     assert!(s.name().is_empty());
     assert_eq!(s.cluster_id(), 0);
+  }
+
+  // --- Finding 2: non-negative speech_duration ------------------------------
+
+  /// A standard 1/1000 (millisecond) timebase for duration tests.
+  fn tb() -> mediatime::Timebase {
+    mediatime::Timebase::new(1, core::num::NonZeroU32::new(1000).expect("nonzero"))
+  }
+
+  #[test]
+  fn try_with_speech_duration_rejects_negative() {
+    let s = Speaker::try_new(Uuid7::new(), Uuid7::new(), 0, "Jane").unwrap();
+    let neg = Timestamp::new(-1, tb());
+    assert_eq!(
+      s.clone().try_with_speech_duration(Some(neg)).err(),
+      Some(SpeakerError::NegativeSpeechDuration)
+    );
+    assert!(SpeakerError::NegativeSpeechDuration.is_negative_speech_duration());
+  }
+
+  #[test]
+  fn try_with_speech_duration_accepts_zero_positive_and_none() {
+    let s = Speaker::try_new(Uuid7::new(), Uuid7::new(), 0, "Jane").unwrap();
+    // zero
+    let z = s
+      .clone()
+      .try_with_speech_duration(Some(Timestamp::new(0, tb())))
+      .expect("zero duration accepted");
+    assert_eq!(z.speech_duration_ref().unwrap().pts(), 0);
+    // positive
+    let p = s
+      .clone()
+      .try_with_speech_duration(Some(Timestamp::new(5000, tb())))
+      .expect("positive duration accepted");
+    assert_eq!(p.speech_duration_ref().unwrap().pts(), 5000);
+    // absent
+    let n = s.try_with_speech_duration(None).expect("None accepted");
+    assert!(n.speech_duration_ref().is_none());
+  }
+
+  #[test]
+  fn try_set_speech_duration_rejects_and_leaves_value_unchanged() {
+    let mut s = Speaker::try_new(Uuid7::new(), Uuid7::new(), 0, "Jane").unwrap();
+    s.try_set_speech_duration(Some(Timestamp::new(3000, tb())))
+      .unwrap();
+    // a negative update is rejected, leaving the prior value in place
+    assert_eq!(
+      s.try_set_speech_duration(Some(Timestamp::new(-10, tb())))
+        .err(),
+      Some(SpeakerError::NegativeSpeechDuration)
+    );
+    assert_eq!(s.speech_duration_ref().unwrap().pts(), 3000);
+    // a valid update goes through
+    s.try_set_speech_duration(Some(Timestamp::new(0, tb())))
+      .unwrap();
+    assert_eq!(s.speech_duration_ref().unwrap().pts(), 0);
   }
 }
