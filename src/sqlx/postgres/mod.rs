@@ -10,10 +10,14 @@
 //! See the module-level [`super`] doc for the cross-backend mapping
 //! conventions and current coverage scope.
 
+pub mod audio;
 pub mod leaves;
 pub mod media;
 pub mod media_file;
 
+pub use audio::{
+  PgAudioRow, PgAudioSegmentRow, PgAudioSegmentWordRow, PgAudioTrackIndexErrorRow, PgAudioTrackRow,
+};
 pub use leaves::{PgSceneAnnotationRow, PgSpeakerRow, PgUserTagRow, PgWatchedLocationRow};
 pub use media::PgMediaRow;
 pub use media_file::PgMediaFileRow;
