@@ -43,9 +43,12 @@ pub struct Keyframe<Id = Uuid7> {
 
   // --- artifact ---
   /// Inline thumbnail image bytes (`bytes::Bytes`, no `location`).
+  ///
+  /// The byte-length of this buffer is the keyframe `size`; `size` is
+  /// **not** a stored field — it is derived from `data` via
+  /// [`Keyframe::size`], so the two cannot diverge.
   data: Bytes,
   mime: SmolStr,
-  size: u32,
   /// Thumbnail dimensions (`mediaframe::frame::Dimensions`).
   dimensions: Dimensions,
   extractor: KeyframeExtractor,
@@ -106,7 +109,6 @@ impl Keyframe<Uuid7> {
       pts,
       data: Bytes::new(),
       mime: SmolStr::default(),
-      size: 0,
       dimensions,
       extractor,
       classifications: std::vec::Vec::new(),
@@ -118,7 +120,9 @@ impl Keyframe<Uuid7> {
       barcodes: std::vec::Vec::new(),
       attention_saliency: std::vec::Vec::new(),
       objectness_saliency: std::vec::Vec::new(),
-      horizon: HorizonInfo::new(0.0, 0.0),
+      // 0.0 is trivially finite and in `0.0..=1.0` — this `try_new`
+      // cannot fail.
+      horizon: HorizonInfo::try_new(0.0, 0.0).expect("0.0 confidence is within range"),
       document_segments: std::vec::Vec::new(),
       aesthetics: Aesthetics::new(0.0, false),
       colors: std::vec::Vec::new(),
@@ -129,105 +133,106 @@ impl Keyframe<Uuid7> {
 
 impl<Id> Keyframe<Id> {
   // --- identity / source ---
-  #[inline]
-  pub const fn id(&self) -> &Id {
+  #[inline(always)]
+  pub const fn id_ref(&self) -> &Id {
     &self.id
   }
-  #[inline]
-  pub const fn parent(&self) -> &Id {
+  #[inline(always)]
+  pub const fn parent_ref(&self) -> &Id {
     &self.parent
   }
-  #[inline]
-  pub const fn pts(&self) -> &Timestamp {
+  #[inline(always)]
+  pub const fn pts_ref(&self) -> &Timestamp {
     &self.pts
   }
 
   // --- artifact ---
   /// Thumbnail image bytes (inline, no `location`).
-  #[inline]
+  #[inline(always)]
   pub fn data(&self) -> &[u8] {
     &self.data
   }
   /// MIME type (`""` = absent).
-  #[inline]
+  #[inline(always)]
   pub fn mime(&self) -> &str {
     self.mime.as_str()
   }
-  /// Byte size of `data`.
-  #[inline]
-  pub const fn size(&self) -> u32 {
-    self.size
+  /// Byte size of `data` — **derived** from `data.len()`, never stored
+  /// independently, so it can never diverge from the actual buffer.
+  #[inline(always)]
+  pub fn size(&self) -> u64 {
+    self.data.len() as u64
   }
   /// Thumbnail dimensions (`mediaframe::frame::Dimensions`).
-  #[inline]
+  #[inline(always)]
   pub const fn dimensions(&self) -> Dimensions {
     self.dimensions
   }
   /// Which extractor produced this keyframe.
-  #[inline]
+  #[inline(always)]
   pub const fn extractor(&self) -> KeyframeExtractor {
     self.extractor
   }
 
   // --- apple-vision ---
-  #[inline]
-  pub fn classifications(&self) -> &[Detection] {
+  #[inline(always)]
+  pub fn classifications_slice(&self) -> &[Detection] {
     &self.classifications
   }
-  #[inline]
-  pub fn objects(&self) -> &[ObjectDetection] {
+  #[inline(always)]
+  pub fn objects_slice(&self) -> &[ObjectDetection] {
     &self.objects
   }
-  #[inline]
-  pub const fn humans(&self) -> &HumanAnalysis {
+  #[inline(always)]
+  pub const fn humans_ref(&self) -> &HumanAnalysis {
     &self.humans
   }
-  #[inline]
-  pub const fn animals(&self) -> &AnimalAnalysis {
+  #[inline(always)]
+  pub const fn animals_ref(&self) -> &AnimalAnalysis {
     &self.animals
   }
-  #[inline]
-  pub fn actions(&self) -> &[ActionDetection] {
+  #[inline(always)]
+  pub fn actions_slice(&self) -> &[ActionDetection] {
     &self.actions
   }
-  #[inline]
-  pub fn text_detections(&self) -> &[TextDetection] {
+  #[inline(always)]
+  pub fn text_detections_slice(&self) -> &[TextDetection] {
     &self.text_detections
   }
-  #[inline]
-  pub fn barcodes(&self) -> &[BarcodeDetection] {
+  #[inline(always)]
+  pub fn barcodes_slice(&self) -> &[BarcodeDetection] {
     &self.barcodes
   }
-  #[inline]
-  pub fn attention_saliency(&self) -> &[SaliencyRegion] {
+  #[inline(always)]
+  pub fn attention_saliency_slice(&self) -> &[SaliencyRegion] {
     &self.attention_saliency
   }
-  #[inline]
-  pub fn objectness_saliency(&self) -> &[SaliencyRegion] {
+  #[inline(always)]
+  pub fn objectness_saliency_slice(&self) -> &[SaliencyRegion] {
     &self.objectness_saliency
   }
-  #[inline]
-  pub const fn horizon(&self) -> &HorizonInfo {
+  #[inline(always)]
+  pub const fn horizon_ref(&self) -> &HorizonInfo {
     &self.horizon
   }
-  #[inline]
-  pub fn document_segments(&self) -> &[DocumentSegment] {
+  #[inline(always)]
+  pub fn document_segments_slice(&self) -> &[DocumentSegment] {
     &self.document_segments
   }
-  #[inline]
-  pub const fn aesthetics(&self) -> &Aesthetics {
+  #[inline(always)]
+  pub const fn aesthetics_ref(&self) -> &Aesthetics {
     &self.aesthetics
   }
 
   // --- colorthief ---
-  #[inline]
-  pub fn colors(&self) -> &[DominantColor] {
+  #[inline(always)]
+  pub fn colors_slice(&self) -> &[DominantColor] {
     &self.colors
   }
 
   // --- VLM ---
-  #[inline]
-  pub const fn vlm(&self) -> &VlmAnalysis {
+  #[inline(always)]
+  pub const fn vlm_ref(&self) -> &VlmAnalysis {
     &self.vlm
   }
 }
@@ -235,182 +240,231 @@ impl<Id> Keyframe<Id> {
 // Builders + setters per the encapsulation rule.
 impl<Id> Keyframe<Id> {
   // --- artifact ---
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub fn with_data(mut self, v: impl Into<Bytes>) -> Self {
     self.data = v.into();
     self
   }
-  #[inline]
-  pub fn set_data(&mut self, v: impl Into<Bytes>) {
+  #[inline(always)]
+  pub fn set_data(&mut self, v: impl Into<Bytes>) -> &mut Self {
     self.data = v.into();
+    self
   }
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub fn with_mime(mut self, v: impl Into<SmolStr>) -> Self {
     self.mime = v.into();
     self
   }
-  #[inline]
-  pub fn set_mime(&mut self, v: impl Into<SmolStr>) {
+  #[inline(always)]
+  pub fn set_mime(&mut self, v: impl Into<SmolStr>) -> &mut Self {
     self.mime = v.into();
-  }
-  #[inline]
-  pub const fn with_size(mut self, v: u32) -> Self {
-    self.size = v;
     self
   }
+  /// Fallible builder for `dimensions`, re-validating the locked
+  /// non-zero-extent invariant (`width > 0 && height > 0`). Rejects a
+  /// zero-width/zero-height `Dimensions` with
+  /// [`KeyframeError::ZeroDimensions`].
   #[inline]
-  pub const fn set_size(&mut self, v: u32) {
-    self.size = v;
-  }
-  #[inline]
-  pub const fn with_dimensions(mut self, v: Dimensions) -> Self {
+  pub fn try_with_dimensions(mut self, v: Dimensions) -> Result<Self, KeyframeError> {
+    if v.width() == 0 || v.height() == 0 {
+      return Err(KeyframeError::ZeroDimensions);
+    }
     self.dimensions = v;
-    self
+    Ok(self)
   }
+  /// Fallible in-place mutator for `dimensions` — see
+  /// [`Keyframe::try_with_dimensions`]. On success returns `&mut Self`
+  /// so it chains; on zero extent returns
+  /// [`KeyframeError::ZeroDimensions`] and leaves `self` unchanged.
   #[inline]
-  pub const fn set_dimensions(&mut self, v: Dimensions) {
+  pub const fn try_set_dimensions(&mut self, v: Dimensions) -> Result<&mut Self, KeyframeError> {
+    if v.width() == 0 || v.height() == 0 {
+      return Err(KeyframeError::ZeroDimensions);
+    }
     self.dimensions = v;
+    Ok(self)
   }
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub const fn with_extractor(mut self, v: KeyframeExtractor) -> Self {
     self.extractor = v;
     self
   }
-  #[inline]
-  pub const fn set_extractor(&mut self, v: KeyframeExtractor) {
+  #[inline(always)]
+  pub const fn set_extractor(&mut self, v: KeyframeExtractor) -> &mut Self {
     self.extractor = v;
+    self
   }
 
   // --- apple-vision ---
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub fn with_classifications(mut self, v: impl Into<std::vec::Vec<Detection>>) -> Self {
     self.classifications = v.into();
     self
   }
-  #[inline]
-  pub fn set_classifications(&mut self, v: impl Into<std::vec::Vec<Detection>>) {
+  #[inline(always)]
+  pub fn set_classifications(&mut self, v: impl Into<std::vec::Vec<Detection>>) -> &mut Self {
     self.classifications = v.into();
+    self
   }
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub fn with_objects(mut self, v: impl Into<std::vec::Vec<ObjectDetection>>) -> Self {
     self.objects = v.into();
     self
   }
-  #[inline]
-  pub fn set_objects(&mut self, v: impl Into<std::vec::Vec<ObjectDetection>>) {
+  #[inline(always)]
+  pub fn set_objects(&mut self, v: impl Into<std::vec::Vec<ObjectDetection>>) -> &mut Self {
     self.objects = v.into();
+    self
   }
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub fn with_humans(mut self, v: HumanAnalysis) -> Self {
     self.humans = v;
     self
   }
-  #[inline]
-  pub fn set_humans(&mut self, v: HumanAnalysis) {
+  #[inline(always)]
+  pub fn set_humans(&mut self, v: HumanAnalysis) -> &mut Self {
     self.humans = v;
+    self
   }
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub fn with_animals(mut self, v: AnimalAnalysis) -> Self {
     self.animals = v;
     self
   }
-  #[inline]
-  pub fn set_animals(&mut self, v: AnimalAnalysis) {
+  #[inline(always)]
+  pub fn set_animals(&mut self, v: AnimalAnalysis) -> &mut Self {
     self.animals = v;
+    self
   }
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub fn with_actions(mut self, v: impl Into<std::vec::Vec<ActionDetection>>) -> Self {
     self.actions = v.into();
     self
   }
-  #[inline]
-  pub fn set_actions(&mut self, v: impl Into<std::vec::Vec<ActionDetection>>) {
+  #[inline(always)]
+  pub fn set_actions(&mut self, v: impl Into<std::vec::Vec<ActionDetection>>) -> &mut Self {
     self.actions = v.into();
+    self
   }
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub fn with_text_detections(mut self, v: impl Into<std::vec::Vec<TextDetection>>) -> Self {
     self.text_detections = v.into();
     self
   }
-  #[inline]
-  pub fn set_text_detections(&mut self, v: impl Into<std::vec::Vec<TextDetection>>) {
+  #[inline(always)]
+  pub fn set_text_detections(&mut self, v: impl Into<std::vec::Vec<TextDetection>>) -> &mut Self {
     self.text_detections = v.into();
+    self
   }
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub fn with_barcodes(mut self, v: impl Into<std::vec::Vec<BarcodeDetection>>) -> Self {
     self.barcodes = v.into();
     self
   }
-  #[inline]
-  pub fn set_barcodes(&mut self, v: impl Into<std::vec::Vec<BarcodeDetection>>) {
+  #[inline(always)]
+  pub fn set_barcodes(&mut self, v: impl Into<std::vec::Vec<BarcodeDetection>>) -> &mut Self {
     self.barcodes = v.into();
+    self
   }
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub fn with_attention_saliency(mut self, v: impl Into<std::vec::Vec<SaliencyRegion>>) -> Self {
     self.attention_saliency = v.into();
     self
   }
-  #[inline]
-  pub fn set_attention_saliency(&mut self, v: impl Into<std::vec::Vec<SaliencyRegion>>) {
+  #[inline(always)]
+  pub fn set_attention_saliency(
+    &mut self,
+    v: impl Into<std::vec::Vec<SaliencyRegion>>,
+  ) -> &mut Self {
     self.attention_saliency = v.into();
+    self
   }
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub fn with_objectness_saliency(mut self, v: impl Into<std::vec::Vec<SaliencyRegion>>) -> Self {
     self.objectness_saliency = v.into();
     self
   }
-  #[inline]
-  pub fn set_objectness_saliency(&mut self, v: impl Into<std::vec::Vec<SaliencyRegion>>) {
+  #[inline(always)]
+  pub fn set_objectness_saliency(
+    &mut self,
+    v: impl Into<std::vec::Vec<SaliencyRegion>>,
+  ) -> &mut Self {
     self.objectness_saliency = v.into();
+    self
   }
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub const fn with_horizon(mut self, v: HorizonInfo) -> Self {
     self.horizon = v;
     self
   }
-  #[inline]
-  pub const fn set_horizon(&mut self, v: HorizonInfo) {
+  #[inline(always)]
+  pub const fn set_horizon(&mut self, v: HorizonInfo) -> &mut Self {
     self.horizon = v;
+    self
   }
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub fn with_document_segments(mut self, v: impl Into<std::vec::Vec<DocumentSegment>>) -> Self {
     self.document_segments = v.into();
     self
   }
-  #[inline]
-  pub fn set_document_segments(&mut self, v: impl Into<std::vec::Vec<DocumentSegment>>) {
+  #[inline(always)]
+  pub fn set_document_segments(
+    &mut self,
+    v: impl Into<std::vec::Vec<DocumentSegment>>,
+  ) -> &mut Self {
     self.document_segments = v.into();
+    self
   }
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub const fn with_aesthetics(mut self, v: Aesthetics) -> Self {
     self.aesthetics = v;
     self
   }
-  #[inline]
-  pub const fn set_aesthetics(&mut self, v: Aesthetics) {
+  #[inline(always)]
+  pub const fn set_aesthetics(&mut self, v: Aesthetics) -> &mut Self {
     self.aesthetics = v;
+    self
   }
 
   // --- colorthief ---
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub fn with_colors(mut self, v: impl Into<std::vec::Vec<DominantColor>>) -> Self {
     self.colors = v.into();
     self
   }
-  #[inline]
-  pub fn set_colors(&mut self, v: impl Into<std::vec::Vec<DominantColor>>) {
+  #[inline(always)]
+  pub fn set_colors(&mut self, v: impl Into<std::vec::Vec<DominantColor>>) -> &mut Self {
     self.colors = v.into();
+    self
   }
 
   // --- VLM ---
-  #[inline]
+  #[must_use]
+  #[inline(always)]
   pub fn with_vlm(mut self, v: VlmAnalysis) -> Self {
     self.vlm = v;
     self
   }
-  #[inline]
-  pub fn set_vlm(&mut self, v: VlmAnalysis) {
+  #[inline(always)]
+  pub fn set_vlm(&mut self, v: VlmAnalysis) -> &mut Self {
     self.vlm = v;
+    self
   }
 }
 
@@ -459,14 +513,14 @@ mod tests {
       KeyframeExtractor::CompositeQuality,
     )
     .unwrap();
-    assert_eq!(kf.parent(), &parent);
-    assert_eq!(kf.pts(), &ts);
+    assert_eq!(kf.parent_ref(), &parent);
+    assert_eq!(kf.pts_ref(), &ts);
     assert_eq!(kf.dimensions(), Dimensions::new(320, 180));
     assert!(kf.extractor().is_composite_quality());
     assert!(kf.data().is_empty());
-    assert!(kf.classifications().is_empty());
-    assert!(kf.colors().is_empty());
-    assert_eq!(kf.vlm().shot_type(), "");
+    assert!(kf.classifications_slice().is_empty());
+    assert!(kf.colors_slice().is_empty());
+    assert_eq!(kf.vlm_ref().shot_type(), "");
   }
 
   #[test]
@@ -530,9 +584,8 @@ mod tests {
     )
     .unwrap()
     .with_mime("image/jpeg")
-    .with_size(42_000)
     .with_data(std::vec![0xff, 0xd8, 0xff])
-    .with_classifications(std::vec![Detection::new("dog", 0.97)])
+    .with_classifications(std::vec![Detection::try_new("dog", 0.97).unwrap()])
     .with_vlm(
       VlmAnalysis::new()
         .with_description(LocalizedText::from_src("a dog running"))
@@ -540,22 +593,73 @@ mod tests {
         .with_shot_type("medium-shot"),
     );
     assert_eq!(kf.mime(), "image/jpeg");
-    assert_eq!(kf.size(), 42_000);
+    // `size` is derived from `data` — 3 bytes in ⇒ size 3.
+    assert_eq!(kf.size(), 3);
     assert_eq!(kf.data().len(), 3);
-    assert_eq!(kf.classifications().len(), 1);
-    assert_eq!(kf.classifications()[0].label(), "dog");
-    assert_eq!(kf.vlm().description().src(), "a dog running");
-    assert_eq!(kf.vlm().tags().len(), 1);
-    assert_eq!(kf.vlm().shot_type(), "medium-shot");
+    assert_eq!(kf.classifications_slice().len(), 1);
+    assert_eq!(kf.classifications_slice()[0].label(), "dog");
+    assert_eq!(kf.vlm_ref().description_ref().src(), "a dog running");
+    assert_eq!(kf.vlm_ref().tags_slice().len(), 1);
+    assert_eq!(kf.vlm_ref().shot_type(), "medium-shot");
 
     let mut kf = kf;
     kf.set_mime("");
-    kf.set_size(0);
     kf.set_data(Bytes::new());
-    kf.set_dimensions(Dimensions::new(2, 2));
+    kf.try_set_dimensions(Dimensions::new(2, 2)).unwrap();
     assert!(kf.mime().is_empty());
+    // `size` tracks `data` with no separate setter — clearing `data`
+    // drops `size` to 0 automatically.
     assert_eq!(kf.size(), 0);
     assert!(kf.data().is_empty());
+    assert_eq!(kf.dimensions(), Dimensions::new(2, 2));
+  }
+
+  #[test]
+  fn size_is_derived_from_data() {
+    let ts = Timestamp::new(0, tb());
+    let kf = Keyframe::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      ts,
+      Dimensions::new(8, 8),
+      KeyframeExtractor::IFrame,
+    )
+    .unwrap()
+    .with_data(std::vec![1u8, 2, 3, 4, 5]);
+    assert_eq!(kf.size(), kf.data().len() as u64);
+    assert_eq!(kf.size(), 5);
+  }
+
+  #[test]
+  fn dimension_mutators_reject_zero_extent() {
+    let ts = Timestamp::new(0, tb());
+    let mut kf = Keyframe::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      ts,
+      Dimensions::new(320, 180),
+      KeyframeExtractor::IFrame,
+    )
+    .unwrap();
+
+    // Zero-extent dimensions are rejected through both fallible
+    // mutators; `self` keeps the previously-valid dimensions.
+    for (w, h) in [(0u32, 1u32), (1, 0), (0, 0)] {
+      assert_eq!(
+        kf.clone().try_with_dimensions(Dimensions::new(w, h)).err(),
+        Some(KeyframeError::ZeroDimensions),
+        "({w}, {h}) builder should be rejected"
+      );
+      assert_eq!(
+        kf.try_set_dimensions(Dimensions::new(w, h)).err(),
+        Some(KeyframeError::ZeroDimensions),
+        "({w}, {h}) setter should be rejected"
+      );
+    }
+    assert_eq!(kf.dimensions(), Dimensions::new(320, 180));
+
+    // A valid replacement is accepted.
+    kf.try_set_dimensions(Dimensions::new(2, 2)).unwrap();
     assert_eq!(kf.dimensions(), Dimensions::new(2, 2));
   }
 }

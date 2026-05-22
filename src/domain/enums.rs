@@ -417,7 +417,13 @@ impl SubtitleIndexStage {
   ///
   /// Failed precedence applies only to *live* errors against the
   /// effective expected mask.
-  pub fn from_status(
+  ///
+  /// `pub(crate)`: `requires_ocr` is an unbound caller-supplied bool, so
+  /// exposing this publicly lets external code derive a `Done` stage for
+  /// an unknown/image track without `OCR_DONE`. The only public stage
+  /// path is [`SubtitleTrack::index_stage`], which binds `requires_ocr`
+  /// from the track's codec/format internally.
+  pub(crate) fn from_status(
     status: SubtitleIndexStatus,
     requires_ocr: bool,
     errors: &[ErrorInfo],

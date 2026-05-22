@@ -9,7 +9,171 @@
 //! Access goes through `field()` getters and `with_field(...)` const-where-
 //! possible setters; mutation uses `set_field(...)`.
 
+use derive_more::IsVariant;
 use smol_str::SmolStr;
+
+// ---------------------------------------------------------------------------
+// IndexProgress — per-kind facet rollup over child tracks
+// ---------------------------------------------------------------------------
+
+/// Per-kind facet rollup of `{total, indexed, failed}` over a kind
+/// container's child tracks. **Denormalised cache** — the source of truth
+/// lives on each `*Track`'s `index_status` + `index_errors`; the facet
+/// maintains this so list queries don't have to re-aggregate across tracks.
+///
+/// Locked shared cross-cutting VO (`schema/README.md` "Indexing
+/// model-correction"), reused by the `Video`/`Audio`/`Subtitle` facets via
+/// each facet's `track_progress` field.
+///
+/// Invariant: `indexed + failed <= total`. Validated at the type boundary
+/// via [`IndexProgress::try_new`]. The unchecked constructors
+/// ([`IndexProgress::from_parts`] + the `with_*`/`set_*` field mutators) do
+/// **not** enforce it — they exist for cheap field-wise (re)construction
+/// where the rollup-recompute pass is the integrity backstop; reach for
+/// `try_new` when the invariant must hold at the boundary.
+///
+/// **Default convention**: `Default::default()` calls [`IndexProgress::new`]
+/// — the empty rollup `{0, 0, 0}`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct IndexProgress {
+  total: u32,
+  indexed: u32,
+  failed: u32,
+}
+
+impl IndexProgress {
+  /// Canonical no-arg constructor — the empty rollup (`{0, 0, 0}`).
+  /// [`Default::default`] is `Self::new()`.
+  #[inline(always)]
+  pub const fn new() -> Self {
+    Self {
+      total: 0,
+      indexed: 0,
+      failed: 0,
+    }
+  }
+
+  /// Construct from the three counts directly, **without** validating the
+  /// `indexed + failed <= total` invariant — use [`IndexProgress::try_new`]
+  /// when the invariant must hold at the boundary.
+  #[inline(always)]
+  pub const fn from_parts(total: u32, indexed: u32, failed: u32) -> Self {
+    Self {
+      total,
+      indexed,
+      failed,
+    }
+  }
+
+  /// Validating constructor: rejects `indexed + failed > total` (the rollup
+  /// invariant). `u32::checked_add` guards the overflow case.
+  pub const fn try_new(total: u32, indexed: u32, failed: u32) -> Result<Self, IndexProgressError> {
+    // `u32::checked_add` is const fn since 1.61.
+    let sum = match indexed.checked_add(failed) {
+      Some(s) => s,
+      None => return Err(IndexProgressError::SumOverflows),
+    };
+    if sum > total {
+      return Err(IndexProgressError::SumExceedsTotal);
+    }
+    Ok(Self {
+      total,
+      indexed,
+      failed,
+    })
+  }
+
+  /// Total child tracks the facet owns.
+  #[inline(always)]
+  pub const fn total(&self) -> u32 {
+    self.total
+  }
+
+  /// Tracks that finished indexing successfully.
+  #[inline(always)]
+  pub const fn indexed(&self) -> u32 {
+    self.indexed
+  }
+
+  /// Tracks whose indexing failed (`index_errors` non-empty at the time of
+  /// last rollup maintenance).
+  #[inline(always)]
+  pub const fn failed(&self) -> u32 {
+    self.failed
+  }
+
+  /// True iff the facet has at least one failed track — the locked "kind
+  /// container's error signal" rule (`failed > 0` ⇒ drill down).
+  #[inline(always)]
+  pub const fn has_failures(&self) -> bool {
+    self.failed > 0
+  }
+
+  /// Builder: replace `total`.
+  #[must_use]
+  #[inline(always)]
+  pub const fn with_total(mut self, total: u32) -> Self {
+    self.total = total;
+    self
+  }
+
+  /// Builder: replace `indexed`.
+  #[must_use]
+  #[inline(always)]
+  pub const fn with_indexed(mut self, indexed: u32) -> Self {
+    self.indexed = indexed;
+    self
+  }
+
+  /// Builder: replace `failed`.
+  #[must_use]
+  #[inline(always)]
+  pub const fn with_failed(mut self, failed: u32) -> Self {
+    self.failed = failed;
+    self
+  }
+
+  /// In-place mutator for `total`.
+  #[inline(always)]
+  pub const fn set_total(&mut self, total: u32) -> &mut Self {
+    self.total = total;
+    self
+  }
+
+  /// In-place mutator for `indexed`.
+  #[inline(always)]
+  pub const fn set_indexed(&mut self, indexed: u32) -> &mut Self {
+    self.indexed = indexed;
+    self
+  }
+
+  /// In-place mutator for `failed`.
+  #[inline(always)]
+  pub const fn set_failed(&mut self, failed: u32) -> &mut Self {
+    self.failed = failed;
+    self
+  }
+}
+
+impl Default for IndexProgress {
+  #[inline(always)]
+  fn default() -> Self {
+    Self::new()
+  }
+}
+
+/// Error returned when [`IndexProgress::try_new`] cannot uphold the
+/// `indexed + failed <= total` invariant. Unit-only enum.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant, thiserror::Error)]
+#[non_exhaustive]
+pub enum IndexProgressError {
+  /// `indexed + failed > total` — would overcount.
+  #[error("IndexProgress: indexed + failed must not exceed total")]
+  SumExceedsTotal,
+  /// `indexed + failed` overflows `u32` — definitely overcounts.
+  #[error("IndexProgress: indexed + failed overflows u32")]
+  SumOverflows,
+}
 
 // ---------------------------------------------------------------------------
 // Provenance — analysis-run reproducibility
@@ -392,5 +556,67 @@ mod tests {
     t.set_translated("");
     assert_eq!(t.translated(), "");
     assert_eq!(t.display(), "Jane");
+  }
+
+  #[test]
+  fn index_progress_new_is_empty_and_default_delegates() {
+    let p = IndexProgress::new();
+    assert_eq!(p.total(), 0);
+    assert_eq!(p.indexed(), 0);
+    assert_eq!(p.failed(), 0);
+    assert!(!p.has_failures());
+    assert_eq!(IndexProgress::default(), p);
+  }
+
+  #[test]
+  fn index_progress_from_parts_is_unchecked() {
+    // `from_parts` does NOT validate the rollup invariant.
+    let p = IndexProgress::from_parts(2, 1, 0);
+    assert_eq!(p.total(), 2);
+    assert_eq!(p.indexed(), 1);
+    assert_eq!(p.failed(), 0);
+  }
+
+  #[test]
+  fn index_progress_try_new_validates_invariant() {
+    assert_eq!(
+      IndexProgress::try_new(2, 2, 1).err(),
+      Some(IndexProgressError::SumExceedsTotal)
+    );
+    assert!(IndexProgressError::SumExceedsTotal.is_sum_exceeds_total());
+    assert_eq!(
+      IndexProgress::try_new(u32::MAX, u32::MAX, 1).err(),
+      Some(IndexProgressError::SumOverflows)
+    );
+    assert!(IndexProgressError::SumOverflows.is_sum_overflows());
+    let ok = IndexProgress::try_new(5, 3, 2).unwrap();
+    assert_eq!(ok.total(), 5);
+  }
+
+  #[test]
+  fn index_progress_has_failures() {
+    let none = IndexProgress::try_new(5, 5, 0).unwrap();
+    let some = IndexProgress::try_new(5, 3, 2).unwrap();
+    assert!(!none.has_failures());
+    assert!(some.has_failures());
+  }
+
+  #[test]
+  fn index_progress_builders_and_setters() {
+    let p = IndexProgress::new()
+      .with_total(5)
+      .with_indexed(3)
+      .with_failed(1);
+    assert_eq!(p.total(), 5);
+    assert_eq!(p.indexed(), 3);
+    assert_eq!(p.failed(), 1);
+
+    let mut p = p;
+    p.set_total(10);
+    p.set_indexed(7);
+    p.set_failed(2);
+    assert_eq!(p.total(), 10);
+    assert_eq!(p.indexed(), 7);
+    assert_eq!(p.failed(), 2);
   }
 }
