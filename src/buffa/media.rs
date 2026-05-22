@@ -4,16 +4,15 @@
 //!
 //! Wire `media.v1::Media` wraps a nested `MediaMeta` (id / checksum /
 //! name / size / created_at) and adds flat scalars (kind, EXIF capture,
-//! etc.). The domain `Media` flattens these into one struct. Bridged
-//! one-for-one:
+//! etc.). The domain `Media` is the **content row** (one per content
+//! hash); per-copy metadata (`name`, `created_at`) now lives on the
+//! separate `MediaFile` aggregate. Bridged one-for-one:
 //!
 //! | wire field                | domain field      | notes                                |
 //! | ------------------------- | ----------------- | ------------------------------------ |
 //! | `meta.id` (Bytes, 16)     | `id` (Uuid7)      | validating                           |
 //! | `meta.checksum` (Bytes, 32) | `checksum`       | 32 bytes; zero sentinel allowed       |
-//! | `meta.name`               | `name`            | `""` = absent (SmolStr)              |
 //! | `meta.size`               | `size`            | u64                                  |
-//! | `meta.created_at`         | `created_at`      | i64 ms-since-epoch ↔ jiff::Timestamp  |
 //! | `kind: EnumValue<DbMediaKind>` | `kind`       | UNSPECIFIED rejected (closed enum)   |
 //! | `video_id: Option<Bytes>` | `video: Option<Uuid7>` | validating                      |
 //! | `audio_id`                | `audio`           | validating                           |
@@ -26,6 +25,11 @@
 //! ## Wire-only (dropped on wire→domain; emitted as proto3-default on
 //! domain→wire)
 //!
+//! - `meta.name: String` / `meta.created_at: i64` — per-copy metadata.
+//!   Post-`Media`/`MediaFile` split these are `MediaFile` concerns and
+//!   the content-row `Media` no longer carries them; the bridge drops
+//!   them on wire→domain and emits the proto3 defaults (`""` / `0`) on
+//!   domain→wire.
 //! - `meta.time: MessageField<TrackTime>` — the legacy schema's
 //!   per-Media timestamp anchor. The locked domain stores **media-time
 //!   duration** instead (`duration: Option<mediatime::Timestamp>`);
@@ -95,10 +99,6 @@ impl TryFrom<&wire::Media> for Media<Uuid7> {
 
     let kind = MediaKind::try_from(&w.kind)?;
 
-    let created_at = JiffTimestamp::from_millisecond(meta.created_at)
-      .map_err(|_| BuffaError::TimestampOutOfRange(meta.created_at))?;
-
-    let name = meta.name.as_str();
     // NOTE(buffa-bridge): no wire `format` field; the domain `format`
     // (container slug) has no wire counterpart, so it starts at
     // `Format::default()` (`Other("")`, the mediaframe "absent"
@@ -106,10 +106,8 @@ impl TryFrom<&wire::Media> for Media<Uuid7> {
     let mut d = Media::try_new(
       id,
       checksum,
-      SmolStr::from(name),
       Format::default(), // container format unmodelled in wire
       meta.size,
-      created_at,
       kind,
     )
     .map_err(media_err_to_buffa)?;
@@ -167,39 +165,45 @@ impl TryFrom<&wire::Media> for Media<Uuid7> {
 impl From<&Media<Uuid7>> for wire::Media {
   fn from(d: &Media<Uuid7>) -> Self {
     let meta = wire::MediaMeta {
-      id: ::buffa::bytes::Bytes::copy_from_slice(d.id().as_bytes()),
-      checksum: ::buffa::bytes::Bytes::copy_from_slice(d.checksum().as_bytes()),
-      name: d.name().to_owned(),
+      id: ::buffa::bytes::Bytes::copy_from_slice(d.id_ref().as_bytes()),
+      checksum: ::buffa::bytes::Bytes::copy_from_slice(d.checksum_ref().as_bytes()),
+      // NOTE(buffa-bridge): `name` is now a per-copy `MediaFile`
+      // concern (the `Media`/`MediaFile` split) — the content row no
+      // longer carries it. Emitted as the proto3 default empty string.
+      name: String::new(),
       size: d.size(),
       // NOTE(buffa-bridge): wire `meta.time` (MessageField<TrackTime>)
       // is unmodelled by the locked domain — emitted unset.
       time: ::buffa::MessageField::none(),
-      created_at: d.created_at().as_millisecond(),
+      // NOTE(buffa-bridge): `created_at` (filesystem creation time) is
+      // likewise a per-copy `MediaFile` concern post-split — emitted as
+      // the proto3 default `0`.
+      created_at: 0,
       __buffa_unknown_fields: Default::default(),
     };
 
     let video_id = d
-      .video()
+      .video_ref()
       .map(|id| ::buffa::bytes::Bytes::copy_from_slice(id.as_bytes()));
     let audio_id = d
-      .audio()
+      .audio_ref()
       .map(|id| ::buffa::bytes::Bytes::copy_from_slice(id.as_bytes()));
     let subtitle_id = d
-      .subtitle()
+      .subtitle_ref()
       .map(|id| ::buffa::bytes::Bytes::copy_from_slice(id.as_bytes()));
 
-    let index_error = match d.probe_error() {
+    let index_error = match d.probe_error_ref() {
       Some(ei) => ::buffa::MessageField::some(wire::ErrorInfo::from(ei)),
       None => ::buffa::MessageField::none(),
     };
 
-    let (device_make, device_model) = match d.device() {
+    let (device_make, device_model) = match d.device_ref() {
       Some(dev) => (dev.make().to_owned(), dev.model().to_owned()),
       None => (String::new(), String::new()),
     };
 
     // GPS → ISO 6709 string (empty when absent).
-    let gps_location = match d.gps() {
+    let gps_location = match d.gps_ref() {
       Some(g) => g.to_iso6709(),
       None => String::new(),
     };
@@ -215,7 +219,10 @@ impl From<&Media<Uuid7>> for wire::Media {
       audio_id,
       subtitle_id,
       error_status: 0,
-      capture_date: d.capture_date().map(|t| t.as_millisecond()).unwrap_or(0),
+      capture_date: d
+        .capture_date_ref()
+        .map(|t| t.as_millisecond())
+        .unwrap_or(0),
       device_make,
       device_model,
       gps_location,
@@ -243,6 +250,13 @@ fn media_err_to_buffa(e: MediaError) -> BuffaError {
     // error (not a wrong-length condition) — surface it as
     // ChecksumWrongLength(32) to keep the variant set small.
     MediaError::ZeroChecksum => BuffaError::ChecksumWrongLength(32),
+    // `MediaError` is `#[non_exhaustive]`. Only `Media::try_new`'s
+    // output (`NilId` / `ZeroChecksum`) ever reaches this helper —
+    // `NegativeDuration` is raised solely by the `with_duration`
+    // builder, which the bridge never calls. Any other variant is an
+    // unmodelled invariant; surface it generically rather than
+    // mis-mapping it onto an id/checksum-specific code.
+    _ => BuffaError::MissingRequiredField("Media"),
   }
 }
 
@@ -257,16 +271,7 @@ mod tests {
   fn build_domain() -> Media<Uuid7> {
     let id = Uuid7::new();
     let cs = FileChecksum::from_bytes([7u8; 32]);
-    Media::try_new(
-      id,
-      cs,
-      "clip.mp4",
-      Format::default(),
-      1_234_567,
-      JiffTimestamp::from_millisecond(1_700_000_000_000).unwrap(),
-      MediaKind::Video,
-    )
-    .unwrap()
+    Media::try_new(id, cs, Format::default(), 1_234_567, MediaKind::Video).unwrap()
   }
 
   #[test]
@@ -287,19 +292,17 @@ mod tests {
       )));
     let w: wire::Media = (&d).into();
     let d2: Media<Uuid7> = Media::try_from(&w).expect("roundtrip");
-    assert_eq!(d.id(), d2.id());
-    assert_eq!(d.checksum(), d2.checksum());
-    assert_eq!(d.name(), d2.name());
+    assert_eq!(d.id_ref(), d2.id_ref());
+    assert_eq!(d.checksum_ref(), d2.checksum_ref());
     assert_eq!(d.size(), d2.size());
-    assert_eq!(d.created_at(), d2.created_at());
     assert_eq!(d.kind(), d2.kind());
-    assert_eq!(d.video(), d2.video());
-    assert_eq!(d.audio(), d2.audio());
-    assert_eq!(d.subtitle(), d2.subtitle());
-    assert_eq!(d.capture_date(), d2.capture_date());
-    assert_eq!(d.device(), d2.device());
-    assert_eq!(d.gps(), d2.gps());
-    assert_eq!(d.probe_error(), d2.probe_error());
+    assert_eq!(d.video_ref(), d2.video_ref());
+    assert_eq!(d.audio_ref(), d2.audio_ref());
+    assert_eq!(d.subtitle_ref(), d2.subtitle_ref());
+    assert_eq!(d.capture_date_ref(), d2.capture_date_ref());
+    assert_eq!(d.device_ref(), d2.device_ref());
+    assert_eq!(d.gps_ref(), d2.gps_ref());
+    assert_eq!(d.probe_error_ref(), d2.probe_error_ref());
   }
 
   #[test]

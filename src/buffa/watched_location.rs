@@ -3,13 +3,14 @@
 //! ## Field correspondence
 //!
 //! The wire layer was generated against the legacy `findit-proto` schema
-//! and does **not** carry the freshly-locked domain field set. Bridged
-//! one-for-one:
+//! and does **not** carry the freshly-locked domain field set. The
+//! locked `WatchedLocation` is **volume-scoped**: it carries a `volume`
+//! UUID identity, not a folder path. Bridged one-for-one:
 //!
 //! | wire field    | domain field       | notes                                     |
 //! | ------------- | ------------------ | ----------------------------------------- |
 //! | `id`          | `id`               | `Id`→`Uuid7` (validating)                 |
-//! | `location`    | `root`             | oneof `Local`→`Location::Local` (validating) |
+//! | `location`    | `volume`           | oneof `Local`; only its `volume` UUID is taken — the path `components` are wire-only |
 //! | `created_at`  | `added_at`         | `i64` ms-since-epoch ↔ `jiff::Timestamp`  |
 //!
 //! ## Wire-only fields (no domain counterpart — preserved or defaulted)
@@ -31,6 +32,11 @@
 //!
 //! All wire-only fields default to `0` / empty on the domain→wire path.
 //!
+//! - `location.components: Vec<String>` — the legacy folder path. The
+//!   locked `WatchedLocation` is volume-scoped (it carries only the
+//!   `volume` UUID, not a path), so the wire `Local`'s `components` are
+//!   dropped on wire→domain and emitted empty on domain→wire.
+//!
 //! ## Domain-only fields (no wire counterpart — dropped or synthesized)
 //!
 //! - `recursive: bool`              — NOTE(buffa-bridge): defaults to
@@ -48,7 +54,7 @@ use jiff::Timestamp as JiffTimestamp;
 
 use crate::{
   buffa::error::BuffaError,
-  domain::{Location, Uuid7, WatchedLocation},
+  domain::{Uuid7, WatchedLocation},
   generated::media::v1 as wire,
 };
 
@@ -62,43 +68,51 @@ impl TryFrom<&wire::WatchedLocation> for WatchedLocation<Uuid7> {
       .ok_or(BuffaError::MissingRequiredField("WatchedLocation.id"))?;
     let id = Uuid7::try_from(id_wire)?;
 
-    // `Location` is a oneof with `Local` as the only arm; the bridge
-    // surfaces `MissingLocationVolume` if neither arm is set.
+    // `Location` is a oneof with `Local` as the only arm. The locked
+    // `WatchedLocation` is volume-scoped, so only the `Local.volume`
+    // UUID is consumed — the path `components` are wire-only and
+    // dropped here.
     let loc_wire = w
       .location
       .as_option()
       .ok_or(BuffaError::MissingRequiredField("WatchedLocation.location"))?;
-    let root: Location<Uuid7> = match Option::<Location<Uuid7>>::try_from(loc_wire)? {
-      Some(l) => l,
+    let local = match &loc_wire.kind {
+      Some(wire::location::Kind::Local(local)) => local.as_ref(),
       None => return Err(BuffaError::MissingRequiredField("WatchedLocation.location")),
+      #[allow(unreachable_patterns)]
+      Some(_) => return Err(BuffaError::UnsupportedLocationKind),
     };
-    // `try_new` already validates root via the same constructor we
-    // emulate above. Reuse its non-nil-id check by going through it:
-    // we can't call `try_new` directly because it takes path
-    // components, not a pre-built `Location`. So build the domain
-    // value via the documented public surface: split the Location
-    // back into (volume, components) and call `try_new`. This avoids
-    // any private-field bypass.
-    let local = root.unwrap_local_ref();
-    let volume = *local.volume();
-    let components: std::vec::Vec<smol_str::SmolStr> = local.components().to_vec();
+    let vol_wire = local
+      .volume
+      .as_option()
+      .ok_or(BuffaError::MissingLocationVolume)?;
+    let volume = Uuid7::try_from(vol_wire)?;
+
     let added_at = ms_to_jiff(w.created_at)?;
-    let mut d = WatchedLocation::try_new(id, volume, components, added_at)
-      .map_err(WatchedLocationConvert::from_err)?;
     // wire-only fields ignored; domain-only fields keep their
     // `try_new` defaults (recursive=false, enabled=false,
     // is_ejectable=false, last_*=None).
-    // Make `d` non-mut: we don't actually mutate here.
-    let _ = &mut d;
-    Ok(d)
+    WatchedLocation::try_new(id, volume, added_at).map_err(WatchedLocationConvert::from_err)
   }
 }
 
 impl From<&WatchedLocation<Uuid7>> for wire::WatchedLocation {
   fn from(d: &WatchedLocation<Uuid7>) -> Self {
-    let id = wire::Id::from(d.id());
-    let location = wire::Location::from(d.root());
-    let created_at = jiff_to_ms(d.added_at());
+    let id = wire::Id::from(d.id_ref());
+    // The locked `WatchedLocation` carries only the `volume` UUID; the
+    // wire `Local` additionally has a path `components` list with no
+    // domain counterpart — emitted empty.
+    let location = wire::Location {
+      kind: Some(wire::location::Kind::Local(
+        ::buffa::alloc::boxed::Box::new(wire::Local {
+          volume: ::buffa::MessageField::some(wire::Id::from(d.volume_ref())),
+          components: std::vec::Vec::new(),
+          __buffa_unknown_fields: Default::default(),
+        }),
+      )),
+      __buffa_unknown_fields: Default::default(),
+    };
+    let created_at = jiff_to_ms(d.added_at_ref());
     wire::WatchedLocation {
       id: ::buffa::MessageField::some(id),
       location: ::buffa::MessageField::some(location),
@@ -153,10 +167,14 @@ mod watched_location_convert_impl {
   impl WatchedLocationConvert {
     pub(super) fn from_err(e: WatchedLocationError) -> BuffaError {
       match e {
-        WatchedLocationError::NilId => {
+        // Both invariants are a nil-UUID rejection — `id` and `volume`
+        // are the only two identity fields on the locked aggregate.
+        // Every `WatchedLocationError` variant is a nil-UUID rejection
+        // — `id` and `volume` are the locked aggregate's only two
+        // identity fields.
+        WatchedLocationError::NilId | WatchedLocationError::NilVolume => {
           BuffaError::IdInvalid(crate::domain::primitives::Uuid7Error::Nil)
         }
-        WatchedLocationError::Root(le) => BuffaError::Location(le),
       }
     }
   }
@@ -175,7 +193,6 @@ mod tests {
     WatchedLocation::try_new(
       Uuid7::new(),
       Uuid7::new(),
-      ["Movies", "Holiday"],
       JiffTimestamp::from_millisecond(1_700_000_000_000).unwrap(),
     )
     .unwrap()
@@ -187,16 +204,16 @@ mod tests {
     let w: wire::WatchedLocation = (&d).into();
     let d2 = WatchedLocation::try_from(&w).expect("roundtrip");
     // The fields the bridge actually preserves:
-    assert_eq!(d.id(), d2.id());
-    assert_eq!(d.root(), d2.root());
-    assert_eq!(d.added_at(), d2.added_at());
+    assert_eq!(d.id_ref(), d2.id_ref());
+    assert_eq!(d.volume_ref(), d2.volume_ref());
+    assert_eq!(d.added_at_ref(), d2.added_at_ref());
     // Domain-only fields stay at try_new defaults — wire dropped them.
     assert!(!d2.is_recursive());
     assert!(!d2.is_enabled());
     assert!(!d2.is_ejectable());
-    assert!(d2.last_reconciled_at().is_none());
-    assert!(d2.last_reconcile_status().is_none());
-    assert!(d2.last_error().is_none());
+    assert!(d2.last_reconciled_at_ref().is_none());
+    assert!(d2.last_reconcile_status_ref().is_none());
+    assert!(d2.last_error_ref().is_none());
   }
 
   #[test]
@@ -213,14 +230,26 @@ mod tests {
     assert_eq!(w.failed_videos, 0);
   }
 
+  /// Build a wire `Location` (`Local` arm) carrying just a volume UUID.
+  fn wire_local(volume: &Uuid7) -> wire::Location {
+    wire::Location {
+      kind: Some(wire::location::Kind::Local(::buffa::alloc::boxed::Box::new(
+        wire::Local {
+          volume: ::buffa::MessageField::some(wire::Id::from(volume)),
+          components: std::vec::Vec::new(),
+          __buffa_unknown_fields: Default::default(),
+        },
+      ))),
+      __buffa_unknown_fields: Default::default(),
+    }
+  }
+
   #[test]
   fn wire_to_domain_missing_id_errors() {
     let vol = Uuid7::new();
     let w = wire::WatchedLocation {
       id: ::buffa::MessageField::none(),
-      location: ::buffa::MessageField::some(wire::Location::from(
-        &Location::try_local_uuid7(vol, ["x"]).unwrap(),
-      )),
+      location: ::buffa::MessageField::some(wire_local(&vol)),
       created_at: 0,
       ..Default::default()
     };

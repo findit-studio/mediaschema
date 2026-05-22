@@ -50,9 +50,9 @@ impl From<&Location<Uuid7>> for wire::Local {
     // panics only if a future non-Local variant is introduced without
     // updating this bridge.
     let local = d.unwrap_local_ref();
-    let volume_wire = wire::Id::from(local.volume());
+    let volume_wire = wire::Id::from(local.volume_ref());
     let components = local
-      .components()
+      .components_slice()
       .iter()
       .map(|c| c.as_str().to_owned())
       .collect();
