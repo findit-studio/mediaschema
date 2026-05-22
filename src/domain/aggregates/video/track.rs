@@ -528,23 +528,59 @@ impl<Id> VideoTrack<Id> {
   }
 
   // --- frame / pixel / colour ---
+  /// Fallible builder for `dimensions` (coded width × height).
+  ///
+  /// `visible_rect` is the clean-aperture crop *within* the coded
+  /// frame, so a new `dimensions` must still contain the current
+  /// `visible_rect` (if any). Shrinking the coded frame below an
+  /// existing crop is rejected with
+  /// [`VideoTrackError::CropExceedsDimensions`].
   #[inline]
-  pub const fn with_dimensions(mut self, v: Dimensions) -> Self {
+  pub fn try_with_dimensions(mut self, v: Dimensions) -> Result<Self, VideoTrackError> {
+    self.try_set_dimensions(v)?;
+    Ok(self)
+  }
+  /// Fallible in-place mutator for `dimensions` — see
+  /// [`VideoTrack::try_with_dimensions`]. On success returns `&mut
+  /// Self`; if the current `visible_rect` would no longer fit, returns
+  /// [`VideoTrackError::CropExceedsDimensions`] and leaves `self`
+  /// unchanged.
+  #[inline]
+  pub fn try_set_dimensions(&mut self, v: Dimensions) -> Result<&mut Self, VideoTrackError> {
+    if let Some(rect) = self.visible_rect {
+      if !rect_fits_dimensions(rect, v) {
+        return Err(VideoTrackError::CropExceedsDimensions);
+      }
+    }
     self.dimensions = v;
-    self
+    Ok(self)
   }
+  /// Fallible builder for `visible_rect` (clean-aperture crop).
+  ///
+  /// The crop must fit within the coded `dimensions`: `x + width <=
+  /// dimensions.width` and `y + height <= dimensions.height` (checked
+  /// addition). A crop that extends past the coded frame is rejected
+  /// with [`VideoTrackError::CropExceedsDimensions`]. `None` (no crop)
+  /// is always accepted.
   #[inline]
-  pub const fn set_dimensions(&mut self, v: Dimensions) {
-    self.dimensions = v;
+  pub fn try_with_visible_rect(mut self, v: Option<Rect>) -> Result<Self, VideoTrackError> {
+    self.try_set_visible_rect(v)?;
+    Ok(self)
   }
+  /// Fallible in-place mutator for `visible_rect` — see
+  /// [`VideoTrack::try_with_visible_rect`]. On success returns `&mut
+  /// Self`; if the crop extends past the coded `dimensions`, returns
+  /// [`VideoTrackError::CropExceedsDimensions`] and leaves `self`
+  /// unchanged.
   #[inline]
-  pub const fn with_visible_rect(mut self, v: Option<Rect>) -> Self {
+  pub fn try_set_visible_rect(&mut self, v: Option<Rect>) -> Result<&mut Self, VideoTrackError> {
+    if let Some(rect) = v {
+      if !rect_fits_dimensions(rect, self.dimensions) {
+        return Err(VideoTrackError::CropExceedsDimensions);
+      }
+    }
     self.visible_rect = v;
-    self
-  }
-  #[inline]
-  pub const fn set_visible_rect(&mut self, v: Option<Rect>) {
-    self.visible_rect = v;
+    Ok(self)
   }
   #[inline]
   pub const fn with_sample_aspect_ratio(mut self, v: SampleAspectRatio) -> Self {
@@ -706,6 +742,27 @@ impl<Id> VideoTrack<Id> {
 }
 
 // ---------------------------------------------------------------------------
+// Crop-geometry helper
+// ---------------------------------------------------------------------------
+
+/// True iff `rect` (clean-aperture crop) fits entirely within `dims`
+/// (coded frame): `rect.x + rect.width <= dims.width` and `rect.y +
+/// rect.height <= dims.height`, using checked addition so an
+/// `x + width` overflow is treated as out-of-bounds.
+#[inline]
+const fn rect_fits_dimensions(rect: Rect, dims: Dimensions) -> bool {
+  let right = match rect.x().checked_add(rect.width()) {
+    Some(v) => v,
+    None => return false,
+  };
+  let bottom = match rect.y().checked_add(rect.height()) {
+    Some(v) => v,
+    None => return false,
+  };
+  right <= dims.width() && bottom <= dims.height()
+}
+
+// ---------------------------------------------------------------------------
 // Errors
 // ---------------------------------------------------------------------------
 
@@ -725,6 +782,13 @@ pub enum VideoTrackError {
   /// is semantically non-negative (see the `duration` field doc).
   #[error("VideoTrack duration must not be negative")]
   NegativeDuration,
+  /// The clean-aperture crop (`visible_rect`) does not fit within the
+  /// coded `dimensions` — either a crop extends past the coded frame
+  /// (`x + width > dimensions.width` / `y + height >
+  /// dimensions.height`), or `dimensions` was shrunk below an existing
+  /// crop.
+  #[error("VideoTrack visible_rect crop must fit within the coded dimensions")]
+  CropExceedsDimensions,
 }
 
 // ===========================================================================
@@ -781,7 +845,8 @@ mod tests {
       .with_profile(Some(SmolStr::new("Main10")))
       .with_level(Some(150))
       .with_bit_rate(8_000_000)
-      .with_dimensions(Dimensions::new(3840, 2160))
+      .try_with_dimensions(Dimensions::new(3840, 2160))
+      .unwrap()
       .with_frame_rate(fr)
       .with_pixel_format(PixelFormat::from_u32(0x0a)) // yuv420p10le-ish
       .with_has_b_frames(true)
@@ -807,7 +872,7 @@ mod tests {
 
     let mut t = t;
     t.set_bit_rate(0);
-    t.set_dimensions(Dimensions::new(0, 0));
+    t.try_set_dimensions(Dimensions::new(0, 0)).unwrap();
     t.set_is_primary(false);
     t.set_index_status(VideoIndexStatus::empty());
     t.set_scenes(std::vec::Vec::<Uuid7>::new());
@@ -863,7 +928,10 @@ mod tests {
   fn mediaframe_descriptors_flow_through() {
     let t = VideoTrack::try_new(Uuid7::new(), Uuid7::new())
       .unwrap()
-      .with_visible_rect(Some(Rect::new(0, 0, 1920, 1080)))
+      .try_with_dimensions(Dimensions::new(1920, 1080))
+      .unwrap()
+      .try_with_visible_rect(Some(Rect::new(0, 0, 1920, 1080)))
+      .unwrap()
       .with_sample_aspect_ratio(SampleAspectRatio::new(16, NonZeroU32::new(9).unwrap()))
       .with_rotation(Rotation::D90)
       .with_field_order(FieldOrder::Progressive)
@@ -881,5 +949,61 @@ mod tests {
     assert!(t.hdr_static().is_some());
     assert_eq!(t.dovi().unwrap().profile(), 8);
     assert!(t.disposition().is_empty());
+  }
+
+  #[test]
+  fn crop_must_fit_within_coded_dimensions() {
+    // rev-3 finding 3: `dimensions` and `visible_rect` were
+    // independently settable — the crop could exceed the coded frame.
+    let t = VideoTrack::try_new(Uuid7::new(), Uuid7::new())
+      .unwrap()
+      .try_with_dimensions(Dimensions::new(1920, 1080))
+      .unwrap();
+
+    // Direction 1: a crop that runs past the coded frame is rejected.
+    assert_eq!(
+      t.clone()
+        .try_with_visible_rect(Some(Rect::new(100, 0, 1900, 1080)))
+        .err(),
+      Some(VideoTrackError::CropExceedsDimensions)
+    );
+    assert_eq!(
+      t.clone()
+        .try_with_visible_rect(Some(Rect::new(0, 100, 1920, 1000)))
+        .err(),
+      Some(VideoTrackError::CropExceedsDimensions)
+    );
+    assert!(VideoTrackError::CropExceedsDimensions.is_crop_exceeds_dimensions());
+
+    // A crop flush against the coded edge is allowed.
+    let t = t
+      .try_with_visible_rect(Some(Rect::new(0, 0, 1920, 1080)))
+      .unwrap();
+
+    // Direction 2: shrinking `dimensions` below the existing crop is
+    // rejected, and the in-place setter leaves `self` unchanged.
+    let mut t = t;
+    assert_eq!(
+      t.try_set_dimensions(Dimensions::new(1280, 720)).err(),
+      Some(VideoTrackError::CropExceedsDimensions)
+    );
+    assert_eq!(t.dimensions(), Dimensions::new(1920, 1080));
+    assert_eq!(t.visible_rect(), Some(Rect::new(0, 0, 1920, 1080)));
+
+    // The in-place crop setter also rejects + leaves `self` unchanged.
+    assert_eq!(
+      t.try_set_visible_rect(Some(Rect::new(0, 0, 4000, 4000)))
+        .err(),
+      Some(VideoTrackError::CropExceedsDimensions)
+    );
+    assert_eq!(t.visible_rect(), Some(Rect::new(0, 0, 1920, 1080)));
+
+    // Growing `dimensions` keeps the crop valid; `None` crop is always
+    // fine.
+    t.try_set_dimensions(Dimensions::new(3840, 2160)).unwrap();
+    t.try_set_visible_rect(None).unwrap();
+    assert!(t.visible_rect().is_none());
+    // With no crop, any `dimensions` is accepted.
+    t.try_set_dimensions(Dimensions::new(0, 0)).unwrap();
   }
 }

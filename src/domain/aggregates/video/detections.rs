@@ -43,6 +43,14 @@ pub enum DetectionError {
   /// `0.0..=100.0` image-share range.
   #[error("percentage must be finite and within 0.0..=100.0")]
   PercentageOutOfRange,
+  /// A document quadrilateral had two coincident corners — a collapsed
+  /// quad is not a detection.
+  #[error("document quad must not have coincident corners")]
+  QuadCollapsedCorners,
+  /// A document quadrilateral enclosed zero area (shoelace formula) —
+  /// a degenerate / colinear quad is not a detection.
+  #[error("document quad must enclose a non-zero area")]
+  QuadZeroArea,
 }
 
 /// A calibrated detection confidence — a `f32` proven **finite** and
@@ -492,10 +500,19 @@ pub struct DocumentSegment {
 }
 
 impl DocumentSegment {
-  /// Validating constructor from the four corners + confidence —
-  /// rejects any non-finite / out-of-`[0.0, 1.0]` corner component
-  /// ([`DetectionError::CoordOutOfRange`]) or `confidence`
-  /// ([`DetectionError::ConfidenceOutOfRange`]).
+  /// Validating constructor from the four corners + confidence.
+  ///
+  /// Rejects:
+  /// - any non-finite / out-of-`[0.0, 1.0]` corner component
+  ///   ([`DetectionError::CoordOutOfRange`]) or `confidence`
+  ///   ([`DetectionError::ConfidenceOutOfRange`]);
+  /// - a collapsed quad — any two of the four corners coincide
+  ///   ([`DetectionError::QuadCollapsedCorners`]);
+  /// - a zero-area quad — the four corners are colinear / degenerate,
+  ///   detected via the shoelace formula
+  ///   ([`DetectionError::QuadZeroArea`]).
+  ///
+  /// Self-intersection / winding-order are out of scope.
   #[inline]
   pub const fn try_new(
     top_left: (f32, f32),
@@ -524,6 +541,40 @@ impl DocumentSegment {
       Ok(v) => v,
       Err(e) => return Err(e),
     };
+    // Composite geometry: every component is already finite and in
+    // `[0.0, 1.0]`, so the comparisons / sums below cannot be NaN.
+    // Corners are walked in order TL → TR → BR → BL.
+    let corners = [
+      (top_left.0.get(), top_left.1.get()),
+      (top_right.0.get(), top_right.1.get()),
+      (bottom_right.0.get(), bottom_right.1.get()),
+      (bottom_left.0.get(), bottom_left.1.get()),
+    ];
+    // Reject any two coincident corners — a collapsed quad.
+    let mut i = 0;
+    while i < 4 {
+      let mut j = i + 1;
+      while j < 4 {
+        if corners[i].0 == corners[j].0 && corners[i].1 == corners[j].1 {
+          return Err(DetectionError::QuadCollapsedCorners);
+        }
+        j += 1;
+      }
+      i += 1;
+    }
+    // Shoelace formula — twice the signed polygon area. Zero ⇒ the
+    // four corners are colinear / the quad encloses no area.
+    let mut twice_area = 0.0f32;
+    let mut k = 0;
+    while k < 4 {
+      let (x0, y0) = corners[k];
+      let (x1, y1) = corners[(k + 1) % 4];
+      twice_area += x0 * y1 - x1 * y0;
+      k += 1;
+    }
+    if twice_area == 0.0 {
+      return Err(DetectionError::QuadZeroArea);
+    }
     Ok(Self {
       top_left,
       top_right,
@@ -1806,16 +1857,20 @@ mod tests {
 
   #[test]
   fn document_segment_and_landmark_region_validate_coords() {
-    let good = (0.5, 0.5);
-    assert!(DocumentSegment::try_new(good, good, good, good, 0.9).is_ok());
+    // A proper non-degenerate unit-square quad (TL, TR, BR, BL).
+    let tl = (0.1, 0.1);
+    let tr = (0.9, 0.1);
+    let br = (0.9, 0.9);
+    let bl = (0.1, 0.9);
+    assert!(DocumentSegment::try_new(tl, tr, br, bl, 0.9).is_ok());
     // A bad corner component is rejected.
     assert_eq!(
-      DocumentSegment::try_new((1.5, 0.5), good, good, good, 0.9).err(),
+      DocumentSegment::try_new((1.5, 0.5), tr, br, bl, 0.9).err(),
       Some(DetectionError::CoordOutOfRange)
     );
     // A bad confidence is rejected.
     assert_eq!(
-      DocumentSegment::try_new(good, good, good, good, 2.0).err(),
+      DocumentSegment::try_new(tl, tr, br, bl, 2.0).err(),
       Some(DetectionError::ConfidenceOutOfRange)
     );
 
@@ -1824,5 +1879,33 @@ mod tests {
       FaceLandmarkRegion::try_new("leftEye", [(0.1, 0.2), (f32::NAN, 0.4)]).err(),
       Some(DetectionError::CoordOutOfRange)
     );
+  }
+
+  #[test]
+  fn document_segment_rejects_degenerate_quad() {
+    // rev-3 finding 2: per-corner validation accepts a collapsed /
+    // zero-area quad even though it is not a real document detection.
+    let p = (0.5, 0.5);
+    // All four corners coincident — fully collapsed.
+    assert_eq!(
+      DocumentSegment::try_new(p, p, p, p, 0.9).err(),
+      Some(DetectionError::QuadCollapsedCorners)
+    );
+    // Just two coincident corners (TR == BR) — still collapsed.
+    assert_eq!(
+      DocumentSegment::try_new((0.1, 0.1), (0.9, 0.5), (0.9, 0.5), (0.1, 0.9), 0.9).err(),
+      Some(DetectionError::QuadCollapsedCorners)
+    );
+    assert!(DetectionError::QuadCollapsedCorners.is_quad_collapsed_corners());
+
+    // Four distinct but colinear corners — zero enclosed area.
+    assert_eq!(
+      DocumentSegment::try_new((0.1, 0.1), (0.2, 0.2), (0.3, 0.3), (0.4, 0.4), 0.9).err(),
+      Some(DetectionError::QuadZeroArea)
+    );
+    assert!(DetectionError::QuadZeroArea.is_quad_zero_area());
+
+    // A proper non-degenerate quad still passes.
+    assert!(DocumentSegment::try_new((0.1, 0.1), (0.9, 0.1), (0.9, 0.9), (0.1, 0.9), 0.9).is_ok());
   }
 }
