@@ -238,10 +238,20 @@ impl<Id> Media<Id> {
   // --- builders -----------------------------------------------------------
 
   /// Builder: replace overall `duration`.
+  ///
+  /// `duration` is an overall-media *length*, so a negative
+  /// [`MediaTimestamp::pts`] is rejected with
+  /// [`MediaError::NegativeDuration`]. Zero and positive PTS are
+  /// accepted, as is `None` (duration unknown).
   #[inline]
-  pub fn with_duration(mut self, d: Option<MediaTimestamp>) -> Self {
+  pub fn try_with_duration(mut self, d: Option<MediaTimestamp>) -> Result<Self, MediaError> {
+    if let Some(ts) = d {
+      if ts.pts() < 0 {
+        return Err(MediaError::NegativeDuration);
+      }
+    }
     self.duration = d;
-    self
+    Ok(self)
   }
 
   /// Builder: replace the whole `files` reverse-lookup list.
@@ -322,9 +332,20 @@ impl<Id> Media<Id> {
   // --- in-place setters ---------------------------------------------------
 
   /// In-place mutator for overall `duration`.
+  ///
+  /// `duration` is an overall-media *length*, so a negative
+  /// [`MediaTimestamp::pts`] is rejected with
+  /// [`MediaError::NegativeDuration`] and the prior value is left
+  /// unchanged. Zero and positive PTS are accepted, as is `None`.
   #[inline]
-  pub fn set_duration(&mut self, d: Option<MediaTimestamp>) {
+  pub fn try_set_duration(&mut self, d: Option<MediaTimestamp>) -> Result<&mut Self, MediaError> {
+    if let Some(ts) = d {
+      if ts.pts() < 0 {
+        return Err(MediaError::NegativeDuration);
+      }
+    }
     self.duration = d;
+    Ok(self)
   }
 
   /// In-place mutator: replace the whole `files` reverse-lookup list.
@@ -403,6 +424,10 @@ pub enum MediaError {
   /// content hash should already be filled in.
   #[error("Media checksum must not be the all-zero sentinel (file must be probed)")]
   ZeroChecksum,
+  /// Supplied `duration` had a negative PTS — an overall-media length
+  /// cannot be negative.
+  #[error("Media duration must not be negative")]
+  NegativeDuration,
 }
 
 // ===========================================================================
@@ -411,6 +436,10 @@ pub enum MediaError {
 
 #[cfg(all(test, feature = "std"))]
 mod tests {
+  use core::num::NonZeroU32;
+
+  use mediatime::Timebase;
+
   use super::*;
 
   fn fake_checksum() -> FileChecksum {
@@ -584,5 +613,67 @@ mod tests {
       .error_flags()
       .contains(MediaErrorFlags::AUDIO_ERROR | MediaErrorFlags::SUBTITLE_ERROR));
     assert_eq!(m.gps().map(GeoLocation::altitude), Some(None));
+  }
+
+  fn sample_media() -> Media {
+    Media::try_new(
+      Uuid7::new(),
+      fake_checksum(),
+      Format::Mp4,
+      0,
+      MediaKind::Video,
+    )
+    .unwrap()
+  }
+
+  fn pts(value: i64) -> MediaTimestamp {
+    MediaTimestamp::new(value, Timebase::new(1, NonZeroU32::new(1000).unwrap()))
+  }
+
+  #[test]
+  fn try_with_duration_accepts_zero_positive_and_none() {
+    let m = sample_media().try_with_duration(Some(pts(0))).unwrap();
+    assert_eq!(m.duration().map(MediaTimestamp::pts), Some(0));
+
+    let m = m.try_with_duration(Some(pts(48_000))).unwrap();
+    assert_eq!(m.duration().map(MediaTimestamp::pts), Some(48_000));
+
+    let m = m.try_with_duration(None).unwrap();
+    assert!(m.duration().is_none());
+  }
+
+  #[test]
+  fn try_with_duration_rejects_negative() {
+    let r = sample_media().try_with_duration(Some(pts(-1)));
+    assert_eq!(r.err(), Some(MediaError::NegativeDuration));
+    assert!(MediaError::NegativeDuration.is_negative_duration());
+  }
+
+  #[test]
+  fn try_set_duration_accepts_zero_positive_and_none() {
+    let mut m = sample_media();
+
+    m.try_set_duration(Some(pts(0))).unwrap();
+    assert_eq!(m.duration().map(MediaTimestamp::pts), Some(0));
+
+    m.try_set_duration(Some(pts(48_000))).unwrap();
+    assert_eq!(m.duration().map(MediaTimestamp::pts), Some(48_000));
+
+    m.try_set_duration(None).unwrap();
+    assert!(m.duration().is_none());
+  }
+
+  #[test]
+  fn try_set_duration_rejects_negative_and_preserves_prior_value() {
+    let mut m = sample_media().try_with_duration(Some(pts(48_000))).unwrap();
+
+    let r = m.try_set_duration(Some(pts(-1)));
+    assert_eq!(r.err(), Some(MediaError::NegativeDuration));
+    // Rejected setter leaves the prior value unchanged.
+    assert_eq!(
+      m.duration().map(MediaTimestamp::pts),
+      Some(48_000),
+      "rejected try_set_duration must not mutate the prior value"
+    );
   }
 }
