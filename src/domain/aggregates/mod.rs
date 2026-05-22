@@ -13,6 +13,8 @@
 #[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
 pub mod audio;
 pub mod curation;
+pub mod media;
+pub mod media_file;
 pub mod speaker;
 pub mod watched_location;
 
@@ -22,5 +24,7 @@ pub use audio::{
   Audio, AudioError, AudioSegment, AudioSegmentError, AudioTrack, AudioTrackError, Word,
 };
 pub use curation::{SceneAnnotation, UserTag};
+pub use media::Media;
+pub use media_file::MediaFile;
 pub use speaker::Speaker;
 pub use watched_location::WatchedLocation;
