@@ -225,8 +225,15 @@ impl SubtitleIndexStatus {
   /// The prior unconditional inclusion of `OCR_DONE` meant every text
   /// subtitle track stayed permanently incomplete, poisoning progress
   /// rollups and re-index decisions.
+  ///
+  /// `pub(crate)`: `requires_ocr` is an unbound caller-supplied bool, so
+  /// exposing this publicly lets external code build a mask that omits
+  /// `OCR_DONE` and `contains()`-test an unknown/image track into
+  /// "complete" without OCR. The only public completion path is
+  /// [`SubtitleTrack::is_fully_indexed`], which binds `requires_ocr`
+  /// from the track's codec/format internally.
   #[inline]
-  pub const fn fully_indexed_mask(requires_ocr: bool) -> Self {
+  pub(crate) const fn fully_indexed_mask(requires_ocr: bool) -> Self {
     let base =
       Self::TRACKS_DISCOVERED.bits() | Self::CUES_EXTRACTED.bits() | Self::SEARCH_INDEXED.bits();
     if requires_ocr {
