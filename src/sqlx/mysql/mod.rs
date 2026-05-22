@@ -7,10 +7,15 @@
 //! See the module-level [`super`] doc for the cross-backend mapping
 //! conventions and current coverage scope.
 
+pub mod audio;
 pub mod leaves;
 pub mod media;
 pub mod media_file;
 
+pub use audio::{
+  MySqlAudioRow, MySqlAudioSegmentRow, MySqlAudioSegmentWordRow, MySqlAudioTrackIndexErrorRow,
+  MySqlAudioTrackRow,
+};
 pub use leaves::{
   MySqlSceneAnnotationRow, MySqlSpeakerRow, MySqlUserTagRow, MySqlWatchedLocationRow,
 };

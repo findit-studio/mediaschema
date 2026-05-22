@@ -91,12 +91,127 @@ CREATE TABLE IF NOT EXISTS scene_annotation_user_tag (
 );
 CREATE INDEX IF NOT EXISTS idx_saut_user_tag ON scene_annotation_user_tag (user_tag);
 
--- The facet + track + per-track-analysis tables (audio, video, subtitle,
--- audio_track, video_track, subtitle_track, audio_segment, scene,
--- keyframe, subtitle_cue) are tracked as a follow-up. Their schema
--- shape is documented in the corresponding `schema/*.md` locked specs;
--- the row mapping is deferred: the published mediaframe descriptor VOs
--- (`VideoCodec`, `ChannelLayout`, `color::Info`, `PixelFormat`, …) carry
--- no serde derives, so each needs a hand-rolled flat-column mapping (as
--- the capture `Device` / `GeoLocation` columns do for the Media row) —
--- tracked as a focused follow-up rather than landing alongside this revision.
+-- Audio-cluster: the `Audio` facet + `AudioTrack` + `AudioSegment`
+-- (+ the `Word` / `index_errors` child tables). Nested value-objects are
+-- flattened into real columns; collections ride in child tables with an
+-- `ordinal` order column; reverse-FK `Vec<Id>` fields are not stored.
+
+CREATE TABLE IF NOT EXISTS audio (
+    id                     BLOB    NOT NULL PRIMARY KEY,
+    total_segments         INTEGER NOT NULL DEFAULT 0,
+    track_progress_total   INTEGER NOT NULL DEFAULT 0,
+    track_progress_indexed INTEGER NOT NULL DEFAULT 0,
+    track_progress_failed  INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS audio_track (
+    id                        BLOB    NOT NULL PRIMARY KEY,
+    audio_id                  BLOB    NOT NULL,   -- FK -> audio.id
+    stream_index              INTEGER,
+    container_track_id        INTEGER,
+    codec                     TEXT    NOT NULL,
+    profile                   TEXT    NOT NULL,
+    sample_rate               INTEGER NOT NULL DEFAULT 0,
+    channels                  INTEGER NOT NULL DEFAULT 0,
+    channel_layout            TEXT    NOT NULL,
+    bit_rate                  INTEGER NOT NULL DEFAULT 0,
+    bit_rate_mode             INTEGER,
+    bits_per_sample           INTEGER,
+    is_lossless               INTEGER NOT NULL DEFAULT 0,
+    duration_pts              INTEGER,
+    duration_tb_num           INTEGER,
+    duration_tb_den           INTEGER,
+    start_pts                 INTEGER,
+    start_pts_tb_num          INTEGER,
+    start_pts_tb_den          INTEGER,
+    language                  TEXT,
+    detected_language         TEXT,
+    disposition               INTEGER NOT NULL DEFAULT 0,
+    is_primary                INTEGER NOT NULL DEFAULT 0,
+    auto_selected             INTEGER NOT NULL DEFAULT 0,
+    content                   INTEGER,            -- 0=Speech,1=Music,2=Mixed,3=Silence
+    speech_ratio              REAL,
+    is_silent                 INTEGER NOT NULL DEFAULT 0,
+    has_loudness              INTEGER NOT NULL DEFAULT 0,
+    loudness_integrated_lufs  REAL,
+    loudness_range_lu         REAL,
+    loudness_true_peak_dbtp   REAL,
+    loudness_sample_peak_dbfs REAL,
+    fingerprint_algo          TEXT,
+    fingerprint_value         BLOB,
+    isrc                      TEXT    NOT NULL,
+    acoustid                  TEXT    NOT NULL,
+    musicbrainz_recording_id  TEXT    NOT NULL,
+    has_tags                  INTEGER NOT NULL DEFAULT 0,
+    tags_title                TEXT,
+    tags_artist               TEXT,
+    tags_album_artist         TEXT,
+    tags_album                TEXT,
+    tags_composer             TEXT,
+    tags_genre                TEXT,
+    tags_comment              TEXT,
+    tags_year                 INTEGER,
+    tags_track_number         INTEGER,
+    tags_track_total          INTEGER,
+    tags_disc_number          INTEGER,
+    tags_disc_total           INTEGER,
+    tags_language             TEXT,
+    cover_art_mime            TEXT,
+    cover_art_data            BLOB,
+    provenance_model_name     TEXT    NOT NULL,
+    provenance_model_version  TEXT    NOT NULL,
+    provenance_prompt_version TEXT    NOT NULL,
+    provenance_indexer_version TEXT   NOT NULL,
+    index_status              INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_audio_track_audio_id ON audio_track(audio_id);
+
+CREATE TABLE IF NOT EXISTS audio_track_index_error (
+    audio_track BLOB    NOT NULL,   -- FK -> audio_track.id
+    ordinal     INTEGER NOT NULL,
+    code        INTEGER NOT NULL,
+    message     TEXT    NOT NULL,
+    PRIMARY KEY (audio_track, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_atie_audio_track ON audio_track_index_error(audio_track);
+
+CREATE TABLE IF NOT EXISTS audio_segment (
+    id              BLOB    NOT NULL PRIMARY KEY,
+    parent          BLOB    NOT NULL,   -- FK -> audio_track.id
+    "index"         INTEGER NOT NULL,
+    span_start_pts  INTEGER NOT NULL,
+    span_end_pts    INTEGER NOT NULL,
+    span_tb_num     INTEGER NOT NULL,
+    span_tb_den     INTEGER NOT NULL,
+    speaker         BLOB,               -- FK -> speaker.id; NULL = not diarized
+    text_src        TEXT    NOT NULL,
+    text_translated TEXT    NOT NULL,
+    language        TEXT,
+    no_speech_prob  REAL,
+    avg_logprob     REAL,
+    temperature     REAL
+);
+CREATE INDEX IF NOT EXISTS idx_audio_segment_parent ON audio_segment(parent);
+
+CREATE TABLE IF NOT EXISTS audio_segment_word (
+    audio_segment  BLOB    NOT NULL,   -- FK -> audio_segment.id
+    ordinal        INTEGER NOT NULL,
+    text           TEXT    NOT NULL,
+    span_start_pts INTEGER NOT NULL,
+    span_end_pts   INTEGER NOT NULL,
+    span_tb_num    INTEGER NOT NULL,
+    span_tb_den    INTEGER NOT NULL,
+    score          REAL    NOT NULL,
+    language       TEXT,
+    PRIMARY KEY (audio_segment, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_asw_audio_segment ON audio_segment_word(audio_segment);
+
+-- The video + subtitle facet/track/per-track-analysis tables (video,
+-- subtitle, video_track, subtitle_track, scene, keyframe, subtitle_cue)
+-- are tracked as a follow-up. Their schema shape is documented in the
+-- corresponding `schema/*.md` locked specs; the row mapping is deferred:
+-- the remaining mediaframe descriptor VOs (`VideoCodec`, `color::Info`,
+-- `PixelFormat`, …) carry no serde derives, so each needs a hand-rolled
+-- flat-column mapping (as the capture `Device` / `GeoLocation` columns
+-- do for the Media row) — tracked as a focused follow-up.
