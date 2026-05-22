@@ -10,7 +10,7 @@ use async_graphql::{Object, ID};
 use super::{
   audio::{GqlAudio, GqlAudioSegment, GqlAudioTrack},
   enums::{GqlAudioIndexStage, GqlSubtitleIndexStage, GqlVideoIndexStage},
-  leaves::{GqlSceneAnnotation, GqlSpeaker, GqlUserTag, GqlWatchedLocation},
+  leaves::{GqlMediaFile, GqlSceneAnnotation, GqlSpeaker, GqlUserTag, GqlWatchedLocation},
   media::GqlMedia,
   subtitle::{GqlSubtitle, GqlSubtitleCue, GqlSubtitleTrack},
   video::{GqlKeyframe, GqlScene, GqlVideo, GqlVideoTrack},
@@ -24,6 +24,9 @@ pub struct Query;
 #[Object]
 impl Query {
   async fn media(&self, _id: ID) -> Option<GqlMedia> {
+    None
+  }
+  async fn media_file(&self, _id: ID) -> Option<GqlMediaFile> {
     None
   }
   async fn video(&self, _id: ID) -> Option<GqlVideo> {

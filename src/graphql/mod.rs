@@ -84,7 +84,7 @@ pub use enums::{
   GqlSceneDetector, GqlSubtitleIndexStage, GqlSubtitleKind, GqlVideoIndexStage,
 };
 pub use error::GqlError;
-pub use leaves::{GqlSceneAnnotation, GqlSpeaker, GqlUserTag, GqlWatchedLocation};
+pub use leaves::{GqlMediaFile, GqlSceneAnnotation, GqlSpeaker, GqlUserTag, GqlWatchedLocation};
 pub use media::{
   GqlErrorInfo, GqlLocalLocation, GqlLocalizedText, GqlLocation, GqlMedia, GqlMediaDevice,
   GqlMediaGeoLocation, GqlProvenance, GqlRgba,

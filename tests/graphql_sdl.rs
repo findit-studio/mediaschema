@@ -24,8 +24,9 @@ fn build() -> Schema<Query, EmptyMutation, EmptySubscription> {
 /// Every aggregate / VO / scalar / enum / bitflag type that must be
 /// reachable from the schema.
 const EXPECTED_TYPES: &[&str] = &[
-  // Aggregates (16-aggregate full surface).
+  // Aggregates (17-aggregate full surface).
   "Media",
+  "MediaFile",
   "Video",
   "VideoTrack",
   "Scene",

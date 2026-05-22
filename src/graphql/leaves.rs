@@ -1,13 +1,14 @@
 //! GraphQL exposure of the standalone aggregates:
-//! [`Speaker`], [`WatchedLocation`], [`UserTag`], [`SceneAnnotation`].
+//! [`Speaker`], [`WatchedLocation`], [`UserTag`], [`SceneAnnotation`],
+//! [`MediaFile`].
 
 use async_graphql::{Object, ID};
 
-use crate::domain::{SceneAnnotation, Speaker, UserTag, Uuid7, WatchedLocation};
+use crate::domain::{MediaFile, SceneAnnotation, Speaker, UserTag, Uuid7, WatchedLocation};
 
 use super::{
   enums::GqlScanStatus,
-  media::{GqlErrorInfo, GqlRgba},
+  media::{GqlErrorInfo, GqlLocation, GqlRgba},
   scalars::{empty_as_none, GqlJiffTimestamp, GqlMediaTimestamp},
 };
 
@@ -193,6 +194,60 @@ impl GqlSceneAnnotation {
   }
 }
 
+// ---------------------------------------------------------------------------
+// MediaFile
+// ---------------------------------------------------------------------------
+
+/// GraphQL wrapper for [`MediaFile`] — one physical copy of a piece of
+/// content (N copies ↔ 1 `Media`).
+#[derive(Debug, Clone)]
+pub struct GqlMediaFile(pub MediaFile<Uuid7>);
+
+impl From<MediaFile<Uuid7>> for GqlMediaFile {
+  #[inline]
+  fn from(v: MediaFile<Uuid7>) -> Self {
+    Self(v)
+  }
+}
+impl From<GqlMediaFile> for MediaFile<Uuid7> {
+  #[inline]
+  fn from(v: GqlMediaFile) -> Self {
+    v.0
+  }
+}
+
+#[Object(name = "MediaFile")]
+impl GqlMediaFile {
+  async fn id(&self) -> ID {
+    ID(self.0.id_ref().to_string())
+  }
+  /// FK → the shared `Media` content row (one per content hash).
+  async fn media_id(&self) -> ID {
+    ID(self.0.media_id_ref().to_string())
+  }
+  /// File name — derived from `location`'s last path component.
+  async fn name(&self) -> String {
+    self.0.name().to_string()
+  }
+  /// Filesystem creation time; `null` when the filesystem has no birth
+  /// time.
+  async fn created_at(&self) -> Option<GqlJiffTimestamp> {
+    self.0.created_at_ref().copied().map(GqlJiffTimestamp)
+  }
+  /// Structured location where this copy lives.
+  async fn location(&self) -> GqlLocation {
+    self.0.location_ref().clone().into()
+  }
+  /// FK → the `WatchedLocation` that discovered this copy.
+  async fn watched_location_id(&self) -> ID {
+    ID(self.0.watched_location_id_ref().to_string())
+  }
+  /// Cached volume identity of the discovering `WatchedLocation`.
+  async fn watch_volume(&self) -> ID {
+    ID(self.0.watch_volume_ref().to_string())
+  }
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -205,5 +260,24 @@ mod tests {
     let g: GqlSpeaker = s.clone().into();
     let back: Speaker<Uuid7> = g.into();
     assert_eq!(back.name(), s.name());
+  }
+
+  #[test]
+  fn media_file_wrapper_round_trips_through_try_new() {
+    use crate::domain::Location;
+
+    let id = Uuid7::new();
+    let media_id = Uuid7::new();
+    let vol = Uuid7::new();
+    let wl =
+      WatchedLocation::try_new(Uuid7::new(), vol, jiff::Timestamp::default()).unwrap();
+    let location = Location::try_local_uuid7(vol, ["Movies", "clip.mp4"]).unwrap();
+    let mf = MediaFile::try_new(id, media_id, None, location, &wl).unwrap();
+
+    let g: GqlMediaFile = mf.clone().into();
+    let back: MediaFile<Uuid7> = g.into();
+    assert_eq!(back, mf);
+    // Derived name follows the location's last component.
+    assert_eq!(back.name(), "clip.mp4");
   }
 }

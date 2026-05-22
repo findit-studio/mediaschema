@@ -430,6 +430,35 @@ type MediaErrorFlags {
 	flags: [String!]!
 }
 
+type MediaFile {
+	id: ID!
+	"""
+	FK → the shared `Media` content row (one per content hash).
+	"""
+	mediaId: ID!
+	"""
+	File name — derived from `location`'s last path component.
+	"""
+	name: String!
+	"""
+	Filesystem creation time; `null` when the filesystem has no birth
+	time.
+	"""
+	createdAt: JiffTimestamp
+	"""
+	Structured location where this copy lives.
+	"""
+	location: Location!
+	"""
+	FK → the `WatchedLocation` that discovered this copy.
+	"""
+	watchedLocationId: ID!
+	"""
+	Cached volume identity of the discovering `WatchedLocation`.
+	"""
+	watchVolume: ID!
+}
+
 type MediaGeoLocation {
 	lat: Float!
 	lon: Float!
@@ -483,6 +512,7 @@ type Provenance {
 
 type Query {
 	media(id: ID!): Media
+	mediaFile(id: ID!): MediaFile
 	video(id: ID!): Video
 	videoTrack(id: ID!): VideoTrack
 	scene(id: ID!): Scene
