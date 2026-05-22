@@ -57,6 +57,52 @@ const fn status_asserts_descriptor(s: AudioIndexStatus) -> bool {
   !s.is_empty()
 }
 
+/// Validates that an [`AudioIndexStatus`] mask is *topologically* consistent
+/// with the contiguous `AudioIndexStage` lifecycle.
+///
+/// `AudioIndexStage::from_status` treats a later stage bit set without its
+/// prerequisites as if the track were still `Pending` — so a raw status that
+/// sets, say, `STT_DONE` without `EXTRACTED`/`VAD_DONE` would silently
+/// disagree with the derived stage. Persisting such a mask is rejected here.
+///
+/// The prerequisite chain mirrors `AudioIndexStage::from_status` exactly:
+///
+/// * any non-empty mask must include `EXTRACTED` (the probe bit every later
+///   stage builds on);
+/// * `STT_DONE` requires the analyzed stage — at least one of
+///   `CLASSIFIED` / `VAD_DONE`;
+/// * `SPEAKER_DONE` requires `STT_DONE`;
+/// * `TEXT_EMBED` requires `SPEAKER_DONE`.
+///
+/// The secondary bits (`LLM_DONE` / `CED_DONE` / `CLAP_DONE` /
+/// `EBUR128_DONE` / `FPRINT_DONE`) are folded into `Done` and gate nothing
+/// in the contiguous walk beyond `EXTRACTED`, so only the `EXTRACTED`
+/// requirement applies to them.
+const fn validate_status_topology(s: AudioIndexStatus) -> Result<(), AudioTrackError> {
+  use AudioIndexStatus as S;
+  // The empty mask makes no lifecycle claim and is always valid.
+  if s.is_empty() {
+    return Ok(());
+  }
+  // Every non-empty mask must carry the probe bit.
+  if !s.contains(S::EXTRACTED) {
+    return Err(AudioTrackError::StatusOutOfOrder);
+  }
+  // `STT_DONE` requires the analyzed stage (CLASSIFIED or VAD_DONE).
+  if s.contains(S::STT_DONE) && !s.intersects(S::CLASSIFIED.union(S::VAD_DONE)) {
+    return Err(AudioTrackError::StatusOutOfOrder);
+  }
+  // `SPEAKER_DONE` requires `STT_DONE`.
+  if s.contains(S::SPEAKER_DONE) && !s.contains(S::STT_DONE) {
+    return Err(AudioTrackError::StatusOutOfOrder);
+  }
+  // `TEXT_EMBED` requires `SPEAKER_DONE`.
+  if s.contains(S::TEXT_EMBED) && !s.contains(S::SPEAKER_DONE) {
+    return Err(AudioTrackError::StatusOutOfOrder);
+  }
+  Ok(())
+}
+
 // ---------------------------------------------------------------------------
 // AudioTrack
 // ---------------------------------------------------------------------------
@@ -684,14 +730,25 @@ impl<Id> AudioTrack<Id> {
 
   /// Validating builder: replace `index_status`.
   ///
-  /// A status that includes `EXTRACTED` (or any later pipeline bit)
-  /// asserts the track has been probed, which the locked invariant ties to
-  /// a real descriptor: it is rejected with
-  /// [`AudioTrackError::ExtractedWithoutDescriptor`] while `sample_rate` or
-  /// `channels` is still `0`. On rejection `self` is returned unchanged
-  /// inside the `Err`.
+  /// Two invariants are enforced:
+  ///
+  /// * **Topology** — the mask must be consistent with the contiguous
+  ///   `AudioIndexStage` lifecycle (`validate_status_topology`): a later
+  ///   stage bit set without its prerequisites is rejected with
+  ///   [`AudioTrackError::StatusOutOfOrder`], so the raw status cannot
+  ///   disagree with the derived stage.
+  /// * **Descriptor** — a status that includes `EXTRACTED` (or any later
+  ///   pipeline bit) asserts the track has been probed, which the locked
+  ///   invariant ties to a real descriptor: it is rejected with
+  ///   [`AudioTrackError::ExtractedWithoutDescriptor`] while `sample_rate`
+  ///   or `channels` is still `0`.
+  ///
+  /// On rejection `self` is returned unchanged inside the `Err`.
   #[inline]
   pub fn try_with_index_status(mut self, v: AudioIndexStatus) -> Result<Self, AudioTrackError> {
+    if let Err(e) = validate_status_topology(v) {
+      return Err(e);
+    }
     if status_asserts_descriptor(v) && (self.sample_rate == 0 || self.channels == 0) {
       return Err(AudioTrackError::ExtractedWithoutDescriptor);
     }
@@ -909,15 +966,21 @@ impl<Id> AudioTrack<Id> {
     self.provenance = v;
   }
 
-  /// Validating in-place mutator for `index_status`. Rejects an
-  /// `EXTRACTED`-or-later status while `sample_rate` or `channels` is still
-  /// `0` ([`AudioTrackError::ExtractedWithoutDescriptor`]); on rejection
-  /// `self` is left unchanged.
+  /// Validating in-place mutator for `index_status`. Rejects a mask that is
+  /// topologically inconsistent with the `AudioIndexStage` lifecycle (a
+  /// later stage bit without its prerequisites,
+  /// [`AudioTrackError::StatusOutOfOrder`]) and an `EXTRACTED`-or-later
+  /// status while `sample_rate` or `channels` is still `0`
+  /// ([`AudioTrackError::ExtractedWithoutDescriptor`]); on rejection `self`
+  /// is left unchanged.
   #[inline]
   pub const fn try_set_index_status(
     &mut self,
     v: AudioIndexStatus,
   ) -> Result<&mut Self, AudioTrackError> {
+    if let Err(e) = validate_status_topology(v) {
+      return Err(e);
+    }
     if status_asserts_descriptor(v) && (self.sample_rate == 0 || self.channels == 0) {
       return Err(AudioTrackError::ExtractedWithoutDescriptor);
     }
@@ -958,6 +1021,14 @@ pub enum AudioTrackError {
   /// track must keep `sample_rate > 0` and `channels > 0`.
   #[error("AudioTrack sample_rate/channels cannot be cleared to 0 once the track is EXTRACTED")]
   ProbedDescriptorCleared,
+  /// An `index_status` mask set a later `AudioIndexStage` bit without its
+  /// prerequisite stage bits (e.g. `STT_DONE` without `EXTRACTED` /
+  /// `VAD_DONE`) — the contiguous lifecycle would treat it as `Pending`,
+  /// so the raw status and derived stage would disagree.
+  #[error(
+    "AudioTrack index_status mask is out of order: a stage bit is set without its prerequisites"
+  )]
+  StatusOutOfOrder,
   /// The diarized `speakers` set contained the same id twice — duplicates
   /// would inflate the distinct-speaker count `speakers().len()`.
   #[error("AudioTrack speakers set must not contain duplicate ids")]
@@ -1180,10 +1251,13 @@ mod tests {
         .err(),
       Some(AudioTrackError::ExtractedWithoutDescriptor)
     );
-    // A later bit (still asserts a probed track) is rejected too.
+    // A topologically-valid later mask (CLASSIFIED → STT_DONE chain) still
+    // asserts a probed track and is rejected for the missing descriptor.
     assert_eq!(
       t.clone()
-        .try_with_index_status(AudioIndexStatus::STT_DONE)
+        .try_with_index_status(
+          AudioIndexStatus::EXTRACTED | AudioIndexStatus::VAD_DONE | AudioIndexStatus::STT_DONE
+        )
         .err(),
       Some(AudioTrackError::ExtractedWithoutDescriptor)
     );
@@ -1252,6 +1326,92 @@ mod tests {
     fresh.try_set_sample_rate(0).unwrap();
     fresh.try_set_channels(0).unwrap();
     assert!(AudioTrackError::ProbedDescriptorCleared.is_probed_descriptor_cleared());
+  }
+
+  // --- Finding 1 (round 4): index_status topology ---------------------------
+
+  /// A fully-probed track, ready to receive an `index_status` mask so the
+  /// descriptor gate never masks a topology rejection.
+  fn probed_track() -> AudioTrack<Uuid7> {
+    AudioTrack::try_new(Uuid7::new(), Uuid7::new())
+      .unwrap()
+      .try_with_sample_rate(48_000)
+      .unwrap()
+      .try_with_channels(2)
+      .unwrap()
+  }
+
+  #[test]
+  fn index_status_rejects_stage_bit_without_prerequisites() {
+    use AudioIndexStatus as S;
+    let t = probed_track();
+    // STT_DONE without EXTRACTED — missing the probe bit entirely.
+    assert_eq!(
+      t.clone().try_with_index_status(S::STT_DONE).err(),
+      Some(AudioTrackError::StatusOutOfOrder)
+    );
+    // STT_DONE with EXTRACTED but no analyzed bit (CLASSIFIED | VAD_DONE).
+    assert_eq!(
+      t.clone()
+        .try_with_index_status(S::EXTRACTED | S::STT_DONE)
+        .err(),
+      Some(AudioTrackError::StatusOutOfOrder)
+    );
+    // TEXT_EMBED without its SPEAKER_DONE prerequisite.
+    assert_eq!(
+      t.clone()
+        .try_with_index_status(S::EXTRACTED | S::VAD_DONE | S::STT_DONE | S::TEXT_EMBED)
+        .err(),
+      Some(AudioTrackError::StatusOutOfOrder)
+    );
+    // SPEAKER_DONE without its STT_DONE prerequisite.
+    assert_eq!(
+      t.clone()
+        .try_with_index_status(S::EXTRACTED | S::VAD_DONE | S::SPEAKER_DONE)
+        .err(),
+      Some(AudioTrackError::StatusOutOfOrder)
+    );
+    // A secondary bit without the probe bit is rejected too.
+    assert_eq!(
+      t.try_with_index_status(S::FPRINT_DONE).err(),
+      Some(AudioTrackError::StatusOutOfOrder)
+    );
+    assert!(AudioTrackError::StatusOutOfOrder.is_status_out_of_order());
+  }
+
+  #[test]
+  fn index_status_set_rejects_out_of_order_and_leaves_value_unchanged() {
+    use AudioIndexStatus as S;
+    let mut t = probed_track();
+    t.try_set_index_status(S::EXTRACTED | S::VAD_DONE).unwrap();
+    // An out-of-order mask is rejected and the prior value is kept.
+    assert_eq!(
+      t.try_set_index_status(S::STT_DONE).err(),
+      Some(AudioTrackError::StatusOutOfOrder)
+    );
+    assert_eq!(t.index_status(), S::EXTRACTED | S::VAD_DONE);
+  }
+
+  #[test]
+  fn index_status_accepts_valid_contiguous_masks() {
+    use AudioIndexStatus as S;
+    let t = probed_track();
+    // Every prefix of the contiguous lifecycle is accepted.
+    for mask in [
+      S::empty(),
+      S::EXTRACTED,
+      S::EXTRACTED | S::CLASSIFIED,
+      S::EXTRACTED | S::VAD_DONE,
+      S::EXTRACTED | S::CLASSIFIED | S::VAD_DONE | S::STT_DONE,
+      S::EXTRACTED | S::VAD_DONE | S::STT_DONE | S::SPEAKER_DONE,
+      S::EXTRACTED | S::VAD_DONE | S::STT_DONE | S::SPEAKER_DONE | S::TEXT_EMBED,
+      S::fully_indexed_mask(),
+    ] {
+      assert!(
+        t.clone().try_with_index_status(mask).is_ok(),
+        "valid contiguous mask {mask:?} must be accepted"
+      );
+    }
   }
 
   // --- Finding 2: speaker set invariant -------------------------------------
