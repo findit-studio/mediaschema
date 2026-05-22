@@ -89,8 +89,9 @@ pub struct Media<Id = Uuid7> {
   /// **File-level** probe failure only — the one non-track error case
   /// (file unprobeable ⇒ no tracks were created).
   probe_error: Option<ErrorInfo>,
-  /// EXIF capture date (wall-clock; `None` = not recorded; wire encodes
-  /// `0` as `None`).
+  /// EXIF capture date (wall-clock; `None` = not recorded). Stored
+  /// faithfully — `Some(epoch)` is preserved; the legacy wire `0`
+  /// sentinel is collapsed to `None` by the wire-decode adapter, not here.
   capture_date: Option<JiffTimestamp>,
   /// EXIF device info (camera / phone make+model).
   device: Option<Device>,
@@ -292,18 +293,15 @@ impl<Id> Media<Id> {
     self
   }
 
-  /// Builder: replace `capture_date`, collapsing the 0-ms wire sentinel
-  /// to `None`.
+  /// Builder: replace `capture_date`.
   ///
-  /// The wire encodes `capture_date == 0` (Unix epoch, ms) as absent, so
-  /// storing `Some(<0-ms timestamp>)` would round-trip back to `None` and
-  /// lose data. To keep the domain incapable of holding the sentinel as a
-  /// real date, a `Some(t)` whose `t.as_millisecond() == 0` is collapsed
-  /// to `None` here. (`Timestamp::as_millisecond` is not `const`, so this
-  /// builder is not `const`.)
+  /// The supplied `Option` is stored **faithfully** — `Some(epoch)` is a
+  /// real timestamp and is preserved distinctly from `None`. Translating
+  /// the legacy wire `0` (Unix epoch, ms) sentinel to `None` is the
+  /// responsibility of the wire-decode adapter, not the domain.
   #[inline]
-  pub fn with_capture_date(mut self, t: Option<JiffTimestamp>) -> Self {
-    self.capture_date = normalize_capture_date(t);
+  pub const fn with_capture_date(mut self, t: Option<JiffTimestamp>) -> Self {
+    self.capture_date = t;
     self
   }
 
@@ -372,11 +370,11 @@ impl<Id> Media<Id> {
     self.probe_error = e;
   }
 
-  /// In-place mutator for `capture_date`, collapsing the 0-ms wire
-  /// sentinel to `None` (see [`Media::with_capture_date`]).
+  /// In-place mutator for `capture_date`. Stores the supplied `Option`
+  /// faithfully — see [`Media::with_capture_date`].
   #[inline]
-  pub fn set_capture_date(&mut self, t: Option<JiffTimestamp>) {
-    self.capture_date = normalize_capture_date(t);
+  pub const fn set_capture_date(&mut self, t: Option<JiffTimestamp>) {
+    self.capture_date = t;
   }
 
   /// In-place mutator for `device`.
@@ -389,20 +387,6 @@ impl<Id> Media<Id> {
   #[inline]
   pub const fn set_gps(&mut self, g: Option<GeoLocation>) {
     self.gps = g;
-  }
-}
-
-/// Collapse the 0-ms `capture_date` wire sentinel to `None`.
-///
-/// The wire codec encodes `0` (Unix epoch, ms) as "absent", so a real
-/// `Some(<0-ms>)` would be indistinguishable from `None` after a
-/// round-trip. Normalising on the way in keeps the domain incapable of
-/// holding the sentinel as a genuine date.
-#[inline]
-fn normalize_capture_date(t: Option<JiffTimestamp>) -> Option<JiffTimestamp> {
-  match t {
-    Some(ts) if ts.as_millisecond() == 0 => None,
-    other => other,
   }
 }
 
@@ -435,9 +419,7 @@ mod tests {
     FileChecksum::from_bytes(bytes)
   }
 
-  /// A real (non-epoch) capture timestamp — `JiffTimestamp::default()`
-  /// is 0 ms (Unix epoch), which `with_capture_date` collapses to `None`,
-  /// so capture-date tests must use a non-zero instant.
+  /// A representative non-epoch capture timestamp.
   fn real_ts() -> JiffTimestamp {
     JiffTimestamp::from_millisecond(1_700_000_000_000).expect("valid timestamp")
   }
@@ -517,24 +499,38 @@ mod tests {
   }
 
   #[test]
-  fn capture_date_collapses_zero_ms_sentinel() {
-    let m = Media::try_new(Uuid7::new(), fake_checksum(), Format::Mp4, 0, MediaKind::Video)
-      .unwrap()
-      // Epoch (0 ms) is the wire "absent" sentinel — must collapse to None.
-      .with_capture_date(Some(JiffTimestamp::default()));
-    assert!(
-      m.capture_date().is_none(),
-      "0-ms capture_date must collapse to None"
+  fn capture_date_stored_faithfully() {
+    // The domain preserves `Some(epoch)` distinctly from `None`. Collapsing
+    // the legacy wire `0` sentinel is the wire-decode adapter's job, not the
+    // domain's — see `Media::with_capture_date`.
+    let epoch = JiffTimestamp::default();
+    let m = Media::try_new(
+      Uuid7::new(),
+      fake_checksum(),
+      Format::Mp4,
+      0,
+      MediaKind::Video,
+    )
+    .unwrap()
+    .with_capture_date(Some(epoch));
+    assert_eq!(
+      m.capture_date(),
+      Some(&epoch),
+      "Some(epoch) must be preserved faithfully"
     );
 
-    // A real instant survives.
+    // A real instant is preserved too.
     let m = m.with_capture_date(Some(real_ts()));
     assert_eq!(m.capture_date(), Some(&real_ts()));
 
-    // The in-place setter collapses identically.
-    let mut m = m;
-    m.set_capture_date(Some(JiffTimestamp::default()));
+    // An explicit `None` stays `None`.
+    let m = m.with_capture_date(None);
     assert!(m.capture_date().is_none());
+
+    // The in-place setter stores faithfully and identically.
+    let mut m = m;
+    m.set_capture_date(Some(epoch));
+    assert_eq!(m.capture_date(), Some(&epoch));
   }
 
   #[test]

@@ -18,8 +18,10 @@
 //! - `created_at` is the **filesystem** creation time
 //!   ([`jiff::Timestamp`], ms-resolution) — copy-specific, distinct from
 //!   the content's intrinsic metadata. **Optional**: many filesystems
-//!   lack a birth time, and the wire encodes `0` (Unix epoch, ms) as
-//!   absent, so a 0-ms timestamp is normalised to `None`.
+//!   lack a birth time. The domain stores the supplied `Option`
+//!   faithfully — `Some(epoch)` is preserved distinctly from `None`;
+//!   translating the legacy wire `0` (Unix epoch, ms) sentinel to `None`
+//!   is the wire-decode adapter's responsibility, not the domain's.
 //! - `location` is the structured [`Location`] (`Local { volume,
 //!   components }`) where this copy lives — volume-aware, not a path
 //!   string.
@@ -64,7 +66,9 @@ pub struct MediaFile<Id = Uuid7> {
   /// (one per content hash; many copies share it).
   media_id: Id,
   /// Filesystem creation time. **Optional**: many filesystems lack a
-  /// birth time, and the wire encodes `0` (Unix epoch, ms) as absent.
+  /// birth time. Stored faithfully — `Some(epoch)` is preserved; the
+  /// legacy wire `0` sentinel is collapsed to `None` by the wire-decode
+  /// adapter, not here.
   created_at: Option<JiffTimestamp>,
   /// Structured `Local { volume, components }` — where this copy lives.
   /// The file name is derived from this (the last path component).
@@ -120,7 +124,7 @@ impl MediaFile<Uuid7> {
     Ok(Self {
       id,
       media_id,
-      created_at: normalize_created_at(created_at),
+      created_at,
       location,
       watched_location_id,
       watch_volume,
@@ -154,7 +158,7 @@ impl<Id> MediaFile<Id> {
   }
 
   /// Filesystem creation time (wall-clock, ms-resolution). `None` when the
-  /// filesystem has no birth time (or the wire `0`-ms sentinel was given).
+  /// filesystem has no birth time.
   #[inline]
   pub const fn created_at(&self) -> Option<&JiffTimestamp> {
     self.created_at.as_ref()
@@ -181,11 +185,11 @@ impl<Id> MediaFile<Id> {
 
   // --- builders -----------------------------------------------------------
 
-  /// Builder: replace `created_at`, collapsing the 0-ms wire sentinel to
-  /// `None` (see [`MediaFile::set_created_at`]).
+  /// Builder: replace `created_at`. Stores the supplied `Option`
+  /// faithfully — see [`MediaFile::set_created_at`].
   #[inline]
-  pub fn with_created_at(mut self, t: Option<JiffTimestamp>) -> Self {
-    self.created_at = normalize_created_at(t);
+  pub const fn with_created_at(mut self, t: Option<JiffTimestamp>) -> Self {
+    self.created_at = t;
     self
   }
 
@@ -236,16 +240,15 @@ impl<Id> MediaFile<Id> {
 
   // --- in-place setters ---------------------------------------------------
 
-  /// In-place mutator for `created_at`, collapsing the 0-ms wire sentinel
-  /// to `None`.
+  /// In-place mutator for `created_at`.
   ///
-  /// The wire encodes `created_at == 0` (Unix epoch, ms) as absent, and
-  /// many filesystems lack a birth time; storing `Some(<0-ms timestamp>)`
-  /// would round-trip back to `None` and lose data. A `Some(t)` whose
-  /// `t.as_millisecond() == 0` is therefore collapsed to `None`.
+  /// The supplied `Option` is stored **faithfully** — `Some(epoch)` is a
+  /// real timestamp and is preserved distinctly from `None`. Translating
+  /// the legacy wire `0` (Unix epoch, ms) sentinel to `None` is the
+  /// responsibility of the wire-decode adapter, not the domain.
   #[inline]
-  pub fn set_created_at(&mut self, t: Option<JiffTimestamp>) {
-    self.created_at = normalize_created_at(t);
+  pub const fn set_created_at(&mut self, t: Option<JiffTimestamp>) {
+    self.created_at = t;
   }
 
   /// In-place mutator for `location` — also the single atomic rename/move
@@ -311,21 +314,6 @@ fn location_volume<Id>(location: &Location<Id>) -> &Id {
   }
 }
 
-/// Collapse the 0-ms `created_at` wire sentinel to `None`.
-///
-/// The wire codec encodes `0` (Unix epoch, ms) as "absent", and many
-/// filesystems have no birth time, so a `Some(<0-ms>)` would be
-/// indistinguishable from `None` after a round-trip. Normalising on the
-/// way in keeps the domain incapable of holding the sentinel as a genuine
-/// creation time. (Mirrors `normalize_capture_date` on `Media`.)
-#[inline]
-fn normalize_created_at(t: Option<JiffTimestamp>) -> Option<JiffTimestamp> {
-  match t {
-    Some(ts) if ts.as_millisecond() == 0 => None,
-    other => other,
-  }
-}
-
 /// Error returned when [`MediaFile::try_new`] cannot uphold the
 /// non-nil-id invariants. Unit-only enum.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant, thiserror::Error)]
@@ -358,9 +346,7 @@ pub enum MediaFileError {
 mod tests {
   use super::*;
 
-  /// A real (non-epoch) creation timestamp. `JiffTimestamp::default()` is
-  /// 0 ms (Unix epoch), which `try_new` collapses to `None`, so
-  /// `created_at` tests that expect a value must use a non-zero instant.
+  /// A representative non-epoch creation timestamp.
   fn real_ts() -> JiffTimestamp {
     JiffTimestamp::from_millisecond(1_700_000_000_000).expect("valid timestamp")
   }
@@ -422,35 +408,32 @@ mod tests {
   }
 
   #[test]
-  fn created_at_collapses_zero_ms_sentinel() {
+  fn created_at_stored_faithfully() {
+    // The domain preserves `Some(epoch)` distinctly from `None`. Collapsing
+    // the legacy wire `0` sentinel is the wire-decode adapter's job, not the
+    // domain's — see `MediaFile::with_created_at`.
+    let epoch = JiffTimestamp::default();
     let vol = Uuid7::new();
     let wl = watch(vol);
-    let f = MediaFile::try_new(
-      Uuid7::new(),
-      Uuid7::new(),
-      // Epoch (0 ms) is the wire "absent" sentinel — must collapse to None.
-      Some(JiffTimestamp::default()),
-      loc(vol),
-      &wl,
-    )
-    .unwrap();
-    assert!(
-      f.created_at().is_none(),
-      "0-ms created_at must collapse to None"
+    let f = MediaFile::try_new(Uuid7::new(), Uuid7::new(), Some(epoch), loc(vol), &wl).unwrap();
+    assert_eq!(
+      f.created_at(),
+      Some(&epoch),
+      "Some(epoch) must be preserved faithfully"
     );
 
     // An explicit `None` stays `None`.
     let f = f.with_created_at(None);
     assert!(f.created_at().is_none());
 
-    // A real instant survives.
+    // A real instant is preserved too.
     let f = f.with_created_at(Some(real_ts()));
     assert_eq!(f.created_at(), Some(&real_ts()));
 
-    // The in-place setter collapses identically.
+    // The in-place setter stores faithfully and identically.
     let mut f = f;
-    f.set_created_at(Some(JiffTimestamp::default()));
-    assert!(f.created_at().is_none());
+    f.set_created_at(Some(epoch));
+    assert_eq!(f.created_at(), Some(&epoch));
   }
 
   #[test]

@@ -78,8 +78,14 @@ content-intrinsic fields — `checksum` (UNIQUE), `size`, `format`,
 `duration`, `kind`, `capture_date`/`device`/`gps`, `error_flags`,
 `probe_error`, facet FKs — are unchanged. rev 8 carried over: `device` /
 `gps` are `::mediaframe` externs (EXIF/capture charter); ISO-6709 parse in
-mediaframe; `capture_date` stays `jiff` — and its builder/setter now
-collapse the 0-ms wire sentinel to `None` so the absent-encoding can never
-round-trip-lose a real date. Mechanical `::mediaframe::` path applies when
+mediaframe; `capture_date` stays `jiff` — and the domain stores the
+supplied `Option<jiff::Timestamp>` **faithfully**: `Some(epoch)` (0 ms) is
+a real timestamp and is preserved distinctly from `None`. The nullable
+domain/sqlx column can represent both, so no normalization happens in the
+constructor/builders/setters. Translating the legacy wire `0` (Unix epoch,
+ms) sentinel — where the int64 genuinely cannot distinguish epoch from
+missing — to `None` is the responsibility of the wire-decode adapter (the
+deferred #17-20 wire-conversion wave), not the domain. Mechanical
+`::mediaframe::` path applies when
 mediaschema externs the post-0.1.0 mediaframe minor — tracked in
 [mediaframe-candidates.md](mediaframe-candidates.md).)*

@@ -40,7 +40,7 @@ are the UUID). Wall-clock = `jiff::Timestamp` (ms). Strings = `SmolStr`
 |---|---|---|
 | `id` | `Id` (UUIDv7) | the copy's key |
 | `media_id` | `Id` (UUIDv7) | FK → the shared [`Media`](media.md) content row |
-| `created_at` | `Option<jiff::Timestamp>` | **filesystem** creation time (Unix ms) — copy-specific. **Optional**: many filesystems lack a birth time, and the wire encodes `0` (Unix epoch, ms) as absent, so a 0-ms timestamp normalises to `None` (same treatment as `Media.capture_date`) |
+| `created_at` | `Option<jiff::Timestamp>` | **filesystem** creation time (Unix ms) — copy-specific. **Optional**: many filesystems lack a birth time. The domain stores the supplied `Option` **faithfully** — `Some(epoch)` is preserved distinctly from `None`; the wire-decode adapter (deferred #17-20 wave) translates the legacy wire `0` (Unix epoch, ms) sentinel to `None` (same treatment as `Media.capture_date`) |
 | `location` | `Location` | structured `Local { volume, components }` — where this copy lives; volume-aware (removable drives), not a path string. The `WatchedLocation` is **volume-scoped** (its monitored target *is* a volume `Id`; volumes are disjoint/non-nesting — see [`watched_location.md`](watched_location.md)), so this copy's volume maps to exactly one watch and `watched_location_id` is unambiguous. **Volume consistency**: `location`'s volume must equal `watch_volume` — enforced at construction and on every location/watch change (see below) |
 | `watched_location_id` | `Id` (UUIDv7) | FK → the [`WatchedLocation`](watched_location.md) that discovered it — **non-optional** (see below) |
 | `watch_volume` | `Id` (UUIDv7) | cached volume identity of the discovering `WatchedLocation` (its `volume`). **Not a separate FK** — duplicates the watch's `volume` so the location setters can re-check the volume-consistency invariant without holding a `WatchedLocation` reference. Set once at construction from the `WatchedLocation` passed to `try_new` |
@@ -130,8 +130,10 @@ stays a stored `Id` field per the user's explicit decision.)*
 *(rev 2: codex PR #13 round-2
 findings — `name` is now **derived** from `location`'s last component
 instead of a standalone field that could desync; `created_at` becomes
-`Option<jiff::Timestamp>` with the 0-ms wire sentinel normalised to `None`,
-mirroring `Media.capture_date`; and the volume-scoped nature of
+`Option<jiff::Timestamp>` stored **faithfully** by the domain (`Some(epoch)`
+preserved distinctly from `None`; the legacy wire `0` sentinel is collapsed
+to `None` only by the wire-decode adapter — the deferred #17-20 wave —
+mirroring `Media.capture_date`); and the volume-scoped nature of
 `WatchedLocation` is made explicit so the single `watched_location_id` FK is
 unambiguous.)*
 
