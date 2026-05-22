@@ -123,6 +123,7 @@ impl<Id> Speaker<Id> {
 
   /// Builder: replace `name` and return `self`.
   #[inline]
+  #[must_use]
   pub fn with_name(mut self, name: impl Into<SmolStr>) -> Self {
     self.name = name.into();
     self
@@ -147,6 +148,7 @@ impl<Id> Speaker<Id> {
 
   /// Builder: replace `cluster_id` and return `self`.
   #[inline]
+  #[must_use]
   pub const fn with_cluster_id(mut self, cluster_id: u32) -> Self {
     self.cluster_id = cluster_id;
     self
@@ -154,8 +156,9 @@ impl<Id> Speaker<Id> {
 
   /// In-place mutator for `name`.
   #[inline]
-  pub fn set_name(&mut self, name: impl Into<SmolStr>) {
+  pub fn set_name(&mut self, name: impl Into<SmolStr>) -> &mut Self {
     self.name = name.into();
+    self
   }
 
   /// Validating in-place mutator for `speech_duration`. Rejects a negative
@@ -176,8 +179,9 @@ impl<Id> Speaker<Id> {
 
   /// In-place mutator for `cluster_id`.
   #[inline]
-  pub const fn set_cluster_id(&mut self, cluster_id: u32) {
+  pub const fn set_cluster_id(&mut self, cluster_id: u32) -> &mut Self {
     self.cluster_id = cluster_id;
+    self
   }
 }
 

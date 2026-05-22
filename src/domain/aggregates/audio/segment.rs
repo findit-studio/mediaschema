@@ -108,6 +108,7 @@ impl Word {
 
   /// Builder: replace `text`.
   #[inline]
+  #[must_use]
   pub fn with_text(mut self, v: impl Into<SmolStr>) -> Self {
     self.text = v.into();
     self
@@ -115,6 +116,7 @@ impl Word {
 
   /// Builder: replace `span`.
   #[inline]
+  #[must_use]
   pub fn with_span(mut self, span: TimeRange) -> Self {
     self.span = span;
     self
@@ -147,6 +149,7 @@ impl Word {
 
   /// Builder: replace `language`.
   #[inline]
+  #[must_use]
   pub const fn with_language(mut self, v: Option<Language>) -> Self {
     self.language = v;
     self
@@ -236,6 +239,7 @@ impl AudioSegment<Uuid7> {
 
   /// Builder: replace the `speaker` FK (`None` = not diarized).
   #[inline]
+  #[must_use]
   pub fn with_speaker(mut self, v: Option<Uuid7>) -> Self {
     self.speaker = v;
     self
@@ -243,8 +247,9 @@ impl AudioSegment<Uuid7> {
 
   /// In-place mutator for the `speaker` FK (`None` = not diarized).
   #[inline]
-  pub fn set_speaker(&mut self, v: Option<Uuid7>) {
+  pub fn set_speaker(&mut self, v: Option<Uuid7>) -> &mut Self {
     self.speaker = v;
+    self
   }
 }
 
@@ -350,6 +355,7 @@ impl<Id> AudioSegment<Id> {
 
   /// Builder: replace `text`.
   #[inline]
+  #[must_use]
   pub fn with_text(mut self, v: LocalizedText) -> Self {
     self.text = v;
     self
@@ -357,6 +363,7 @@ impl<Id> AudioSegment<Id> {
 
   /// Builder: replace `language`.
   #[inline]
+  #[must_use]
   pub const fn with_language(mut self, v: Option<Language>) -> Self {
     self.language = v;
     self
@@ -404,6 +411,7 @@ impl<Id> AudioSegment<Id> {
 
   /// Builder: replace `avg_logprob`.
   #[inline]
+  #[must_use]
   pub const fn with_avg_logprob(mut self, v: Option<f32>) -> Self {
     self.avg_logprob = v;
     self
@@ -411,6 +419,7 @@ impl<Id> AudioSegment<Id> {
 
   /// Builder: replace `temperature`.
   #[inline]
+  #[must_use]
   pub const fn with_temperature(mut self, v: Option<f32>) -> Self {
     self.temperature = v;
     self
@@ -420,14 +429,16 @@ impl<Id> AudioSegment<Id> {
 
   /// In-place mutator for `text`.
   #[inline]
-  pub fn set_text(&mut self, v: LocalizedText) {
+  pub fn set_text(&mut self, v: LocalizedText) -> &mut Self {
     self.text = v;
+    self
   }
 
   /// In-place mutator for `language`.
   #[inline]
-  pub const fn set_language(&mut self, v: Option<Language>) {
+  pub const fn set_language(&mut self, v: Option<Language>) -> &mut Self {
     self.language = v;
+    self
   }
 
   /// Validating in-place mutator for `words`. Rejects the update unless
@@ -463,14 +474,16 @@ impl<Id> AudioSegment<Id> {
 
   /// In-place mutator for `avg_logprob`.
   #[inline]
-  pub const fn set_avg_logprob(&mut self, v: Option<f32>) {
+  pub const fn set_avg_logprob(&mut self, v: Option<f32>) -> &mut Self {
     self.avg_logprob = v;
+    self
   }
 
   /// In-place mutator for `temperature`.
   #[inline]
-  pub const fn set_temperature(&mut self, v: Option<f32>) {
+  pub const fn set_temperature(&mut self, v: Option<f32>) -> &mut Self {
     self.temperature = v;
+    self
   }
 }
 

@@ -465,6 +465,7 @@ impl<Id> AudioTrack<Id> {
 
   /// Builder: replace `stream_index`.
   #[inline]
+  #[must_use]
   pub const fn with_stream_index(mut self, v: Option<u32>) -> Self {
     self.stream_index = v;
     self
@@ -472,6 +473,7 @@ impl<Id> AudioTrack<Id> {
 
   /// Builder: replace `container_track_id`.
   #[inline]
+  #[must_use]
   pub const fn with_container_track_id(mut self, v: Option<u64>) -> Self {
     self.container_track_id = v;
     self
@@ -479,6 +481,7 @@ impl<Id> AudioTrack<Id> {
 
   /// Builder: replace `codec`.
   #[inline]
+  #[must_use]
   pub fn with_codec(mut self, v: AudioCodec) -> Self {
     self.codec = v;
     self
@@ -486,6 +489,7 @@ impl<Id> AudioTrack<Id> {
 
   /// Builder: replace `profile`.
   #[inline]
+  #[must_use]
   pub fn with_profile(mut self, v: impl Into<SmolStr>) -> Self {
     self.profile = v.into();
     self
@@ -525,6 +529,7 @@ impl<Id> AudioTrack<Id> {
 
   /// Builder: replace `channel_layout`.
   #[inline]
+  #[must_use]
   pub fn with_channel_layout(mut self, v: ChannelLayout) -> Self {
     self.channel_layout = v;
     self
@@ -532,6 +537,7 @@ impl<Id> AudioTrack<Id> {
 
   /// Builder: replace `bit_rate`.
   #[inline]
+  #[must_use]
   pub const fn with_bit_rate(mut self, bps: u64) -> Self {
     self.bit_rate = bps;
     self
@@ -539,6 +545,7 @@ impl<Id> AudioTrack<Id> {
 
   /// Builder: replace `bit_rate_mode`.
   #[inline]
+  #[must_use]
   pub const fn with_bit_rate_mode(mut self, v: Option<BitRateMode>) -> Self {
     self.bit_rate_mode = v;
     self
@@ -546,6 +553,7 @@ impl<Id> AudioTrack<Id> {
 
   /// Builder: replace `bits_per_sample`.
   #[inline]
+  #[must_use]
   pub const fn with_bits_per_sample(mut self, v: Option<u16>) -> Self {
     self.bits_per_sample = v;
     self
@@ -553,6 +561,7 @@ impl<Id> AudioTrack<Id> {
 
   /// Builder: replace `is_lossless`.
   #[inline]
+  #[must_use]
   pub const fn with_lossless(mut self, v: bool) -> Self {
     self.is_lossless = v;
     self
@@ -578,6 +587,7 @@ impl<Id> AudioTrack<Id> {
 
   /// Builder: replace `start_pts`.
   #[inline]
+  #[must_use]
   pub fn with_start_pts(mut self, v: Option<Timestamp>) -> Self {
     self.start_pts = v;
     self
@@ -585,6 +595,7 @@ impl<Id> AudioTrack<Id> {
 
   /// Builder: replace `language`.
   #[inline]
+  #[must_use]
   pub const fn with_language(mut self, v: Option<Language>) -> Self {
     self.language = v;
     self
@@ -592,6 +603,7 @@ impl<Id> AudioTrack<Id> {
 
   /// Builder: replace `detected_language`.
   #[inline]
+  #[must_use]
   pub const fn with_detected_language(mut self, v: Option<Language>) -> Self {
     self.detected_language = v;
     self
@@ -599,6 +611,7 @@ impl<Id> AudioTrack<Id> {
 
   /// Builder: replace `disposition` flags.
   #[inline]
+  #[must_use]
   pub const fn with_disposition(mut self, v: TrackDisposition) -> Self {
     self.disposition = v;
     self
@@ -606,6 +619,7 @@ impl<Id> AudioTrack<Id> {
 
   /// Builder: replace `is_primary`.
   #[inline]
+  #[must_use]
   pub const fn with_primary(mut self, v: bool) -> Self {
     self.is_primary = v;
     self
@@ -613,6 +627,7 @@ impl<Id> AudioTrack<Id> {
 
   /// Builder: replace `auto_selected`.
   #[inline]
+  #[must_use]
   pub const fn with_auto_selected(mut self, v: bool) -> Self {
     self.auto_selected = v;
     self
@@ -620,6 +635,7 @@ impl<Id> AudioTrack<Id> {
 
   /// Builder: replace `content`.
   #[inline]
+  #[must_use]
   pub const fn with_content(mut self, v: Option<AudioContentKind>) -> Self {
     self.content = v;
     self
@@ -645,6 +661,7 @@ impl<Id> AudioTrack<Id> {
 
   /// Builder: replace `is_silent`.
   #[inline]
+  #[must_use]
   pub const fn with_silent(mut self, v: bool) -> Self {
     self.is_silent = v;
     self
@@ -652,6 +669,7 @@ impl<Id> AudioTrack<Id> {
 
   /// Builder: replace `loudness`.
   #[inline]
+  #[must_use]
   pub const fn with_loudness(mut self, v: Option<Loudness>) -> Self {
     self.loudness = v;
     self
@@ -659,6 +677,7 @@ impl<Id> AudioTrack<Id> {
 
   /// Builder: replace `fingerprint`.
   #[inline]
+  #[must_use]
   pub fn with_fingerprint(mut self, v: Option<Fingerprint>) -> Self {
     self.fingerprint = v;
     self
@@ -666,6 +685,7 @@ impl<Id> AudioTrack<Id> {
 
   /// Builder: replace `isrc`.
   #[inline]
+  #[must_use]
   pub fn with_isrc(mut self, v: impl Into<SmolStr>) -> Self {
     self.isrc = v.into();
     self
@@ -673,6 +693,7 @@ impl<Id> AudioTrack<Id> {
 
   /// Builder: replace `acoustid`.
   #[inline]
+  #[must_use]
   pub fn with_acoustid(mut self, v: impl Into<SmolStr>) -> Self {
     self.acoustid = v.into();
     self
@@ -680,6 +701,7 @@ impl<Id> AudioTrack<Id> {
 
   /// Builder: replace `musicbrainz_recording_id`.
   #[inline]
+  #[must_use]
   pub fn with_musicbrainz_recording_id(mut self, v: impl Into<SmolStr>) -> Self {
     self.musicbrainz_recording_id = v.into();
     self
@@ -687,6 +709,7 @@ impl<Id> AudioTrack<Id> {
 
   /// Builder: replace `tags`.
   #[inline]
+  #[must_use]
   pub fn with_tags(mut self, v: Option<Tags>) -> Self {
     self.tags = v;
     self
@@ -694,6 +717,7 @@ impl<Id> AudioTrack<Id> {
 
   /// Builder: replace `cover_art`.
   #[inline]
+  #[must_use]
   pub fn with_cover_art(mut self, v: Option<CoverArt>) -> Self {
     self.cover_art = v;
     self
@@ -701,6 +725,7 @@ impl<Id> AudioTrack<Id> {
 
   /// Builder: replace the diarized `speakers` set.
   #[inline]
+  #[must_use]
   pub fn with_speakers(mut self, v: impl Into<std::vec::Vec<Id>>) -> Self {
     self.speakers = v.into();
     self
@@ -708,6 +733,7 @@ impl<Id> AudioTrack<Id> {
 
   /// Builder: replace `segments`.
   #[inline]
+  #[must_use]
   pub fn with_segments(mut self, v: impl Into<std::vec::Vec<Id>>) -> Self {
     self.segments = v.into();
     self
@@ -715,6 +741,7 @@ impl<Id> AudioTrack<Id> {
 
   /// Builder: replace `provenance`.
   #[inline]
+  #[must_use]
   pub fn with_provenance(mut self, v: Provenance) -> Self {
     self.provenance = v;
     self
@@ -750,6 +777,7 @@ impl<Id> AudioTrack<Id> {
 
   /// Builder: replace `index_errors`.
   #[inline]
+  #[must_use]
   pub fn with_index_errors(mut self, v: impl Into<std::vec::Vec<ErrorInfo>>) -> Self {
     self.index_errors = v.into();
     self
@@ -759,26 +787,30 @@ impl<Id> AudioTrack<Id> {
 
   /// In-place mutator for `stream_index`.
   #[inline]
-  pub const fn set_stream_index(&mut self, v: Option<u32>) {
+  pub const fn set_stream_index(&mut self, v: Option<u32>) -> &mut Self {
     self.stream_index = v;
+    self
   }
 
   /// In-place mutator for `container_track_id`.
   #[inline]
-  pub const fn set_container_track_id(&mut self, v: Option<u64>) {
+  pub const fn set_container_track_id(&mut self, v: Option<u64>) -> &mut Self {
     self.container_track_id = v;
+    self
   }
 
   /// In-place mutator for `codec`.
   #[inline]
-  pub fn set_codec(&mut self, v: AudioCodec) {
+  pub fn set_codec(&mut self, v: AudioCodec) -> &mut Self {
     self.codec = v;
+    self
   }
 
   /// In-place mutator for `profile`.
   #[inline]
-  pub fn set_profile(&mut self, v: impl Into<SmolStr>) {
+  pub fn set_profile(&mut self, v: impl Into<SmolStr>) -> &mut Self {
     self.profile = v.into();
+    self
   }
 
   /// Validating in-place mutator for `sample_rate`. Rejects clearing the
@@ -807,32 +839,37 @@ impl<Id> AudioTrack<Id> {
 
   /// In-place mutator for `channel_layout`.
   #[inline]
-  pub fn set_channel_layout(&mut self, v: ChannelLayout) {
+  pub fn set_channel_layout(&mut self, v: ChannelLayout) -> &mut Self {
     self.channel_layout = v;
+    self
   }
 
   /// In-place mutator for `bit_rate`.
   #[inline]
-  pub const fn set_bit_rate(&mut self, bps: u64) {
+  pub const fn set_bit_rate(&mut self, bps: u64) -> &mut Self {
     self.bit_rate = bps;
+    self
   }
 
   /// In-place mutator for `bit_rate_mode`.
   #[inline]
-  pub const fn set_bit_rate_mode(&mut self, v: Option<BitRateMode>) {
+  pub const fn set_bit_rate_mode(&mut self, v: Option<BitRateMode>) -> &mut Self {
     self.bit_rate_mode = v;
+    self
   }
 
   /// In-place mutator for `bits_per_sample`.
   #[inline]
-  pub const fn set_bits_per_sample(&mut self, v: Option<u16>) {
+  pub const fn set_bits_per_sample(&mut self, v: Option<u16>) -> &mut Self {
     self.bits_per_sample = v;
+    self
   }
 
   /// In-place mutator for `is_lossless`.
   #[inline]
-  pub const fn set_lossless(&mut self, v: bool) {
+  pub const fn set_lossless(&mut self, v: bool) -> &mut Self {
     self.is_lossless = v;
+    self
   }
 
   /// Validating in-place mutator for `duration`. Rejects a `Some(_)`
@@ -853,44 +890,51 @@ impl<Id> AudioTrack<Id> {
 
   /// In-place mutator for `start_pts`.
   #[inline]
-  pub fn set_start_pts(&mut self, v: Option<Timestamp>) {
+  pub fn set_start_pts(&mut self, v: Option<Timestamp>) -> &mut Self {
     self.start_pts = v;
+    self
   }
 
   /// In-place mutator for `language`.
   #[inline]
-  pub const fn set_language(&mut self, v: Option<Language>) {
+  pub const fn set_language(&mut self, v: Option<Language>) -> &mut Self {
     self.language = v;
+    self
   }
 
   /// In-place mutator for `detected_language`.
   #[inline]
-  pub const fn set_detected_language(&mut self, v: Option<Language>) {
+  pub const fn set_detected_language(&mut self, v: Option<Language>) -> &mut Self {
     self.detected_language = v;
+    self
   }
 
   /// In-place mutator for `disposition`.
   #[inline]
-  pub const fn set_disposition(&mut self, v: TrackDisposition) {
+  pub const fn set_disposition(&mut self, v: TrackDisposition) -> &mut Self {
     self.disposition = v;
+    self
   }
 
   /// In-place mutator for `is_primary`.
   #[inline]
-  pub const fn set_primary(&mut self, v: bool) {
+  pub const fn set_primary(&mut self, v: bool) -> &mut Self {
     self.is_primary = v;
+    self
   }
 
   /// In-place mutator for `auto_selected`.
   #[inline]
-  pub const fn set_auto_selected(&mut self, v: bool) {
+  pub const fn set_auto_selected(&mut self, v: bool) -> &mut Self {
     self.auto_selected = v;
+    self
   }
 
   /// In-place mutator for `content`.
   #[inline]
-  pub const fn set_content(&mut self, v: Option<AudioContentKind>) {
+  pub const fn set_content(&mut self, v: Option<AudioContentKind>) -> &mut Self {
     self.content = v;
+    self
   }
 
   /// Validating in-place mutator for `speech_ratio`. A `Some(_)` value
@@ -910,68 +954,79 @@ impl<Id> AudioTrack<Id> {
 
   /// In-place mutator for `is_silent`.
   #[inline]
-  pub const fn set_silent(&mut self, v: bool) {
+  pub const fn set_silent(&mut self, v: bool) -> &mut Self {
     self.is_silent = v;
+    self
   }
 
   /// In-place mutator for `loudness`.
   #[inline]
-  pub const fn set_loudness(&mut self, v: Option<Loudness>) {
+  pub const fn set_loudness(&mut self, v: Option<Loudness>) -> &mut Self {
     self.loudness = v;
+    self
   }
 
   /// In-place mutator for `fingerprint`.
   #[inline]
-  pub fn set_fingerprint(&mut self, v: Option<Fingerprint>) {
+  pub fn set_fingerprint(&mut self, v: Option<Fingerprint>) -> &mut Self {
     self.fingerprint = v;
+    self
   }
 
   /// In-place mutator for `isrc`.
   #[inline]
-  pub fn set_isrc(&mut self, v: impl Into<SmolStr>) {
+  pub fn set_isrc(&mut self, v: impl Into<SmolStr>) -> &mut Self {
     self.isrc = v.into();
+    self
   }
 
   /// In-place mutator for `acoustid`.
   #[inline]
-  pub fn set_acoustid(&mut self, v: impl Into<SmolStr>) {
+  pub fn set_acoustid(&mut self, v: impl Into<SmolStr>) -> &mut Self {
     self.acoustid = v.into();
+    self
   }
 
   /// In-place mutator for `musicbrainz_recording_id`.
   #[inline]
-  pub fn set_musicbrainz_recording_id(&mut self, v: impl Into<SmolStr>) {
+  pub fn set_musicbrainz_recording_id(&mut self, v: impl Into<SmolStr>) -> &mut Self {
     self.musicbrainz_recording_id = v.into();
+    self
   }
 
   /// In-place mutator for `tags`.
   #[inline]
-  pub fn set_tags(&mut self, v: Option<Tags>) {
+  pub fn set_tags(&mut self, v: Option<Tags>) -> &mut Self {
     self.tags = v;
+    self
   }
 
   /// In-place mutator for `cover_art`.
   #[inline]
-  pub fn set_cover_art(&mut self, v: Option<CoverArt>) {
+  pub fn set_cover_art(&mut self, v: Option<CoverArt>) -> &mut Self {
     self.cover_art = v;
+    self
   }
 
   /// In-place mutator for the diarized `speakers` set.
   #[inline]
-  pub fn set_speakers(&mut self, v: impl Into<std::vec::Vec<Id>>) {
+  pub fn set_speakers(&mut self, v: impl Into<std::vec::Vec<Id>>) -> &mut Self {
     self.speakers = v.into();
+    self
   }
 
   /// In-place mutator for `segments`.
   #[inline]
-  pub fn set_segments(&mut self, v: impl Into<std::vec::Vec<Id>>) {
+  pub fn set_segments(&mut self, v: impl Into<std::vec::Vec<Id>>) -> &mut Self {
     self.segments = v.into();
+    self
   }
 
   /// In-place mutator for `provenance`.
   #[inline]
-  pub fn set_provenance(&mut self, v: Provenance) {
+  pub fn set_provenance(&mut self, v: Provenance) -> &mut Self {
     self.provenance = v;
+    self
   }
 
   /// Validating in-place mutator for `index_status`. Rejects a mask that is
@@ -998,8 +1053,9 @@ impl<Id> AudioTrack<Id> {
 
   /// In-place mutator for `index_errors`.
   #[inline]
-  pub fn set_index_errors(&mut self, v: impl Into<std::vec::Vec<ErrorInfo>>) {
+  pub fn set_index_errors(&mut self, v: impl Into<std::vec::Vec<ErrorInfo>>) -> &mut Self {
     self.index_errors = v.into();
+    self
   }
 }
 

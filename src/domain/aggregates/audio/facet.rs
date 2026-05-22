@@ -211,6 +211,7 @@ impl<Id> Audio<Id> {
   /// no-op for both rollups, so an idempotent save/retry that re-sets the
   /// current list does not wipe valid progress.
   #[inline]
+  #[must_use]
   pub fn with_tracks(mut self, tracks: impl Into<std::vec::Vec<Id>>) -> Self
   where
     Id: PartialEq,
@@ -221,6 +222,7 @@ impl<Id> Audio<Id> {
 
   /// Builder: replace `total_segments`.
   #[inline]
+  #[must_use]
   pub const fn with_total_segments(mut self, total: u32) -> Self {
     self.total_segments = total;
     self
@@ -249,17 +251,19 @@ impl<Id> Audio<Id> {
   /// `total_segments` to `0`; reapplying the **identical** list leaves both
   /// rollups untouched.
   #[inline]
-  pub fn set_tracks(&mut self, tracks: impl Into<std::vec::Vec<Id>>)
+  pub fn set_tracks(&mut self, tracks: impl Into<std::vec::Vec<Id>>) -> &mut Self
   where
     Id: PartialEq,
   {
     self.replace_tracks(tracks.into());
+    self
   }
 
   /// In-place mutator for `total_segments`.
   #[inline]
-  pub const fn set_total_segments(&mut self, total: u32) {
+  pub const fn set_total_segments(&mut self, total: u32) -> &mut Self {
     self.total_segments = total;
+    self
   }
 
   /// Validating in-place mutator for `track_progress`. Rejects a rollup
