@@ -57,6 +57,24 @@ shape is constant.
 
 Indexes: unique `checksum`, plus `kind`, `error_flags`, `capture_date`.
 
+### `media_file`
+
+One **physical copy** of a piece of content (N copies ↔ 1 `Media`).
+`location` is kept as a natural embedded sub-document (Mongo indexes /
+queries embedded docs first-class — no flattening). `name` is **derived**
+from `location`'s last path component, never stored.
+
+| field | type | notes |
+| --- | --- | --- |
+| `_id` | `Binary(uuid)` | `MediaFile.id` (`Uuid7`) |
+| `media_id` | `Binary(uuid)` | FK → `media(_id)` (the shared content row) |
+| `created_at` | `DateTime` or `Null` | filesystem creation time (`Null` = no birth time) |
+| `location` | `{ kind: "local", volume: Binary, components: [String] }` | structured copy location |
+| `watched_location_id` | `Binary(uuid)` | FK → `watched_locations(_id)` (discovering watch) |
+| `watch_volume` | `Binary(uuid)` | cached `WatchedLocation.volume` (volume-consistency) |
+
+Indexes: `media_id`, `watched_location_id`.
+
 ### `watched_locations`
 
 | field | type |
