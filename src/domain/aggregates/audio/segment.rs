@@ -213,9 +213,10 @@ impl AudioSegment<Uuid7> {
     }
     // Defence-in-depth: `mediatime::TimeRange::new` already enforces
     // `start <= end` (panicking) and `TimeRange::try_new` rejects the
-    // inverted case. Compare on the raw PTS so this stays valid even if
-    // a future bypass constructor is introduced.
-    if span.start_pts() > span.end_pts() {
+    // inverted case. Compare on *semantic* time (`Timestamp::cmp_semantic`,
+    // timebase-correct) rather than raw PTS so this stays valid even if a
+    // future bypass / sentinel-tolerant constructor is introduced.
+    if span.start().cmp_semantic(&span.end()) == core::cmp::Ordering::Greater {
       return Err(AudioSegmentError::InvertedSpan);
     }
     Ok(Self {
@@ -306,14 +307,26 @@ impl<Id> AudioSegment<Id> {
   // ----- Internal validation -----------------------------------------------
 
   /// Returns `Err(WordSpanOutOfSegment)` if any word's `span` is not
-  /// contained in `self.span` (`word.start >= seg.start` and
-  /// `word.end <= seg.end`, compared on raw PTS — consistent with
-  /// `try_new`'s span check).
+  /// contained in `self.span`, and `Err(InvertedWordSpan)` if any word's
+  /// `span` is itself inverted (`word.start > word.end`).
+  ///
+  /// Containment is checked on **semantic** time
+  /// ([`mediatime::Timestamp::cmp_semantic`], timebase-correct) — raw PTS
+  /// are timebase-relative, so a word and segment in different timebases
+  /// would compare meaninglessly. A word is contained iff
+  /// `word.start >= seg.start` *and* `word.end <= seg.end` semantically.
   fn check_words(&self, words: &[Word]) -> Result<(), AudioSegmentError> {
-    let (seg_start, seg_end) = (self.span.start_pts(), self.span.end_pts());
+    use core::cmp::Ordering;
+    let (seg_start, seg_end) = (self.span.start(), self.span.end());
     for w in words {
-      let (w_start, w_end) = (w.span().start_pts(), w.span().end_pts());
-      if w_start < seg_start || w_end > seg_end {
+      let (w_start, w_end) = (w.span().start(), w.span().end());
+      // Reject an inverted word range outright.
+      if w_start.cmp_semantic(&w_end) == Ordering::Greater {
+        return Err(AudioSegmentError::InvertedWordSpan);
+      }
+      if w_start.cmp_semantic(&seg_start) == Ordering::Less
+        || w_end.cmp_semantic(&seg_end) == Ordering::Greater
+      {
         return Err(AudioSegmentError::WordSpanOutOfSegment);
       }
     }
@@ -346,10 +359,11 @@ impl<Id> AudioSegment<Id> {
   /// Validating builder: replace `words`.
   ///
   /// Rejects the update unless **every** word's `span` is contained in
-  /// `self.span` (locked invariant: each `Word` span ⊆ the segment span);
-  /// containment is checked on raw PTS, mirroring `try_new`'s span check.
-  /// `Word`'s own ctors already guarantee finite-`[0,1]` scores, so no
-  /// score re-validation is needed here. On rejection `self` is returned
+  /// `self.span` (locked invariant: each `Word` span ⊆ the segment span)
+  /// and is not itself inverted; containment is checked on semantic
+  /// (timebase-correct) time, mirroring `try_new`'s span check. `Word`'s
+  /// own ctors already guarantee finite-`[0,1]` scores, so no score
+  /// re-validation is needed here. On rejection `self` is returned
   /// unchanged inside the `Err`.
   #[inline]
   pub fn try_with_words(
@@ -364,11 +378,22 @@ impl<Id> AudioSegment<Id> {
     Ok(self)
   }
 
-  /// Builder: replace `no_speech_prob`.
+  /// Validating builder: replace `no_speech_prob`.
+  ///
+  /// Accepts `None` or a `Some` holding a finite value in `[0,1]` (it is a
+  /// Whisper silence *probability*); rejects NaN / ±∞ / out-of-range,
+  /// mirroring [`Word`]'s `score` treatment. On rejection `self` is
+  /// returned unchanged inside the `Err`.
+  ///
+  /// Not `const` — the error path drops `self`, which is not permitted in
+  /// a `const fn`.
   #[inline]
-  pub const fn with_no_speech_prob(mut self, v: Option<f32>) -> Self {
+  pub fn try_with_no_speech_prob(mut self, v: Option<f32>) -> Result<Self, AudioSegmentError> {
+    if matches!(v, Some(p) if !is_valid_score(p)) {
+      return Err(AudioSegmentError::NoSpeechProbOutOfRange);
+    }
     self.no_speech_prob = v;
-    self
+    Ok(self)
   }
 
   /// Builder: replace `avg_logprob`.
@@ -419,10 +444,21 @@ impl<Id> AudioSegment<Id> {
     Ok(self)
   }
 
-  /// In-place mutator for `no_speech_prob`.
+  /// Validating in-place mutator for `no_speech_prob`. Accepts `None` or a
+  /// `Some` holding a finite value in `[0,1]`; rejects NaN / ±∞ /
+  /// out-of-range. On rejection `self` is left unchanged.
   #[inline]
-  pub const fn set_no_speech_prob(&mut self, v: Option<f32>) {
+  pub const fn try_set_no_speech_prob(
+    &mut self,
+    v: Option<f32>,
+  ) -> Result<&mut Self, AudioSegmentError> {
+    if let Some(p) = v {
+      if !is_valid_score(p) {
+        return Err(AudioSegmentError::NoSpeechProbOutOfRange);
+      }
+    }
     self.no_speech_prob = v;
+    Ok(self)
   }
 
   /// In-place mutator for `avg_logprob`.
@@ -455,9 +491,17 @@ pub enum AudioSegmentError {
   InvertedSpan,
   /// A `Word` in the supplied word list has a `span` not contained in the
   /// segment's own `span` (locked invariant: each word span ⊆ segment
-  /// span).
+  /// span). Containment is evaluated on semantic (timebase-correct) time.
   #[error("AudioSegment word span must be contained in the segment span")]
   WordSpanOutOfSegment,
+  /// A `Word` in the supplied word list has an inverted `span`
+  /// (`word.start > word.end`).
+  #[error("AudioSegment word span.start must be <= span.end")]
+  InvertedWordSpan,
+  /// `no_speech_prob` was a `Some` holding a non-finite (NaN / ±∞) or
+  /// out-of-`[0,1]` value — it is a Whisper silence probability.
+  #[error("AudioSegment no_speech_prob must be finite and within [0, 1]")]
+  NoSpeechProbOutOfRange,
 }
 
 // ===========================================================================
@@ -627,7 +671,8 @@ mod tests {
   fn whisper_quality_signals_attach() {
     let s = AudioSegment::try_new(Uuid7::new(), Uuid7::new(), 0, span(0, 500))
       .unwrap()
-      .with_no_speech_prob(Some(0.05))
+      .try_with_no_speech_prob(Some(0.05))
+      .unwrap()
       .with_avg_logprob(Some(-0.4))
       .with_temperature(Some(0.0));
     assert!((s.no_speech_prob().unwrap() - 0.05).abs() < f32::EPSILON);
@@ -643,10 +688,80 @@ mod tests {
     s.set_text(LocalizedText::from_src("hello"));
     s.try_set_words(std::vec![Word::try_new("hi", span(0, 100), 0.9).unwrap()])
       .unwrap();
-    s.set_no_speech_prob(Some(0.01));
+    s.try_set_no_speech_prob(Some(0.01)).unwrap();
     assert_eq!(s.speaker(), Some(&speaker));
     assert_eq!(s.text().src(), "hello");
     assert_eq!(s.words().len(), 1);
     assert!((s.no_speech_prob().unwrap() - 0.01).abs() < f32::EPSILON);
+  }
+
+  // --- Finding 1: semantic word containment ---------------------------------
+
+  /// A different `Timebase` whose ticks are 90× finer than `tb()` —
+  /// `mpeg_tb()`'s `90_000` ticks = `tb()`'s `1_000` ticks (both 1 second).
+  fn mpeg_tb() -> Timebase {
+    Timebase::new(1, NonZeroU32::new(90_000).expect("nonzero"))
+  }
+
+  #[test]
+  fn check_words_uses_semantic_time_across_timebases() {
+    // Segment span 0..1s in the 1/1000 timebase.
+    let seg = AudioSegment::try_new(Uuid7::new(), Uuid7::new(), 0, span(0, 1000)).unwrap();
+    // A word at 0..1.5s expressed in the 1/90_000 timebase: raw end PTS is
+    // 135_000, which is numerically *less* than the segment's raw end PTS
+    // 1000 — so a raw-PTS comparison would wrongly accept it. Semantically
+    // it ends at 1.5s, well past the segment's 1.0s end.
+    let w_late = Word::try_new("late", TimeRange::new(0, 135_000, mpeg_tb()), 0.9).unwrap();
+    let r = seg.clone().try_with_words(std::vec![w_late]);
+    assert_eq!(r.err(), Some(AudioSegmentError::WordSpanOutOfSegment));
+
+    // A word genuinely contained: 0.25s..0.75s in the fine timebase
+    // (22_500..67_500 ticks) is ⊆ the 0..1s segment.
+    let w_ok = Word::try_new("ok", TimeRange::new(22_500, 67_500, mpeg_tb()), 0.9).unwrap();
+    assert!(seg.try_with_words(std::vec![w_ok]).is_ok());
+  }
+
+  #[test]
+  fn check_words_rejects_inverted_word_span() {
+    let seg = AudioSegment::try_new(Uuid7::new(), Uuid7::new(), 0, span(0, 1000)).unwrap();
+    // `TimeRange::new` panics on inverted ranges; `try_new` returns `None`.
+    // Build an inverted range via `with_end` (no invariant re-check) so the
+    // domain-level `InvertedWordSpan` arm is exercised on a real value.
+    let inverted = TimeRange::new(100, 200, tb()).with_end(50);
+    let w = Word::try_new("bad", inverted, 0.9).unwrap();
+    let r = seg.try_with_words(std::vec![w]);
+    assert_eq!(r.err(), Some(AudioSegmentError::InvertedWordSpan));
+    assert!(AudioSegmentError::InvertedWordSpan.is_inverted_word_span());
+  }
+
+  // --- Finding 2: no_speech_prob validation ---------------------------------
+
+  #[test]
+  fn try_with_no_speech_prob_rejects_invalid_and_accepts_boundaries() {
+    let seg = AudioSegment::try_new(Uuid7::new(), Uuid7::new(), 0, span(0, 500)).unwrap();
+    for bad in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, -0.1, 1.1] {
+      let r = seg.clone().try_with_no_speech_prob(Some(bad));
+      assert_eq!(r.err(), Some(AudioSegmentError::NoSpeechProbOutOfRange));
+    }
+    assert!(seg.clone().try_with_no_speech_prob(None).is_ok());
+    assert!(seg.clone().try_with_no_speech_prob(Some(0.0)).is_ok());
+    assert!(seg.try_with_no_speech_prob(Some(1.0)).is_ok());
+    assert!(AudioSegmentError::NoSpeechProbOutOfRange.is_no_speech_prob_out_of_range());
+  }
+
+  #[test]
+  fn try_set_no_speech_prob_rejects_and_leaves_value_unchanged() {
+    let mut seg = AudioSegment::try_new(Uuid7::new(), Uuid7::new(), 0, span(0, 500)).unwrap();
+    seg.try_set_no_speech_prob(Some(0.3)).unwrap();
+    let r = seg.try_set_no_speech_prob(Some(f32::NAN));
+    assert_eq!(r.err(), Some(AudioSegmentError::NoSpeechProbOutOfRange));
+    // rejection leaves the prior valid value in place
+    assert!((seg.no_speech_prob().unwrap() - 0.3).abs() < f32::EPSILON);
+    let r = seg.try_set_no_speech_prob(Some(2.0));
+    assert_eq!(r.err(), Some(AudioSegmentError::NoSpeechProbOutOfRange));
+    assert!((seg.no_speech_prob().unwrap() - 0.3).abs() < f32::EPSILON);
+    // a valid update goes through
+    seg.try_set_no_speech_prob(Some(0.9)).unwrap();
+    assert!((seg.no_speech_prob().unwrap() - 0.9).abs() < f32::EPSILON);
   }
 }
