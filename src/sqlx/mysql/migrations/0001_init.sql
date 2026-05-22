@@ -61,7 +61,8 @@ CREATE TABLE IF NOT EXISTS user_tag (
     name          VARCHAR(256) NOT NULL,
     color_rgba    INT UNSIGNED,
     created_at_ms BIGINT NOT NULL,
-    PRIMARY KEY (id)
+    PRIMARY KEY (id),
+    UNIQUE KEY idx_user_tag_name (name)
 );
 
 CREATE TABLE IF NOT EXISTS scene_annotation (

@@ -59,6 +59,7 @@ CREATE TABLE IF NOT EXISTS user_tag (
     color_rgba    bigint,
     created_at_ms bigint NOT NULL
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_user_tag_name ON user_tag(name);
 
 CREATE TABLE IF NOT EXISTS scene_annotation (
     id              uuid    NOT NULL PRIMARY KEY,
