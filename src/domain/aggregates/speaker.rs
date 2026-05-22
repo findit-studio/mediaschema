@@ -30,9 +30,9 @@ use crate::domain::Uuid7;
 /// an orphan voice clustered as `SPEAKER_NN=0` — a real invalid state.
 /// Construct explicitly via [`Speaker::try_new`].
 ///
-/// Fields are private per the encapsulation rule; access via `id()` /
-/// `parent()` / `cluster_id()` / `name()` / `speech_duration()` getters
-/// and `with_*` / `set_*` builders/mutators.
+/// Fields are private per the encapsulation rule; access via `id_ref()` /
+/// `parent_ref()` / `cluster_id()` / `name()` / `speech_duration_ref()`
+/// getters and `with_*` / `set_*` builders/mutators.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Speaker<Id = Uuid7> {
   id: Id,
@@ -75,98 +75,95 @@ impl Speaker<Uuid7> {
 
 impl<Id> Speaker<Id> {
   /// Canonical identity (also the LanceDB voiceprint key).
-  #[inline]
-  pub const fn id(&self) -> &Id {
+  #[inline(always)]
+  pub const fn id_ref(&self) -> &Id {
     &self.id
   }
 
   /// FK → `AudioTrack.id`.
-  #[inline]
-  pub const fn parent(&self) -> &Id {
+  #[inline(always)]
+  pub const fn parent_ref(&self) -> &Id {
     &self.parent
   }
 
   /// `dia` cluster label within this track.
-  #[inline]
+  #[inline(always)]
   pub const fn cluster_id(&self) -> u32 {
     self.cluster_id
   }
 
   /// Human-assigned identity label (`""` = unassigned).
-  #[inline]
+  #[inline(always)]
   pub fn name(&self) -> &str {
     self.name.as_str()
   }
 
   /// Total time this speaker spoke (`None` = not yet rolled up).
-  #[inline]
-  pub const fn speech_duration(&self) -> Option<&Timestamp> {
+  #[inline(always)]
+  pub const fn speech_duration_ref(&self) -> Option<&Timestamp> {
     self.speech_duration.as_ref()
   }
 
   /// Builder: replace `name` and return `self`.
-  #[inline]
+  #[inline(always)]
+  #[must_use]
   pub fn with_name(mut self, name: impl Into<SmolStr>) -> Self {
     self.name = name.into();
     self
   }
 
   /// Builder: replace `speech_duration` and return `self`.
-  #[inline]
+  #[inline(always)]
+  #[must_use]
   pub fn with_speech_duration(mut self, d: Option<Timestamp>) -> Self {
     self.speech_duration = d;
     self
   }
 
   /// Builder: replace `cluster_id` and return `self`.
-  #[inline]
+  #[inline(always)]
+  #[must_use]
   pub const fn with_cluster_id(mut self, cluster_id: u32) -> Self {
     self.cluster_id = cluster_id;
     self
   }
 
   /// In-place mutator for `name`.
-  #[inline]
-  pub fn set_name(&mut self, name: impl Into<SmolStr>) {
+  #[inline(always)]
+  pub fn set_name(&mut self, name: impl Into<SmolStr>) -> &mut Self {
     self.name = name.into();
+    self
   }
 
   /// In-place mutator for `speech_duration`.
-  #[inline]
-  pub fn set_speech_duration(&mut self, d: Option<Timestamp>) {
+  #[inline(always)]
+  pub fn set_speech_duration(&mut self, d: Option<Timestamp>) -> &mut Self {
     self.speech_duration = d;
+    self
   }
 
   /// In-place mutator for `cluster_id`.
-  #[inline]
-  pub const fn set_cluster_id(&mut self, cluster_id: u32) {
+  #[inline(always)]
+  pub const fn set_cluster_id(&mut self, cluster_id: u32) -> &mut Self {
     self.cluster_id = cluster_id;
+    self
   }
 }
 
 /// Error returned when [`Speaker::try_new`] cannot uphold the
 /// non-nil-id / non-nil-parent invariants. Unit-only enum.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant, thiserror::Error)]
 #[non_exhaustive]
 pub enum SpeakerError {
   /// Supplied `id` was the nil sentinel — would collide as a
   /// LanceDB voiceprint key.
+  #[error("Speaker id must not be the nil UUID")]
   NilId,
   /// Supplied `parent` was the nil sentinel — orphaned voice with
   /// no `AudioTrack` reference.
+  #[error("Speaker parent (AudioTrack) must not be the nil UUID")]
   NilParent,
 }
-
-impl core::fmt::Display for SpeakerError {
-  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-    match self {
-      Self::NilId => f.write_str("Speaker id must not be the nil UUID"),
-      Self::NilParent => f.write_str("Speaker parent (AudioTrack) must not be the nil UUID"),
-    }
-  }
-}
-
-impl core::error::Error for SpeakerError {}
 
 // ===========================================================================
 // Tests
@@ -181,10 +178,10 @@ mod tests {
     let parent = Uuid7::new();
     let s =
       Speaker::try_new(Uuid7::new(), parent, 2, "Jane").expect("valid construction must succeed");
-    assert_eq!(s.parent(), &parent);
+    assert_eq!(s.parent_ref(), &parent);
     assert_eq!(s.cluster_id(), 2);
     assert_eq!(s.name(), "Jane");
-    assert!(s.speech_duration().is_none());
+    assert!(s.speech_duration_ref().is_none());
   }
 
   #[test]
