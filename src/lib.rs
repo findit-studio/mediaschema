@@ -53,6 +53,35 @@ mod generated {
 /// specifications.
 pub mod domain;
 
+// Wire ⇄ domain conversion bridge. Requires `feature = "buffa"` (for
+// the wire types themselves) AND a heap tier (`std` or `alloc`) because
+// every domain type the bridge touches that has a wire counterpart
+// (`Location`, `ErrorInfo`, `WatchedLocation`, `Media`, …) is itself
+// `any(std, alloc)`-gated.
+#[cfg(all(feature = "buffa", any(feature = "std", feature = "alloc")))]
+#[cfg_attr(
+  docsrs,
+  doc(cfg(all(feature = "buffa", any(feature = "std", feature = "alloc"))))
+)]
+pub mod buffa;
+
+/// `sqlx` row-mapping backend — Postgres / MySQL / SQLite. Off by default;
+/// enable one (or more) of `sqlx-postgres` / `sqlx-mysql` / `sqlx-sqlite`.
+#[cfg(any(
+  feature = "sqlx-postgres",
+  feature = "sqlx-mysql",
+  feature = "sqlx-sqlite"
+))]
+#[cfg_attr(
+  docsrs,
+  doc(cfg(any(
+    feature = "sqlx-postgres",
+    feature = "sqlx-mysql",
+    feature = "sqlx-sqlite"
+  )))
+)]
+pub mod sqlx;
+
 /// Optional MongoDB backend — `bson::Document` ↔ domain aggregates plus
 /// per-collection [`::mongodb::IndexModel`](mongodb::IndexModel)
 /// constructors. Off by default; enable with `--features mongodb`.
