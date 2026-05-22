@@ -10,6 +10,18 @@
 //! `AudioFileRecord` is **dissolved** per the locked schema — there is no
 //! separate file-record aggregate; per-recording tags + cover art live on
 //! `AudioTrack` (multi-track audio files = N recordings).
+//!
+//! ### Validation-responsibility boundary
+//!
+//! The facet stores `tracks` (id refs), `total_segments`
+//! (`Σ AudioTrack.segments.len()`), and `track_progress` (per-kind rollup
+//! over `tracks`) as **independent fields**. Keeping them consistent —
+//! e.g. `track_progress.total() == tracks.len()` — is a
+//! cross-field/rollup-coupling concern owned by the application /
+//! storage layer (the database is the source of truth for rollups; the
+//! domain type is rebuilt from a row without filler-synthesizing a
+//! `tracks` Vec to satisfy a derived count). The domain type enforces
+//! only intrinsic single-value invariants (here: non-nil `id`).
 
 use derive_more::IsVariant;
 
@@ -23,14 +35,9 @@ use crate::domain::{vo::IndexProgress, Uuid7};
 ///
 /// Generic over `Id` (default [`Uuid7`]). The `tracks` vector holds refs to
 /// child `AudioTrack`s; `total_segments` is a cheap rollup of
-/// `Σ AudioTrack.segments.len()`.
-///
-/// **Invariant**: `track_progress.total() == tracks.len()` — `track_progress`
-/// is the rollup *over* `tracks`, so the two cannot be mutated
-/// independently. Any change to `tracks` resets `track_progress` to
-/// `{ total = tracks.len(), indexed = 0, failed = 0 }` (a changed track list
-/// invalidates prior indexing progress); the `track_progress` setter is
-/// fallible and rejects a `total` that disagrees with `tracks.len()`.
+/// `Σ AudioTrack.segments.len()`; `track_progress` is the per-kind index
+/// rollup over `tracks`. All three are independent fields — see the
+/// module-level note on the validation-responsibility boundary.
 ///
 /// **No `Default`** — a facet with nil `id` would be an orphan record. Use
 /// [`Audio::try_new`] for the canonical `Uuid7` identity type.
@@ -47,10 +54,9 @@ impl Audio<Uuid7> {
   ///
   /// Rejects nil `id` (every aggregate row needs a real identity). The
   /// `tracks` list starts empty, `total_segments` at zero, and
-  /// `track_progress` as the empty rollup (`{0, 0, 0}`) — consistent with
-  /// the empty `tracks` list (`track_progress.total() == tracks.len()`).
-  /// All three are populated by builders/mutators as tracks are attached +
-  /// segments rolled up.
+  /// `track_progress` as the empty rollup (`{0, 0, 0}`). All three are
+  /// populated by builders/mutators as tracks are attached + segments
+  /// rolled up — or assembled directly from a database row.
   pub fn try_new(id: Uuid7) -> Result<Self, AudioError> {
     if id.is_nil() {
       return Err(AudioError::NilId);
@@ -91,26 +97,10 @@ impl<Id> Audio<Id> {
   }
 
   /// Builder: replace `tracks`.
-  ///
-  /// Replacing the track list with a **different** list invalidates the two
-  /// rollups derived from it: `track_progress` is reset to
-  /// `{ total = new tracks.len(), indexed = 0, failed = 0 }` (keeping the
-  /// `track_progress.total() == tracks.len()` invariant) and `total_segments`
-  /// — `Σ AudioTrack.segments.len()`, which cannot be recomputed from the
-  /// id-only `tracks` list — is reset to `0`. Use
-  /// [`Audio::try_with_track_progress`] / [`Audio::with_total_segments`]
-  /// afterwards to record real values against the new list.
-  ///
-  /// Reapplying the **identical** track-id list (same ids, same order) is a
-  /// no-op for both rollups, so an idempotent save/retry that re-sets the
-  /// current list does not wipe valid progress.
   #[inline(always)]
   #[must_use]
-  pub fn with_tracks(mut self, tracks: impl Into<std::vec::Vec<Id>>) -> Self
-  where
-    Id: PartialEq,
-  {
-    self.replace_tracks(tracks.into());
+  pub fn with_tracks(mut self, tracks: impl Into<std::vec::Vec<Id>>) -> Self {
+    self.tracks = tracks.into();
     self
   }
 
@@ -122,34 +112,18 @@ impl<Id> Audio<Id> {
     self
   }
 
-  /// Validating builder: replace the `track_progress` rollup.
-  ///
-  /// Rejects a rollup whose `total()` disagrees with the current
-  /// `tracks.len()` — `track_progress` must always be the rollup *over*
-  /// this facet's tracks. On rejection `self` is returned unchanged inside
-  /// the `Err`.
-  #[inline]
-  pub fn try_with_track_progress(mut self, p: IndexProgress) -> Result<Self, AudioError> {
-    if p.total() != self.tracks_len() {
-      return Err(AudioError::TrackProgressMismatch);
-    }
+  /// Builder: replace the `track_progress` rollup.
+  #[inline(always)]
+  #[must_use]
+  pub const fn with_track_progress(mut self, p: IndexProgress) -> Self {
     self.track_progress = p;
-    Ok(self)
+    self
   }
 
   /// In-place mutator for `tracks`.
-  ///
-  /// As with [`Audio::with_tracks`], replacing the track list with a
-  /// **different** list resets `track_progress` to
-  /// `{ total = new tracks.len(), indexed = 0, failed = 0 }` and resets
-  /// `total_segments` to `0`; reapplying the **identical** list leaves both
-  /// rollups untouched.
   #[inline(always)]
-  pub fn set_tracks(&mut self, tracks: impl Into<std::vec::Vec<Id>>) -> &mut Self
-  where
-    Id: PartialEq,
-  {
-    self.replace_tracks(tracks.into());
+  pub fn set_tracks(&mut self, tracks: impl Into<std::vec::Vec<Id>>) -> &mut Self {
+    self.tracks = tracks.into();
     self
   }
 
@@ -160,67 +134,21 @@ impl<Id> Audio<Id> {
     self
   }
 
-  /// Validating in-place mutator for `track_progress`. Rejects a rollup
-  /// whose `total()` disagrees with the current `tracks.len()`; on
-  /// rejection `self` is left unchanged.
-  #[inline]
-  pub fn try_set_track_progress(&mut self, p: IndexProgress) -> Result<&mut Self, AudioError> {
-    if p.total() != self.tracks_len() {
-      return Err(AudioError::TrackProgressMismatch);
-    }
+  /// In-place mutator for `track_progress`.
+  #[inline(always)]
+  pub const fn set_track_progress(&mut self, p: IndexProgress) -> &mut Self {
     self.track_progress = p;
-    Ok(self)
-  }
-
-  /// `tracks.len()` saturated into `u32` — the track count can never
-  /// realistically exceed `u32::MAX`, and `IndexProgress::total` is `u32`.
-  #[inline]
-  fn tracks_len(&self) -> u32 {
-    u32::try_from(self.tracks.len()).unwrap_or(u32::MAX)
-  }
-
-  /// Shared track-list replacement for [`Audio::with_tracks`] /
-  /// [`Audio::set_tracks`].
-  ///
-  /// Reapplying the **identical** id list (same ids, same order) is treated
-  /// as a no-op so an idempotent save/retry does not wipe valid rollups. A
-  /// **different** list invalidates both rollups derived from `tracks`:
-  /// `track_progress` is reset to the fresh rollup over the new list
-  /// (`total = tracks.len()`, `indexed = 0`, `failed = 0`) and
-  /// `total_segments` — `Σ AudioTrack.segments.len()`, not recomputable from
-  /// the id-only list — is reset to `0`.
-  #[inline]
-  fn replace_tracks(&mut self, tracks: std::vec::Vec<Id>)
-  where
-    Id: PartialEq,
-  {
-    if self.tracks == tracks {
-      // Identical list ⇒ rollups remain valid; nothing to invalidate.
-      return;
-    }
-    self.tracks = tracks;
-    // `indexed + failed = 0 <= total`, so the invariant always holds.
-    self.track_progress =
-      IndexProgress::try_new(self.tracks_len(), 0, 0).expect("0 + 0 never exceeds total");
-    // `total_segments` cannot be recomputed from the id-only `tracks` list,
-    // so a changed track list invalidates it — reset to 0.
-    self.total_segments = 0;
+    self
   }
 }
 
-/// Error returned by [`Audio`]'s validating constructor and `track_progress`
-/// mutators. Unit-only enum.
+/// Error returned by [`Audio::try_new`]. Unit-only enum.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant, thiserror::Error)]
 #[non_exhaustive]
 pub enum AudioError {
   /// Supplied `id` was the nil sentinel — not a real identity.
   #[error("Audio id must not be the nil UUID")]
   NilId,
-  /// A supplied `track_progress` rollup's `total` disagreed with the
-  /// facet's current `tracks.len()` — `track_progress` must be the rollup
-  /// over `tracks`.
-  #[error("Audio track_progress.total must equal tracks.len()")]
-  TrackProgressMismatch,
 }
 
 // ===========================================================================
@@ -258,8 +186,7 @@ mod tests {
       .unwrap()
       .with_tracks(std::vec![t1, t2])
       .with_total_segments(42)
-      .try_with_track_progress(p)
-      .unwrap();
+      .with_track_progress(p);
     assert_eq!(a.tracks_slice().len(), 2);
     assert!(a.tracks_slice().contains(&t1));
     assert_eq!(a.total_segments(), 42);
@@ -271,134 +198,32 @@ mod tests {
     let mut a = Audio::try_new(Uuid7::new()).unwrap();
     a.set_tracks(std::vec![Uuid7::new()]);
     a.set_total_segments(7);
-    a.try_set_track_progress(IndexProgress::try_new(1, 1, 0).unwrap())
-      .unwrap();
+    a.set_track_progress(IndexProgress::try_new(1, 1, 0).unwrap());
     assert_eq!(a.tracks_slice().len(), 1);
     assert_eq!(a.total_segments(), 7);
     assert_eq!(a.track_progress_ref().total(), 1);
     assert!(!a.track_progress_ref().has_failures());
   }
 
-  // --- Finding 3: track_progress / tracks coupling --------------------------
-
   #[test]
-  fn fresh_facet_has_empty_rollup_consistent_with_empty_tracks() {
-    let a = Audio::try_new(Uuid7::new()).unwrap();
-    assert_eq!(
-      a.track_progress_ref().total() as usize,
-      a.tracks_slice().len()
-    );
-    assert_eq!(a.track_progress_ref(), &IndexProgress::new());
-  }
-
-  #[test]
-  fn with_tracks_resets_track_progress_to_fresh_rollup() {
-    let a = Audio::try_new(Uuid7::new()).unwrap().with_tracks(std::vec![
-      Uuid7::new(),
-      Uuid7::new(),
-      Uuid7::new()
-    ]);
-    // changed track list ⇒ fresh rollup { total = 3, indexed = 0, failed = 0 }
-    assert_eq!(
-      a.track_progress_ref(),
-      &IndexProgress::try_new(3, 0, 0).unwrap()
-    );
-    assert_eq!(
-      a.track_progress_ref().total() as usize,
-      a.tracks_slice().len()
-    );
-  }
-
-  #[test]
-  fn set_tracks_resets_prior_track_progress() {
+  fn fields_are_independent_across_mutators() {
+    // Per validation-responsibility-boundary: replacing `tracks` does
+    // NOT reset `total_segments` / `track_progress`. The DB / app layer
+    // is the source of truth for rollups; the domain stores what the
+    // caller puts in.
     let mut a = Audio::try_new(Uuid7::new())
       .unwrap()
       .with_tracks(std::vec![Uuid7::new(), Uuid7::new()])
-      .try_with_track_progress(IndexProgress::try_new(2, 2, 0).unwrap())
-      .unwrap();
-    // replacing the track list invalidates the prior fully-indexed rollup
-    a.set_tracks(std::vec![Uuid7::new()]);
-    assert_eq!(
-      a.track_progress_ref(),
-      &IndexProgress::try_new(1, 0, 0).unwrap()
-    );
-    assert_eq!(
-      a.track_progress_ref().total() as usize,
-      a.tracks_slice().len()
-    );
-  }
-
-  #[test]
-  fn reapplying_identical_track_list_preserves_both_rollups() {
-    let t1 = Uuid7::new();
-    let t2 = Uuid7::new();
-    let mut a = Audio::try_new(Uuid7::new())
-      .unwrap()
-      .with_tracks(std::vec![t1, t2])
       .with_total_segments(17)
-      .try_with_track_progress(IndexProgress::try_new(2, 1, 1).unwrap())
-      .unwrap();
-    // idempotent re-set of the SAME id list (same order) ⇒ no invalidation
-    a.set_tracks(std::vec![t1, t2]);
+      .with_track_progress(IndexProgress::try_new(2, 1, 1).unwrap());
+    a.set_tracks(std::vec![Uuid7::new()]);
+    assert_eq!(a.tracks_slice().len(), 1);
+    // Rollups remain whatever the caller last set them to.
     assert_eq!(a.total_segments(), 17);
     assert_eq!(
       a.track_progress_ref(),
       &IndexProgress::try_new(2, 1, 1).unwrap()
     );
-  }
-
-  #[test]
-  fn changing_track_list_invalidates_both_rollups() {
-    let t1 = Uuid7::new();
-    let t2 = Uuid7::new();
-    let mut a = Audio::try_new(Uuid7::new())
-      .unwrap()
-      .with_tracks(std::vec![t1, t2])
-      .with_total_segments(17)
-      .try_with_track_progress(IndexProgress::try_new(2, 1, 1).unwrap())
-      .unwrap();
-    // a DIFFERENT track list invalidates total_segments + track_progress
-    a.set_tracks(std::vec![Uuid7::new()]);
-    assert_eq!(a.total_segments(), 0);
-    assert_eq!(a.track_progress_ref().total(), 1);
-    assert_eq!(
-      a.track_progress_ref().total() as usize,
-      a.tracks_slice().len()
-    );
-    assert_eq!(a.track_progress_ref().indexed(), 0);
-    assert_eq!(a.track_progress_ref().failed(), 0);
-  }
-
-  #[test]
-  fn try_with_track_progress_rejects_total_mismatch() {
-    let a = Audio::try_new(Uuid7::new())
-      .unwrap()
-      .with_tracks(std::vec![Uuid7::new(), Uuid7::new()]);
-    // total = 3 disagrees with tracks.len() = 2
-    let r = a
-      .clone()
-      .try_with_track_progress(IndexProgress::try_new(3, 0, 0).unwrap());
-    assert_eq!(r.err(), Some(AudioError::TrackProgressMismatch));
-    assert!(AudioError::TrackProgressMismatch.is_track_progress_mismatch());
-    // matching total is accepted
-    assert!(a
-      .try_with_track_progress(IndexProgress::try_new(2, 1, 1).unwrap())
-      .is_ok());
-  }
-
-  #[test]
-  fn try_set_track_progress_rejects_and_leaves_value_unchanged() {
-    let mut a = Audio::try_new(Uuid7::new())
-      .unwrap()
-      .with_tracks(std::vec![Uuid7::new(), Uuid7::new()]);
-    let before = *a.track_progress_ref();
-    let r = a.try_set_track_progress(IndexProgress::try_new(5, 0, 0).unwrap());
-    assert_eq!(r.err(), Some(AudioError::TrackProgressMismatch));
-    // rejection leaves the prior rollup in place
-    assert_eq!(a.track_progress_ref(), &before);
-    a.try_set_track_progress(IndexProgress::try_new(2, 2, 0).unwrap())
-      .unwrap();
-    assert_eq!(a.track_progress_ref().indexed(), 2);
   }
 
   #[test]

@@ -148,17 +148,17 @@ impl TryFrom<Document> for Video<Uuid7> {
   fn try_from(mut d: Document) -> Result<Self, Self::Error> {
     let id = uuid7_from_bson(take(&mut d, "_id")?, "_id")?;
     let mut v = Video::try_new(id)?;
-    // `tracks` must be restored before `total_scenes` / `track_progress`:
-    // both `try_set_*` validate a cross-field invariant against the
-    // current track list (scenes-need-tracks, progress-rollup arity).
+    // Fields are independent at the domain layer — see the
+    // validation-responsibility note on `Video`. Restore each from the
+    // stored row directly.
     if let Some(b) = take_opt(&mut d, "tracks") {
       v.set_tracks(uuid7_vec_from_bson(b, "tracks")?);
     }
     if let Some(b) = take_opt(&mut d, "total_scenes") {
-      v.try_set_total_scenes(as_u32(b, "total_scenes")?)?;
+      v.set_total_scenes(as_u32(b, "total_scenes")?);
     }
     if let Some(b) = take_opt(&mut d, "track_progress") {
-      v.try_set_track_progress(v_index_progress_from_bson(b, "track_progress")?)?;
+      v.set_track_progress(v_index_progress_from_bson(b, "track_progress")?);
     }
     Ok(v)
   }
@@ -1549,10 +1549,8 @@ mod tests {
     let v = Video::try_new(Uuid7::new())
       .unwrap()
       .with_tracks(vec![Uuid7::new(), Uuid7::new()])
-      .try_with_total_scenes(7)
-      .unwrap()
-      .try_with_track_progress(VIndexProgress::try_new(2, 1, 0).unwrap())
-      .unwrap();
+      .with_total_scenes(7)
+      .with_track_progress(VIndexProgress::try_new(2, 1, 0).unwrap());
     let doc: Document = (&v).into();
     let v2: Video<Uuid7> = doc.try_into().unwrap();
     assert_eq!(v, v2);
