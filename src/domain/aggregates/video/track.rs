@@ -419,14 +419,36 @@ impl<Id> VideoTrack<Id> {
   pub fn set_start_pts(&mut self, v: Option<Timestamp>) {
     self.start_pts = v;
   }
+  /// Fallible builder for `duration`.
+  ///
+  /// `duration` is **semantically a non-negative track-time span** (see
+  /// the field doc), but `mediatime::Timestamp` is a signed PTS, so a
+  /// `Some(t)` with `t.pts() < 0` would be a nonsense duration. Rejects
+  /// that with [`VideoTrackError::NegativeDuration`]; `None` (absent)
+  /// and any non-negative `Some` are accepted.
   #[inline]
-  pub fn with_duration(mut self, v: Option<Timestamp>) -> Self {
+  pub fn try_with_duration(mut self, v: Option<Timestamp>) -> Result<Self, VideoTrackError> {
+    if let Some(t) = v {
+      if t.pts() < 0 {
+        return Err(VideoTrackError::NegativeDuration);
+      }
+    }
     self.duration = v;
-    self
+    Ok(self)
   }
+  /// Fallible in-place mutator for `duration` — see
+  /// [`VideoTrack::try_with_duration`]. On success returns `&mut Self`
+  /// so it chains; on a negative duration returns
+  /// [`VideoTrackError::NegativeDuration`] and leaves `self` unchanged.
   #[inline]
-  pub fn set_duration(&mut self, v: Option<Timestamp>) {
+  pub fn try_set_duration(&mut self, v: Option<Timestamp>) -> Result<&mut Self, VideoTrackError> {
+    if let Some(t) = v {
+      if t.pts() < 0 {
+        return Err(VideoTrackError::NegativeDuration);
+      }
+    }
     self.duration = v;
+    Ok(self)
   }
 
   // --- codec ---
@@ -687,8 +709,8 @@ impl<Id> VideoTrack<Id> {
 // Errors
 // ---------------------------------------------------------------------------
 
-/// Error returned when [`VideoTrack::try_new`] cannot uphold the
-/// non-nil-id / non-nil-parent invariants. Unit-only enum.
+/// Error returned when a [`VideoTrack`] constructor or fallible mutator
+/// cannot uphold an invariant. Unit-only enum.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant, thiserror::Error)]
 #[non_exhaustive]
 pub enum VideoTrackError {
@@ -699,6 +721,10 @@ pub enum VideoTrackError {
   /// no `Video` facet.
   #[error("VideoTrack parent (Video facet) must not be the nil UUID")]
   NilParent,
+  /// Supplied `duration` was `Some(t)` with `t.pts() < 0` — a duration
+  /// is semantically non-negative (see the `duration` field doc).
+  #[error("VideoTrack duration must not be negative")]
+  NegativeDuration,
 }
 
 // ===========================================================================
@@ -711,6 +737,7 @@ mod tests {
   use crate::domain::ErrorCode;
   use core::num::NonZeroU32;
   use mediaframe::frame::Rational;
+  use mediatime::Timebase;
 
   #[test]
   fn try_new_happy_path() {
@@ -789,6 +816,40 @@ mod tests {
     assert!(!t.is_primary());
     assert!(t.index_status().is_empty());
     assert!(t.scenes().is_empty());
+  }
+
+  #[test]
+  fn duration_rejects_negative_timestamp() {
+    let tb = Timebase::new(1, NonZeroU32::new(1000).unwrap());
+    let t = VideoTrack::try_new(Uuid7::new(), Uuid7::new()).unwrap();
+
+    // Negative duration is rejected through the consuming builder...
+    assert_eq!(
+      t.clone()
+        .try_with_duration(Some(Timestamp::new(-1, tb)))
+        .err(),
+      Some(VideoTrackError::NegativeDuration)
+    );
+
+    // ...and through the in-place setter, which leaves `self` unchanged.
+    let mut t = t;
+    assert_eq!(
+      t.try_set_duration(Some(Timestamp::new(-5_000, tb))).err(),
+      Some(VideoTrackError::NegativeDuration)
+    );
+    assert!(t.duration().is_none());
+    assert!(VideoTrackError::NegativeDuration.is_negative_duration());
+
+    // Zero and positive durations, and `None`, are accepted.
+    let t = t
+      .try_with_duration(Some(Timestamp::new(0, tb)))
+      .unwrap()
+      .try_with_duration(Some(Timestamp::new(48_000, tb)))
+      .unwrap();
+    assert_eq!(t.duration().map(Timestamp::pts), Some(48_000));
+    let mut t = t;
+    t.try_set_duration(None).unwrap();
+    assert!(t.duration().is_none());
   }
 
   #[test]

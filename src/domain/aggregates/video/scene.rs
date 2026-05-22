@@ -36,11 +36,16 @@ pub struct Scene<Id = Uuid7> {
 impl Scene<Uuid7> {
   /// Validating constructor.
   ///
-  /// Rejects nil `id` and nil `parent`. The locked
-  /// `span.start <= span.end` invariant is **already enforced** by
-  /// `mediatime::TimeRange::new` / `::try_new` (which is the only way
-  /// to construct a `TimeRange`), so it's a redundant check here — we
-  /// rely on the upstream type.
+  /// Rejects:
+  /// - nil `id`,
+  /// - nil `parent`,
+  /// - an inverted `span` (`start_pts > end_pts`).
+  ///
+  /// `mediatime::TimeRange::try_new` rejects an inverted span at
+  /// construction, but `TimeRange` also exposes public `with_*`/`set_*`
+  /// mutators, so a caller can hand `Scene` a `TimeRange` that *was*
+  /// valid and has since been inverted. `Scene` therefore re-validates
+  /// the `start <= end` invariant itself rather than trusting upstream.
   pub fn try_new(
     id: Uuid7,
     parent: Uuid7,
@@ -53,6 +58,9 @@ impl Scene<Uuid7> {
     }
     if parent.is_nil() {
       return Err(SceneError::NilParent);
+    }
+    if span.start_pts() > span.end_pts() {
+      return Err(SceneError::InvertedSpan);
     }
     Ok(Self {
       id,
@@ -117,6 +125,32 @@ impl<Id> Scene<Id> {
     self
   }
 
+  /// Fallible builder: replace `span`, re-validating the
+  /// `start_pts <= end_pts` invariant. Rejects an inverted span
+  /// (`mediatime::TimeRange`'s own `with_*`/`set_*` mutators can produce
+  /// one) with [`SceneError::InvertedSpan`].
+  #[inline]
+  pub fn try_with_span(mut self, span: TimeRange) -> Result<Self, SceneError> {
+    if span.start_pts() > span.end_pts() {
+      return Err(SceneError::InvertedSpan);
+    }
+    self.span = span;
+    Ok(self)
+  }
+
+  /// Fallible in-place mutator for `span`, re-validating the
+  /// `start_pts <= end_pts` invariant. On success returns `&mut Self`
+  /// so it chains; on an inverted span returns
+  /// [`SceneError::InvertedSpan`] and leaves `self` unchanged.
+  #[inline]
+  pub const fn try_set_span(&mut self, span: TimeRange) -> Result<&mut Self, SceneError> {
+    if span.start_pts() > span.end_pts() {
+      return Err(SceneError::InvertedSpan);
+    }
+    self.span = span;
+    Ok(self)
+  }
+
   /// Builder: replace `detector`.
   #[inline]
   pub const fn with_detector(mut self, detector: SceneDetector) -> Self {
@@ -163,12 +197,9 @@ impl<Id> Scene<Id> {
   }
 }
 
-/// Error returned when [`Scene::try_new`] cannot uphold a locked
-/// invariant. Unit-only enum.
-///
-/// (The `span.start <= span.end` invariant from the locked spec is
-/// enforced upstream by `mediatime::TimeRange`'s own constructors —
-/// not represented here.)
+/// Error returned when [`Scene::try_new`] / [`Scene::try_with_span`] /
+/// [`Scene::try_set_span`] cannot uphold a locked invariant.
+/// Unit-only enum.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant, thiserror::Error)]
 #[non_exhaustive]
 pub enum SceneError {
@@ -179,6 +210,12 @@ pub enum SceneError {
   /// `VideoTrack`.
   #[error("Scene parent (VideoTrack) must not be the nil UUID")]
   NilParent,
+  /// Supplied `span` was inverted (`start_pts > end_pts`). A
+  /// `mediatime::TimeRange` validates `start <= end` at construction,
+  /// but its public `with_*`/`set_*` mutators can invert it afterwards,
+  /// so `Scene` re-checks the invariant on every span it accepts.
+  #[error("Scene span must not be inverted (start_pts <= end_pts)")]
+  InvertedSpan,
 }
 
 // ===========================================================================
@@ -226,12 +263,53 @@ mod tests {
   }
 
   #[test]
-  fn inverted_span_blocked_upstream_by_mediatime() {
-    // The locked `span.start <= span.end` invariant is enforced by
-    // `mediatime::TimeRange::try_new` returning `None` — Scene relies
-    // on the upstream type, so an inverted span cannot reach
-    // `Scene::try_new` to begin with.
+  fn try_new_rejects_inverted_span() {
+    // `TimeRange::try_new` rejects an inverted span at construction...
     assert!(TimeRange::try_new(2000, 1000, tb()).is_none());
+    // ...but its public `with_*` mutators can invert a *valid* range
+    // after the fact — `Scene::try_new` must re-validate.
+    let inverted = TimeRange::new(1_000, 5_000, tb()).with_end(0);
+    assert!(inverted.start_pts() > inverted.end_pts());
+    assert_eq!(
+      Scene::try_new(
+        Uuid7::new(),
+        Uuid7::new(),
+        0,
+        inverted,
+        SceneDetector::Manual
+      )
+      .err(),
+      Some(SceneError::InvertedSpan)
+    );
+    assert!(SceneError::InvertedSpan.is_inverted_span());
+  }
+
+  #[test]
+  fn try_set_span_rejects_post_construction_inversion() {
+    let span = TimeRange::new(0, 5_000, tb());
+    let mut s = Scene::try_new(Uuid7::new(), Uuid7::new(), 0, span, SceneDetector::Manual).unwrap();
+
+    // A mutated-to-inverted TimeRange is rejected, and `self` is left
+    // unchanged.
+    let mut inverted = TimeRange::new(2_000, 8_000, tb());
+    inverted.set_start(9_000);
+    assert_eq!(
+      s.try_set_span(inverted).err(),
+      Some(SceneError::InvertedSpan)
+    );
+    assert_eq!(s.span(), &span);
+
+    // A valid replacement span is accepted.
+    let next = TimeRange::new(100, 200, tb());
+    s.try_set_span(next).unwrap();
+    assert_eq!(s.span(), &next);
+
+    // Same for the consuming builder.
+    let inverted2 = TimeRange::new(3_000, 9_000, tb()).with_start(10_000);
+    assert_eq!(
+      s.clone().try_with_span(inverted2).err(),
+      Some(SceneError::InvertedSpan)
+    );
   }
 
   #[test]

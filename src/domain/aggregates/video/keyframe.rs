@@ -43,9 +43,12 @@ pub struct Keyframe<Id = Uuid7> {
 
   // --- artifact ---
   /// Inline thumbnail image bytes (`bytes::Bytes`, no `location`).
+  ///
+  /// The byte-length of this buffer is the keyframe `size`; `size` is
+  /// **not** a stored field — it is derived from `data` via
+  /// [`Keyframe::size`], so the two cannot diverge.
   data: Bytes,
   mime: SmolStr,
-  size: u32,
   /// Thumbnail dimensions (`mediaframe::frame::Dimensions`).
   dimensions: Dimensions,
   extractor: KeyframeExtractor,
@@ -106,7 +109,6 @@ impl Keyframe<Uuid7> {
       pts,
       data: Bytes::new(),
       mime: SmolStr::default(),
-      size: 0,
       dimensions,
       extractor,
       classifications: std::vec::Vec::new(),
@@ -118,7 +120,9 @@ impl Keyframe<Uuid7> {
       barcodes: std::vec::Vec::new(),
       attention_saliency: std::vec::Vec::new(),
       objectness_saliency: std::vec::Vec::new(),
-      horizon: HorizonInfo::new(0.0, 0.0),
+      // 0.0 is trivially finite and in `0.0..=1.0` — this `try_new`
+      // cannot fail.
+      horizon: HorizonInfo::try_new(0.0, 0.0).expect("0.0 confidence is within range"),
       document_segments: std::vec::Vec::new(),
       aesthetics: Aesthetics::new(0.0, false),
       colors: std::vec::Vec::new(),
@@ -153,10 +157,11 @@ impl<Id> Keyframe<Id> {
   pub fn mime(&self) -> &str {
     self.mime.as_str()
   }
-  /// Byte size of `data`.
+  /// Byte size of `data` — **derived** from `data.len()`, never stored
+  /// independently, so it can never diverge from the actual buffer.
   #[inline]
-  pub const fn size(&self) -> u32 {
-    self.size
+  pub fn size(&self) -> u64 {
+    self.data.len() as u64
   }
   /// Thumbnail dimensions (`mediaframe::frame::Dimensions`).
   #[inline]
@@ -253,23 +258,29 @@ impl<Id> Keyframe<Id> {
   pub fn set_mime(&mut self, v: impl Into<SmolStr>) {
     self.mime = v.into();
   }
+  /// Fallible builder for `dimensions`, re-validating the locked
+  /// non-zero-extent invariant (`width > 0 && height > 0`). Rejects a
+  /// zero-width/zero-height `Dimensions` with
+  /// [`KeyframeError::ZeroDimensions`].
   #[inline]
-  pub const fn with_size(mut self, v: u32) -> Self {
-    self.size = v;
-    self
-  }
-  #[inline]
-  pub const fn set_size(&mut self, v: u32) {
-    self.size = v;
-  }
-  #[inline]
-  pub const fn with_dimensions(mut self, v: Dimensions) -> Self {
+  pub fn try_with_dimensions(mut self, v: Dimensions) -> Result<Self, KeyframeError> {
+    if v.width() == 0 || v.height() == 0 {
+      return Err(KeyframeError::ZeroDimensions);
+    }
     self.dimensions = v;
-    self
+    Ok(self)
   }
+  /// Fallible in-place mutator for `dimensions` — see
+  /// [`Keyframe::try_with_dimensions`]. On success returns `&mut Self`
+  /// so it chains; on zero extent returns
+  /// [`KeyframeError::ZeroDimensions`] and leaves `self` unchanged.
   #[inline]
-  pub const fn set_dimensions(&mut self, v: Dimensions) {
+  pub const fn try_set_dimensions(&mut self, v: Dimensions) -> Result<&mut Self, KeyframeError> {
+    if v.width() == 0 || v.height() == 0 {
+      return Err(KeyframeError::ZeroDimensions);
+    }
     self.dimensions = v;
+    Ok(self)
   }
   #[inline]
   pub const fn with_extractor(mut self, v: KeyframeExtractor) -> Self {
@@ -530,9 +541,8 @@ mod tests {
     )
     .unwrap()
     .with_mime("image/jpeg")
-    .with_size(42_000)
     .with_data(std::vec![0xff, 0xd8, 0xff])
-    .with_classifications(std::vec![Detection::new("dog", 0.97)])
+    .with_classifications(std::vec![Detection::try_new("dog", 0.97).unwrap()])
     .with_vlm(
       VlmAnalysis::new()
         .with_description(LocalizedText::from_src("a dog running"))
@@ -540,7 +550,8 @@ mod tests {
         .with_shot_type("medium-shot"),
     );
     assert_eq!(kf.mime(), "image/jpeg");
-    assert_eq!(kf.size(), 42_000);
+    // `size` is derived from `data` — 3 bytes in ⇒ size 3.
+    assert_eq!(kf.size(), 3);
     assert_eq!(kf.data().len(), 3);
     assert_eq!(kf.classifications().len(), 1);
     assert_eq!(kf.classifications()[0].label(), "dog");
@@ -550,12 +561,62 @@ mod tests {
 
     let mut kf = kf;
     kf.set_mime("");
-    kf.set_size(0);
     kf.set_data(Bytes::new());
-    kf.set_dimensions(Dimensions::new(2, 2));
+    kf.try_set_dimensions(Dimensions::new(2, 2)).unwrap();
     assert!(kf.mime().is_empty());
+    // `size` tracks `data` with no separate setter — clearing `data`
+    // drops `size` to 0 automatically.
     assert_eq!(kf.size(), 0);
     assert!(kf.data().is_empty());
+    assert_eq!(kf.dimensions(), Dimensions::new(2, 2));
+  }
+
+  #[test]
+  fn size_is_derived_from_data() {
+    let ts = Timestamp::new(0, tb());
+    let kf = Keyframe::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      ts,
+      Dimensions::new(8, 8),
+      KeyframeExtractor::IFrame,
+    )
+    .unwrap()
+    .with_data(std::vec![1u8, 2, 3, 4, 5]);
+    assert_eq!(kf.size(), kf.data().len() as u64);
+    assert_eq!(kf.size(), 5);
+  }
+
+  #[test]
+  fn dimension_mutators_reject_zero_extent() {
+    let ts = Timestamp::new(0, tb());
+    let mut kf = Keyframe::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      ts,
+      Dimensions::new(320, 180),
+      KeyframeExtractor::IFrame,
+    )
+    .unwrap();
+
+    // Zero-extent dimensions are rejected through both fallible
+    // mutators; `self` keeps the previously-valid dimensions.
+    for (w, h) in [(0u32, 1u32), (1, 0), (0, 0)] {
+      assert_eq!(
+        kf.clone().try_with_dimensions(Dimensions::new(w, h)).err(),
+        Some(KeyframeError::ZeroDimensions),
+        "({w}, {h}) builder should be rejected"
+      );
+      assert_eq!(
+        kf.try_set_dimensions(Dimensions::new(w, h)).err(),
+        Some(KeyframeError::ZeroDimensions),
+        "({w}, {h}) setter should be rejected"
+      );
+    }
+    assert_eq!(kf.dimensions(), Dimensions::new(320, 180));
+
+    // A valid replacement is accepted.
+    kf.try_set_dimensions(Dimensions::new(2, 2)).unwrap();
     assert_eq!(kf.dimensions(), Dimensions::new(2, 2));
   }
 }

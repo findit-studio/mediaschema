@@ -15,25 +15,105 @@ use smol_str::SmolStr;
 use crate::domain::{vo::LocalizedText, Rgba};
 
 // ---------------------------------------------------------------------------
+// Validated scalar value-objects — Confidence / NormCoord
+// ---------------------------------------------------------------------------
+
+/// Error returned when a detection value-object cannot uphold a
+/// numeric-range invariant. Unit-only enum.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant, thiserror::Error)]
+#[non_exhaustive]
+pub enum DetectionError {
+  /// A confidence value was non-finite (`NaN`/`±inf`) or outside the
+  /// calibrated `0.0..=1.0` range.
+  #[error("confidence must be finite and within 0.0..=1.0")]
+  ConfidenceOutOfRange,
+  /// A normalized coordinate was non-finite (`NaN`/`±inf`) or outside
+  /// the `0.0..=1.0` range (apple-vision convention).
+  #[error("normalized coordinate must be finite and within 0.0..=1.0")]
+  CoordOutOfRange,
+}
+
+/// A calibrated detection confidence — a `f32` proven **finite** and
+/// within the closed range `0.0..=1.0`.
+///
+/// Construct via [`Confidence::try_new`]; the invariant then holds for
+/// the lifetime of the value (the inner `f32` has no public mutator).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Confidence(f32);
+
+impl Confidence {
+  /// Validating constructor — rejects `NaN`, `±inf`, and any value
+  /// outside `0.0..=1.0`.
+  #[inline]
+  pub const fn try_new(value: f32) -> Result<Self, DetectionError> {
+    if value.is_finite() && value >= 0.0 && value <= 1.0 {
+      Ok(Self(value))
+    } else {
+      Err(DetectionError::ConfidenceOutOfRange)
+    }
+  }
+
+  /// The validated confidence as a raw `f32` (always finite, in
+  /// `0.0..=1.0`).
+  #[inline]
+  pub const fn get(self) -> f32 {
+    self.0
+  }
+}
+
+/// A normalized image coordinate / extent — a `f32` proven **finite**
+/// and within the closed range `0.0..=1.0` (apple-vision convention,
+/// origin top-left).
+///
+/// Construct via [`NormCoord::try_new`]; the invariant then holds for
+/// the lifetime of the value (the inner `f32` has no public mutator).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct NormCoord(f32);
+
+impl NormCoord {
+  /// Validating constructor — rejects `NaN`, `±inf`, and any value
+  /// outside `0.0..=1.0`.
+  #[inline]
+  pub const fn try_new(value: f32) -> Result<Self, DetectionError> {
+    if value.is_finite() && value >= 0.0 && value <= 1.0 {
+      Ok(Self(value))
+    } else {
+      Err(DetectionError::CoordOutOfRange)
+    }
+  }
+
+  /// The validated coordinate as a raw `f32` (always finite, in
+  /// `0.0..=1.0`).
+  #[inline]
+  pub const fn get(self) -> f32 {
+    self.0
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Detection — `{ label, confidence }`
 // ---------------------------------------------------------------------------
 
 /// Apple-vision image-classification detection. Label + calibrated
 /// confidence.
+///
+/// `confidence` is a validated [`Confidence`] (finite, `0.0..=1.0`) —
+/// the invariant holds through construction *and* every mutator.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Detection {
   label: SmolStr,
-  confidence: f32,
+  confidence: Confidence,
 }
 
 impl Detection {
-  /// Construct from label + confidence.
+  /// Validating constructor — rejects a non-finite / out-of-range
+  /// `confidence` with [`DetectionError::ConfidenceOutOfRange`].
   #[inline]
-  pub fn new(label: impl Into<SmolStr>, confidence: f32) -> Self {
-    Self {
+  pub fn try_new(label: impl Into<SmolStr>, confidence: f32) -> Result<Self, DetectionError> {
+    Ok(Self {
       label: label.into(),
-      confidence,
-    }
+      confidence: Confidence::try_new(confidence)?,
+    })
   }
 
   /// The detected label.
@@ -42,10 +122,10 @@ impl Detection {
     self.label.as_str()
   }
 
-  /// Calibrated apple-vision confidence (0.0 – 1.0).
+  /// Calibrated apple-vision confidence (finite, `0.0..=1.0`).
   #[inline]
   pub const fn confidence(&self) -> f32 {
-    self.confidence
+    self.confidence.get()
   }
 
   /// Builder: replace label.
@@ -55,11 +135,12 @@ impl Detection {
     self
   }
 
-  /// Builder: replace confidence.
+  /// Fallible builder: replace `confidence`, re-validating the
+  /// finite-and-`0.0..=1.0` invariant.
   #[inline]
-  pub const fn with_confidence(mut self, confidence: f32) -> Self {
-    self.confidence = confidence;
-    self
+  pub fn try_with_confidence(mut self, confidence: f32) -> Result<Self, DetectionError> {
+    self.confidence = Confidence::try_new(confidence)?;
+    Ok(self)
   }
 
   /// In-place mutator for label.
@@ -68,10 +149,14 @@ impl Detection {
     self.label = label.into();
   }
 
-  /// In-place mutator for confidence.
+  /// Fallible in-place mutator for `confidence`, re-validating the
+  /// invariant. On success returns `&mut Self`; on a bad value returns
+  /// [`DetectionError::ConfidenceOutOfRange`] and leaves `self`
+  /// unchanged.
   #[inline]
-  pub const fn set_confidence(&mut self, confidence: f32) {
-    self.confidence = confidence;
+  pub fn try_set_confidence(&mut self, confidence: f32) -> Result<&mut Self, DetectionError> {
+    self.confidence = Confidence::try_new(confidence)?;
+    Ok(self)
   }
 }
 
@@ -81,45 +166,68 @@ impl Detection {
 
 /// Normalised 2-D bounding box (apple-vision convention: floats in
 /// `[0.0, 1.0]`, origin top-left).
+///
+/// Each coordinate / extent is a validated [`NormCoord`] (finite,
+/// `0.0..=1.0`) — `BoundingBox` is immutable (no public mutator), so
+/// the only entry point is the validating [`BoundingBox::try_new`].
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct BoundingBox {
-  x: f32,
-  y: f32,
-  width: f32,
-  height: f32,
+  x: NormCoord,
+  y: NormCoord,
+  width: NormCoord,
+  height: NormCoord,
 }
 
 impl BoundingBox {
-  /// Construct from `(x, y, width, height)`.
+  /// Validating constructor from `(x, y, width, height)` — rejects any
+  /// non-finite / out-of-`[0.0, 1.0]` component with
+  /// [`DetectionError::CoordOutOfRange`].
   #[inline]
-  pub const fn new(x: f32, y: f32, width: f32, height: f32) -> Self {
-    Self {
+  pub const fn try_new(x: f32, y: f32, width: f32, height: f32) -> Result<Self, DetectionError> {
+    // `?` is not allowed in `const fn`; match each component.
+    let x = match NormCoord::try_new(x) {
+      Ok(v) => v,
+      Err(e) => return Err(e),
+    };
+    let y = match NormCoord::try_new(y) {
+      Ok(v) => v,
+      Err(e) => return Err(e),
+    };
+    let width = match NormCoord::try_new(width) {
+      Ok(v) => v,
+      Err(e) => return Err(e),
+    };
+    let height = match NormCoord::try_new(height) {
+      Ok(v) => v,
+      Err(e) => return Err(e),
+    };
+    Ok(Self {
       x,
       y,
       width,
       height,
-    }
+    })
   }
 
   /// `x` (left edge).
   #[inline]
   pub const fn x(&self) -> f32 {
-    self.x
+    self.x.get()
   }
   /// `y` (top edge).
   #[inline]
   pub const fn y(&self) -> f32 {
-    self.y
+    self.y.get()
   }
   /// Width.
   #[inline]
   pub const fn width(&self) -> f32 {
-    self.width
+    self.width.get()
   }
   /// Height.
   #[inline]
   pub const fn height(&self) -> f32 {
-    self.height
+    self.height.get()
   }
 }
 
@@ -191,19 +299,24 @@ impl ActionDetection {
 #[derive(Debug, Clone, PartialEq)]
 pub struct TextDetection {
   text: SmolStr,
-  confidence: f32,
+  confidence: Confidence,
   bbox: BoundingBox,
 }
 
 impl TextDetection {
-  /// Construct.
+  /// Validating constructor — rejects a non-finite / out-of-range
+  /// `confidence` with [`DetectionError::ConfidenceOutOfRange`].
   #[inline]
-  pub fn new(text: impl Into<SmolStr>, confidence: f32, bbox: BoundingBox) -> Self {
-    Self {
+  pub fn try_new(
+    text: impl Into<SmolStr>,
+    confidence: f32,
+    bbox: BoundingBox,
+  ) -> Result<Self, DetectionError> {
+    Ok(Self {
       text: text.into(),
-      confidence,
+      confidence: Confidence::try_new(confidence)?,
       bbox,
-    }
+    })
   }
 
   /// Detected text.
@@ -211,10 +324,10 @@ impl TextDetection {
   pub fn text(&self) -> &str {
     self.text.as_str()
   }
-  /// Confidence.
+  /// Confidence (finite, `0.0..=1.0`).
   #[inline]
   pub const fn confidence(&self) -> f32 {
-    self.confidence
+    self.confidence.get()
   }
   /// Bounding box.
   #[inline]
@@ -228,25 +341,26 @@ impl TextDetection {
 pub struct BarcodeDetection {
   payload: SmolStr,
   symbology: SmolStr,
-  confidence: f32,
+  confidence: Confidence,
   bbox: BoundingBox,
 }
 
 impl BarcodeDetection {
-  /// Construct.
+  /// Validating constructor — rejects a non-finite / out-of-range
+  /// `confidence` with [`DetectionError::ConfidenceOutOfRange`].
   #[inline]
-  pub fn new(
+  pub fn try_new(
     payload: impl Into<SmolStr>,
     symbology: impl Into<SmolStr>,
     confidence: f32,
     bbox: BoundingBox,
-  ) -> Self {
-    Self {
+  ) -> Result<Self, DetectionError> {
+    Ok(Self {
       payload: payload.into(),
       symbology: symbology.into(),
-      confidence,
+      confidence: Confidence::try_new(confidence)?,
       bbox,
-    }
+    })
   }
 
   /// Decoded payload.
@@ -259,10 +373,10 @@ impl BarcodeDetection {
   pub fn symbology(&self) -> &str {
     self.symbology.as_str()
   }
-  /// Confidence.
+  /// Confidence (finite, `0.0..=1.0`).
   #[inline]
   pub const fn confidence(&self) -> f32 {
-    self.confidence
+    self.confidence.get()
   }
   /// Bounding box.
   #[inline]
@@ -275,14 +389,18 @@ impl BarcodeDetection {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SaliencyRegion {
   bbox: BoundingBox,
-  confidence: f32,
+  confidence: Confidence,
 }
 
 impl SaliencyRegion {
-  /// Construct.
+  /// Validating constructor — rejects a non-finite / out-of-range
+  /// `confidence` with [`DetectionError::ConfidenceOutOfRange`].
   #[inline]
-  pub const fn new(bbox: BoundingBox, confidence: f32) -> Self {
-    Self { bbox, confidence }
+  pub const fn try_new(bbox: BoundingBox, confidence: f32) -> Result<Self, DetectionError> {
+    match Confidence::try_new(confidence) {
+      Ok(confidence) => Ok(Self { bbox, confidence }),
+      Err(e) => Err(e),
+    }
   }
 
   /// Bounding box.
@@ -290,10 +408,10 @@ impl SaliencyRegion {
   pub const fn bbox(&self) -> &BoundingBox {
     &self.bbox
   }
-  /// Confidence.
+  /// Confidence (finite, `0.0..=1.0`).
   #[inline]
   pub const fn confidence(&self) -> f32 {
-    self.confidence
+    self.confidence.get()
   }
 }
 
@@ -301,14 +419,20 @@ impl SaliencyRegion {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct HorizonInfo {
   angle: f32,
-  confidence: f32,
+  confidence: Confidence,
 }
 
 impl HorizonInfo {
-  /// Construct from `(angle, confidence)`.
+  /// Validating constructor from `(angle, confidence)` — rejects a
+  /// non-finite / out-of-range `confidence` with
+  /// [`DetectionError::ConfidenceOutOfRange`]. `angle` is a radian
+  /// measure (not a `0.0..=1.0` quantity) and is not range-validated.
   #[inline]
-  pub const fn new(angle: f32, confidence: f32) -> Self {
-    Self { angle, confidence }
+  pub const fn try_new(angle: f32, confidence: f32) -> Result<Self, DetectionError> {
+    match Confidence::try_new(confidence) {
+      Ok(confidence) => Ok(Self { angle, confidence }),
+      Err(e) => Err(e),
+    }
   }
 
   /// Horizon angle (radians, per apple-vision).
@@ -317,67 +441,107 @@ impl HorizonInfo {
     self.angle
   }
 
-  /// Confidence.
+  /// Confidence (finite, `0.0..=1.0`).
   #[inline]
   pub const fn confidence(&self) -> f32 {
-    self.confidence
+    self.confidence.get()
   }
 }
 
 /// Apple-vision document quad-corner segment.
+///
+/// Each corner is a pair of validated normalized [`NormCoord`]s; the
+/// segment is immutable, so the only entry point is the validating
+/// [`DocumentSegment::try_new`].
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct DocumentSegment {
-  top_left: (f32, f32),
-  top_right: (f32, f32),
-  bottom_right: (f32, f32),
-  bottom_left: (f32, f32),
-  confidence: f32,
+  top_left: (NormCoord, NormCoord),
+  top_right: (NormCoord, NormCoord),
+  bottom_right: (NormCoord, NormCoord),
+  bottom_left: (NormCoord, NormCoord),
+  confidence: Confidence,
 }
 
 impl DocumentSegment {
-  /// Construct from the four corners + confidence.
+  /// Validating constructor from the four corners + confidence —
+  /// rejects any non-finite / out-of-`[0.0, 1.0]` corner component
+  /// ([`DetectionError::CoordOutOfRange`]) or `confidence`
+  /// ([`DetectionError::ConfidenceOutOfRange`]).
   #[inline]
-  pub const fn new(
+  pub const fn try_new(
     top_left: (f32, f32),
     top_right: (f32, f32),
     bottom_right: (f32, f32),
     bottom_left: (f32, f32),
     confidence: f32,
-  ) -> Self {
-    Self {
+  ) -> Result<Self, DetectionError> {
+    let top_left = match norm_pair(top_left) {
+      Ok(v) => v,
+      Err(e) => return Err(e),
+    };
+    let top_right = match norm_pair(top_right) {
+      Ok(v) => v,
+      Err(e) => return Err(e),
+    };
+    let bottom_right = match norm_pair(bottom_right) {
+      Ok(v) => v,
+      Err(e) => return Err(e),
+    };
+    let bottom_left = match norm_pair(bottom_left) {
+      Ok(v) => v,
+      Err(e) => return Err(e),
+    };
+    let confidence = match Confidence::try_new(confidence) {
+      Ok(v) => v,
+      Err(e) => return Err(e),
+    };
+    Ok(Self {
       top_left,
       top_right,
       bottom_right,
       bottom_left,
       confidence,
-    }
+    })
   }
 
   /// Top-left corner.
   #[inline]
   pub const fn top_left(&self) -> (f32, f32) {
-    self.top_left
+    (self.top_left.0.get(), self.top_left.1.get())
   }
   /// Top-right corner.
   #[inline]
   pub const fn top_right(&self) -> (f32, f32) {
-    self.top_right
+    (self.top_right.0.get(), self.top_right.1.get())
   }
   /// Bottom-right corner.
   #[inline]
   pub const fn bottom_right(&self) -> (f32, f32) {
-    self.bottom_right
+    (self.bottom_right.0.get(), self.bottom_right.1.get())
   }
   /// Bottom-left corner.
   #[inline]
   pub const fn bottom_left(&self) -> (f32, f32) {
-    self.bottom_left
+    (self.bottom_left.0.get(), self.bottom_left.1.get())
   }
-  /// Confidence.
+  /// Confidence (finite, `0.0..=1.0`).
   #[inline]
   pub const fn confidence(&self) -> f32 {
-    self.confidence
+    self.confidence.get()
   }
+}
+
+/// Validate a `(f32, f32)` coordinate pair into a `(NormCoord, NormCoord)`.
+const fn norm_pair(p: (f32, f32)) -> Result<(NormCoord, NormCoord), DetectionError> {
+  let x = match NormCoord::try_new(p.0) {
+    Ok(v) => v,
+    Err(e) => return Err(e),
+  };
+  let y = match NormCoord::try_new(p.1) {
+    Ok(v) => v,
+    Err(e) => return Err(e),
+  };
+  Ok((x, y))
 }
 
 // ---------------------------------------------------------------------------
@@ -388,21 +552,28 @@ impl DocumentSegment {
 #[derive(Debug, Clone, PartialEq)]
 pub struct BodyPoseJoint {
   name: SmolStr,
-  x: f32,
-  y: f32,
-  confidence: f32,
+  x: NormCoord,
+  y: NormCoord,
+  confidence: Confidence,
 }
 
 impl BodyPoseJoint {
-  /// Construct.
+  /// Validating constructor — rejects a non-finite / out-of-`[0.0, 1.0]`
+  /// normalized `x`/`y` ([`DetectionError::CoordOutOfRange`]) or
+  /// `confidence` ([`DetectionError::ConfidenceOutOfRange`]).
   #[inline]
-  pub fn new(name: impl Into<SmolStr>, x: f32, y: f32, confidence: f32) -> Self {
-    Self {
+  pub fn try_new(
+    name: impl Into<SmolStr>,
+    x: f32,
+    y: f32,
+    confidence: f32,
+  ) -> Result<Self, DetectionError> {
+    Ok(Self {
       name: name.into(),
-      x,
-      y,
-      confidence,
-    }
+      x: NormCoord::try_new(x)?,
+      y: NormCoord::try_new(y)?,
+      confidence: Confidence::try_new(confidence)?,
+    })
   }
 
   /// Joint name (apple-vision string id).
@@ -410,20 +581,20 @@ impl BodyPoseJoint {
   pub fn name(&self) -> &str {
     self.name.as_str()
   }
-  /// `x` coordinate (normalised).
+  /// `x` coordinate (normalised, `0.0..=1.0`).
   #[inline]
   pub const fn x(&self) -> f32 {
-    self.x
+    self.x.get()
   }
-  /// `y` coordinate (normalised).
+  /// `y` coordinate (normalised, `0.0..=1.0`).
   #[inline]
   pub const fn y(&self) -> f32 {
-    self.y
+    self.y.get()
   }
-  /// Confidence.
+  /// Confidence (finite, `0.0..=1.0`).
   #[inline]
   pub const fn confidence(&self) -> f32 {
-    self.confidence
+    self.confidence.get()
   }
 }
 
@@ -434,20 +605,29 @@ pub struct BodyPose3DJoint {
   x: f32,
   y: f32,
   z: f32,
-  confidence: f32,
+  confidence: Confidence,
 }
 
 impl BodyPose3DJoint {
-  /// Construct.
+  /// Validating constructor — rejects a non-finite / out-of-range
+  /// `confidence` with [`DetectionError::ConfidenceOutOfRange`]. The
+  /// `x`/`y`/`z` coordinates are model-space metres (not a `0.0..=1.0`
+  /// quantity) and are not range-validated.
   #[inline]
-  pub fn new(name: impl Into<SmolStr>, x: f32, y: f32, z: f32, confidence: f32) -> Self {
-    Self {
+  pub fn try_new(
+    name: impl Into<SmolStr>,
+    x: f32,
+    y: f32,
+    z: f32,
+    confidence: f32,
+  ) -> Result<Self, DetectionError> {
+    Ok(Self {
       name: name.into(),
       x,
       y,
       z,
-      confidence,
-    }
+      confidence: Confidence::try_new(confidence)?,
+    })
   }
 
   /// Joint name.
@@ -470,10 +650,10 @@ impl BodyPose3DJoint {
   pub const fn z(&self) -> f32 {
     self.z
   }
-  /// Confidence.
+  /// Confidence (finite, `0.0..=1.0`).
   #[inline]
   pub const fn confidence(&self) -> f32 {
-    self.confidence
+    self.confidence.get()
   }
 }
 
@@ -501,23 +681,24 @@ pub enum BodyPose3DHeightEstimation {
 #[derive(Debug, Clone, PartialEq)]
 pub struct BodyPoseDetection {
   bbox: BoundingBox,
-  confidence: f32,
+  confidence: Confidence,
   joints: std::vec::Vec<BodyPoseJoint>,
 }
 
 impl BodyPoseDetection {
-  /// Construct.
+  /// Validating constructor — rejects a non-finite / out-of-range
+  /// `confidence` with [`DetectionError::ConfidenceOutOfRange`].
   #[inline]
-  pub fn new(
+  pub fn try_new(
     bbox: BoundingBox,
     confidence: f32,
     joints: impl Into<std::vec::Vec<BodyPoseJoint>>,
-  ) -> Self {
-    Self {
+  ) -> Result<Self, DetectionError> {
+    Ok(Self {
       bbox,
-      confidence,
+      confidence: Confidence::try_new(confidence)?,
       joints: joints.into(),
-    }
+    })
   }
 
   /// Bounding box.
@@ -525,10 +706,10 @@ impl BodyPoseDetection {
   pub const fn bbox(&self) -> &BoundingBox {
     &self.bbox
   }
-  /// Confidence.
+  /// Confidence (finite, `0.0..=1.0`).
   #[inline]
   pub const fn confidence(&self) -> f32 {
-    self.confidence
+    self.confidence.get()
   }
   /// Pose joints.
   #[inline]
@@ -541,26 +722,27 @@ impl BodyPoseDetection {
 #[derive(Debug, Clone, PartialEq)]
 pub struct HandPoseDetection {
   bbox: BoundingBox,
-  confidence: f32,
+  confidence: Confidence,
   chirality: HandChirality,
   joints: std::vec::Vec<BodyPoseJoint>,
 }
 
 impl HandPoseDetection {
-  /// Construct.
+  /// Validating constructor — rejects a non-finite / out-of-range
+  /// `confidence` with [`DetectionError::ConfidenceOutOfRange`].
   #[inline]
-  pub fn new(
+  pub fn try_new(
     bbox: BoundingBox,
     confidence: f32,
     chirality: HandChirality,
     joints: impl Into<std::vec::Vec<BodyPoseJoint>>,
-  ) -> Self {
-    Self {
+  ) -> Result<Self, DetectionError> {
+    Ok(Self {
       bbox,
-      confidence,
+      confidence: Confidence::try_new(confidence)?,
       chirality,
       joints: joints.into(),
-    }
+    })
   }
 
   /// Bounding box.
@@ -568,10 +750,10 @@ impl HandPoseDetection {
   pub const fn bbox(&self) -> &BoundingBox {
     &self.bbox
   }
-  /// Confidence.
+  /// Confidence (finite, `0.0..=1.0`).
   #[inline]
   pub const fn confidence(&self) -> f32 {
-    self.confidence
+    self.confidence.get()
   }
   /// Hand chirality.
   #[inline]
@@ -588,33 +770,36 @@ impl HandPoseDetection {
 /// 3-D body-pose detection.
 #[derive(Debug, Clone, PartialEq)]
 pub struct BodyPose3DDetection {
-  confidence: f32,
+  confidence: Confidence,
   body_height: f32,
   height_estimation: BodyPose3DHeightEstimation,
   joints: std::vec::Vec<BodyPose3DJoint>,
 }
 
 impl BodyPose3DDetection {
-  /// Construct.
+  /// Validating constructor — rejects a non-finite / out-of-range
+  /// `confidence` with [`DetectionError::ConfidenceOutOfRange`].
+  /// `body_height` is a metre estimate (not a `0.0..=1.0` quantity)
+  /// and is not range-validated.
   #[inline]
-  pub fn new(
+  pub fn try_new(
     confidence: f32,
     body_height: f32,
     height_estimation: BodyPose3DHeightEstimation,
     joints: impl Into<std::vec::Vec<BodyPose3DJoint>>,
-  ) -> Self {
-    Self {
-      confidence,
+  ) -> Result<Self, DetectionError> {
+    Ok(Self {
+      confidence: Confidence::try_new(confidence)?,
       body_height,
       height_estimation,
       joints: joints.into(),
-    }
+    })
   }
 
-  /// Confidence.
+  /// Confidence (finite, `0.0..=1.0`).
   #[inline]
   pub const fn confidence(&self) -> f32 {
-    self.confidence
+    self.confidence.get()
   }
   /// Body height (apple-vision estimate, metres).
   #[inline]
@@ -668,7 +853,7 @@ impl SubjectDetection {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct FaceDetection {
   bbox: BoundingBox,
-  confidence: f32,
+  confidence: Confidence,
   capture_quality: f32,
   roll: f32,
   yaw: f32,
@@ -676,23 +861,30 @@ pub struct FaceDetection {
 }
 
 impl FaceDetection {
-  /// Construct.
+  /// Validating constructor — rejects a non-finite / out-of-range
+  /// `confidence` with [`DetectionError::ConfidenceOutOfRange`].
+  /// `capture_quality` and the `roll`/`yaw`/`pitch` Euler angles are
+  /// apple-vision-defined measures, not `0.0..=1.0` quantities, and are
+  /// not range-validated.
   #[inline]
-  pub const fn new(
+  pub const fn try_new(
     bbox: BoundingBox,
     confidence: f32,
     capture_quality: f32,
     roll: f32,
     yaw: f32,
     pitch: f32,
-  ) -> Self {
-    Self {
-      bbox,
-      confidence,
-      capture_quality,
-      roll,
-      yaw,
-      pitch,
+  ) -> Result<Self, DetectionError> {
+    match Confidence::try_new(confidence) {
+      Ok(confidence) => Ok(Self {
+        bbox,
+        confidence,
+        capture_quality,
+        roll,
+        yaw,
+        pitch,
+      }),
+      Err(e) => Err(e),
     }
   }
 
@@ -701,10 +893,10 @@ impl FaceDetection {
   pub const fn bbox(&self) -> &BoundingBox {
     &self.bbox
   }
-  /// Confidence.
+  /// Confidence (finite, `0.0..=1.0`).
   #[inline]
   pub const fn confidence(&self) -> f32 {
-    self.confidence
+    self.confidence.get()
   }
   /// Face capture quality (apple-vision).
   #[inline]
@@ -730,20 +922,32 @@ impl FaceDetection {
 
 /// Apple-vision face landmark region (e.g. `leftEye`, `outerLips`) with
 /// its normalised points.
+///
+/// Each point is a pair of validated normalized [`NormCoord`]s
+/// (finite, `0.0..=1.0`); the region is immutable, so the only entry
+/// point is the validating [`FaceLandmarkRegion::try_new`].
 #[derive(Debug, Clone, PartialEq)]
 pub struct FaceLandmarkRegion {
   name: SmolStr,
-  points: std::vec::Vec<(f32, f32)>,
+  points: std::vec::Vec<(NormCoord, NormCoord)>,
 }
 
 impl FaceLandmarkRegion {
-  /// Construct.
+  /// Validating constructor — rejects any non-finite / out-of-`[0.0,
+  /// 1.0]` point component with [`DetectionError::CoordOutOfRange`].
   #[inline]
-  pub fn new(name: impl Into<SmolStr>, points: impl Into<std::vec::Vec<(f32, f32)>>) -> Self {
-    Self {
+  pub fn try_new(
+    name: impl Into<SmolStr>,
+    points: impl IntoIterator<Item = (f32, f32)>,
+  ) -> Result<Self, DetectionError> {
+    let points = points
+      .into_iter()
+      .map(norm_pair)
+      .collect::<Result<std::vec::Vec<_>, _>>()?;
+    Ok(Self {
       name: name.into(),
-      points: points.into(),
-    }
+      points,
+    })
   }
 
   /// Region name.
@@ -752,10 +956,10 @@ impl FaceLandmarkRegion {
     self.name.as_str()
   }
 
-  /// Normalised landmark points.
+  /// Normalised landmark points (each component finite, `0.0..=1.0`).
   #[inline]
-  pub fn points(&self) -> &[(f32, f32)] {
-    &self.points
+  pub fn points(&self) -> std::vec::Vec<(f32, f32)> {
+    self.points.iter().map(|p| (p.0.get(), p.1.get())).collect()
   }
 }
 
@@ -764,23 +968,24 @@ impl FaceLandmarkRegion {
 #[derive(Debug, Clone, PartialEq)]
 pub struct FaceLandmarksDetection {
   bbox: BoundingBox,
-  confidence: f32,
+  confidence: Confidence,
   regions: std::vec::Vec<FaceLandmarkRegion>,
 }
 
 impl FaceLandmarksDetection {
-  /// Construct.
+  /// Validating constructor — rejects a non-finite / out-of-range
+  /// `confidence` with [`DetectionError::ConfidenceOutOfRange`].
   #[inline]
-  pub fn new(
+  pub fn try_new(
     bbox: BoundingBox,
     confidence: f32,
     regions: impl Into<std::vec::Vec<FaceLandmarkRegion>>,
-  ) -> Self {
-    Self {
+  ) -> Result<Self, DetectionError> {
+    Ok(Self {
       bbox,
-      confidence,
+      confidence: Confidence::try_new(confidence)?,
       regions: regions.into(),
-    }
+    })
   }
 
   /// Bounding box.
@@ -788,10 +993,10 @@ impl FaceLandmarksDetection {
   pub const fn bbox(&self) -> &BoundingBox {
     &self.bbox
   }
-  /// Confidence.
+  /// Confidence (finite, `0.0..=1.0`).
   #[inline]
   pub const fn confidence(&self) -> f32 {
-    self.confidence
+    self.confidence.get()
   }
   /// Landmark regions.
   #[inline]
@@ -807,29 +1012,30 @@ impl FaceLandmarksDetection {
 #[derive(Debug, Clone, PartialEq)]
 pub struct PersonInstanceMaskDetection {
   bbox: BoundingBox,
-  confidence: f32,
+  confidence: Confidence,
   instance_index: u32,
   dimensions: Dimensions,
   data: Bytes,
 }
 
 impl PersonInstanceMaskDetection {
-  /// Construct.
+  /// Validating constructor — rejects a non-finite / out-of-range
+  /// `confidence` with [`DetectionError::ConfidenceOutOfRange`].
   #[inline]
-  pub fn new(
+  pub fn try_new(
     bbox: BoundingBox,
     confidence: f32,
     instance_index: u32,
     dimensions: Dimensions,
     data: impl Into<Bytes>,
-  ) -> Self {
-    Self {
+  ) -> Result<Self, DetectionError> {
+    Ok(Self {
       bbox,
-      confidence,
+      confidence: Confidence::try_new(confidence)?,
       instance_index,
       dimensions,
       data: data.into(),
-    }
+    })
   }
 
   /// Bounding box.
@@ -837,10 +1043,10 @@ impl PersonInstanceMaskDetection {
   pub const fn bbox(&self) -> &BoundingBox {
     &self.bbox
   }
-  /// Confidence.
+  /// Confidence (finite, `0.0..=1.0`).
   #[inline]
   pub const fn confidence(&self) -> f32 {
-    self.confidence
+    self.confidence.get()
   }
   /// Per-instance index (apple-vision).
   #[inline]
@@ -863,26 +1069,27 @@ impl PersonInstanceMaskDetection {
 #[derive(Debug, Clone, PartialEq)]
 pub struct PersonSegmentationMask {
   bbox: BoundingBox,
-  confidence: f32,
+  confidence: Confidence,
   dimensions: Dimensions,
   data: Bytes,
 }
 
 impl PersonSegmentationMask {
-  /// Construct.
+  /// Validating constructor — rejects a non-finite / out-of-range
+  /// `confidence` with [`DetectionError::ConfidenceOutOfRange`].
   #[inline]
-  pub fn new(
+  pub fn try_new(
     bbox: BoundingBox,
     confidence: f32,
     dimensions: Dimensions,
     data: impl Into<Bytes>,
-  ) -> Self {
-    Self {
+  ) -> Result<Self, DetectionError> {
+    Ok(Self {
       bbox,
-      confidence,
+      confidence: Confidence::try_new(confidence)?,
       dimensions,
       data: data.into(),
-    }
+    })
   }
 
   /// Bounding box.
@@ -890,10 +1097,10 @@ impl PersonSegmentationMask {
   pub const fn bbox(&self) -> &BoundingBox {
     &self.bbox
   }
-  /// Confidence.
+  /// Confidence (finite, `0.0..=1.0`).
   #[inline]
   pub const fn confidence(&self) -> f32 {
-    self.confidence
+    self.confidence.get()
   }
   /// Mask dimensions (`mediaframe::frame::Dimensions`).
   #[inline]
@@ -1358,5 +1565,163 @@ impl VlmAnalysis {
   #[inline]
   pub fn set_lighting(&mut self, v: impl Into<std::vec::Vec<LocalizedText>>) {
     self.lighting = v.into();
+  }
+}
+
+// ===========================================================================
+// Tests
+// ===========================================================================
+
+#[cfg(all(test, feature = "std"))]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn confidence_rejects_nan_inf_and_out_of_range() {
+    for bad in [
+      f32::NAN,
+      f32::INFINITY,
+      f32::NEG_INFINITY,
+      -0.001,
+      1.001,
+      2.0,
+    ] {
+      assert_eq!(
+        Confidence::try_new(bad).err(),
+        Some(DetectionError::ConfidenceOutOfRange),
+        "{bad} should be rejected"
+      );
+    }
+    // Bounds and an interior value are accepted.
+    for ok in [0.0, 0.5, 1.0] {
+      assert_eq!(Confidence::try_new(ok).unwrap().get(), ok);
+    }
+  }
+
+  #[test]
+  fn norm_coord_rejects_nan_inf_and_out_of_range() {
+    for bad in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, -0.5, 1.5] {
+      assert_eq!(
+        NormCoord::try_new(bad).err(),
+        Some(DetectionError::CoordOutOfRange),
+        "{bad} should be rejected"
+      );
+    }
+    for ok in [0.0, 0.25, 1.0] {
+      assert_eq!(NormCoord::try_new(ok).unwrap().get(), ok);
+    }
+  }
+
+  #[test]
+  fn detection_ctor_and_mutators_validate_confidence() {
+    assert_eq!(
+      Detection::try_new("dog", f32::NAN).err(),
+      Some(DetectionError::ConfidenceOutOfRange)
+    );
+    assert_eq!(
+      Detection::try_new("dog", 1.5).err(),
+      Some(DetectionError::ConfidenceOutOfRange)
+    );
+
+    let d = Detection::try_new("dog", 0.9).unwrap();
+    assert_eq!(d.confidence(), 0.9);
+
+    // The consuming builder rejects a bad value.
+    assert_eq!(
+      d.clone().try_with_confidence(f32::INFINITY).err(),
+      Some(DetectionError::ConfidenceOutOfRange)
+    );
+
+    // The in-place setter rejects a bad value and leaves `self` intact.
+    let mut d = d;
+    assert_eq!(
+      d.try_set_confidence(-0.1).err(),
+      Some(DetectionError::ConfidenceOutOfRange)
+    );
+    assert_eq!(d.confidence(), 0.9);
+
+    // A valid replacement is accepted.
+    d.try_set_confidence(0.2).unwrap();
+    assert_eq!(d.confidence(), 0.2);
+    assert!(DetectionError::ConfidenceOutOfRange.is_confidence_out_of_range());
+  }
+
+  #[test]
+  fn bounding_box_ctor_validates_every_component() {
+    let ok = BoundingBox::try_new(0.1, 0.2, 0.3, 0.4).unwrap();
+    assert_eq!(
+      (ok.x(), ok.y(), ok.width(), ok.height()),
+      (0.1, 0.2, 0.3, 0.4)
+    );
+
+    // Each component is checked.
+    assert_eq!(
+      BoundingBox::try_new(f32::NAN, 0.0, 0.0, 0.0).err(),
+      Some(DetectionError::CoordOutOfRange)
+    );
+    assert_eq!(
+      BoundingBox::try_new(0.0, 1.5, 0.0, 0.0).err(),
+      Some(DetectionError::CoordOutOfRange)
+    );
+    assert_eq!(
+      BoundingBox::try_new(0.0, 0.0, -0.1, 0.0).err(),
+      Some(DetectionError::CoordOutOfRange)
+    );
+    assert_eq!(
+      BoundingBox::try_new(0.0, 0.0, 0.0, f32::INFINITY).err(),
+      Some(DetectionError::CoordOutOfRange)
+    );
+  }
+
+  #[test]
+  fn detection_vos_reject_bad_confidence() {
+    let bb = BoundingBox::try_new(0.0, 0.0, 1.0, 1.0).unwrap();
+    assert!(TextDetection::try_new("hi", f32::NAN, bb).is_err());
+    assert!(BarcodeDetection::try_new("p", "qr", 2.0, bb).is_err());
+    assert!(SaliencyRegion::try_new(bb, -1.0).is_err());
+    assert!(HorizonInfo::try_new(0.0, f32::INFINITY).is_err());
+    assert!(BodyPoseJoint::try_new("j", 0.5, 0.5, 1.5).is_err());
+    assert!(BodyPoseJoint::try_new("j", 1.5, 0.5, 0.5).is_err());
+    assert!(BodyPose3DJoint::try_new("j", 0.0, 0.0, 0.0, f32::NAN).is_err());
+    assert!(BodyPoseDetection::try_new(bb, 9.0, std::vec::Vec::new()).is_err());
+    assert!(
+      HandPoseDetection::try_new(bb, f32::NAN, HandChirality::Left, std::vec::Vec::new()).is_err()
+    );
+    assert!(BodyPose3DDetection::try_new(
+      -0.5,
+      1.7,
+      BodyPose3DHeightEstimation::Measured,
+      std::vec::Vec::new()
+    )
+    .is_err());
+    assert!(FaceDetection::try_new(bb, 1.2, 0.0, 0.0, 0.0, 0.0).is_err());
+    assert!(FaceLandmarksDetection::try_new(bb, f32::NAN, std::vec::Vec::new()).is_err());
+
+    // Happy paths all succeed.
+    assert!(TextDetection::try_new("hi", 0.8, bb).is_ok());
+    assert!(BodyPoseJoint::try_new("j", 0.5, 0.5, 0.9).is_ok());
+    assert!(FaceDetection::try_new(bb, 0.9, 0.5, 0.1, 0.2, 0.3).is_ok());
+  }
+
+  #[test]
+  fn document_segment_and_landmark_region_validate_coords() {
+    let good = (0.5, 0.5);
+    assert!(DocumentSegment::try_new(good, good, good, good, 0.9).is_ok());
+    // A bad corner component is rejected.
+    assert_eq!(
+      DocumentSegment::try_new((1.5, 0.5), good, good, good, 0.9).err(),
+      Some(DetectionError::CoordOutOfRange)
+    );
+    // A bad confidence is rejected.
+    assert_eq!(
+      DocumentSegment::try_new(good, good, good, good, 2.0).err(),
+      Some(DetectionError::ConfidenceOutOfRange)
+    );
+
+    assert!(FaceLandmarkRegion::try_new("leftEye", [(0.1, 0.2), (0.3, 0.4)]).is_ok());
+    assert_eq!(
+      FaceLandmarkRegion::try_new("leftEye", [(0.1, 0.2), (f32::NAN, 0.4)]).err(),
+      Some(DetectionError::CoordOutOfRange)
+    );
   }
 }
