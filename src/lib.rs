@@ -92,6 +92,14 @@ pub mod sqlx;
 #[cfg_attr(docsrs, doc(cfg(feature = "mongodb")))]
 pub mod mongodb;
 
+/// Optional GraphQL backend — `async-graphql` `#[Object]` resolvers and
+/// custom scalars for the locked domain aggregates. Off by default; opt
+/// in with `--features async-graphql`. The module name is `graphql` (not
+/// `async_graphql`) so it doesn't collide with the external crate name.
+#[cfg(feature = "async-graphql")]
+#[cfg_attr(docsrs, doc(cfg(feature = "async-graphql")))]
+pub mod graphql;
+
 // Flatten the product-neutral `media.v1` package to the crate root so
 // consumers write `mediaschema::Detection`. Named (not glob) so buffa
 // internals (`__buffa`, `__*_JSON_ANY`) stay out of the public surface.
