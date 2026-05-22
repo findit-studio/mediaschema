@@ -207,12 +207,17 @@ impl Video<Uuid7> {
   /// ([`VideoError::DuplicateTrackRef`]) entry and leaves `self`
   /// unchanged on error.
   ///
-  /// On success a changed track list invalidates any prior indexing
+  /// On success, a *changed* track list invalidates any prior indexing
   /// progress, so `track_progress` is reset to `{total = new
   /// tracks.len(), indexed = 0, failed = 0}` — keeping the invariant
-  /// `track_progress.total() == tracks.len()`. Any track-list change
-  /// also resets `total_scenes` to 0 (the rollup sums scenes across the
+  /// `track_progress.total() == tracks.len()`. A track-list change also
+  /// resets `total_scenes` to 0 (the rollup sums scenes across the
   /// *current* tracks and is meaningless across a different track set).
+  ///
+  /// Reapplying the *identical* track-id list (same ids, same order) —
+  /// an idempotent save/retry — leaves `track_progress` and
+  /// `total_scenes` untouched, so completed/failed progress and the
+  /// scene count survive a no-op re-set.
   #[inline]
   pub fn try_set_tracks(
     &mut self,
@@ -220,6 +225,12 @@ impl Video<Uuid7> {
   ) -> Result<&mut Self, VideoError> {
     let tracks = tracks.into();
     Self::validate_tracks(&tracks)?;
+    // An idempotent re-set with the identical id list (same ids, same
+    // order) leaves the rollups alone — the invariant is "reset when
+    // the track list *changes*", not "reset on every call".
+    if self.tracks == tracks {
+      return Ok(self);
+    }
     self.tracks = tracks;
     // `tracks.len()` (`usize`) saturates into the `u32` rollup total;
     // `indexed`/`failed` are 0, so the `IndexProgress` invariant holds
@@ -229,8 +240,7 @@ impl Video<Uuid7> {
       .expect("freshly-reset rollup {total, 0, 0} always upholds the IndexProgress invariant");
     // `total_scenes` is the sum of scenes across the *current* child
     // tracks — meaningless once the track set changes. Reset it on any
-    // track-list change (not just emptying), the same unconditional
-    // reset applied to `track_progress`; this also upholds the
+    // track-list change (not just emptying); this also upholds the
     // `tracks.is_empty() ⇒ total_scenes == 0` invariant.
     self.total_scenes = 0;
     Ok(self)
@@ -519,6 +529,44 @@ mod tests {
       .try_with_tracks(std::vec![Uuid7::new(), Uuid7::new()])
       .unwrap();
     assert_eq!(v.total_scenes(), 0);
+  }
+
+  #[test]
+  fn idempotent_track_set_preserves_rollups() {
+    // rev-6 finding 1: reapplying the *identical* track-id list (an
+    // idempotent save/retry) must leave `track_progress` and
+    // `total_scenes` untouched — the reset fires only on a real change.
+    let t1 = Uuid7::new();
+    let t2 = Uuid7::new();
+    let mut v = Video::try_new(Uuid7::new())
+      .unwrap()
+      .try_with_tracks(std::vec![t1, t2])
+      .unwrap()
+      .try_with_total_scenes(7)
+      .unwrap()
+      .try_with_track_progress(IndexProgress::try_new(2, 1, 1).unwrap())
+      .unwrap();
+    assert_eq!(v.total_scenes(), 7);
+    assert_eq!(
+      v.track_progress(),
+      &IndexProgress::try_new(2, 1, 1).unwrap()
+    );
+
+    // Same ids, same order ⇒ no-op: rollups survive.
+    v.try_set_tracks(std::vec![t1, t2]).unwrap();
+    assert_eq!(v.total_scenes(), 7);
+    assert_eq!(
+      v.track_progress(),
+      &IndexProgress::try_new(2, 1, 1).unwrap()
+    );
+
+    // A genuinely different list ⇒ both rollups reset.
+    v.try_set_tracks(std::vec![t2, t1]).unwrap();
+    assert_eq!(v.total_scenes(), 0);
+    assert_eq!(
+      v.track_progress(),
+      &IndexProgress::try_new(2, 0, 0).unwrap()
+    );
   }
 
   #[test]

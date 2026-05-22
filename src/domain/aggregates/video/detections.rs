@@ -62,6 +62,11 @@ pub enum DetectionError {
   /// mask, unlike a track's coded dimensions).
   #[error("mask dimensions width and height must be greater than zero")]
   MaskDimensionsDegenerate,
+  /// A segmentation mask carried an empty `data` payload while claiming
+  /// non-zero `dimensions` — a mask with real geometry must carry real
+  /// bytes.
+  #[error("mask data payload must not be empty")]
+  MaskPayloadEmpty,
 }
 
 /// A calibrated detection confidence — a `f32` proven **finite** and
@@ -1191,10 +1196,16 @@ pub struct PersonInstanceMaskDetection {
 
 impl PersonInstanceMaskDetection {
   /// Validating constructor — rejects a non-finite / out-of-range
-  /// `confidence` with [`DetectionError::ConfidenceOutOfRange`], and a
+  /// `confidence` with [`DetectionError::ConfidenceOutOfRange`], a
   /// zero / partial-zero `dimensions` with
-  /// [`DetectionError::MaskDimensionsDegenerate`] (a mask always has
-  /// real geometry).
+  /// [`DetectionError::MaskDimensionsDegenerate`], and an empty `data`
+  /// payload with [`DetectionError::MaskPayloadEmpty`] (a mask always
+  /// has real geometry *and* real bytes).
+  ///
+  // NOTE: a `data.len()` vs `width * height` exact-size check is
+  // deferred — mask payload encoding (stride / pixel format /
+  // compression) is not modeled here, so an exact-size invariant is
+  // not well-defined. Only the empty-payload case is rejected.
   #[inline]
   pub fn try_new(
     bbox: BoundingBox,
@@ -1204,12 +1215,16 @@ impl PersonInstanceMaskDetection {
     data: impl Into<Bytes>,
   ) -> Result<Self, DetectionError> {
     validate_mask_dimensions(dimensions)?;
+    let data = data.into();
+    if data.is_empty() {
+      return Err(DetectionError::MaskPayloadEmpty);
+    }
     Ok(Self {
       bbox,
       confidence: Confidence::try_new(confidence)?,
       instance_index,
       dimensions,
-      data: data.into(),
+      data,
     })
   }
 
@@ -1251,10 +1266,16 @@ pub struct PersonSegmentationMask {
 
 impl PersonSegmentationMask {
   /// Validating constructor — rejects a non-finite / out-of-range
-  /// `confidence` with [`DetectionError::ConfidenceOutOfRange`], and a
+  /// `confidence` with [`DetectionError::ConfidenceOutOfRange`], a
   /// zero / partial-zero `dimensions` with
-  /// [`DetectionError::MaskDimensionsDegenerate`] (a mask always has
-  /// real geometry).
+  /// [`DetectionError::MaskDimensionsDegenerate`], and an empty `data`
+  /// payload with [`DetectionError::MaskPayloadEmpty`] (a mask always
+  /// has real geometry *and* real bytes).
+  ///
+  // NOTE: a `data.len()` vs `width * height` exact-size check is
+  // deferred — mask payload encoding (stride / pixel format /
+  // compression) is not modeled here, so an exact-size invariant is
+  // not well-defined. Only the empty-payload case is rejected.
   #[inline]
   pub fn try_new(
     bbox: BoundingBox,
@@ -1263,11 +1284,15 @@ impl PersonSegmentationMask {
     data: impl Into<Bytes>,
   ) -> Result<Self, DetectionError> {
     validate_mask_dimensions(dimensions)?;
+    let data = data.into();
+    if data.is_empty() {
+      return Err(DetectionError::MaskPayloadEmpty);
+    }
     Ok(Self {
       bbox,
       confidence: Confidence::try_new(confidence)?,
       dimensions,
-      data: data.into(),
+      data,
     })
   }
 
@@ -2060,10 +2085,28 @@ mod tests {
       Some(DetectionError::MaskDimensionsDegenerate)
     );
     assert!(DetectionError::MaskDimensionsDegenerate.is_mask_dimensions_degenerate());
-    // A real, fully non-zero mask geometry passes.
-    assert!(
-      PersonInstanceMaskDetection::try_new(bbox, 0.9, 0, Dimensions::new(64, 48), &b""[..]).is_ok()
+    // A real, fully non-zero mask geometry with a non-empty payload passes.
+    assert!(PersonInstanceMaskDetection::try_new(
+      bbox,
+      0.9,
+      0,
+      Dimensions::new(64, 48),
+      &b"\x00\xff"[..]
+    )
+    .is_ok());
+  }
+
+  #[test]
+  fn instance_mask_rejects_empty_payload() {
+    // rev-6 finding 2: a mask claiming real geometry must carry real
+    // bytes — an empty `data` payload at non-zero `dimensions` is
+    // rejected.
+    let bbox = BoundingBox::try_new(0.1, 0.1, 0.5, 0.5).unwrap();
+    assert_eq!(
+      PersonInstanceMaskDetection::try_new(bbox, 0.9, 0, Dimensions::new(64, 48), &b""[..]).err(),
+      Some(DetectionError::MaskPayloadEmpty)
     );
+    assert!(DetectionError::MaskPayloadEmpty.is_mask_payload_empty());
   }
 
   #[test]
@@ -2083,7 +2126,21 @@ mod tests {
       PersonSegmentationMask::try_new(bbox, 0.9, Dimensions::new(32, 0), &b""[..]).err(),
       Some(DetectionError::MaskDimensionsDegenerate)
     );
-    // A real, fully non-zero mask geometry passes.
-    assert!(PersonSegmentationMask::try_new(bbox, 0.9, Dimensions::new(64, 48), &b""[..]).is_ok());
+    // A real, fully non-zero mask geometry with a non-empty payload passes.
+    assert!(
+      PersonSegmentationMask::try_new(bbox, 0.9, Dimensions::new(64, 48), &b"\x00\xff"[..]).is_ok()
+    );
+  }
+
+  #[test]
+  fn segmentation_mask_rejects_empty_payload() {
+    // rev-6 finding 2: whole-frame segmentation masks share the
+    // non-empty payload invariant.
+    let bbox = BoundingBox::try_new(0.0, 0.0, 1.0, 1.0).unwrap();
+    assert_eq!(
+      PersonSegmentationMask::try_new(bbox, 0.9, Dimensions::new(64, 48), &b""[..]).err(),
+      Some(DetectionError::MaskPayloadEmpty)
+    );
+    assert!(DetectionError::MaskPayloadEmpty.is_mask_payload_empty());
   }
 }
