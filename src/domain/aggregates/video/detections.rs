@@ -31,6 +31,18 @@ pub enum DetectionError {
   /// the `0.0..=1.0` range (apple-vision convention).
   #[error("normalized coordinate must be finite and within 0.0..=1.0")]
   CoordOutOfRange,
+  /// A bounding box extends past the normalized image edge — `x +
+  /// width > 1.0` or `y + height > 1.0`.
+  #[error("bounding box must not extend past the normalized image edge")]
+  BoxOutOfBounds,
+  /// A bounding box had zero width or height — a degenerate box is not
+  /// a detection.
+  #[error("bounding box width and height must be greater than zero")]
+  BoxDegenerate,
+  /// A percentage value was non-finite (`NaN`/`±inf`) or outside the
+  /// `0.0..=100.0` image-share range.
+  #[error("percentage must be finite and within 0.0..=100.0")]
+  PercentageOutOfRange,
 }
 
 /// A calibrated detection confidence — a `f32` proven **finite** and
@@ -179,9 +191,17 @@ pub struct BoundingBox {
 }
 
 impl BoundingBox {
-  /// Validating constructor from `(x, y, width, height)` — rejects any
-  /// non-finite / out-of-`[0.0, 1.0]` component with
-  /// [`DetectionError::CoordOutOfRange`].
+  /// Validating constructor from `(x, y, width, height)`.
+  ///
+  /// Rejects:
+  /// - any non-finite / out-of-`[0.0, 1.0]` component
+  ///   ([`DetectionError::CoordOutOfRange`]);
+  /// - a zero-extent box (`width == 0.0` or `height == 0.0` — a
+  ///   degenerate box is not a detection,
+  ///   [`DetectionError::BoxDegenerate`]);
+  /// - a box that extends past the normalized image edge (`x + width >
+  ///   1.0` or `y + height > 1.0`,
+  ///   [`DetectionError::BoxOutOfBounds`]).
   #[inline]
   pub const fn try_new(x: f32, y: f32, width: f32, height: f32) -> Result<Self, DetectionError> {
     // `?` is not allowed in `const fn`; match each component.
@@ -201,6 +221,15 @@ impl BoundingBox {
       Ok(v) => v,
       Err(e) => return Err(e),
     };
+    // Composite geometry: extents must be non-degenerate and the box
+    // must stay inside the normalized image. Each component is already
+    // finite and in `[0.0, 1.0]`, so the sums below cannot be NaN.
+    if width.get() <= 0.0 || height.get() <= 0.0 {
+      return Err(DetectionError::BoxDegenerate);
+    }
+    if x.get() + width.get() > 1.0 || y.get() + height.get() > 1.0 {
+      return Err(DetectionError::BoxOutOfBounds);
+    }
     Ok(Self {
       x,
       y,
@@ -1375,15 +1404,25 @@ pub struct DominantColor {
 }
 
 impl DominantColor {
-  /// Construct.
+  /// Validating constructor — rejects a non-finite (`NaN`/`±inf`) or
+  /// out-of-`[0.0, 100.0]` `percentage` with
+  /// [`DetectionError::PercentageOutOfRange`].
   #[inline]
-  pub fn new(rgb: Rgba, name: impl Into<SmolStr>, percentage: f32, population: u32) -> Self {
-    Self {
+  pub fn try_new(
+    rgb: Rgba,
+    name: impl Into<SmolStr>,
+    percentage: f32,
+    population: u32,
+  ) -> Result<Self, DetectionError> {
+    if !(percentage.is_finite() && (0.0..=100.0).contains(&percentage)) {
+      return Err(DetectionError::PercentageOutOfRange);
+    }
+    Ok(Self {
       rgb,
       name: name.into(),
       percentage,
       population,
-    }
+    })
   }
 
   /// Packed RGBA.
@@ -1671,6 +1710,68 @@ mod tests {
       BoundingBox::try_new(0.0, 0.0, 0.0, f32::INFINITY).err(),
       Some(DetectionError::CoordOutOfRange)
     );
+  }
+
+  #[test]
+  fn bounding_box_rejects_edge_overflow() {
+    // rev-2 finding: per-component validation accepts `x=0.9,width=0.2`
+    // even though the box runs past the normalized image edge.
+    assert_eq!(
+      BoundingBox::try_new(0.9, 0.0, 0.2, 0.1).err(),
+      Some(DetectionError::BoxOutOfBounds)
+    );
+    assert_eq!(
+      BoundingBox::try_new(0.0, 0.9, 0.1, 0.2).err(),
+      Some(DetectionError::BoxOutOfBounds)
+    );
+    assert!(DetectionError::BoxOutOfBounds.is_box_out_of_bounds());
+
+    // A box flush against the edge (`x + width == 1.0`) is allowed.
+    assert!(BoundingBox::try_new(0.8, 0.7, 0.2, 0.3).is_ok());
+    // The full-frame box is allowed.
+    assert!(BoundingBox::try_new(0.0, 0.0, 1.0, 1.0).is_ok());
+  }
+
+  #[test]
+  fn bounding_box_rejects_zero_extent() {
+    // rev-2 finding: a degenerate (zero-area) box is not a detection.
+    assert_eq!(
+      BoundingBox::try_new(0.1, 0.2, 0.0, 0.4).err(),
+      Some(DetectionError::BoxDegenerate)
+    );
+    assert_eq!(
+      BoundingBox::try_new(0.1, 0.2, 0.3, 0.0).err(),
+      Some(DetectionError::BoxDegenerate)
+    );
+    assert!(DetectionError::BoxDegenerate.is_box_degenerate());
+
+    // Any positive extent that stays in-bounds is fine.
+    assert!(BoundingBox::try_new(0.1, 0.2, 0.001, 0.001).is_ok());
+  }
+
+  #[test]
+  fn dominant_color_validates_percentage() {
+    let rgb = Rgba::default();
+
+    // rev-2 finding: NaN / inf / negative / > 100 are all rejected.
+    for bad in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, -0.001, 100.001] {
+      assert_eq!(
+        DominantColor::try_new(rgb, "red", bad, 1).err(),
+        Some(DetectionError::PercentageOutOfRange),
+        "{bad} should be rejected"
+      );
+    }
+    assert!(DetectionError::PercentageOutOfRange.is_percentage_out_of_range());
+
+    // Bounds and an interior value are accepted.
+    for ok in [0.0, 42.5, 100.0] {
+      assert_eq!(
+        DominantColor::try_new(rgb, "red", ok, 1)
+          .unwrap()
+          .percentage(),
+        ok
+      );
+    }
   }
 
   #[test]

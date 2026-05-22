@@ -146,9 +146,12 @@ impl Video<Uuid7> {
   /// Rejects nil `id` (every facet row needs a real identity).
   ///
   /// The facet starts with no tracks (`tracks = []`), no scenes
-  /// (`total_scenes = 0`), and empty index progress; the indexer fills
-  /// these in via `with_*` / `set_*` as tracks are created and
-  /// processed.
+  /// (`total_scenes = 0`), and an empty index-progress rollup; the
+  /// indexer fills these in via `with_*` / `set_*` as tracks are
+  /// created and processed. Whenever the track list changes, the
+  /// `track_progress` rollup is reset to `{total = tracks.len(),
+  /// indexed = 0, failed = 0}` so the documented invariant
+  /// `track_progress.total() == tracks.len()` always holds.
   pub fn try_new(id: Uuid7) -> Result<Self, VideoError> {
     if id.is_nil() {
       return Err(VideoError::NilId);
@@ -197,17 +200,29 @@ impl<Id> Video<Id> {
   }
 
   /// Builder: replace the `tracks` id-list.
+  ///
+  /// A changed track list invalidates any prior indexing progress, so
+  /// `track_progress` is reset to `{total = new tracks.len(), indexed =
+  /// 0, failed = 0}` — keeping the invariant `track_progress.total() ==
+  /// tracks.len()`.
   #[inline]
   pub fn with_tracks(mut self, tracks: impl Into<std::vec::Vec<Id>>) -> Self {
-    self.tracks = tracks.into();
+    self.set_tracks(tracks);
     self
   }
 
-  /// Builder: replace the `track_progress` rollup.
+  /// Fallible builder: replace the `track_progress` rollup.
+  ///
+  /// Rejects a rollup whose `total` does not equal `tracks.len()`
+  /// ([`VideoError::TrackProgressMismatch`]) — progress is a rollup
+  /// over exactly the facet's current tracks. On error `self` is
+  /// returned unchanged inside the `Err`-free path is not possible, so
+  /// the value is consumed; callers that need the original on failure
+  /// should clone first.
   #[inline]
-  pub const fn with_track_progress(mut self, p: IndexProgress) -> Self {
-    self.track_progress = p;
-    self
+  pub fn try_with_track_progress(mut self, p: IndexProgress) -> Result<Self, VideoError> {
+    self.try_set_track_progress(p)?;
+    Ok(self)
   }
 
   /// In-place mutator for `total_scenes`.
@@ -217,15 +232,36 @@ impl<Id> Video<Id> {
   }
 
   /// In-place mutator for `tracks`.
+  ///
+  /// A changed track list invalidates any prior indexing progress, so
+  /// `track_progress` is reset to `{total = new tracks.len(), indexed =
+  /// 0, failed = 0}` — keeping the invariant `track_progress.total() ==
+  /// tracks.len()`.
   #[inline]
-  pub fn set_tracks(&mut self, tracks: impl Into<std::vec::Vec<Id>>) {
+  pub fn set_tracks(&mut self, tracks: impl Into<std::vec::Vec<Id>>) -> &mut Self {
     self.tracks = tracks.into();
+    // `tracks.len()` (`usize`) saturates into the `u32` rollup total;
+    // `indexed`/`failed` are 0, so the `IndexProgress` invariant holds
+    // and `try_new` cannot fail.
+    let total = u32::try_from(self.tracks.len()).unwrap_or(u32::MAX);
+    self.track_progress = IndexProgress::try_new(total, 0, 0)
+      .expect("freshly-reset rollup {total, 0, 0} always upholds the IndexProgress invariant");
+    self
   }
 
-  /// In-place mutator for `track_progress`.
+  /// Fallible in-place mutator for `track_progress`, validating that
+  /// the rollup's `total` equals the facet's current `tracks.len()`.
+  ///
+  /// On success returns `&mut Self`; on a mismatching `total` returns
+  /// [`VideoError::TrackProgressMismatch`] and leaves `self` unchanged.
   #[inline]
-  pub const fn set_track_progress(&mut self, p: IndexProgress) {
+  pub fn try_set_track_progress(&mut self, p: IndexProgress) -> Result<&mut Self, VideoError> {
+    let expected = u32::try_from(self.tracks.len()).unwrap_or(u32::MAX);
+    if p.total() != expected {
+      return Err(VideoError::TrackProgressMismatch);
+    }
     self.track_progress = p;
+    Ok(self)
   }
 }
 
@@ -237,6 +273,11 @@ pub enum VideoError {
   /// The supplied `id` was the nil sentinel — not a real identity.
   #[error("Video facet id must not be the nil UUID")]
   NilId,
+  /// A `track_progress` rollup was set whose `total` does not equal
+  /// the facet's current `tracks.len()` — the rollup must aggregate
+  /// over exactly the facet's tracks.
+  #[error("Video track_progress total must equal tracks.len()")]
+  TrackProgressMismatch,
 }
 
 // ===========================================================================
@@ -268,12 +309,14 @@ mod tests {
   fn builders_and_setters_chain() {
     let t1 = Uuid7::new();
     let t2 = Uuid7::new();
+    // A 2-track progress is valid only against a 2-track list.
     let p = IndexProgress::try_new(2, 1, 0).unwrap();
     let v = Video::try_new(Uuid7::new())
       .unwrap()
       .with_total_scenes(7)
       .with_tracks(std::vec![t1, t2])
-      .with_track_progress(p);
+      .try_with_track_progress(p)
+      .unwrap();
     assert_eq!(v.total_scenes(), 7);
     assert_eq!(v.tracks().len(), 2);
     assert!(v.tracks().contains(&t1));
@@ -282,10 +325,56 @@ mod tests {
     let mut v = v;
     v.set_total_scenes(0);
     v.set_tracks(std::vec::Vec::<Uuid7>::new());
-    v.set_track_progress(IndexProgress::new());
+    // Empty track list ⇒ `set_tracks` resets progress to the empty rollup.
+    v.try_set_track_progress(IndexProgress::new()).unwrap();
     assert_eq!(v.total_scenes(), 0);
     assert!(v.tracks().is_empty());
     assert_eq!(v.track_progress(), &IndexProgress::new());
+  }
+
+  #[test]
+  fn with_tracks_resets_progress_to_match_track_count() {
+    // rev-2 finding: `with_tracks` must not leave a stale `{0,0,0}`
+    // rollup on a non-empty track list.
+    let v = Video::try_new(Uuid7::new()).unwrap().with_tracks(std::vec![
+      Uuid7::new(),
+      Uuid7::new(),
+      Uuid7::new()
+    ]);
+    assert_eq!(v.track_progress().total(), 3);
+    assert_eq!(v.track_progress().indexed(), 0);
+    assert_eq!(v.track_progress().failed(), 0);
+
+    // Changing the list re-syncs the rollup total.
+    let mut v = v;
+    v.set_tracks(std::vec![Uuid7::new()]);
+    assert_eq!(v.track_progress().total(), 1);
+  }
+
+  #[test]
+  fn set_track_progress_rejects_count_divergence() {
+    // rev-2 finding: progress whose total != tracks.len() is rejected.
+    let mut v = Video::try_new(Uuid7::new()).unwrap();
+    // Empty track list — a `total = 5` rollup must not be accepted.
+    assert_eq!(
+      v.try_set_track_progress(IndexProgress::try_new(5, 0, 0).unwrap())
+        .err(),
+      Some(VideoError::TrackProgressMismatch)
+    );
+    assert!(VideoError::TrackProgressMismatch.is_track_progress_mismatch());
+    // The empty rollup matches the empty list.
+    assert!(v.try_set_track_progress(IndexProgress::new()).is_ok());
+
+    // Two tracks — a 2-total rollup is accepted, a 1-total is not.
+    v.set_tracks(std::vec![Uuid7::new(), Uuid7::new()]);
+    assert!(v
+      .try_set_track_progress(IndexProgress::try_new(2, 1, 1).unwrap())
+      .is_ok());
+    assert_eq!(
+      v.try_with_track_progress(IndexProgress::try_new(1, 0, 0).unwrap())
+        .err(),
+      Some(VideoError::TrackProgressMismatch)
+    );
   }
 
   #[test]
