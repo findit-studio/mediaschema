@@ -421,6 +421,19 @@ impl<Id> LocalLocation<Id> {
   pub fn components(&self) -> &[SmolStr] {
     &self.components
   }
+
+  /// The file name — the last path component.
+  ///
+  /// `components` is validated non-empty at construction
+  /// ([`LocationError::EmptyPath`]), so a last element always exists.
+  #[inline]
+  pub fn file_name(&self) -> &str {
+    self
+      .components
+      .last()
+      .map(SmolStr::as_str)
+      .unwrap_or_default()
+  }
 }
 
 /// File location — a structured oneof, **not** an opaque path string.
@@ -1019,6 +1032,16 @@ mod tests {
     let local = l.unwrap_local_ref();
     assert_eq!(local.volume(), &vol);
     assert_eq!(local.components(), &["Movies", "Holiday"]);
+  }
+
+  #[test]
+  fn local_location_file_name_is_last_component() {
+    let vol = Uuid7::new();
+    let l = Location::try_local_uuid7(vol, ["Movies", "2024", "Holiday.mp4"]).unwrap();
+    assert_eq!(l.unwrap_local_ref().file_name(), "Holiday.mp4");
+    // A single-component path is itself the file name.
+    let l = Location::try_local_uuid7(vol, ["loose.mkv"]).unwrap();
+    assert_eq!(l.unwrap_local_ref().file_name(), "loose.mkv");
   }
 
   #[test]

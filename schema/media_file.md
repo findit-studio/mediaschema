@@ -1,4 +1,4 @@
-# `MediaFile<Id>` — one physical copy of a piece of content  *(rev 1 — LOCKED, user-approved)*
+# `MediaFile<Id>` — one physical copy of a piece of content  *(rev 2 — LOCKED, user-approved)*
 
 ## Domain meaning
 
@@ -40,10 +40,16 @@ are the UUID). Wall-clock = `jiff::Timestamp` (ms). Strings = `SmolStr`
 |---|---|---|
 | `id` | `Id` (UUIDv7) | the copy's key |
 | `media_id` | `Id` (UUIDv7) | FK → the shared [`Media`](media.md) content row |
-| `name` | `SmolStr` | file name (`""` = absent) |
-| `created_at` | `jiff::Timestamp` | **filesystem** creation time (Unix ms) — copy-specific |
-| `location` | `Location` | structured `Local { volume, components }` — where this copy lives; volume-aware (removable drives), not a path string |
+| `created_at` | `Option<jiff::Timestamp>` | **filesystem** creation time (Unix ms) — copy-specific. **Optional**: many filesystems lack a birth time, and the wire encodes `0` (Unix epoch, ms) as absent, so a 0-ms timestamp normalises to `None` (same treatment as `Media.capture_date`) |
+| `location` | `Location` | structured `Local { volume, components }` — where this copy lives; volume-aware (removable drives), not a path string. The `WatchedLocation` is **volume-scoped** (its root *is* a volume; volumes are disjoint/non-nesting — see [`watched_location.md`](watched_location.md)), so this copy's volume maps to exactly one watch and `watched_location_id` is unambiguous |
 | `watched_location_id` | `Id` (UUIDv7) | FK → the [`WatchedLocation`](watched_location.md) that discovered it — **non-optional** (see below) |
+
+**`name` is derived, not stored.** The file name is the **last component of
+`location`** (`Location::Local.components` is validated non-empty), exposed via
+a `name()` accessor. It is *not* a standalone field — keeping a separate
+`name: SmolStr` alongside `location` let the two desync via independent
+setters. Renaming/moving a copy is therefore done by replacing `location`
+(the single atomic rename/move API); the derived `name` follows.
 
 ## Why `watched_location_id` is non-optional
 
@@ -66,8 +72,9 @@ same reasoning as `Media`'s "No Default".
 
 - **sqlx**: `media_file` table; `id` PK (uuid); `media_id` FK → `media(id)`;
   `watched_location_id` FK → `watched_location(id)` **`ON DELETE CASCADE`**
-  (the cascade rule); `name`/`created_at` columns; `location` flattened to
-  `(volume_id, components)`. Index `media_id` (drives the `Media.files`
+  (the cascade rule); a nullable `created_at` column; `location` flattened to
+  `(volume_id, components)`. No `name` column — it is derived from the last
+  path component on read. Index `media_id` (drives the `Media.files`
   reverse lookup) and `watched_location_id`. A `UNIQUE (volume_id, components)`
   constraint models "one copy per path".
 - **mongodb**: `_id` = UUIDv7; single `media_file` collection; `media_id` /
@@ -75,8 +82,16 @@ same reasoning as `Media`'s "No Default".
 - **graphql**: expose the copy's path/name + a resolver to its `Media`
   content and discovering `WatchedLocation`; opaque external id.
 
-**Status: LOCKED (rev 1) — user-approved.** New aggregate from the
-content/copy split (codex review finding on PR #13): copy-specific metadata
-(`name`, `created_at`, `location`, discovering watch) moves off the
-content-hash-keyed `Media` onto a per-copy `MediaFile`; N files ↔ 1 `Media`;
-`watched_location_id` non-optional with a WL-deletion cascade.
+**Status: LOCKED (rev 2) — user-approved.** *(rev 2: codex PR #13 round-2
+findings — `name` is now **derived** from `location`'s last component
+instead of a standalone field that could desync; `created_at` becomes
+`Option<jiff::Timestamp>` with the 0-ms wire sentinel normalised to `None`,
+mirroring `Media.capture_date`; and the volume-scoped nature of
+`WatchedLocation` is made explicit so the single `watched_location_id` FK is
+unambiguous.)*
+
+*(rev 1)* New aggregate from the content/copy split (codex review finding on
+PR #13): copy-specific metadata (`created_at`, `location`, discovering watch)
+moves off the content-hash-keyed `Media` onto a per-copy `MediaFile`;
+N files ↔ 1 `Media`; `watched_location_id` non-optional with a WL-deletion
+cascade.

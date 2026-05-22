@@ -1,4 +1,4 @@
-# `WatchedLocation<Id>` — a monitored source root  *(rev 6 — LOCKED, user-approved)*
+# `WatchedLocation<Id>` — a monitored source root  *(rev 7 — LOCKED, user-approved)*
 
 ## Domain meaning
 
@@ -17,6 +17,25 @@ content link: a path is discovery provenance, not identity, so there is
 still **no `Media` ↔ `WatchedLocation` link** — the content row is keyed by
 hash. `WatchedLocation` itself stays config + health only (it stores no
 back-list of files); the link lives on the `MediaFile` side.
+
+## Volume-scoped — not folder-scoped *(rev 7 clarification)*
+
+A `WatchedLocation` is **volume-scoped**: its `root` *is* a storage volume,
+identified by that volume's **stable UUID** (the id written to
+`<mount>/.findit_index/.id`, `Location::Local.volume`). It is **not**
+folder-scoped — the application-layer monitor decides *which folder within
+the volume* to actually watch, but the `WatchedLocation`'s **identity is the
+volume**, not that folder.
+
+Storage volumes are **disjoint and do not nest**: no volume is a subtree of
+another, so two `WatchedLocation`s can never have overlapping roots. This is
+precisely what makes each [`MediaFile`](media_file.md)'s **single**
+`watched_location_id` FK unambiguous — a file copy lives on exactly one
+volume, so exactly one `WatchedLocation` discovers it, and the
+deletion-cascade (`ON DELETE CASCADE` on `MediaFile.watched_location_id`)
+is safe with no overlapping-watch ambiguity to resolve. The single-FK +
+cascade design depends on this volume-scoping; it would *not* hold for
+nestable folder-level watches.
 
 ## Cross-cutting (locked)
 
@@ -120,7 +139,14 @@ reconcile sweep), a *non-ejectable* root vanishing is the real
   `media_file` on `watched_location_id`, but there is still no direct
   `Media` resolver (no `Media` link).
 
-**Status: LOCKED (rev 6) — user-approved.** *(rev 6: content/copy split.
+**Status: LOCKED (rev 7) — user-approved.** *(rev 7: documents that a
+`WatchedLocation` is **volume-scoped** — its `root` is a storage volume
+identified by the volume's stable UUID, and volumes are disjoint/non-nesting.
+No schema change; this makes explicit the assumption the single-FK +
+cascade design already relied on, so the "overlapping watched roots"
+concern does not arise. No Rust code change for this revision.)*
+
+*(rev 6: content/copy split.
 The rev-5 "no `Media` ↔ `WatchedLocation` link, no sighting record"
 position is **refined** — there is now a per-copy
 [`MediaFile`](media_file.md) record, and `MediaFile.watched_location_id`
