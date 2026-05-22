@@ -16,6 +16,7 @@ pub mod keyframe;
 pub mod scene;
 pub mod track;
 
+pub use crate::domain::vo::{IndexProgress, IndexProgressError};
 pub use detections::{
   ActionDetection, Aesthetics, AnimalAnalysis, BarcodeDetection, BodyPose3DDetection,
   BodyPose3DHeightEstimation, BodyPose3DJoint, BodyPoseDetection, BodyPoseJoint, BoundingBox,
@@ -24,7 +25,7 @@ pub use detections::{
   ObjectDetection, PersonInstanceMaskDetection, PersonSegmentationMask, SaliencyRegion,
   SubjectDetection, TextDetection, VlmAnalysis,
 };
-pub use facet::{IndexProgress, IndexProgressError, Video, VideoError};
+pub use facet::{Video, VideoError};
 pub use keyframe::{Keyframe, KeyframeError};
 pub use scene::{Scene, SceneError};
 pub use track::{VideoTrack, VideoTrackError};
