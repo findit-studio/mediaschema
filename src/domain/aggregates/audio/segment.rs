@@ -14,7 +14,10 @@ use mediaframe::lang::Language;
 use mediatime::TimeRange;
 use smol_str::SmolStr;
 
-use crate::domain::{vo::LocalizedText, Uuid7};
+use crate::domain::{
+  vo::{LocalizedText, VoiceFingerprint},
+  Uuid7,
+};
 
 // ---------------------------------------------------------------------------
 // Score validation — shared by `Word`'s validating ctors / mutators
@@ -192,6 +195,10 @@ pub struct AudioSegment<Id = Uuid7> {
   no_speech_prob: Option<f32>,
   avg_logprob: Option<f32>,
   temperature: Option<f32>,
+  /// Per-segment voice embedding extracted from this segment's speech
+  /// range. `None` until the fingerprint worker populates it.
+  /// Aggregates upward into [`Speaker::voiceprint_ref`](crate::domain::Speaker::voiceprint_ref).
+  voice_fingerprint: Option<VoiceFingerprint<Id>>,
 }
 
 impl AudioSegment<Uuid7> {
@@ -234,6 +241,7 @@ impl AudioSegment<Uuid7> {
       no_speech_prob: None,
       avg_logprob: None,
       temperature: None,
+      voice_fingerprint: None,
     })
   }
 
@@ -320,6 +328,13 @@ impl<Id> AudioSegment<Id> {
   #[inline(always)]
   pub const fn temperature(&self) -> Option<f32> {
     self.temperature
+  }
+
+  /// Per-segment voice embedding (`None` until the fingerprint worker
+  /// populates it).
+  #[inline(always)]
+  pub const fn voice_fingerprint_ref(&self) -> Option<&VoiceFingerprint<Id>> {
+    self.voice_fingerprint.as_ref()
   }
 
   // ----- Internal validation -----------------------------------------------
@@ -483,6 +498,22 @@ impl<Id> AudioSegment<Id> {
   #[inline(always)]
   pub const fn set_temperature(&mut self, v: Option<f32>) -> &mut Self {
     self.temperature = v;
+    self
+  }
+
+  /// Builder: replace `voice_fingerprint` (raw `Option` wrapper, mirroring
+  /// this file's existing style for `speaker`).
+  #[inline(always)]
+  #[must_use]
+  pub fn with_voice_fingerprint(mut self, v: Option<VoiceFingerprint<Id>>) -> Self {
+    self.voice_fingerprint = v;
+    self
+  }
+
+  /// In-place mutator for `voice_fingerprint` (raw `Option` wrapper).
+  #[inline(always)]
+  pub fn set_voice_fingerprint(&mut self, v: Option<VoiceFingerprint<Id>>) -> &mut Self {
+    self.voice_fingerprint = v;
     self
   }
 }
@@ -776,6 +807,42 @@ mod tests {
     // a valid update goes through
     seg.try_set_no_speech_prob(Some(0.9)).unwrap();
     assert!((seg.no_speech_prob().unwrap() - 0.9).abs() < f32::EPSILON);
+  }
+
+  // --- voice_fingerprint additive field -------------------------------------
+
+  fn vfp() -> VoiceFingerprint<Uuid7> {
+    use crate::domain::vo::Provenance;
+    VoiceFingerprint::try_new(
+      Uuid7::new(),
+      192,
+      jiff::Timestamp::from_millisecond(1_700_000_000_000).expect("valid ts"),
+      Some(0.9),
+      Provenance::from_parts("ecapa-tdnn", "v1.0.0", "", "findit-indexer-0.1.0"),
+    )
+    .expect("valid voiceprint")
+  }
+
+  #[test]
+  fn voice_fingerprint_defaults_to_none() {
+    let s = AudioSegment::try_new(Uuid7::new(), Uuid7::new(), 0, span(0, 500)).unwrap();
+    assert!(s.voice_fingerprint_ref().is_none());
+  }
+
+  #[test]
+  fn with_voice_fingerprint_and_set_voice_fingerprint_attach_and_clear() {
+    let v = vfp();
+    let seg = AudioSegment::try_new(Uuid7::new(), Uuid7::new(), 0, span(0, 500))
+      .unwrap()
+      .with_voice_fingerprint(Some(v.clone()));
+    assert_eq!(seg.voice_fingerprint_ref(), Some(&v));
+    let seg = seg.with_voice_fingerprint(None);
+    assert!(seg.voice_fingerprint_ref().is_none());
+    let mut seg = seg;
+    seg.set_voice_fingerprint(Some(v.clone()));
+    assert_eq!(seg.voice_fingerprint_ref(), Some(&v));
+    seg.set_voice_fingerprint(None);
+    assert!(seg.voice_fingerprint_ref().is_none());
   }
 
   // --- speaker FK builder/setter --------------------------------------------
