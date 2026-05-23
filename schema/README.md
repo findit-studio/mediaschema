@@ -305,10 +305,6 @@ I present, you approve.
 *In review — for your one-by-one pass (suggested order):*
 - [tracking] [mediaframe-candidates.md](mediaframe-candidates.md) — `videoframe`→**`mediaframe`** rename + charter broadened (all media-stream vocab); **PR #3** = `mediaframe 0.1.0` (rename + Rational/FrameRate/FieldOrder/StereoMode/DolbyVisionConfig + SAR-via-Rational); audio/subtitle stream vocab appends here as the review surfaces it
 
-*Superseded (stubs, one product Q survives in AFR):*
-- [~] [track_core.md](track_core.md) — no shared track type
-- [~] [audio_file_record.md](audio_file_record.md) — dissolved → `AudioTrack`; **AFR1 product Q open**
-
 **Cross-doc decisions awaiting you (highest-leverage first):**
 1. **A-loc cascade** — move audio diarization/transcript refs per-`AudioTrack`
    (+ `Audio.total_segments`), reopening locked `audio.md`, mirroring the
