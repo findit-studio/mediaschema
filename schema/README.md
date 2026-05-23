@@ -15,8 +15,7 @@ DOMAIN / programming-types   ← application logic programs against THIS
   non-optional invariants)
    ├── ⇄ wire (buffa)     serialization / RPC edge  (proto/media/v1/types.proto)
    ├── →  sqlx suite      persistence projection (Postgres/SQLite/MySQL)
-   ├── →  mongodb suite   persistence projection
-   └── →  async-graphql   API projection (curated)
+   └── →  mongodb suite   persistence projection
 ```
 
 - The buffa-generated types remain the wire/RPC contract. The domain layer is
@@ -59,7 +58,7 @@ DOMAIN / programming-types   ← application logic programs against THIS
   (`BinData`, **not** `ObjectId` — that would re-introduce an id mapping).
   FKs are the UUIDv7 (no prog↔native resolution). `FileChecksum` stays a
   distinct 32-byte newtype (content hash ≠ identity). *Aside:* UUIDv7 leaks
-  creation time — the **graphql** projection may expose an opaque id; this does
+  creation time — an API projection may expose an opaque id; this does
   not justify a DB surrogate.
 - **Content-addressed, not a traditional filesystem (user, foundational).**
   Dedup key = the content hash (`FileChecksum`, unique index): **same hash ⇒
@@ -106,8 +105,8 @@ DOMAIN / programming-types   ← application logic programs against THIS
   similarity vectors — embeddings **and** Apple `feature_print`
   (`Scene`/`Keyframe`/`AudioSegment`/…) — are stored in **LanceDB**, keyed by
   the aggregate's UUIDv7 `id`. Domain aggregates carry **no** vector field;
-  sqlx/mongodb projections have **no** vector column; graphql exposes
-  similarity as a LanceDB-backed endpoint keyed by `id` (never a raw vector).
+  sqlx/mongodb projections have **no** vector column; similarity is served
+  by a LanceDB-backed endpoint keyed by `id` (never a raw vector).
   Cancels the earlier shared-`Embedding`-VO idea.
 - **Extern vs flatten — vocabulary crates only.** Extern (`::mediatime`,
   `::mediaframe`) is reserved for **shared *vocabulary* crates**. (Language is
@@ -211,9 +210,9 @@ DOMAIN / programming-types   ← application logic programs against THIS
   `Audio`/`AudioFileRecord`/`AudioMeta` reconciliation staged separately
   (highest modeling risk).
 - **Conversion sequencing:** the domain types (generic over `Id`) are designed
-  first; the `From`/`TryFrom` conversions (domain ↔ wire/rpc, → sqlx, → mongodb,
-  → graphql) are **deferred until all four projections are defined**, then
-  written once — avoids piecemeal rework as later projections shift the shape.
+  first; the `From`/`TryFrom` conversions (domain ↔ wire/rpc, → sqlx, → mongodb)
+  are **deferred until all projections are defined**, then written once —
+  avoids piecemeal rework as later projections shift the shape.
 - **Pipeline errors:** `index_errors: Vec<ErrorInfo>`; `ErrorInfo.code`
   identifies the failing stage (no separate `stage` wrapper).
 - **`kind` is kept, not derived:** it's set at probe and *drives* which
@@ -221,8 +220,8 @@ DOMAIN / programming-types   ← application logic programs against THIS
   domain `MediaKind { Video, Audio }` (wire `UNSPECIFIED` = pre-probe sentinel).
 - **Indexing errors/status are API-facing, not internal:** `index_errors`
   (stage-coded) + derived error-state and indexing progress are **exposed by
-  the graphql projection** on every aggregate (clients display why/whether
-  indexing succeeded). Only truly internal plumbing is dropped from the API.
+  the API** on every aggregate (clients display why/whether indexing
+  succeeded). Only truly internal plumbing is dropped from the API.
 - **Audit is a hint, not authority:** the type-audit reasons from generated
   field-overlap; verify domain shape against findit-proto's Rust — *and* even
   that may be out of date (user said so), so genuine model/product decisions
@@ -273,7 +272,7 @@ DOMAIN / programming-types   ← application logic programs against THIS
 - **Nested value-objects** — the VOs that live inside (kept nested, not flattened).
 - **Invariants** — what the domain type guarantees that the wire type cannot.
 - **Wire mapping** — `From`/`TryFrom` direction; lossy/fallible points.
-- **Projection notes** — brief sqlx / mongodb / graphql remarks.
+- **Projection notes** — brief sqlx / mongodb remarks.
 - **Open questions**.
 
 ## Index (one-by-one review status)

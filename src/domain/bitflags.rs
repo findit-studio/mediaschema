@@ -232,6 +232,7 @@ impl SubtitleIndexStatus {
   /// "complete" without OCR. The only public completion path is
   /// [`SubtitleTrack::is_fully_indexed`], which binds `requires_ocr`
   /// from the track's codec/format internally.
+  #[cfg(any(feature = "std", feature = "alloc"))]
   #[inline]
   pub(crate) const fn fully_indexed_mask(requires_ocr: bool) -> Self {
     let base =
@@ -253,6 +254,7 @@ impl SubtitleIndexStatus {
   /// track complete without `OCR_DONE`. The only public completion path
   /// is [`SubtitleTrack::is_fully_indexed`], which binds `requires_ocr`
   /// from the track's codec/format internally.
+  #[cfg(any(feature = "std", feature = "alloc"))]
   #[inline]
   pub(crate) fn is_fully_indexed(&self, requires_ocr: bool) -> bool {
     self.contains(Self::fully_indexed_mask(requires_ocr))
@@ -328,6 +330,7 @@ mod tests {
     assert!(!VideoIndexStatus::empty().is_fully_indexed());
   }
 
+  #[cfg(any(feature = "std", feature = "alloc"))]
   #[test]
   fn subtitle_fully_indexed_mask_branches_on_requires_ocr() {
     // Text subtitles: OCR_DONE NOT required.
@@ -372,8 +375,11 @@ mod tests {
     assert_eq!(SubtitleIndexStatus::OCR_DONE.bits(), 0x04);
     assert_eq!(SubtitleIndexStatus::SEARCH_INDEXED.bits(), 0x08);
     // Both shapes of fully_indexed_mask:
-    assert_eq!(SubtitleIndexStatus::fully_indexed_mask(true).bits(), 0x0F);
-    assert_eq!(SubtitleIndexStatus::fully_indexed_mask(false).bits(), 0x0B);
+    #[cfg(any(feature = "std", feature = "alloc"))]
+    {
+      assert_eq!(SubtitleIndexStatus::fully_indexed_mask(true).bits(), 0x0F);
+      assert_eq!(SubtitleIndexStatus::fully_indexed_mask(false).bits(), 0x0B);
+    }
   }
 
   #[test]

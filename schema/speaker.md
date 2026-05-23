@@ -59,8 +59,6 @@ enhancement, not modelled now).
   `cluster_id`/`name`/`speech_duration` columns. **No vector column** (voiceprint
   in LanceDB). `(parent, cluster_id)` unique.
 - **mongodb**: `_id`=UUIDv7; single collection; voiceprint not embedded.
-- **graphql**: `name`/`speech_duration`/`cluster_id` exposed; "same voice"
-  similarity = a LanceDB endpoint keyed by `id` (never a raw vector field).
 
 **Status: LOCKED (rev 1) — user-approved.** Per-track diarized speaker
 (`dia`); voiceprint → LanceDB keyed by `Speaker.id` (locked rule; chromaprint

@@ -82,8 +82,6 @@ segment. Conversions deferred.
   `text_translated` (derived `display_text` full-text indexed); `words` → side
   table or JSON; quality columns. No vector column (LanceDB).
 - **mongodb**: `_id`=UUIDv7; `words` embedded array; text index on display text.
-- **graphql**: transcript (`text`/`words`/`speaker`/`span`/`language`) exposed
-  for the player; similarity = LanceDB endpoint keyed by `id` (never a field).
 
 **Status: LOCKED (rev 3) — user-approved.** A-loc=per-track
 (`parent→AudioTrack.id`); A-agg unified (reconciled `dia`⋈`asry`); A-name

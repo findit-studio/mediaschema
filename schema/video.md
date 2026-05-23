@@ -30,6 +30,5 @@ Change from rev 7: `scenes: Vec<Id>` **removed** → moved to
   via `video_track.video_id` FK; `track_progress.*`. (No scene join at the
   facet — scenes are `video_track`-scoped.)
 - **mongodb**: `_id`=UUIDv7; `tracks` UUID ref array; counts/progress embedded.
-- **graphql**: `total_scenes` + `track_progress`; scene detail via `VideoTrack`.
 
 **Status: LOCKED (rev 8) — user-approved.**

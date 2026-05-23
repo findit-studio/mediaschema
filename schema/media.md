@@ -66,7 +66,6 @@ maintained rollup of `kind.track_progress.failed > 0` — bit set ⇒ drill down
   column: it is the reverse side of the `media_file.media_id` FK,
   materialised by a join (`SELECT id FROM media_file WHERE media_id = ?`).
 - **mongodb**: `_id`=UUIDv7; `device`/`gps` embedded (mediaframe externs).
-- **graphql**: expose `error_flags`+`probe_error`; opaque external id.
 
 **Status: LOCKED (rev 9) — user-approved.** *(rev 9: content/copy split
 (codex review finding on PR #13). `Media` is now the **content** row (one

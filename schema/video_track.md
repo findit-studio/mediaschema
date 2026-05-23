@@ -97,9 +97,6 @@ schema review.)
   `frame_rate`→`num`/`den`/`is_vfr`, `dovi`→its scalar cols, `hdr_static`→its
   cols); `start_pts`/`duration`→pts(+timebase); `index_*` `INTEGER` + gen bool.
 - **mongodb**: `_id`=UUIDv7; embedded VF/VF\* subdocs.
-- **graphql**: pixel/colour/dims/hdr/dovi exposed; derived stage;
-  `index_errors` exposed (error-state/which-stage derived from it +
-  `index_status`); `is_attached_pic` as a derived bool.
 
 **Status: LOCKED (rev 7) — user-approved.** *(rev 6: per-track `error_status`
 removed — error-state derived from `index_errors` (stage-coded) + `index_status`;

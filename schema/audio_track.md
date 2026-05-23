@@ -131,10 +131,6 @@ track. Conversions deferred.
   BCP-47 text column. No vector column (LanceDB).
 - **mongodb**: `_id`=UUIDv7; `tags`/`cover_art`/`loudness`/`fingerprint`
   embedded; `segments` UUID ref array.
-- **graphql**: full tag surface (music browsing), loudness, language,
-  disposition, `content`/`speech_ratio`; transcript/diarization via the
-  segment aggregate; `index_errors` exposed (error-state derived from it +
-  `index_status`).
 
 **Status: LOCKED (rev 3) — user-approved.** A-loc=per-track
 (`segments: Vec<Id>→AudioSegment`); cascades = descriptor enums + `Language`

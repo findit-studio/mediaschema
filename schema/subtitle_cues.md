@@ -46,7 +46,7 @@ non-empty (at least one of `text` / `ocr_text` / `image` non-empty);
 - **`styled_text` kept** (your call) — ASS/SSA markup; default render =
   `text.src`.
 - **`image` inline `Bytes`** (your call: "if it is image then inline bytes").
-- **`display_text` derived** for search/graphql = (`text` ∨ `ocr_text`) then
+- **`display_text` derived** for search = (`text` ∨ `ocr_text`) then
   `.translated` ∨ `.src` per consumer locale — not stored.
 
 ## Projection notes
@@ -57,8 +57,6 @@ non-empty (at least one of `text` / `ocr_text` / `image` non-empty);
   unique. No vector column (LanceDB).
 - **mongodb**: `_id`=UUIDv7; text index on the derived `display_text`;
   `image` GridFS if large.
-- **graphql**: `span` + `display_text` (player/search); raw markup not in
-  lists; similarity = LanceDB endpoint keyed by `id` (never a field).
 
 **Status: LOCKED (rev 3) — user-approved.** `text`/`ocr_text` separate, both
 `LocalizedText`; `styled_text` kept (`SmolStr`); `image` inline `Bytes`;

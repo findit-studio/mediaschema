@@ -55,8 +55,6 @@ Generic over `Id` (UUIDv7 single key). Conversions deferred.
   FK; `total_segments` `u32` column (rollup of `audio_segment` rows joined
   through `audio_track`); `track_progress.*`.
 - **mongodb**: `_id`=UUIDv7; `tracks` UUID ref array; `total_segments` int.
-- **graphql**: `track_progress` + `total_segments`; transcript/diarization
-  resolves via `AudioTrack.segments` → `AudioSegment`; tags via `AudioTrack`.
 
 **Status: LOCKED (rev 8) — user-approved.** *(rev 8: A-loc cascade complete —
 `segments: Vec<Id>` at facet level **removed**, replaced by `total_segments:
