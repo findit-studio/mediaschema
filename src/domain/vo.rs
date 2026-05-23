@@ -10,7 +10,10 @@
 //! possible setters; mutation uses `set_field(...)`.
 
 use derive_more::IsVariant;
+use jiff::Timestamp as JiffTimestamp;
 use smol_str::SmolStr;
+
+use crate::domain::Uuid7;
 
 // ---------------------------------------------------------------------------
 // IndexProgress — per-kind facet rollup over child tracks
@@ -451,6 +454,304 @@ impl Default for LocalizedText {
   }
 }
 
+// ---------------------------------------------------------------------------
+// VoiceFingerprint — vendor-neutral voice-embedding metadata
+// ---------------------------------------------------------------------------
+
+/// Voice-embedding metadata. The vector itself lives in an external
+/// vector store (LanceDB / Qdrant / Milvus / pgvector / …, the application
+/// picks one); this VO is the linkage + provenance kept in the relational /
+/// document model.
+///
+/// Vendor-neutral on purpose: `vector_id` is opaque to mediaschema; the
+/// application is responsible for keeping it consistent with whichever
+/// vector store is in use. Migrating to a different store is a re-write of
+/// the external vector data under the same `vector_id` keys; mediaschema is
+/// not touched.
+///
+/// Used at three levels — per-`AudioSegment` (the raw extraction from one
+/// speak range), per-`Speaker` (per-track centroid), and per-`Person`
+/// (cross-track / cross-modality centroid). Wired into those aggregates in
+/// a later stacked PR; this PR adds JUST the VO definition.
+///
+/// Decoupled from `dia`'s segmentation/clustering model: the embedding
+/// model recorded in `provenance` is a separate, stable choice. Swapping
+/// `dia` does not invalidate fingerprints, because the fingerprint model's
+/// vector space is independent.
+///
+/// ## Derives
+///
+/// `PartialEq` but **not `Eq`/`Hash`** — the `confidence: Option<f32>` field
+/// carries a float (NaN ≠ NaN), so the locked rule from
+/// `rust-type-conventions` §1 ("a floating-point field precludes
+/// `Eq`/`Hash`") applies. The other VOs in this module (`Provenance`,
+/// `LocalizedText`, `IndexProgress`) are `Eq`/`Hash` because they are
+/// string- / integer-only.
+///
+/// ## Construction
+///
+/// - [`VoiceFingerprint::try_new`] on the canonical `Uuid7` specialization —
+///   the validating boundary entry (nil `vector_id`, zero `dimensions`,
+///   non-finite / out-of-range `confidence` rejected).
+/// - [`VoiceFingerprint::from_parts`] on the generic `impl<Id>` — the
+///   storage-reconstruction constructor; mirrors
+///   [`MediaFile::from_parts`](crate::domain::MediaFile::from_parts) and
+///   [`IndexProgress::from_parts`].
+///
+/// **No `Default` impl** — a "default" fingerprint would carry a nil
+/// `vector_id` (orphan linkage) and zero `dimensions` (nonsensical vector
+/// shape). Construct via `try_new` / `from_parts`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct VoiceFingerprint<Id = Uuid7> {
+  /// Opaque key into the external vector store. mediaschema does not
+  /// interpret it — the application keeps it consistent with whichever
+  /// backend (LanceDB / Qdrant / Milvus / pgvector / …) is in use.
+  vector_id: Id,
+  /// Dimensionality of the embedding (the length of the vector that
+  /// lives in the external store). Validated `> 0`.
+  dimensions: u32,
+  /// Wall-clock time the embedding was extracted (the moment the model
+  /// produced the vector — the equivalent of `Provenance`'s "when this
+  /// analysis ran" for the embedding model).
+  extracted_at: JiffTimestamp,
+  /// Model-reported confidence in the embedding's quality, in `[0.0,
+  /// 1.0]`. Validated finite (no `NaN` / `±inf`) and in range. `None`
+  /// when the model does not expose a confidence score.
+  confidence: Option<f32>,
+  /// Which embedding model + version + indexer produced this
+  /// fingerprint. Reused from the shared cross-cutting VO so the
+  /// "swap the embedding model and re-extract" story is uniform with
+  /// the rest of the analysis layer.
+  provenance: Provenance,
+}
+
+impl VoiceFingerprint<Uuid7> {
+  /// Validating constructor for the canonical `Uuid7` identity type.
+  ///
+  /// Rejects:
+  /// - nil `vector_id` (a fingerprint with no linkage into the vector
+  ///   store is an orphan — every fingerprint must point at a real
+  ///   external vector);
+  /// - `dimensions == 0` (a zero-dim embedding is nonsensical);
+  /// - `confidence` that is `Some` and either non-finite (`NaN` /
+  ///   `±inf`) or outside `[0.0, 1.0]`.
+  ///
+  /// Mirrors [`MediaFile::try_new`](crate::domain::MediaFile::try_new):
+  /// the canonical fallible boundary entry on the `Uuid7`
+  /// specialization, with [`VoiceFingerprint::from_parts`] on the
+  /// generic `impl<Id>` for storage reconstruction.
+  pub fn try_new(
+    vector_id: Uuid7,
+    dimensions: u32,
+    extracted_at: JiffTimestamp,
+    confidence: Option<f32>,
+    provenance: Provenance,
+  ) -> Result<Self, VoiceFingerprintError> {
+    if vector_id.is_nil() {
+      return Err(VoiceFingerprintError::NilVectorId);
+    }
+    if dimensions == 0 {
+      return Err(VoiceFingerprintError::ZeroDimensions);
+    }
+    if let Some(c) = confidence {
+      if !c.is_finite() || !(0.0..=1.0).contains(&c) {
+        return Err(VoiceFingerprintError::ConfidenceOutOfRange);
+      }
+    }
+    Ok(Self {
+      vector_id,
+      dimensions,
+      extracted_at,
+      confidence,
+      provenance,
+    })
+  }
+}
+
+impl<Id> VoiceFingerprint<Id> {
+  /// Raw constructor for **storage / wire reconstruction** — assembles a
+  /// `VoiceFingerprint` directly from its persisted fields, bypassing the
+  /// nil/zero/range checks that [`VoiceFingerprint::try_new`] performs.
+  /// Intended ONLY for backends rebuilding a fingerprint from a trusted
+  /// persisted row/document (the data was validated by `try_new` when
+  /// first written). Application code building a fresh `VoiceFingerprint`
+  /// must use [`VoiceFingerprint::try_new`].
+  #[inline(always)]
+  #[must_use]
+  pub const fn from_parts(
+    vector_id: Id,
+    dimensions: u32,
+    extracted_at: JiffTimestamp,
+    confidence: Option<f32>,
+    provenance: Provenance,
+  ) -> Self {
+    Self {
+      vector_id,
+      dimensions,
+      extracted_at,
+      confidence,
+      provenance,
+    }
+  }
+
+  /// Opaque key into the external vector store. Borrowed because `Id`
+  /// is generic and not assumed to be `Copy`.
+  #[inline(always)]
+  pub const fn vector_id_ref(&self) -> &Id {
+    &self.vector_id
+  }
+
+  /// Dimensionality of the embedding (`> 0` for `try_new`-constructed
+  /// values).
+  #[inline(always)]
+  pub const fn dimensions(&self) -> u32 {
+    self.dimensions
+  }
+
+  /// Wall-clock time the embedding was extracted. `jiff::Timestamp` is
+  /// `Copy`, so by-value.
+  #[inline(always)]
+  pub const fn extracted_at(&self) -> JiffTimestamp {
+    self.extracted_at
+  }
+
+  /// Model-reported confidence in `[0.0, 1.0]`, or `None` when the
+  /// model does not expose one.
+  #[inline(always)]
+  pub const fn confidence(&self) -> Option<f32> {
+    self.confidence
+  }
+
+  /// Which embedding model + version + indexer produced this fingerprint.
+  #[inline(always)]
+  pub const fn provenance_ref(&self) -> &Provenance {
+    &self.provenance
+  }
+
+  // --- builders -----------------------------------------------------------
+
+  /// Builder: replace `vector_id`. Plain (non-fallible) — the nil-id
+  /// rejection is only meaningful at construction, where it gates the
+  /// boundary entry. Storage-reconstruction code uses
+  /// [`VoiceFingerprint::from_parts`] and is responsible for the
+  /// linkage's integrity.
+  #[inline(always)]
+  #[must_use]
+  pub fn with_vector_id(mut self, vector_id: Id) -> Self {
+    self.vector_id = vector_id;
+    self
+  }
+
+  /// Builder: replace `dimensions`, rejecting `0`.
+  #[inline]
+  pub fn try_with_dimensions(mut self, dimensions: u32) -> Result<Self, VoiceFingerprintError> {
+    self.try_set_dimensions(dimensions)?;
+    Ok(self)
+  }
+
+  /// Builder: replace `extracted_at`.
+  #[inline(always)]
+  #[must_use]
+  pub const fn with_extracted_at(mut self, t: JiffTimestamp) -> Self {
+    self.extracted_at = t;
+    self
+  }
+
+  /// Builder: replace `confidence` with a *present* value, rejecting
+  /// non-finite (`NaN` / `±inf`) and out-of-range. Mirrors the
+  /// `set_*` / `with_*` "present value" form of the `Option<T>`
+  /// mutator vocabulary (golden-rules §3).
+  #[inline]
+  pub fn try_with_confidence(mut self, c: f32) -> Result<Self, VoiceFingerprintError> {
+    self.try_set_confidence(c)?;
+    Ok(self)
+  }
+
+  /// Builder: replace `provenance`.
+  #[inline(always)]
+  #[must_use]
+  pub fn with_provenance(mut self, provenance: Provenance) -> Self {
+    self.provenance = provenance;
+    self
+  }
+
+  // --- in-place setters ---------------------------------------------------
+
+  /// In-place mutator for `vector_id`. Plain — see
+  /// [`VoiceFingerprint::with_vector_id`].
+  #[inline(always)]
+  pub fn set_vector_id(&mut self, vector_id: Id) -> &mut Self {
+    self.vector_id = vector_id;
+    self
+  }
+
+  /// In-place mutator for `dimensions`, rejecting `0`. On error `self`
+  /// is left unchanged.
+  #[inline]
+  pub fn try_set_dimensions(
+    &mut self,
+    dimensions: u32,
+  ) -> Result<&mut Self, VoiceFingerprintError> {
+    if dimensions == 0 {
+      return Err(VoiceFingerprintError::ZeroDimensions);
+    }
+    self.dimensions = dimensions;
+    Ok(self)
+  }
+
+  /// In-place mutator for `extracted_at`.
+  #[inline(always)]
+  pub const fn set_extracted_at(&mut self, t: JiffTimestamp) -> &mut Self {
+    self.extracted_at = t;
+    self
+  }
+
+  /// In-place mutator for `confidence` with a *present* value, rejecting
+  /// non-finite / out-of-range. On error `self` is left unchanged.
+  #[inline]
+  pub fn try_set_confidence(&mut self, c: f32) -> Result<&mut Self, VoiceFingerprintError> {
+    if !c.is_finite() || !(0.0..=1.0).contains(&c) {
+      return Err(VoiceFingerprintError::ConfidenceOutOfRange);
+    }
+    self.confidence = Some(c);
+    Ok(self)
+  }
+
+  /// In-place mutator: clear `confidence` (absent state — model did not
+  /// expose one).
+  #[inline(always)]
+  pub const fn clear_confidence(&mut self) -> &mut Self {
+    self.confidence = None;
+    self
+  }
+
+  /// In-place mutator for `provenance`.
+  #[inline(always)]
+  pub fn set_provenance(&mut self, provenance: Provenance) -> &mut Self {
+    self.provenance = provenance;
+    self
+  }
+}
+
+/// Error returned when a [`VoiceFingerprint`] construction or validating
+/// mutation cannot uphold the type's invariants. Unit-only enum.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant, thiserror::Error)]
+#[non_exhaustive]
+pub enum VoiceFingerprintError {
+  /// Supplied `vector_id` was the [`Uuid7`] nil sentinel — a fingerprint
+  /// with no linkage into the external vector store is an orphan.
+  #[error("VoiceFingerprint vector_id must not be the nil UUID")]
+  NilVectorId,
+  /// Supplied `dimensions` was `0` — a zero-dimensional embedding is
+  /// nonsensical.
+  #[error("VoiceFingerprint dimensions must be > 0")]
+  ZeroDimensions,
+  /// Supplied `confidence` was not finite (`NaN` / `±inf`) or fell
+  /// outside `[0.0, 1.0]`.
+  #[error("VoiceFingerprint confidence must be finite and in [0.0, 1.0]")]
+  ConfidenceOutOfRange,
+}
+
 // ===========================================================================
 // Tests
 // ===========================================================================
@@ -618,5 +919,175 @@ mod tests {
     assert_eq!(p.total(), 10);
     assert_eq!(p.indexed(), 7);
     assert_eq!(p.failed(), 2);
+  }
+
+  // -------------------------------------------------------------------------
+  // VoiceFingerprint
+  // -------------------------------------------------------------------------
+
+  /// A representative extraction timestamp.
+  fn vfp_ts() -> JiffTimestamp {
+    JiffTimestamp::from_millisecond(1_700_000_000_000).expect("valid timestamp")
+  }
+
+  fn vfp_provenance() -> Provenance {
+    Provenance::from_parts("ecapa-tdnn", "v1.0.0", "", "findit-indexer-0.1.0")
+  }
+
+  #[test]
+  fn voice_fingerprint_try_new_rejects_nil_vector_id() {
+    let err = VoiceFingerprint::try_new(Uuid7::nil(), 192, vfp_ts(), Some(0.95), vfp_provenance())
+      .unwrap_err();
+    assert_eq!(err, VoiceFingerprintError::NilVectorId);
+    assert!(err.is_nil_vector_id());
+  }
+
+  #[test]
+  fn voice_fingerprint_try_new_rejects_zero_dimensions() {
+    let err = VoiceFingerprint::try_new(Uuid7::new(), 0, vfp_ts(), Some(0.95), vfp_provenance())
+      .unwrap_err();
+    assert_eq!(err, VoiceFingerprintError::ZeroDimensions);
+    assert!(err.is_zero_dimensions());
+  }
+
+  #[test]
+  fn voice_fingerprint_try_new_rejects_nan_inf_out_of_range_confidence() {
+    for bad in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, -0.01, 1.01] {
+      let err = VoiceFingerprint::try_new(Uuid7::new(), 192, vfp_ts(), Some(bad), vfp_provenance())
+        .unwrap_err();
+      assert_eq!(
+        err,
+        VoiceFingerprintError::ConfidenceOutOfRange,
+        "value {bad} should be rejected"
+      );
+      assert!(err.is_confidence_out_of_range());
+    }
+    // Boundary values 0.0 and 1.0 must be accepted.
+    for ok in [0.0_f32, 1.0_f32] {
+      VoiceFingerprint::try_new(Uuid7::new(), 192, vfp_ts(), Some(ok), vfp_provenance())
+        .expect("boundary confidence must be accepted");
+    }
+    // `None` is always fine — the model may not expose a score.
+    VoiceFingerprint::try_new(Uuid7::new(), 192, vfp_ts(), None, vfp_provenance())
+      .expect("None confidence must be accepted");
+  }
+
+  #[test]
+  fn voice_fingerprint_try_new_happy_path_and_from_parts_round_trip() {
+    let vid = Uuid7::new();
+    let prov = vfp_provenance();
+    let f = VoiceFingerprint::try_new(vid, 192, vfp_ts(), Some(0.83), prov.clone())
+      .expect("valid construction must succeed");
+    assert_eq!(f.vector_id_ref(), &vid);
+    assert_eq!(f.dimensions(), 192);
+    assert_eq!(f.extracted_at(), vfp_ts());
+    assert_eq!(f.confidence(), Some(0.83));
+    assert_eq!(f.provenance_ref(), &prov);
+
+    // `from_parts` round-trips a validated instance — mirrors
+    // `MediaFile::from_parts` round-trip test.
+    let rebuilt = VoiceFingerprint::from_parts(
+      *f.vector_id_ref(),
+      f.dimensions(),
+      f.extracted_at(),
+      f.confidence(),
+      f.provenance_ref().clone(),
+    );
+    assert_eq!(rebuilt, f);
+  }
+
+  #[test]
+  fn voice_fingerprint_with_vector_id_replaces_field() {
+    let f = VoiceFingerprint::try_new(Uuid7::new(), 192, vfp_ts(), None, vfp_provenance()).unwrap();
+    let new_id = Uuid7::new();
+    let f = f.with_vector_id(new_id);
+    assert_eq!(f.vector_id_ref(), &new_id);
+  }
+
+  #[test]
+  fn voice_fingerprint_try_with_dimensions_validates() {
+    let f = VoiceFingerprint::try_new(Uuid7::new(), 192, vfp_ts(), None, vfp_provenance()).unwrap();
+    assert_eq!(
+      f.clone().try_with_dimensions(0).unwrap_err(),
+      VoiceFingerprintError::ZeroDimensions
+    );
+    let f = f.try_with_dimensions(256).unwrap();
+    assert_eq!(f.dimensions(), 256);
+  }
+
+  #[test]
+  fn voice_fingerprint_with_extracted_at_replaces_field() {
+    let f = VoiceFingerprint::try_new(Uuid7::new(), 192, vfp_ts(), None, vfp_provenance()).unwrap();
+    let later = JiffTimestamp::from_millisecond(1_800_000_000_000).unwrap();
+    let f = f.with_extracted_at(later);
+    assert_eq!(f.extracted_at(), later);
+  }
+
+  #[test]
+  fn voice_fingerprint_try_with_confidence_validates_and_clear() {
+    let f = VoiceFingerprint::try_new(Uuid7::new(), 192, vfp_ts(), None, vfp_provenance()).unwrap();
+    // Reject non-finite.
+    assert_eq!(
+      f.clone().try_with_confidence(f32::NAN).unwrap_err(),
+      VoiceFingerprintError::ConfidenceOutOfRange
+    );
+    // Reject out-of-range.
+    assert_eq!(
+      f.clone().try_with_confidence(1.5).unwrap_err(),
+      VoiceFingerprintError::ConfidenceOutOfRange
+    );
+    let f = f.try_with_confidence(0.5).unwrap();
+    assert_eq!(f.confidence(), Some(0.5));
+
+    // clear_confidence (in-place) drops it to None.
+    let mut f = f;
+    f.clear_confidence();
+    assert_eq!(f.confidence(), None);
+  }
+
+  #[test]
+  fn voice_fingerprint_with_provenance_replaces_field() {
+    let f =
+      VoiceFingerprint::try_new(Uuid7::new(), 192, vfp_ts(), None, Provenance::default()).unwrap();
+    let p2 = vfp_provenance();
+    let f = f.with_provenance(p2.clone());
+    assert_eq!(f.provenance_ref(), &p2);
+  }
+
+  #[test]
+  fn voice_fingerprint_in_place_setters_chain() {
+    let mut f =
+      VoiceFingerprint::try_new(Uuid7::new(), 192, vfp_ts(), None, Provenance::default()).unwrap();
+    let later = JiffTimestamp::from_millisecond(1_800_000_000_000).unwrap();
+    let new_id = Uuid7::new();
+    let p2 = vfp_provenance();
+    f.set_vector_id(new_id)
+      .set_extracted_at(later)
+      .set_provenance(p2.clone())
+      .try_set_dimensions(256)
+      .unwrap()
+      .try_set_confidence(0.75)
+      .unwrap();
+    assert_eq!(f.vector_id_ref(), &new_id);
+    assert_eq!(f.dimensions(), 256);
+    assert_eq!(f.extracted_at(), later);
+    assert_eq!(f.confidence(), Some(0.75));
+    assert_eq!(f.provenance_ref(), &p2);
+
+    // Validating setters leave self unchanged on error.
+    assert_eq!(
+      f.try_set_dimensions(0).unwrap_err(),
+      VoiceFingerprintError::ZeroDimensions
+    );
+    assert_eq!(f.dimensions(), 256, "rejected setter must not mutate");
+    assert_eq!(
+      f.try_set_confidence(f32::INFINITY).unwrap_err(),
+      VoiceFingerprintError::ConfidenceOutOfRange
+    );
+    assert_eq!(
+      f.confidence(),
+      Some(0.75),
+      "rejected setter must not mutate"
+    );
   }
 }
