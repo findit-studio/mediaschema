@@ -58,6 +58,7 @@ impl From<&Audio<Uuid7>> for Document {
   fn from(a: &Audio<Uuid7>) -> Self {
     let mut d = Document::new();
     d.insert("_id", uuid7_to_bson(*a.id_ref()));
+    d.insert("parent", uuid7_to_bson(*a.parent_ref()));
     d.insert("tracks", uuid7_vec_to_bson(a.tracks_slice()));
     d.insert("total_segments", Bson::Int64(a.total_segments() as i64));
     d
@@ -69,7 +70,8 @@ impl TryFrom<Document> for Audio<Uuid7> {
 
   fn try_from(mut d: Document) -> Result<Self, Self::Error> {
     let id = uuid7_from_bson(take(&mut d, "_id")?, "_id")?;
-    let mut a = Audio::try_new(id)?;
+    let parent = uuid7_from_bson(take(&mut d, "parent")?, "parent")?;
+    let mut a = Audio::try_new(id, parent)?;
     if let Some(b) = take_opt(&mut d, "tracks") {
       a.set_tracks(uuid7_vec_from_bson(b, "tracks")?);
     }
@@ -611,7 +613,7 @@ mod tests {
 
   #[test]
   fn audio_facet_roundtrip() {
-    let a = Audio::try_new(Uuid7::new())
+    let a = Audio::try_new(Uuid7::new(), Uuid7::new())
       .unwrap()
       .with_tracks(vec![Uuid7::new(), Uuid7::new()])
       .with_total_segments(7);

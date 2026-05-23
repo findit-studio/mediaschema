@@ -44,6 +44,7 @@ use crate::domain::{vo::IndexProgress, Uuid7};
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Audio<Id = Uuid7> {
   id: Id,
+  parent: Id,
   tracks: std::vec::Vec<Id>,
   total_segments: u32,
   track_progress: IndexProgress,
@@ -52,17 +53,22 @@ pub struct Audio<Id = Uuid7> {
 impl Audio<Uuid7> {
   /// Validating constructor for the canonical `Uuid7` identity type.
   ///
-  /// Rejects nil `id` (every aggregate row needs a real identity). The
-  /// `tracks` list starts empty, `total_segments` at zero, and
-  /// `track_progress` as the empty rollup (`{0, 0, 0}`). All three are
-  /// populated by builders/mutators as tracks are attached + segments
-  /// rolled up — or assembled directly from a database row.
-  pub fn try_new(id: Uuid7) -> Result<Self, AudioError> {
+  /// Rejects nil `id` (every aggregate row needs a real identity) and nil
+  /// `parent` (orphaned facet with no `Media` reference). The `tracks`
+  /// list starts empty, `total_segments` at zero, and `track_progress` as
+  /// the empty rollup (`{0, 0, 0}`). All three are populated by
+  /// builders/mutators as tracks are attached + segments rolled up — or
+  /// assembled directly from a database row.
+  pub fn try_new(id: Uuid7, parent: Uuid7) -> Result<Self, AudioError> {
     if id.is_nil() {
       return Err(AudioError::NilId);
     }
+    if parent.is_nil() {
+      return Err(AudioError::NilParent);
+    }
     Ok(Self {
       id,
+      parent,
       tracks: std::vec::Vec::new(),
       total_segments: 0,
       track_progress: IndexProgress::new(),
@@ -75,6 +81,13 @@ impl<Id> Audio<Id> {
   #[inline(always)]
   pub const fn id_ref(&self) -> &Id {
     &self.id
+  }
+
+  /// FK → `Media.id` — the `Media` this facet belongs to. Set at
+  /// construction (identity-bearing — no `with_parent` / `set_parent`).
+  #[inline(always)]
+  pub const fn parent_ref(&self) -> &Id {
+    &self.parent
   }
 
   /// Refs to child `AudioTrack`s.
@@ -149,6 +162,10 @@ pub enum AudioError {
   /// Supplied `id` was the nil sentinel — not a real identity.
   #[error("Audio id must not be the nil UUID")]
   NilId,
+  /// Supplied `parent` was the nil sentinel — orphaned facet with no
+  /// `Media` reference.
+  #[error("Audio parent (Media) must not be the nil UUID")]
+  NilParent,
 }
 
 // ===========================================================================
@@ -163,8 +180,10 @@ mod tests {
   #[test]
   fn try_new_happy_path() {
     let id = Uuid7::new();
-    let a = Audio::try_new(id).expect("valid construction must succeed");
+    let parent = Uuid7::new();
+    let a = Audio::try_new(id, parent).expect("valid construction must succeed");
     assert_eq!(a.id_ref(), &id);
+    assert_eq!(a.parent_ref(), &parent);
     assert!(a.tracks_slice().is_empty());
     assert_eq!(a.total_segments(), 0);
     assert_eq!(a.track_progress_ref(), &IndexProgress::new());
@@ -172,9 +191,23 @@ mod tests {
 
   #[test]
   fn try_new_rejects_nil_id() {
-    let r = Audio::try_new(Uuid7::nil());
+    let r = Audio::try_new(Uuid7::nil(), Uuid7::new());
     assert_eq!(r.err(), Some(AudioError::NilId));
     assert!(AudioError::NilId.is_nil_id());
+  }
+
+  #[test]
+  fn try_new_rejects_nil_parent() {
+    let r = Audio::try_new(Uuid7::new(), Uuid7::nil());
+    assert_eq!(r.err(), Some(AudioError::NilParent));
+    assert!(AudioError::NilParent.is_nil_parent());
+  }
+
+  #[test]
+  fn parent_ref_returns_constructed_parent() {
+    let parent = Uuid7::new();
+    let a = Audio::try_new(Uuid7::new(), parent).unwrap();
+    assert_eq!(a.parent_ref(), &parent);
   }
 
   #[test]
@@ -182,7 +215,7 @@ mod tests {
     let t1 = Uuid7::new();
     let t2 = Uuid7::new();
     let p = IndexProgress::try_new(2, 1, 0).unwrap();
-    let a = Audio::try_new(Uuid7::new())
+    let a = Audio::try_new(Uuid7::new(), Uuid7::new())
       .unwrap()
       .with_tracks(std::vec![t1, t2])
       .with_total_segments(42)
@@ -195,7 +228,7 @@ mod tests {
 
   #[test]
   fn setters_mutate_in_place() {
-    let mut a = Audio::try_new(Uuid7::new()).unwrap();
+    let mut a = Audio::try_new(Uuid7::new(), Uuid7::new()).unwrap();
     a.set_tracks(std::vec![Uuid7::new()]);
     a.set_total_segments(7);
     a.set_track_progress(IndexProgress::try_new(1, 1, 0).unwrap());
@@ -211,7 +244,7 @@ mod tests {
     // NOT reset `total_segments` / `track_progress`. The DB / app layer
     // is the source of truth for rollups; the domain stores what the
     // caller puts in.
-    let mut a = Audio::try_new(Uuid7::new())
+    let mut a = Audio::try_new(Uuid7::new(), Uuid7::new())
       .unwrap()
       .with_tracks(std::vec![Uuid7::new(), Uuid7::new()])
       .with_total_segments(17)
