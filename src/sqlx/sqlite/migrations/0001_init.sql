@@ -598,7 +598,88 @@ CREATE TABLE IF NOT EXISTS keyframe_vlm_label (
 );
 CREATE INDEX IF NOT EXISTS idx_kf_vlm_label_keyframe ON keyframe_vlm_label(keyframe);
 
--- The subtitle facet/track/per-track-analysis tables (subtitle,
--- subtitle_track, subtitle_cue) are tracked as a follow-up. Their
--- schema shape is documented in the corresponding `schema/*.md` locked
--- specs; the row mapping is deferred and tracked as a focused follow-up.
+-- Subtitle-cluster: the `Subtitle` facet + `SubtitleTrack` +
+-- `SubtitleCue` (+ the `index_errors` child table). Nested value-objects
+-- are flattened into real columns; collections ride in child tables with
+-- an `ordinal` order column; reverse-FK `Vec<Id>` fields are not stored.
+
+CREATE TABLE IF NOT EXISTS subtitle (
+    id                     BLOB    NOT NULL PRIMARY KEY,
+    parent                 BLOB    NOT NULL,
+    track_progress_total   INTEGER NOT NULL DEFAULT 0,
+    track_progress_indexed INTEGER NOT NULL DEFAULT 0,
+    track_progress_failed  INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_subtitle_parent ON subtitle(parent);
+
+CREATE TABLE IF NOT EXISTS subtitle_track (
+    id                         BLOB    NOT NULL PRIMARY KEY,
+    subtitle_id                BLOB    NOT NULL,
+    stream_index               INTEGER,
+    container_track_id         INTEGER,
+    codec                      TEXT    NOT NULL,
+    format                     TEXT    NOT NULL,
+    origin                     INTEGER NOT NULL DEFAULT 0,
+    language                   TEXT,
+    title                      TEXT    NOT NULL,
+    disposition                INTEGER NOT NULL DEFAULT 0,
+    is_primary                 INTEGER NOT NULL DEFAULT 0,
+    auto_selected              INTEGER NOT NULL DEFAULT 0,
+    duration_pts               INTEGER,
+    duration_tb_num            INTEGER,
+    duration_tb_den            INTEGER,
+    cue_count                  INTEGER NOT NULL DEFAULT 0,
+    provenance_model_name      TEXT    NOT NULL,
+    provenance_model_version   TEXT    NOT NULL,
+    provenance_prompt_version  TEXT    NOT NULL,
+    provenance_indexer_version TEXT    NOT NULL,
+    source_path_volume         BLOB,
+    source_path                TEXT,
+    source_checksum            BLOB,
+    character_encoding         TEXT    NOT NULL,
+    bom_present                INTEGER NOT NULL DEFAULT 0,
+    is_sdh                     INTEGER NOT NULL DEFAULT 0,
+    is_closed_caption          INTEGER NOT NULL DEFAULT 0,
+    is_translation             INTEGER NOT NULL DEFAULT 0,
+    kind                       INTEGER NOT NULL DEFAULT 0,
+    coverage_ratio             REAL,
+    is_empty                   INTEGER NOT NULL DEFAULT 0,
+    first_cue_pts              INTEGER,
+    first_cue_tb_num           INTEGER,
+    first_cue_tb_den           INTEGER,
+    last_cue_pts               INTEGER,
+    last_cue_tb_num            INTEGER,
+    last_cue_tb_den            INTEGER,
+    index_status               INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_subtitle_track_subtitle_id ON subtitle_track(subtitle_id);
+CREATE INDEX IF NOT EXISTS idx_subtitle_track_codec       ON subtitle_track(codec);
+CREATE INDEX IF NOT EXISTS idx_subtitle_track_language    ON subtitle_track(language);
+CREATE INDEX IF NOT EXISTS idx_subtitle_track_origin      ON subtitle_track(origin);
+
+CREATE TABLE IF NOT EXISTS subtitle_track_index_error (
+    subtitle_track BLOB    NOT NULL,
+    ordinal        INTEGER NOT NULL,
+    code           INTEGER NOT NULL,
+    message        TEXT    NOT NULL,
+    PRIMARY KEY (subtitle_track, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_stie_subtitle_track ON subtitle_track_index_error(subtitle_track);
+
+CREATE TABLE IF NOT EXISTS subtitle_cue (
+    id                  BLOB    NOT NULL PRIMARY KEY,
+    parent              BLOB    NOT NULL,
+    "index"             INTEGER NOT NULL,
+    span_start_pts      INTEGER NOT NULL,
+    span_end_pts        INTEGER NOT NULL,
+    span_tb_num         INTEGER NOT NULL,
+    span_tb_den         INTEGER NOT NULL,
+    text_src            TEXT    NOT NULL,
+    text_translated     TEXT    NOT NULL,
+    styled_text         TEXT    NOT NULL,
+    image               BLOB    NOT NULL,
+    ocr_text_src        TEXT    NOT NULL,
+    ocr_text_translated TEXT    NOT NULL
+);
+CREATE INDEX        IF NOT EXISTS idx_subtitle_cue_parent       ON subtitle_cue(parent);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_subtitle_cue_parent_index ON subtitle_cue(parent, "index");
