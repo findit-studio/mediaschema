@@ -81,8 +81,8 @@ mongodb = ["std", "json", "dep:mongodb", "dep:bson"]
 # Each backend additionally pulls in the matching `sqlx/<driver>` feature
 # so `sqlx::FromRow` is implemented for the per-backend row type alias.
 sqlx-postgres = ["std", "dep:sqlx", "sqlx/postgres", "sqlx/uuid"]
-sqlx-mysql    = ["std", "dep:sqlx", "sqlx/mysql",    "sqlx/uuid"]
-sqlx-sqlite   = ["std", "dep:sqlx", "sqlx/sqlite",   "sqlx/uuid"]
+sqlx-mysql    = ["std", "dep:sqlx", "dep:sha2", "sqlx/mysql", "sqlx/uuid"]
+sqlx-sqlite   = ["std", "dep:sqlx", "sqlx/sqlite", "sqlx/uuid"]
 
 [dependencies]
 # `buffa` + `buffa-types` are optional — the buffa-generated wire layer
@@ -139,6 +139,18 @@ serde_json = { version = "1", optional = true }
 # pulled. The per-driver feature (`postgres` / `mysql` / `sqlite`) is
 # selected by the `sqlx-<driver>` umbrella feature.
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "macros"], optional = true }
+# `sha2` backs the mysql-only `media_file.location_path_hash` column that
+# powers the `UNIQUE (location_volume, location_path_hash)` natural-key
+# index. mysql/InnoDB needs a fixed-width column for `UNIQUE` over
+# variable-length `TEXT` (a prefix-truncated unique would falsely collide
+# two long paths sharing a prefix; SHA-256 sidesteps that with no
+# path-length cap and negligible collision probability). The pg and
+# sqlite dialects UNIQUE-index `TEXT` natively and never link `sha2`.
+# Already a transitive dep via sqlx's password hashing; pinned here as a
+# direct optional dep so the `sqlx-mysql` feature owns it explicitly.
+# `default-features = false` keeps the std-only `force-soft` path off
+# (we don't need asm acceleration).
+sha2 = { version = "0.10", default-features = false, optional = true }
 arbitrary = { version = "1", optional = true, features = ["derive"] }
 # Optional backend: bson `Document` ↔ domain + `IndexModel` for each
 # collection. `mongodb` 3.x needs its default feature set
