@@ -38,4 +38,4 @@ pub use aggregates::{
 #[cfg(any(feature = "std", feature = "alloc"))]
 pub use primitives::{ErrorInfo, Location};
 #[cfg(any(feature = "std", feature = "alloc"))]
-pub use vo::{IndexProgress, LocalizedText, Provenance};
+pub use vo::{IndexProgress, LocalizedText, Provenance, VoiceFingerprint, VoiceFingerprintError};
