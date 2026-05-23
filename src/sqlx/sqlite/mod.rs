@@ -9,6 +9,7 @@ pub mod audio;
 pub mod leaves;
 pub mod media;
 pub mod media_file;
+pub mod video;
 
 pub use audio::{
   SqliteAudioRow, SqliteAudioSegmentRow, SqliteAudioSegmentWordRow, SqliteAudioTrackIndexErrorRow,
@@ -19,6 +20,17 @@ pub use leaves::{
 };
 pub use media::SqliteMediaRow;
 pub use media_file::SqliteMediaFileRow;
+pub use video::{
+  SqliteKeyframeActionRow, SqliteKeyframeBarcodeRow, SqliteKeyframeBodyPose3DJointRow,
+  SqliteKeyframeBodyPose3DRow, SqliteKeyframeBodyPoseJointRow, SqliteKeyframeBodyPoseRow,
+  SqliteKeyframeClassificationRow, SqliteKeyframeColorRow, SqliteKeyframeDocumentSegmentRow,
+  SqliteKeyframeFaceLandmarkPointRow, SqliteKeyframeFaceLandmarkRegionRow,
+  SqliteKeyframeFaceLandmarksRow, SqliteKeyframeFaceRow, SqliteKeyframeHandPoseRow,
+  SqliteKeyframeMaskRow, SqliteKeyframeObjectRow, SqliteKeyframeRow, SqliteKeyframeRows,
+  SqliteKeyframeSaliencyRow, SqliteKeyframeSubjectRow, SqliteKeyframeTextDetectionRow,
+  SqliteKeyframeVlmLabelRow, SqliteSceneRow, SqliteVideoRow, SqliteVideoTrackIndexErrorRow,
+  SqliteVideoTrackRow,
+};
 
 /// Canonical SQLite DDL for the mediaschema tables this revision maps.
 ///
