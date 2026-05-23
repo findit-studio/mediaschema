@@ -220,7 +220,404 @@ CREATE TABLE IF NOT EXISTS audio_segment_word (
 );
 CREATE INDEX IF NOT EXISTS idx_asw_audio_segment ON audio_segment_word(audio_segment);
 
--- The video + subtitle facet/track/per-track-analysis tables (video,
--- subtitle, video_track, subtitle_track, scene, keyframe, subtitle_cue)
--- are tracked as a follow-up — see the SQLite schema for the same scope
--- note.
+-- Video-cluster: the `Video` facet + `VideoTrack` + `Scene` + `Keyframe`
+-- (+ per-detection child tables). Nested mediaframe descriptor VOs are
+-- flattened into real columns; collections ride in child tables with an
+-- `ordinal` order column; reverse-FK `Vec<Id>` fields are not stored.
+
+CREATE TABLE IF NOT EXISTS video (
+    id                     uuid    NOT NULL PRIMARY KEY,
+    parent                 uuid    NOT NULL UNIQUE,
+    total_scenes           bigint  NOT NULL DEFAULT 0,
+    track_progress_total   bigint  NOT NULL DEFAULT 0,
+    track_progress_indexed bigint  NOT NULL DEFAULT 0,
+    track_progress_failed  bigint  NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS video_track (
+    id                       uuid    NOT NULL PRIMARY KEY,
+    video_id                 uuid    NOT NULL,
+    stream_index             bigint,
+    container_track_id       bigint,
+    start_pts                bigint,
+    start_pts_tb_num         bigint,
+    start_pts_tb_den         bigint,
+    duration_pts             bigint,
+    duration_tb_num          bigint,
+    duration_tb_den          bigint,
+    codec                    text    NOT NULL,
+    profile                  text,
+    level                    integer,
+    bit_rate                 bigint  NOT NULL DEFAULT 0,
+    nb_frames                bigint,
+    has_b_frames             boolean NOT NULL DEFAULT false,
+    closed_gop               boolean,
+    bits_per_raw_sample      smallint,
+    width                    bigint  NOT NULL DEFAULT 0,
+    height                   bigint  NOT NULL DEFAULT 0,
+    has_visible_rect         boolean NOT NULL DEFAULT false,
+    visible_rect_x           bigint,
+    visible_rect_y           bigint,
+    visible_rect_w           bigint,
+    visible_rect_h           bigint,
+    sar_num                  bigint  NOT NULL DEFAULT 1,
+    sar_den                  bigint  NOT NULL DEFAULT 1,
+    pixel_format             bigint  NOT NULL DEFAULT 0,
+    color_primaries          bigint  NOT NULL DEFAULT 0,
+    color_transfer           bigint  NOT NULL DEFAULT 0,
+    color_matrix             bigint  NOT NULL DEFAULT 0,
+    color_range              bigint  NOT NULL DEFAULT 0,
+    color_chroma_location    bigint  NOT NULL DEFAULT 0,
+    has_hdr_static           boolean NOT NULL DEFAULT false,
+    hdr_has_mastering        boolean NOT NULL DEFAULT false,
+    hdr_primary_r_x          bigint,
+    hdr_primary_r_y          bigint,
+    hdr_primary_g_x          bigint,
+    hdr_primary_g_y          bigint,
+    hdr_primary_b_x          bigint,
+    hdr_primary_b_y          bigint,
+    hdr_white_point_x        bigint,
+    hdr_white_point_y        bigint,
+    hdr_max_luminance        bigint,
+    hdr_min_luminance        bigint,
+    hdr_has_content_light    boolean NOT NULL DEFAULT false,
+    hdr_max_cll              bigint,
+    hdr_max_fall             bigint,
+    rotation                 bigint  NOT NULL DEFAULT 0,
+    fr_num                   bigint  NOT NULL DEFAULT 1,
+    fr_den                   bigint  NOT NULL DEFAULT 1,
+    fr_is_vfr                boolean NOT NULL DEFAULT false,
+    field_order              bigint  NOT NULL DEFAULT 0,
+    stereo_mode              bigint,
+    has_dovi                 boolean NOT NULL DEFAULT false,
+    dovi_profile             smallint,
+    dovi_level               smallint,
+    dovi_rpu_present         boolean,
+    dovi_el_present          boolean,
+    dovi_bl_signal_compat_id smallint,
+    has_embedded_captions    boolean NOT NULL DEFAULT false,
+    disposition              bigint  NOT NULL DEFAULT 0,
+    is_primary               boolean NOT NULL DEFAULT false,
+    auto_selected            boolean NOT NULL DEFAULT false,
+    provenance_model_name    text    NOT NULL,
+    provenance_model_version text    NOT NULL,
+    provenance_prompt_version text   NOT NULL,
+    provenance_indexer_version text  NOT NULL,
+    index_status             bigint  NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_video_track_video_id ON video_track(video_id);
+
+CREATE TABLE IF NOT EXISTS video_track_index_error (
+    video_track uuid    NOT NULL,
+    ordinal     integer NOT NULL,
+    code        integer NOT NULL,
+    message     text    NOT NULL,
+    PRIMARY KEY (video_track, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_vtie_video_track ON video_track_index_error(video_track);
+
+CREATE TABLE IF NOT EXISTS scene (
+    id              uuid    NOT NULL PRIMARY KEY,
+    parent          uuid    NOT NULL,
+    index           bigint  NOT NULL,
+    span_start_pts  bigint  NOT NULL,
+    span_end_pts    bigint  NOT NULL,
+    span_tb_num     bigint  NOT NULL,
+    span_tb_den     bigint  NOT NULL,
+    detector        text    NOT NULL,
+    description     text    NOT NULL
+);
+CREATE INDEX        IF NOT EXISTS idx_scene_parent   ON scene(parent);
+CREATE INDEX        IF NOT EXISTS idx_scene_detector ON scene(detector);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_scene_parent_index ON scene(parent, index);
+
+CREATE TABLE IF NOT EXISTS keyframe (
+    id                        uuid   NOT NULL PRIMARY KEY,
+    parent                    uuid   NOT NULL,
+    pts                       bigint NOT NULL,
+    pts_tb_num                bigint NOT NULL,
+    pts_tb_den                bigint NOT NULL,
+    data                      bytea  NOT NULL,
+    mime                      text   NOT NULL,
+    width                     bigint NOT NULL,
+    height                    bigint NOT NULL,
+    extractor                 text   NOT NULL,
+    vlm_description_src       text   NOT NULL,
+    vlm_description_translated text  NOT NULL,
+    vlm_shot_type             text   NOT NULL,
+    horizon_angle             real   NOT NULL,
+    horizon_confidence        real   NOT NULL,
+    aesthetics_overall_score  real   NOT NULL,
+    aesthetics_is_utility     boolean NOT NULL DEFAULT false
+);
+CREATE INDEX IF NOT EXISTS idx_keyframe_parent ON keyframe(parent);
+
+-- detection child tables (per-kind, keyed by (keyframe, ordinal))
+CREATE TABLE IF NOT EXISTS keyframe_classification (
+    keyframe   uuid    NOT NULL,
+    ordinal    integer NOT NULL,
+    label      text    NOT NULL,
+    confidence real    NOT NULL,
+    PRIMARY KEY (keyframe, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_kf_classification_keyframe ON keyframe_classification(keyframe);
+
+CREATE TABLE IF NOT EXISTS keyframe_object (
+    keyframe   uuid    NOT NULL,
+    ordinal    integer NOT NULL,
+    label      text    NOT NULL,
+    confidence real    NOT NULL,
+    has_bbox   boolean NOT NULL DEFAULT false,
+    bbox_x     real,
+    bbox_y     real,
+    bbox_w     real,
+    bbox_h     real,
+    PRIMARY KEY (keyframe, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_kf_object_keyframe ON keyframe_object(keyframe);
+
+CREATE TABLE IF NOT EXISTS keyframe_action (
+    keyframe   uuid    NOT NULL,
+    ordinal    integer NOT NULL,
+    label      text    NOT NULL,
+    confidence real    NOT NULL,
+    PRIMARY KEY (keyframe, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_kf_action_keyframe ON keyframe_action(keyframe);
+
+CREATE TABLE IF NOT EXISTS keyframe_text_detection (
+    keyframe   uuid    NOT NULL,
+    ordinal    integer NOT NULL,
+    text       text    NOT NULL,
+    confidence real    NOT NULL,
+    bbox_x     real    NOT NULL,
+    bbox_y     real    NOT NULL,
+    bbox_w     real    NOT NULL,
+    bbox_h     real    NOT NULL,
+    PRIMARY KEY (keyframe, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_kf_text_detection_keyframe ON keyframe_text_detection(keyframe);
+
+CREATE TABLE IF NOT EXISTS keyframe_barcode (
+    keyframe   uuid    NOT NULL,
+    ordinal    integer NOT NULL,
+    payload    text    NOT NULL,
+    symbology  text    NOT NULL,
+    confidence real    NOT NULL,
+    bbox_x     real    NOT NULL,
+    bbox_y     real    NOT NULL,
+    bbox_w     real    NOT NULL,
+    bbox_h     real    NOT NULL,
+    PRIMARY KEY (keyframe, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_kf_barcode_keyframe ON keyframe_barcode(keyframe);
+
+-- attention / objectness saliency share this table; `kind` discriminates
+-- (0 = attention, 1 = objectness).
+CREATE TABLE IF NOT EXISTS keyframe_saliency (
+    keyframe   uuid     NOT NULL,
+    kind       smallint NOT NULL,
+    ordinal    integer  NOT NULL,
+    bbox_x     real     NOT NULL,
+    bbox_y     real     NOT NULL,
+    bbox_w     real     NOT NULL,
+    bbox_h     real     NOT NULL,
+    confidence real     NOT NULL,
+    PRIMARY KEY (keyframe, kind, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_kf_saliency_keyframe ON keyframe_saliency(keyframe);
+
+CREATE TABLE IF NOT EXISTS keyframe_document_segment (
+    keyframe   uuid    NOT NULL,
+    ordinal    integer NOT NULL,
+    tl_x       real    NOT NULL,
+    tl_y       real    NOT NULL,
+    tr_x       real    NOT NULL,
+    tr_y       real    NOT NULL,
+    br_x       real    NOT NULL,
+    br_y       real    NOT NULL,
+    bl_x       real    NOT NULL,
+    bl_y       real    NOT NULL,
+    confidence real    NOT NULL,
+    PRIMARY KEY (keyframe, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_kf_document_segment_keyframe ON keyframe_document_segment(keyframe);
+
+CREATE TABLE IF NOT EXISTS keyframe_color (
+    keyframe   uuid    NOT NULL,
+    ordinal    integer NOT NULL,
+    rgba       bigint  NOT NULL,
+    name       text    NOT NULL,
+    percentage real    NOT NULL,
+    population bigint  NOT NULL,
+    PRIMARY KEY (keyframe, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_kf_color_keyframe ON keyframe_color(keyframe);
+
+-- humans + animals share these shapes; `scope` (0 = human, 1 = animal)
+-- discriminates.
+CREATE TABLE IF NOT EXISTS keyframe_subject (
+    keyframe   uuid     NOT NULL,
+    scope      smallint NOT NULL,
+    ordinal    integer  NOT NULL,
+    label      text     NOT NULL,
+    confidence real     NOT NULL,
+    bbox_x     real     NOT NULL,
+    bbox_y     real     NOT NULL,
+    bbox_w     real     NOT NULL,
+    bbox_h     real     NOT NULL,
+    PRIMARY KEY (keyframe, scope, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_kf_subject_keyframe ON keyframe_subject(keyframe);
+
+-- humans faces + face_rectangles share this shape; `kind`
+-- (0 = faces, 1 = face_rectangles) discriminates.
+CREATE TABLE IF NOT EXISTS keyframe_face (
+    keyframe        uuid     NOT NULL,
+    kind            smallint NOT NULL,
+    ordinal         integer  NOT NULL,
+    bbox_x          real     NOT NULL,
+    bbox_y          real     NOT NULL,
+    bbox_w          real     NOT NULL,
+    bbox_h          real     NOT NULL,
+    confidence      real     NOT NULL,
+    capture_quality real     NOT NULL,
+    roll            real     NOT NULL,
+    yaw             real     NOT NULL,
+    pitch           real     NOT NULL,
+    PRIMARY KEY (keyframe, kind, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_kf_face_keyframe ON keyframe_face(keyframe);
+
+-- 2-D body pose: humans + animals share this shape; `scope` discriminates.
+CREATE TABLE IF NOT EXISTS keyframe_body_pose (
+    keyframe   uuid     NOT NULL,
+    scope      smallint NOT NULL,
+    ordinal    integer  NOT NULL,
+    bbox_x     real     NOT NULL,
+    bbox_y     real     NOT NULL,
+    bbox_w     real     NOT NULL,
+    bbox_h     real     NOT NULL,
+    confidence real     NOT NULL,
+    PRIMARY KEY (keyframe, scope, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_kf_body_pose_keyframe ON keyframe_body_pose(keyframe);
+
+-- joints for 2-D body / hand pose rows; `scope`
+-- (0 = human-body, 1 = animal-body, 2 = hand) discriminates which parent.
+CREATE TABLE IF NOT EXISTS keyframe_body_pose_joint (
+    keyframe       uuid     NOT NULL,
+    scope          smallint NOT NULL,
+    parent_ordinal integer  NOT NULL,
+    ordinal        integer  NOT NULL,
+    name           text     NOT NULL,
+    x              real     NOT NULL,
+    y              real     NOT NULL,
+    confidence     real     NOT NULL,
+    PRIMARY KEY (keyframe, scope, parent_ordinal, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_kf_body_pose_joint_keyframe ON keyframe_body_pose_joint(keyframe);
+
+CREATE TABLE IF NOT EXISTS keyframe_hand_pose (
+    keyframe   uuid     NOT NULL,
+    ordinal    integer  NOT NULL,
+    bbox_x     real     NOT NULL,
+    bbox_y     real     NOT NULL,
+    bbox_w     real     NOT NULL,
+    bbox_h     real     NOT NULL,
+    confidence real     NOT NULL,
+    chirality  smallint NOT NULL,
+    PRIMARY KEY (keyframe, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_kf_hand_pose_keyframe ON keyframe_hand_pose(keyframe);
+
+CREATE TABLE IF NOT EXISTS keyframe_body_pose_3d (
+    keyframe          uuid     NOT NULL,
+    ordinal           integer  NOT NULL,
+    confidence        real     NOT NULL,
+    body_height       real     NOT NULL,
+    height_estimation smallint NOT NULL,
+    PRIMARY KEY (keyframe, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_kf_body_pose_3d_keyframe ON keyframe_body_pose_3d(keyframe);
+
+CREATE TABLE IF NOT EXISTS keyframe_body_pose_3d_joint (
+    keyframe       uuid    NOT NULL,
+    parent_ordinal integer NOT NULL,
+    ordinal        integer NOT NULL,
+    name           text    NOT NULL,
+    x              real    NOT NULL,
+    y              real    NOT NULL,
+    z              real    NOT NULL,
+    confidence     real    NOT NULL,
+    PRIMARY KEY (keyframe, parent_ordinal, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_kf_body_pose_3d_joint_keyframe ON keyframe_body_pose_3d_joint(keyframe);
+
+-- instance + whole-frame segmentation masks share this shape; `kind`
+-- (0 = instance, 1 = segmentation) discriminates.
+CREATE TABLE IF NOT EXISTS keyframe_mask (
+    keyframe       uuid     NOT NULL,
+    kind           smallint NOT NULL,
+    ordinal        integer  NOT NULL,
+    bbox_x         real     NOT NULL,
+    bbox_y         real     NOT NULL,
+    bbox_w         real     NOT NULL,
+    bbox_h         real     NOT NULL,
+    confidence     real     NOT NULL,
+    instance_index bigint,
+    width          bigint   NOT NULL,
+    height         bigint   NOT NULL,
+    data           bytea    NOT NULL,
+    PRIMARY KEY (keyframe, kind, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_kf_mask_keyframe ON keyframe_mask(keyframe);
+
+CREATE TABLE IF NOT EXISTS keyframe_face_landmarks (
+    keyframe   uuid    NOT NULL,
+    ordinal    integer NOT NULL,
+    bbox_x     real    NOT NULL,
+    bbox_y     real    NOT NULL,
+    bbox_w     real    NOT NULL,
+    bbox_h     real    NOT NULL,
+    confidence real    NOT NULL,
+    PRIMARY KEY (keyframe, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_kf_face_landmarks_keyframe ON keyframe_face_landmarks(keyframe);
+
+CREATE TABLE IF NOT EXISTS keyframe_face_landmark_region (
+    keyframe       uuid    NOT NULL,
+    parent_ordinal integer NOT NULL,
+    ordinal        integer NOT NULL,
+    name           text    NOT NULL,
+    PRIMARY KEY (keyframe, parent_ordinal, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_kf_face_landmark_region_keyframe ON keyframe_face_landmark_region(keyframe);
+
+CREATE TABLE IF NOT EXISTS keyframe_face_landmark_point (
+    keyframe       uuid    NOT NULL,
+    parent_ordinal integer NOT NULL,
+    region_ordinal integer NOT NULL,
+    ordinal        integer NOT NULL,
+    x              real    NOT NULL,
+    y              real    NOT NULL,
+    PRIMARY KEY (keyframe, parent_ordinal, region_ordinal, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_kf_face_landmark_point_keyframe ON keyframe_face_landmark_point(keyframe);
+
+-- VLM open-vocab labels — `kind` (0 = categories, 1 = tags, 2 = objects,
+-- 3 = subjects, 4 = mood, 5 = emotion, 6 = lighting) discriminates the
+-- source `Vec<LocalizedText>` slice.
+CREATE TABLE IF NOT EXISTS keyframe_vlm_label (
+    keyframe   uuid     NOT NULL,
+    kind       smallint NOT NULL,
+    ordinal    integer  NOT NULL,
+    src        text     NOT NULL,
+    translated text     NOT NULL,
+    PRIMARY KEY (keyframe, kind, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_kf_vlm_label_keyframe ON keyframe_vlm_label(keyframe);
+
+-- The subtitle facet/track/per-track-analysis tables (subtitle,
+-- subtitle_track, subtitle_cue) are tracked as a follow-up — same scope
+-- note as in the SQLite schema.
