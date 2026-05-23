@@ -133,8 +133,12 @@ Indexes: unique `scene`, plus `favorite`, `rating`.
 | field | type |
 | --- | --- |
 | `_id` | `Binary(uuid)` |
-| `tracks` | `[Binary(uuid)]` |
+| `track_progress` | `{ total, indexed, failed }` (`Int64` fields) |
 | `total_segments` | `Int64` |
+
+The `tracks` reverse-FK list is **not** stored — it is derived by
+querying `audio_tracks` where `parent == audio._id` (mirrors the sqlx
+convention).
 
 Indexes: `_id` only.
 
@@ -147,8 +151,12 @@ Full per-recording shape from `schema/audio_track.md` r3 — see
 `start_pts`, `language`, `detected_language`, `language_mismatch`,
 `disposition`, `is_primary`, `auto_selected`, `content`, `speech_ratio`,
 `is_silent`, `loudness`, `fingerprint`, `isrc`, `acoustid`,
-`musicbrainz_recording_id`, `speakers`, `tags`, `cover_art`, `segments`,
-`provenance`, `index_status`, `index_errors`).
+`musicbrainz_recording_id`, `tags`, `cover_art`, `provenance`,
+`index_status`, `index_errors`).
+
+The `speakers` and `segments` reverse-FK lists are **not** stored —
+they are derived by querying `speakers` and `audio_segments` (both
+keyed by `parent`).
 
 Indexes: `parent`, `is_primary`, `content`, `language`.
 
