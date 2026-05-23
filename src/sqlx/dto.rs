@@ -76,6 +76,61 @@ pub fn millis_to_timestamp(ms: i64) -> Result<jiff::Timestamp, SqlxError> {
     .map_err(|e| SqlxError::DomainConstructorRejected(format!("jiff::Timestamp: {e}")))
 }
 
+// ---------------------------------------------------------------------------
+// Helpers: media-time `Timebase` / `Timestamp` / `TimeRange`
+// ---------------------------------------------------------------------------
+//
+// Media-time values carry a rational timebase, so a single ms column is
+// lossy. Each media-time value flattens into real columns: a PTS tick
+// `BIGINT` plus the timebase numerator / denominator (`*_tb_num` /
+// `*_tb_den`). `Timebase::den` is `NonZeroU32`, so a zero denominator from
+// the row is rejected as a typed error.
+
+/// Rebuild a `mediatime::Timebase` from a stored numerator / denominator
+/// pair. A zero (or `u32`-overflowing) denominator surfaces as a typed
+/// [`SqlxError::DomainConstructorRejected`].
+pub fn timebase_from_parts(num: i64, den: i64) -> Result<mediatime::Timebase, SqlxError> {
+  let num = u32::try_from(num)
+    .map_err(|e| SqlxError::DomainConstructorRejected(format!("Timebase.num: {e}")))?;
+  let den = u32::try_from(den)
+    .ok()
+    .and_then(core::num::NonZeroU32::new)
+    .ok_or_else(|| {
+      SqlxError::DomainConstructorRejected(format!("Timebase.den must be a non-zero u32: {den}"))
+    })?;
+  Ok(mediatime::Timebase::new(num, den))
+}
+
+/// Rebuild a `mediatime::Timestamp` from a stored `(pts, tb_num, tb_den)`
+/// triple.
+pub fn timestamp_from_parts(
+  pts: i64,
+  tb_num: i64,
+  tb_den: i64,
+) -> Result<mediatime::Timestamp, SqlxError> {
+  Ok(mediatime::Timestamp::new(
+    pts,
+    timebase_from_parts(tb_num, tb_den)?,
+  ))
+}
+
+/// Rebuild a `mediatime::TimeRange` from a stored
+/// `(start_pts, end_pts, tb_num, tb_den)` tuple. An inverted
+/// `start > end` range is rejected (`TimeRange::try_new` returns `None`).
+pub fn time_range_from_parts(
+  start_pts: i64,
+  end_pts: i64,
+  tb_num: i64,
+  tb_den: i64,
+) -> Result<mediatime::TimeRange, SqlxError> {
+  let tb = timebase_from_parts(tb_num, tb_den)?;
+  mediatime::TimeRange::try_new(start_pts, end_pts, tb).ok_or_else(|| {
+    SqlxError::DomainConstructorRejected(format!(
+      "TimeRange start_pts ({start_pts}) must be <= end_pts ({end_pts})"
+    ))
+  })
+}
+
 // ===========================================================================
 // Tests
 // ===========================================================================
@@ -111,5 +166,42 @@ mod tests {
     let ms = 1_700_000_000_000;
     let t = millis_to_timestamp(ms).unwrap();
     assert_eq!(timestamp_to_millis(t), ms);
+  }
+
+  #[test]
+  fn timebase_from_parts_rejects_zero_denominator() {
+    assert!(timebase_from_parts(1, 0).is_err());
+    assert!(timebase_from_parts(1, -5).is_err());
+    let tb = timebase_from_parts(1, 1000).unwrap();
+    assert_eq!(tb.num(), 1);
+    assert_eq!(tb.den().get(), 1000);
+  }
+
+  #[test]
+  fn media_time_roundtrip() {
+    let tb = timebase_from_parts(1, 90_000).unwrap();
+    let ts = mediatime::Timestamp::new(45_000, tb);
+    let ts2 = timestamp_from_parts(
+      ts.pts(),
+      i64::from(ts.timebase().num()),
+      i64::from(ts.timebase().den().get()),
+    )
+    .unwrap();
+    assert_eq!(ts, ts2);
+
+    let tr = mediatime::TimeRange::new(1_000, 2_500, tb);
+    let tr2 = time_range_from_parts(
+      tr.start_pts(),
+      tr.end_pts(),
+      i64::from(tr.timebase().num()),
+      i64::from(tr.timebase().den().get()),
+    )
+    .unwrap();
+    assert_eq!(tr, tr2);
+  }
+
+  #[test]
+  fn time_range_from_parts_rejects_inverted() {
+    assert!(time_range_from_parts(2_000, 1_000, 1, 1000).is_err());
   }
 }
