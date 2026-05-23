@@ -14,6 +14,7 @@ pub mod audio;
 pub mod leaves;
 pub mod media;
 pub mod media_file;
+pub mod video;
 
 pub use audio::{
   PgAudioRow, PgAudioSegmentRow, PgAudioSegmentWordRow, PgAudioTrackIndexErrorRow, PgAudioTrackRow,
@@ -21,6 +22,15 @@ pub use audio::{
 pub use leaves::{PgSceneAnnotationRow, PgSpeakerRow, PgUserTagRow, PgWatchedLocationRow};
 pub use media::PgMediaRow;
 pub use media_file::PgMediaFileRow;
+pub use video::{
+  PgKeyframeActionRow, PgKeyframeBarcodeRow, PgKeyframeBodyPose3DJointRow, PgKeyframeBodyPose3DRow,
+  PgKeyframeBodyPoseJointRow, PgKeyframeBodyPoseRow, PgKeyframeClassificationRow,
+  PgKeyframeColorRow, PgKeyframeDocumentSegmentRow, PgKeyframeFaceLandmarkPointRow,
+  PgKeyframeFaceLandmarkRegionRow, PgKeyframeFaceLandmarksRow, PgKeyframeFaceRow,
+  PgKeyframeHandPoseRow, PgKeyframeMaskRow, PgKeyframeObjectRow, PgKeyframeRow, PgKeyframeRows,
+  PgKeyframeSaliencyRow, PgKeyframeSubjectRow, PgKeyframeTextDetectionRow, PgKeyframeVlmLabelRow,
+  PgSceneRow, PgVideoRow, PgVideoTrackIndexErrorRow, PgVideoTrackRow,
+};
 
 /// Canonical PostgreSQL DDL for the mediaschema tables this revision maps.
 pub const SCHEMA_SQL: &str = include_str!("schema.sql");

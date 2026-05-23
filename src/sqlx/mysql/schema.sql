@@ -228,7 +228,392 @@ CREATE TABLE IF NOT EXISTS audio_segment_word (
     KEY idx_asw_audio_segment (audio_segment)
 );
 
--- The video + subtitle facet/track/per-track-analysis tables (video,
--- subtitle, video_track, subtitle_track, scene, keyframe, subtitle_cue)
--- are tracked as a follow-up — see the SQLite schema for the same scope
--- note.
+-- Video-cluster: the `Video` facet + `VideoTrack` + `Scene` + `Keyframe`
+-- (+ per-detection child tables).
+
+CREATE TABLE IF NOT EXISTS video (
+    id                     BINARY(16) NOT NULL,
+    parent                 BINARY(16) NOT NULL,
+    total_scenes           BIGINT     NOT NULL DEFAULT 0,
+    track_progress_total   BIGINT     NOT NULL DEFAULT 0,
+    track_progress_indexed BIGINT     NOT NULL DEFAULT 0,
+    track_progress_failed  BIGINT     NOT NULL DEFAULT 0,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_video_parent (parent)
+);
+
+CREATE TABLE IF NOT EXISTS video_track (
+    id                       BINARY(16)   NOT NULL,
+    video_id                 BINARY(16)   NOT NULL,
+    stream_index             BIGINT,
+    container_track_id       BIGINT,
+    start_pts                BIGINT,
+    start_pts_tb_num         BIGINT,
+    start_pts_tb_den         BIGINT,
+    duration_pts             BIGINT,
+    duration_tb_num          BIGINT,
+    duration_tb_den          BIGINT,
+    codec                    VARCHAR(64)  NOT NULL,
+    profile                  VARCHAR(64),
+    level                    INT,
+    bit_rate                 BIGINT       NOT NULL DEFAULT 0,
+    nb_frames                BIGINT,
+    has_b_frames             TINYINT      NOT NULL DEFAULT 0,
+    closed_gop               TINYINT,
+    bits_per_raw_sample      SMALLINT,
+    width                    BIGINT       NOT NULL DEFAULT 0,
+    height                   BIGINT       NOT NULL DEFAULT 0,
+    has_visible_rect         TINYINT      NOT NULL DEFAULT 0,
+    visible_rect_x           BIGINT,
+    visible_rect_y           BIGINT,
+    visible_rect_w           BIGINT,
+    visible_rect_h           BIGINT,
+    sar_num                  BIGINT       NOT NULL DEFAULT 1,
+    sar_den                  BIGINT       NOT NULL DEFAULT 1,
+    pixel_format             BIGINT       NOT NULL DEFAULT 0,
+    color_primaries          BIGINT       NOT NULL DEFAULT 0,
+    color_transfer           BIGINT       NOT NULL DEFAULT 0,
+    color_matrix             BIGINT       NOT NULL DEFAULT 0,
+    color_range              BIGINT       NOT NULL DEFAULT 0,
+    color_chroma_location    BIGINT       NOT NULL DEFAULT 0,
+    has_hdr_static           TINYINT      NOT NULL DEFAULT 0,
+    hdr_has_mastering        TINYINT      NOT NULL DEFAULT 0,
+    hdr_primary_r_x          BIGINT,
+    hdr_primary_r_y          BIGINT,
+    hdr_primary_g_x          BIGINT,
+    hdr_primary_g_y          BIGINT,
+    hdr_primary_b_x          BIGINT,
+    hdr_primary_b_y          BIGINT,
+    hdr_white_point_x        BIGINT,
+    hdr_white_point_y        BIGINT,
+    hdr_max_luminance        BIGINT,
+    hdr_min_luminance        BIGINT,
+    hdr_has_content_light    TINYINT      NOT NULL DEFAULT 0,
+    hdr_max_cll              BIGINT,
+    hdr_max_fall             BIGINT,
+    rotation                 BIGINT       NOT NULL DEFAULT 0,
+    fr_num                   BIGINT       NOT NULL DEFAULT 1,
+    fr_den                   BIGINT       NOT NULL DEFAULT 1,
+    fr_is_vfr                TINYINT      NOT NULL DEFAULT 0,
+    field_order              BIGINT       NOT NULL DEFAULT 0,
+    stereo_mode              BIGINT,
+    has_dovi                 TINYINT      NOT NULL DEFAULT 0,
+    dovi_profile             SMALLINT,
+    dovi_level               SMALLINT,
+    dovi_rpu_present         TINYINT,
+    dovi_el_present          TINYINT,
+    dovi_bl_signal_compat_id SMALLINT,
+    has_embedded_captions    TINYINT      NOT NULL DEFAULT 0,
+    disposition              BIGINT       NOT NULL DEFAULT 0,
+    is_primary               TINYINT      NOT NULL DEFAULT 0,
+    auto_selected            TINYINT      NOT NULL DEFAULT 0,
+    provenance_model_name    VARCHAR(255) NOT NULL,
+    provenance_model_version VARCHAR(255) NOT NULL,
+    provenance_prompt_version VARCHAR(255) NOT NULL,
+    provenance_indexer_version VARCHAR(255) NOT NULL,
+    index_status             BIGINT       NOT NULL DEFAULT 0,
+    PRIMARY KEY (id),
+    KEY idx_video_track_video_id (video_id)
+);
+
+CREATE TABLE IF NOT EXISTS video_track_index_error (
+    video_track BINARY(16) NOT NULL,
+    ordinal     INT        NOT NULL,
+    code        INT        NOT NULL,
+    message     TEXT       NOT NULL,
+    PRIMARY KEY (video_track, ordinal),
+    KEY idx_vtie_video_track (video_track)
+);
+
+CREATE TABLE IF NOT EXISTS scene (
+    id              BINARY(16)  NOT NULL,
+    parent          BINARY(16)  NOT NULL,
+    `index`         BIGINT      NOT NULL,
+    span_start_pts  BIGINT      NOT NULL,
+    span_end_pts    BIGINT      NOT NULL,
+    span_tb_num     BIGINT      NOT NULL,
+    span_tb_den     BIGINT      NOT NULL,
+    detector        VARCHAR(64) NOT NULL,
+    description     TEXT        NOT NULL,
+    PRIMARY KEY (id),
+    KEY idx_scene_parent (parent),
+    KEY idx_scene_detector (detector),
+    UNIQUE KEY idx_scene_parent_index (parent, `index`)
+);
+
+CREATE TABLE IF NOT EXISTS keyframe (
+    id                         BINARY(16)   NOT NULL,
+    parent                     BINARY(16)   NOT NULL,
+    pts                        BIGINT       NOT NULL,
+    pts_tb_num                 BIGINT       NOT NULL,
+    pts_tb_den                 BIGINT       NOT NULL,
+    data                       LONGBLOB     NOT NULL,
+    mime                       VARCHAR(255) NOT NULL,
+    width                      BIGINT       NOT NULL,
+    height                     BIGINT       NOT NULL,
+    extractor                  VARCHAR(64)  NOT NULL,
+    vlm_description_src        TEXT         NOT NULL,
+    vlm_description_translated TEXT         NOT NULL,
+    vlm_shot_type              VARCHAR(64)  NOT NULL,
+    horizon_angle              FLOAT        NOT NULL,
+    horizon_confidence         FLOAT        NOT NULL,
+    aesthetics_overall_score   FLOAT        NOT NULL,
+    aesthetics_is_utility      TINYINT      NOT NULL DEFAULT 0,
+    PRIMARY KEY (id),
+    KEY idx_keyframe_parent (parent)
+);
+
+CREATE TABLE IF NOT EXISTS keyframe_classification (
+    keyframe   BINARY(16) NOT NULL,
+    ordinal    INT        NOT NULL,
+    label      TEXT       NOT NULL,
+    confidence FLOAT      NOT NULL,
+    PRIMARY KEY (keyframe, ordinal),
+    KEY idx_kf_classification_keyframe (keyframe)
+);
+
+CREATE TABLE IF NOT EXISTS keyframe_object (
+    keyframe   BINARY(16) NOT NULL,
+    ordinal    INT        NOT NULL,
+    label      TEXT       NOT NULL,
+    confidence FLOAT      NOT NULL,
+    has_bbox   TINYINT    NOT NULL DEFAULT 0,
+    bbox_x     FLOAT,
+    bbox_y     FLOAT,
+    bbox_w     FLOAT,
+    bbox_h     FLOAT,
+    PRIMARY KEY (keyframe, ordinal),
+    KEY idx_kf_object_keyframe (keyframe)
+);
+
+CREATE TABLE IF NOT EXISTS keyframe_action (
+    keyframe   BINARY(16) NOT NULL,
+    ordinal    INT        NOT NULL,
+    label      TEXT       NOT NULL,
+    confidence FLOAT      NOT NULL,
+    PRIMARY KEY (keyframe, ordinal),
+    KEY idx_kf_action_keyframe (keyframe)
+);
+
+CREATE TABLE IF NOT EXISTS keyframe_text_detection (
+    keyframe   BINARY(16) NOT NULL,
+    ordinal    INT        NOT NULL,
+    text       TEXT       NOT NULL,
+    confidence FLOAT      NOT NULL,
+    bbox_x     FLOAT      NOT NULL,
+    bbox_y     FLOAT      NOT NULL,
+    bbox_w     FLOAT      NOT NULL,
+    bbox_h     FLOAT      NOT NULL,
+    PRIMARY KEY (keyframe, ordinal),
+    KEY idx_kf_text_detection_keyframe (keyframe)
+);
+
+CREATE TABLE IF NOT EXISTS keyframe_barcode (
+    keyframe   BINARY(16) NOT NULL,
+    ordinal    INT        NOT NULL,
+    payload    TEXT       NOT NULL,
+    symbology  VARCHAR(64) NOT NULL,
+    confidence FLOAT      NOT NULL,
+    bbox_x     FLOAT      NOT NULL,
+    bbox_y     FLOAT      NOT NULL,
+    bbox_w     FLOAT      NOT NULL,
+    bbox_h     FLOAT      NOT NULL,
+    PRIMARY KEY (keyframe, ordinal),
+    KEY idx_kf_barcode_keyframe (keyframe)
+);
+
+CREATE TABLE IF NOT EXISTS keyframe_saliency (
+    keyframe   BINARY(16) NOT NULL,
+    kind       SMALLINT   NOT NULL,
+    ordinal    INT        NOT NULL,
+    bbox_x     FLOAT      NOT NULL,
+    bbox_y     FLOAT      NOT NULL,
+    bbox_w     FLOAT      NOT NULL,
+    bbox_h     FLOAT      NOT NULL,
+    confidence FLOAT      NOT NULL,
+    PRIMARY KEY (keyframe, kind, ordinal),
+    KEY idx_kf_saliency_keyframe (keyframe)
+);
+
+CREATE TABLE IF NOT EXISTS keyframe_document_segment (
+    keyframe   BINARY(16) NOT NULL,
+    ordinal    INT        NOT NULL,
+    tl_x       FLOAT      NOT NULL,
+    tl_y       FLOAT      NOT NULL,
+    tr_x       FLOAT      NOT NULL,
+    tr_y       FLOAT      NOT NULL,
+    br_x       FLOAT      NOT NULL,
+    br_y       FLOAT      NOT NULL,
+    bl_x       FLOAT      NOT NULL,
+    bl_y       FLOAT      NOT NULL,
+    confidence FLOAT      NOT NULL,
+    PRIMARY KEY (keyframe, ordinal),
+    KEY idx_kf_document_segment_keyframe (keyframe)
+);
+
+CREATE TABLE IF NOT EXISTS keyframe_color (
+    keyframe   BINARY(16) NOT NULL,
+    ordinal    INT        NOT NULL,
+    rgba       BIGINT     NOT NULL,
+    name       VARCHAR(64) NOT NULL,
+    percentage FLOAT      NOT NULL,
+    population BIGINT     NOT NULL,
+    PRIMARY KEY (keyframe, ordinal),
+    KEY idx_kf_color_keyframe (keyframe)
+);
+
+CREATE TABLE IF NOT EXISTS keyframe_subject (
+    keyframe   BINARY(16) NOT NULL,
+    scope      SMALLINT   NOT NULL,
+    ordinal    INT        NOT NULL,
+    label      TEXT       NOT NULL,
+    confidence FLOAT      NOT NULL,
+    bbox_x     FLOAT      NOT NULL,
+    bbox_y     FLOAT      NOT NULL,
+    bbox_w     FLOAT      NOT NULL,
+    bbox_h     FLOAT      NOT NULL,
+    PRIMARY KEY (keyframe, scope, ordinal),
+    KEY idx_kf_subject_keyframe (keyframe)
+);
+
+CREATE TABLE IF NOT EXISTS keyframe_face (
+    keyframe        BINARY(16) NOT NULL,
+    kind            SMALLINT   NOT NULL,
+    ordinal         INT        NOT NULL,
+    bbox_x          FLOAT      NOT NULL,
+    bbox_y          FLOAT      NOT NULL,
+    bbox_w          FLOAT      NOT NULL,
+    bbox_h          FLOAT      NOT NULL,
+    confidence      FLOAT      NOT NULL,
+    capture_quality FLOAT      NOT NULL,
+    roll            FLOAT      NOT NULL,
+    yaw             FLOAT      NOT NULL,
+    pitch           FLOAT      NOT NULL,
+    PRIMARY KEY (keyframe, kind, ordinal),
+    KEY idx_kf_face_keyframe (keyframe)
+);
+
+CREATE TABLE IF NOT EXISTS keyframe_body_pose (
+    keyframe   BINARY(16) NOT NULL,
+    scope      SMALLINT   NOT NULL,
+    ordinal    INT        NOT NULL,
+    bbox_x     FLOAT      NOT NULL,
+    bbox_y     FLOAT      NOT NULL,
+    bbox_w     FLOAT      NOT NULL,
+    bbox_h     FLOAT      NOT NULL,
+    confidence FLOAT      NOT NULL,
+    PRIMARY KEY (keyframe, scope, ordinal),
+    KEY idx_kf_body_pose_keyframe (keyframe)
+);
+
+CREATE TABLE IF NOT EXISTS keyframe_body_pose_joint (
+    keyframe       BINARY(16) NOT NULL,
+    scope          SMALLINT   NOT NULL,
+    parent_ordinal INT        NOT NULL,
+    ordinal        INT        NOT NULL,
+    name           VARCHAR(128) NOT NULL,
+    x              FLOAT      NOT NULL,
+    y              FLOAT      NOT NULL,
+    confidence     FLOAT      NOT NULL,
+    PRIMARY KEY (keyframe, scope, parent_ordinal, ordinal),
+    KEY idx_kf_body_pose_joint_keyframe (keyframe)
+);
+
+CREATE TABLE IF NOT EXISTS keyframe_hand_pose (
+    keyframe   BINARY(16) NOT NULL,
+    ordinal    INT        NOT NULL,
+    bbox_x     FLOAT      NOT NULL,
+    bbox_y     FLOAT      NOT NULL,
+    bbox_w     FLOAT      NOT NULL,
+    bbox_h     FLOAT      NOT NULL,
+    confidence FLOAT      NOT NULL,
+    chirality  SMALLINT   NOT NULL,
+    PRIMARY KEY (keyframe, ordinal),
+    KEY idx_kf_hand_pose_keyframe (keyframe)
+);
+
+CREATE TABLE IF NOT EXISTS keyframe_body_pose_3d (
+    keyframe          BINARY(16) NOT NULL,
+    ordinal           INT        NOT NULL,
+    confidence        FLOAT      NOT NULL,
+    body_height       FLOAT      NOT NULL,
+    height_estimation SMALLINT   NOT NULL,
+    PRIMARY KEY (keyframe, ordinal),
+    KEY idx_kf_body_pose_3d_keyframe (keyframe)
+);
+
+CREATE TABLE IF NOT EXISTS keyframe_body_pose_3d_joint (
+    keyframe       BINARY(16) NOT NULL,
+    parent_ordinal INT        NOT NULL,
+    ordinal        INT        NOT NULL,
+    name           VARCHAR(128) NOT NULL,
+    x              FLOAT      NOT NULL,
+    y              FLOAT      NOT NULL,
+    z              FLOAT      NOT NULL,
+    confidence     FLOAT      NOT NULL,
+    PRIMARY KEY (keyframe, parent_ordinal, ordinal),
+    KEY idx_kf_body_pose_3d_joint_keyframe (keyframe)
+);
+
+CREATE TABLE IF NOT EXISTS keyframe_mask (
+    keyframe       BINARY(16) NOT NULL,
+    kind           SMALLINT   NOT NULL,
+    ordinal        INT        NOT NULL,
+    bbox_x         FLOAT      NOT NULL,
+    bbox_y         FLOAT      NOT NULL,
+    bbox_w         FLOAT      NOT NULL,
+    bbox_h         FLOAT      NOT NULL,
+    confidence     FLOAT      NOT NULL,
+    instance_index BIGINT,
+    width          BIGINT     NOT NULL,
+    height         BIGINT     NOT NULL,
+    data           LONGBLOB   NOT NULL,
+    PRIMARY KEY (keyframe, kind, ordinal),
+    KEY idx_kf_mask_keyframe (keyframe)
+);
+
+CREATE TABLE IF NOT EXISTS keyframe_face_landmarks (
+    keyframe   BINARY(16) NOT NULL,
+    ordinal    INT        NOT NULL,
+    bbox_x     FLOAT      NOT NULL,
+    bbox_y     FLOAT      NOT NULL,
+    bbox_w     FLOAT      NOT NULL,
+    bbox_h     FLOAT      NOT NULL,
+    confidence FLOAT      NOT NULL,
+    PRIMARY KEY (keyframe, ordinal),
+    KEY idx_kf_face_landmarks_keyframe (keyframe)
+);
+
+CREATE TABLE IF NOT EXISTS keyframe_face_landmark_region (
+    keyframe       BINARY(16)   NOT NULL,
+    parent_ordinal INT          NOT NULL,
+    ordinal        INT          NOT NULL,
+    name           VARCHAR(128) NOT NULL,
+    PRIMARY KEY (keyframe, parent_ordinal, ordinal),
+    KEY idx_kf_face_landmark_region_keyframe (keyframe)
+);
+
+CREATE TABLE IF NOT EXISTS keyframe_face_landmark_point (
+    keyframe       BINARY(16) NOT NULL,
+    parent_ordinal INT        NOT NULL,
+    region_ordinal INT        NOT NULL,
+    ordinal        INT        NOT NULL,
+    x              FLOAT      NOT NULL,
+    y              FLOAT      NOT NULL,
+    PRIMARY KEY (keyframe, parent_ordinal, region_ordinal, ordinal),
+    KEY idx_kf_face_landmark_point_keyframe (keyframe)
+);
+
+CREATE TABLE IF NOT EXISTS keyframe_vlm_label (
+    keyframe   BINARY(16) NOT NULL,
+    kind       SMALLINT   NOT NULL,
+    ordinal    INT        NOT NULL,
+    src        TEXT       NOT NULL,
+    translated TEXT       NOT NULL,
+    PRIMARY KEY (keyframe, kind, ordinal),
+    KEY idx_kf_vlm_label_keyframe (keyframe)
+);
+
+-- The subtitle facet/track/per-track-analysis tables (subtitle,
+-- subtitle_track, subtitle_cue) are tracked as a follow-up — same scope
+-- note as in the SQLite schema.

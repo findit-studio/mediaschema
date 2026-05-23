@@ -219,11 +219,388 @@ CREATE TABLE IF NOT EXISTS audio_segment_word (
 );
 CREATE INDEX IF NOT EXISTS idx_asw_audio_segment ON audio_segment_word(audio_segment);
 
--- The video + subtitle facet/track/per-track-analysis tables (video,
--- subtitle, video_track, subtitle_track, scene, keyframe, subtitle_cue)
--- are tracked as a follow-up. Their schema shape is documented in the
--- corresponding `schema/*.md` locked specs; the row mapping is deferred:
--- the remaining mediaframe descriptor VOs (`VideoCodec`, `color::Info`,
--- `PixelFormat`, …) carry no serde derives, so each needs a hand-rolled
--- flat-column mapping (as the capture `Device` / `GeoLocation` columns
--- do for the Media row) — tracked as a focused follow-up.
+-- Video-cluster: the `Video` facet + `VideoTrack` + `Scene` + `Keyframe`
+-- (+ per-detection child tables). Booleans ride as 0/1 INTEGER.
+
+CREATE TABLE IF NOT EXISTS video (
+    id                     BLOB    NOT NULL PRIMARY KEY,
+    parent                 BLOB    NOT NULL UNIQUE,
+    total_scenes           INTEGER NOT NULL DEFAULT 0,
+    track_progress_total   INTEGER NOT NULL DEFAULT 0,
+    track_progress_indexed INTEGER NOT NULL DEFAULT 0,
+    track_progress_failed  INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS video_track (
+    id                       BLOB    NOT NULL PRIMARY KEY,
+    video_id                 BLOB    NOT NULL,
+    stream_index             INTEGER,
+    container_track_id       INTEGER,
+    start_pts                INTEGER,
+    start_pts_tb_num         INTEGER,
+    start_pts_tb_den         INTEGER,
+    duration_pts             INTEGER,
+    duration_tb_num          INTEGER,
+    duration_tb_den          INTEGER,
+    codec                    TEXT    NOT NULL,
+    profile                  TEXT,
+    level                    INTEGER,
+    bit_rate                 INTEGER NOT NULL DEFAULT 0,
+    nb_frames                INTEGER,
+    has_b_frames             INTEGER NOT NULL DEFAULT 0,
+    closed_gop               INTEGER,
+    bits_per_raw_sample      INTEGER,
+    width                    INTEGER NOT NULL DEFAULT 0,
+    height                   INTEGER NOT NULL DEFAULT 0,
+    has_visible_rect         INTEGER NOT NULL DEFAULT 0,
+    visible_rect_x           INTEGER,
+    visible_rect_y           INTEGER,
+    visible_rect_w           INTEGER,
+    visible_rect_h           INTEGER,
+    sar_num                  INTEGER NOT NULL DEFAULT 1,
+    sar_den                  INTEGER NOT NULL DEFAULT 1,
+    pixel_format             INTEGER NOT NULL DEFAULT 0,
+    color_primaries          INTEGER NOT NULL DEFAULT 0,
+    color_transfer           INTEGER NOT NULL DEFAULT 0,
+    color_matrix             INTEGER NOT NULL DEFAULT 0,
+    color_range              INTEGER NOT NULL DEFAULT 0,
+    color_chroma_location    INTEGER NOT NULL DEFAULT 0,
+    has_hdr_static           INTEGER NOT NULL DEFAULT 0,
+    hdr_has_mastering        INTEGER NOT NULL DEFAULT 0,
+    hdr_primary_r_x          INTEGER,
+    hdr_primary_r_y          INTEGER,
+    hdr_primary_g_x          INTEGER,
+    hdr_primary_g_y          INTEGER,
+    hdr_primary_b_x          INTEGER,
+    hdr_primary_b_y          INTEGER,
+    hdr_white_point_x        INTEGER,
+    hdr_white_point_y        INTEGER,
+    hdr_max_luminance        INTEGER,
+    hdr_min_luminance        INTEGER,
+    hdr_has_content_light    INTEGER NOT NULL DEFAULT 0,
+    hdr_max_cll              INTEGER,
+    hdr_max_fall             INTEGER,
+    rotation                 INTEGER NOT NULL DEFAULT 0,
+    fr_num                   INTEGER NOT NULL DEFAULT 1,
+    fr_den                   INTEGER NOT NULL DEFAULT 1,
+    fr_is_vfr                INTEGER NOT NULL DEFAULT 0,
+    field_order              INTEGER NOT NULL DEFAULT 0,
+    stereo_mode              INTEGER,
+    has_dovi                 INTEGER NOT NULL DEFAULT 0,
+    dovi_profile             INTEGER,
+    dovi_level               INTEGER,
+    dovi_rpu_present         INTEGER,
+    dovi_el_present          INTEGER,
+    dovi_bl_signal_compat_id INTEGER,
+    has_embedded_captions    INTEGER NOT NULL DEFAULT 0,
+    disposition              INTEGER NOT NULL DEFAULT 0,
+    is_primary               INTEGER NOT NULL DEFAULT 0,
+    auto_selected            INTEGER NOT NULL DEFAULT 0,
+    provenance_model_name    TEXT    NOT NULL,
+    provenance_model_version TEXT    NOT NULL,
+    provenance_prompt_version TEXT   NOT NULL,
+    provenance_indexer_version TEXT  NOT NULL,
+    index_status             INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_video_track_video_id ON video_track(video_id);
+
+CREATE TABLE IF NOT EXISTS video_track_index_error (
+    video_track BLOB    NOT NULL,
+    ordinal     INTEGER NOT NULL,
+    code        INTEGER NOT NULL,
+    message     TEXT    NOT NULL,
+    PRIMARY KEY (video_track, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_vtie_video_track ON video_track_index_error(video_track);
+
+CREATE TABLE IF NOT EXISTS scene (
+    id              BLOB    NOT NULL PRIMARY KEY,
+    parent          BLOB    NOT NULL,
+    "index"         INTEGER NOT NULL,
+    span_start_pts  INTEGER NOT NULL,
+    span_end_pts    INTEGER NOT NULL,
+    span_tb_num     INTEGER NOT NULL,
+    span_tb_den     INTEGER NOT NULL,
+    detector        TEXT    NOT NULL,
+    description     TEXT    NOT NULL
+);
+CREATE INDEX        IF NOT EXISTS idx_scene_parent   ON scene(parent);
+CREATE INDEX        IF NOT EXISTS idx_scene_detector ON scene(detector);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_scene_parent_index ON scene(parent, "index");
+
+CREATE TABLE IF NOT EXISTS keyframe (
+    id                         BLOB    NOT NULL PRIMARY KEY,
+    parent                     BLOB    NOT NULL,
+    pts                        INTEGER NOT NULL,
+    pts_tb_num                 INTEGER NOT NULL,
+    pts_tb_den                 INTEGER NOT NULL,
+    data                       BLOB    NOT NULL,
+    mime                       TEXT    NOT NULL,
+    width                      INTEGER NOT NULL,
+    height                     INTEGER NOT NULL,
+    extractor                  TEXT    NOT NULL,
+    vlm_description_src        TEXT    NOT NULL,
+    vlm_description_translated TEXT    NOT NULL,
+    vlm_shot_type              TEXT    NOT NULL,
+    horizon_angle              REAL    NOT NULL,
+    horizon_confidence         REAL    NOT NULL,
+    aesthetics_overall_score   REAL    NOT NULL,
+    aesthetics_is_utility      INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_keyframe_parent ON keyframe(parent);
+
+CREATE TABLE IF NOT EXISTS keyframe_classification (
+    keyframe   BLOB    NOT NULL,
+    ordinal    INTEGER NOT NULL,
+    label      TEXT    NOT NULL,
+    confidence REAL    NOT NULL,
+    PRIMARY KEY (keyframe, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_kf_classification_keyframe ON keyframe_classification(keyframe);
+
+CREATE TABLE IF NOT EXISTS keyframe_object (
+    keyframe   BLOB    NOT NULL,
+    ordinal    INTEGER NOT NULL,
+    label      TEXT    NOT NULL,
+    confidence REAL    NOT NULL,
+    has_bbox   INTEGER NOT NULL DEFAULT 0,
+    bbox_x     REAL,
+    bbox_y     REAL,
+    bbox_w     REAL,
+    bbox_h     REAL,
+    PRIMARY KEY (keyframe, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_kf_object_keyframe ON keyframe_object(keyframe);
+
+CREATE TABLE IF NOT EXISTS keyframe_action (
+    keyframe   BLOB    NOT NULL,
+    ordinal    INTEGER NOT NULL,
+    label      TEXT    NOT NULL,
+    confidence REAL    NOT NULL,
+    PRIMARY KEY (keyframe, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_kf_action_keyframe ON keyframe_action(keyframe);
+
+CREATE TABLE IF NOT EXISTS keyframe_text_detection (
+    keyframe   BLOB    NOT NULL,
+    ordinal    INTEGER NOT NULL,
+    text       TEXT    NOT NULL,
+    confidence REAL    NOT NULL,
+    bbox_x     REAL    NOT NULL,
+    bbox_y     REAL    NOT NULL,
+    bbox_w     REAL    NOT NULL,
+    bbox_h     REAL    NOT NULL,
+    PRIMARY KEY (keyframe, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_kf_text_detection_keyframe ON keyframe_text_detection(keyframe);
+
+CREATE TABLE IF NOT EXISTS keyframe_barcode (
+    keyframe   BLOB    NOT NULL,
+    ordinal    INTEGER NOT NULL,
+    payload    TEXT    NOT NULL,
+    symbology  TEXT    NOT NULL,
+    confidence REAL    NOT NULL,
+    bbox_x     REAL    NOT NULL,
+    bbox_y     REAL    NOT NULL,
+    bbox_w     REAL    NOT NULL,
+    bbox_h     REAL    NOT NULL,
+    PRIMARY KEY (keyframe, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_kf_barcode_keyframe ON keyframe_barcode(keyframe);
+
+CREATE TABLE IF NOT EXISTS keyframe_saliency (
+    keyframe   BLOB    NOT NULL,
+    kind       INTEGER NOT NULL,
+    ordinal    INTEGER NOT NULL,
+    bbox_x     REAL    NOT NULL,
+    bbox_y     REAL    NOT NULL,
+    bbox_w     REAL    NOT NULL,
+    bbox_h     REAL    NOT NULL,
+    confidence REAL    NOT NULL,
+    PRIMARY KEY (keyframe, kind, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_kf_saliency_keyframe ON keyframe_saliency(keyframe);
+
+CREATE TABLE IF NOT EXISTS keyframe_document_segment (
+    keyframe   BLOB    NOT NULL,
+    ordinal    INTEGER NOT NULL,
+    tl_x       REAL    NOT NULL,
+    tl_y       REAL    NOT NULL,
+    tr_x       REAL    NOT NULL,
+    tr_y       REAL    NOT NULL,
+    br_x       REAL    NOT NULL,
+    br_y       REAL    NOT NULL,
+    bl_x       REAL    NOT NULL,
+    bl_y       REAL    NOT NULL,
+    confidence REAL    NOT NULL,
+    PRIMARY KEY (keyframe, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_kf_document_segment_keyframe ON keyframe_document_segment(keyframe);
+
+CREATE TABLE IF NOT EXISTS keyframe_color (
+    keyframe   BLOB    NOT NULL,
+    ordinal    INTEGER NOT NULL,
+    rgba       INTEGER NOT NULL,
+    name       TEXT    NOT NULL,
+    percentage REAL    NOT NULL,
+    population INTEGER NOT NULL,
+    PRIMARY KEY (keyframe, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_kf_color_keyframe ON keyframe_color(keyframe);
+
+CREATE TABLE IF NOT EXISTS keyframe_subject (
+    keyframe   BLOB    NOT NULL,
+    scope      INTEGER NOT NULL,
+    ordinal    INTEGER NOT NULL,
+    label      TEXT    NOT NULL,
+    confidence REAL    NOT NULL,
+    bbox_x     REAL    NOT NULL,
+    bbox_y     REAL    NOT NULL,
+    bbox_w     REAL    NOT NULL,
+    bbox_h     REAL    NOT NULL,
+    PRIMARY KEY (keyframe, scope, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_kf_subject_keyframe ON keyframe_subject(keyframe);
+
+CREATE TABLE IF NOT EXISTS keyframe_face (
+    keyframe        BLOB    NOT NULL,
+    kind            INTEGER NOT NULL,
+    ordinal         INTEGER NOT NULL,
+    bbox_x          REAL    NOT NULL,
+    bbox_y          REAL    NOT NULL,
+    bbox_w          REAL    NOT NULL,
+    bbox_h          REAL    NOT NULL,
+    confidence      REAL    NOT NULL,
+    capture_quality REAL    NOT NULL,
+    roll            REAL    NOT NULL,
+    yaw             REAL    NOT NULL,
+    pitch           REAL    NOT NULL,
+    PRIMARY KEY (keyframe, kind, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_kf_face_keyframe ON keyframe_face(keyframe);
+
+CREATE TABLE IF NOT EXISTS keyframe_body_pose (
+    keyframe   BLOB    NOT NULL,
+    scope      INTEGER NOT NULL,
+    ordinal    INTEGER NOT NULL,
+    bbox_x     REAL    NOT NULL,
+    bbox_y     REAL    NOT NULL,
+    bbox_w     REAL    NOT NULL,
+    bbox_h     REAL    NOT NULL,
+    confidence REAL    NOT NULL,
+    PRIMARY KEY (keyframe, scope, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_kf_body_pose_keyframe ON keyframe_body_pose(keyframe);
+
+CREATE TABLE IF NOT EXISTS keyframe_body_pose_joint (
+    keyframe       BLOB    NOT NULL,
+    scope          INTEGER NOT NULL,
+    parent_ordinal INTEGER NOT NULL,
+    ordinal        INTEGER NOT NULL,
+    name           TEXT    NOT NULL,
+    x              REAL    NOT NULL,
+    y              REAL    NOT NULL,
+    confidence     REAL    NOT NULL,
+    PRIMARY KEY (keyframe, scope, parent_ordinal, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_kf_body_pose_joint_keyframe ON keyframe_body_pose_joint(keyframe);
+
+CREATE TABLE IF NOT EXISTS keyframe_hand_pose (
+    keyframe   BLOB    NOT NULL,
+    ordinal    INTEGER NOT NULL,
+    bbox_x     REAL    NOT NULL,
+    bbox_y     REAL    NOT NULL,
+    bbox_w     REAL    NOT NULL,
+    bbox_h     REAL    NOT NULL,
+    confidence REAL    NOT NULL,
+    chirality  INTEGER NOT NULL,
+    PRIMARY KEY (keyframe, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_kf_hand_pose_keyframe ON keyframe_hand_pose(keyframe);
+
+CREATE TABLE IF NOT EXISTS keyframe_body_pose_3d (
+    keyframe          BLOB    NOT NULL,
+    ordinal           INTEGER NOT NULL,
+    confidence        REAL    NOT NULL,
+    body_height       REAL    NOT NULL,
+    height_estimation INTEGER NOT NULL,
+    PRIMARY KEY (keyframe, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_kf_body_pose_3d_keyframe ON keyframe_body_pose_3d(keyframe);
+
+CREATE TABLE IF NOT EXISTS keyframe_body_pose_3d_joint (
+    keyframe       BLOB    NOT NULL,
+    parent_ordinal INTEGER NOT NULL,
+    ordinal        INTEGER NOT NULL,
+    name           TEXT    NOT NULL,
+    x              REAL    NOT NULL,
+    y              REAL    NOT NULL,
+    z              REAL    NOT NULL,
+    confidence     REAL    NOT NULL,
+    PRIMARY KEY (keyframe, parent_ordinal, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_kf_body_pose_3d_joint_keyframe ON keyframe_body_pose_3d_joint(keyframe);
+
+CREATE TABLE IF NOT EXISTS keyframe_mask (
+    keyframe       BLOB    NOT NULL,
+    kind           INTEGER NOT NULL,
+    ordinal        INTEGER NOT NULL,
+    bbox_x         REAL    NOT NULL,
+    bbox_y         REAL    NOT NULL,
+    bbox_w         REAL    NOT NULL,
+    bbox_h         REAL    NOT NULL,
+    confidence     REAL    NOT NULL,
+    instance_index INTEGER,
+    width          INTEGER NOT NULL,
+    height         INTEGER NOT NULL,
+    data           BLOB    NOT NULL,
+    PRIMARY KEY (keyframe, kind, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_kf_mask_keyframe ON keyframe_mask(keyframe);
+
+CREATE TABLE IF NOT EXISTS keyframe_face_landmarks (
+    keyframe   BLOB    NOT NULL,
+    ordinal    INTEGER NOT NULL,
+    bbox_x     REAL    NOT NULL,
+    bbox_y     REAL    NOT NULL,
+    bbox_w     REAL    NOT NULL,
+    bbox_h     REAL    NOT NULL,
+    confidence REAL    NOT NULL,
+    PRIMARY KEY (keyframe, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_kf_face_landmarks_keyframe ON keyframe_face_landmarks(keyframe);
+
+CREATE TABLE IF NOT EXISTS keyframe_face_landmark_region (
+    keyframe       BLOB    NOT NULL,
+    parent_ordinal INTEGER NOT NULL,
+    ordinal        INTEGER NOT NULL,
+    name           TEXT    NOT NULL,
+    PRIMARY KEY (keyframe, parent_ordinal, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_kf_face_landmark_region_keyframe ON keyframe_face_landmark_region(keyframe);
+
+CREATE TABLE IF NOT EXISTS keyframe_face_landmark_point (
+    keyframe       BLOB    NOT NULL,
+    parent_ordinal INTEGER NOT NULL,
+    region_ordinal INTEGER NOT NULL,
+    ordinal        INTEGER NOT NULL,
+    x              REAL    NOT NULL,
+    y              REAL    NOT NULL,
+    PRIMARY KEY (keyframe, parent_ordinal, region_ordinal, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_kf_face_landmark_point_keyframe ON keyframe_face_landmark_point(keyframe);
+
+CREATE TABLE IF NOT EXISTS keyframe_vlm_label (
+    keyframe   BLOB    NOT NULL,
+    kind       INTEGER NOT NULL,
+    ordinal    INTEGER NOT NULL,
+    src        TEXT    NOT NULL,
+    translated TEXT    NOT NULL,
+    PRIMARY KEY (keyframe, kind, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_kf_vlm_label_keyframe ON keyframe_vlm_label(keyframe);
+
+-- The subtitle facet/track/per-track-analysis tables (subtitle,
+-- subtitle_track, subtitle_cue) are tracked as a follow-up. Their
+-- schema shape is documented in the corresponding `schema/*.md` locked
+-- specs; the row mapping is deferred and tracked as a focused follow-up.
