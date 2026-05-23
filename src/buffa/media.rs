@@ -3,10 +3,12 @@
 //! ## Field correspondence
 //!
 //! Wire `media.v1::Media` wraps a nested `MediaMeta` (id / checksum /
-//! name / size / created_at) and adds flat scalars (kind, EXIF capture,
-//! etc.). The domain `Media` is the **content row** (one per content
-//! hash); per-copy metadata (`name`, `created_at`) now lives on the
-//! separate `MediaFile` aggregate. Bridged one-for-one:
+//! size) and adds flat scalars (kind, EXIF capture, etc.). The domain
+//! `Media` is the **content row** (one per content hash); per-copy
+//! metadata (`name`, `created_at`) now lives on the separate
+//! `MediaFile` aggregate (`wire::MediaFile`), and the previously-stale
+//! `MediaMeta.name` (field 3) / `MediaMeta.created_at` (field 6) fields
+//! have been retired (`reserved` in the proto). Bridged one-for-one:
 //!
 //! | wire field                | domain field      | notes                                |
 //! | ------------------------- | ----------------- | ------------------------------------ |
@@ -25,11 +27,6 @@
 //! ## Wire-only (dropped on wire→domain; emitted as proto3-default on
 //! domain→wire)
 //!
-//! - `meta.name: String` / `meta.created_at: i64` — per-copy metadata.
-//!   Post-`Media`/`MediaFile` split these are `MediaFile` concerns and
-//!   the content-row `Media` no longer carries them; the bridge drops
-//!   them on wire→domain and emits the proto3 defaults (`""` / `0`) on
-//!   domain→wire.
 //! - `meta.time: MessageField<TrackTime>` — the legacy schema's
 //!   per-Media timestamp anchor. The locked domain stores **media-time
 //!   duration** instead (`duration: Option<mediatime::Timestamp>`);
@@ -167,18 +164,10 @@ impl From<&Media<Uuid7>> for wire::Media {
     let meta = wire::MediaMeta {
       id: ::buffa::bytes::Bytes::copy_from_slice(d.id_ref().as_bytes()),
       checksum: ::buffa::bytes::Bytes::copy_from_slice(d.checksum_ref().as_bytes()),
-      // NOTE(buffa-bridge): `name` is now a per-copy `MediaFile`
-      // concern (the `Media`/`MediaFile` split) — the content row no
-      // longer carries it. Emitted as the proto3 default empty string.
-      name: String::new(),
       size: d.size(),
       // NOTE(buffa-bridge): wire `meta.time` (MessageField<TrackTime>)
       // is unmodelled by the locked domain — emitted unset.
       time: ::buffa::MessageField::none(),
-      // NOTE(buffa-bridge): `created_at` (filesystem creation time) is
-      // likewise a per-copy `MediaFile` concern post-split — emitted as
-      // the proto3 default `0`.
-      created_at: 0,
       __buffa_unknown_fields: Default::default(),
     };
 
@@ -330,7 +319,6 @@ mod tests {
     let meta = wire::MediaMeta {
       id: ::buffa::bytes::Bytes::copy_from_slice(&[0u8; 8]),
       checksum: ::buffa::bytes::Bytes::copy_from_slice(&[1u8; 32]),
-      created_at: 0,
       ..Default::default()
     };
     let w = wire::Media {
