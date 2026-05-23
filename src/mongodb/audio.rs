@@ -19,6 +19,7 @@ use crate::domain::{
   },
   bitflags::AudioIndexStatus,
   enums::AudioContentKind,
+  vo::IndexProgress,
   Uuid7,
 };
 
@@ -51,15 +52,45 @@ fn content_kind_from_i64(v: i64, field: &'static str) -> Result<AudioContentKind
 }
 
 // ---------------------------------------------------------------------------
+// IndexProgress (audio copy — same `vo::IndexProgress` used across facets;
+// kept module-private to mirror subtitle/video and keep the audio module
+// self-contained).
+// ---------------------------------------------------------------------------
+
+fn index_progress_to_bson(p: &IndexProgress) -> Bson {
+  let mut d = Document::new();
+  d.insert("total", Bson::Int64(p.total() as i64));
+  d.insert("indexed", Bson::Int64(p.indexed() as i64));
+  d.insert("failed", Bson::Int64(p.failed() as i64));
+  Bson::Document(d)
+}
+
+fn index_progress_from_bson(b: Bson, field: &'static str) -> Result<IndexProgress, MongoError> {
+  let mut d = as_doc(b, field)?;
+  let total = as_u32(take(&mut d, "total")?, "total")?;
+  let indexed = as_u32(take(&mut d, "indexed")?, "indexed")?;
+  let failed = as_u32(take(&mut d, "failed")?, "failed")?;
+  Ok(IndexProgress::from_parts(total, indexed, failed))
+}
+
+// ---------------------------------------------------------------------------
 // Audio facet
 // ---------------------------------------------------------------------------
+//
+// The `tracks` reverse-FK list is **not** stored — the `audio_tracks`
+// collection's `parent` field drives the reverse lookup (mirrors the
+// sqlx convention). Only the rollup fields are persisted on the facet
+// document.
 
 impl From<&Audio<Uuid7>> for Document {
   fn from(a: &Audio<Uuid7>) -> Self {
     let mut d = Document::new();
     d.insert("_id", uuid7_to_bson(*a.id_ref()));
     d.insert("parent", uuid7_to_bson(*a.parent_ref()));
-    d.insert("tracks", uuid7_vec_to_bson(a.tracks_slice()));
+    d.insert(
+      "track_progress",
+      index_progress_to_bson(a.track_progress_ref()),
+    );
     d.insert("total_segments", Bson::Int64(a.total_segments() as i64));
     d
   }
@@ -72,8 +103,8 @@ impl TryFrom<Document> for Audio<Uuid7> {
     let id = uuid7_from_bson(take(&mut d, "_id")?, "_id")?;
     let parent = uuid7_from_bson(take(&mut d, "parent")?, "parent")?;
     let mut a = Audio::try_new(id, parent)?;
-    if let Some(b) = take_opt(&mut d, "tracks") {
-      a.set_tracks(uuid7_vec_from_bson(b, "tracks")?);
+    if let Some(b) = take_opt(&mut d, "track_progress") {
+      a.set_track_progress(index_progress_from_bson(b, "track_progress")?);
     }
     if let Some(b) = take_opt(&mut d, "total_segments") {
       a.set_total_segments(as_u32(b, "total_segments")?);
@@ -313,7 +344,10 @@ impl From<&AudioTrack<Uuid7>> for Document {
       "musicbrainz_recording_id",
       Bson::String(t.musicbrainz_recording_id().to_owned()),
     );
-    d.insert("speakers", uuid7_vec_to_bson(t.speakers_slice()));
+    // `speakers` + `segments` are reverse-FK lists — NOT stored on the
+    // track document. The `speakers` collection's `parent` field and the
+    // `audio_segments` collection's `parent` field drive the reverse
+    // lookups (consistent with the sqlx convention).
     d.insert("tags", t.tags_ref().map(tags_to_bson).unwrap_or(Bson::Null));
     d.insert(
       "cover_art",
@@ -321,7 +355,6 @@ impl From<&AudioTrack<Uuid7>> for Document {
         .map(cover_art_to_bson)
         .unwrap_or(Bson::Null),
     );
-    d.insert("segments", uuid7_vec_to_bson(t.segments_slice()));
     d.insert("provenance", provenance_to_bson(t.provenance_ref()));
     d.insert("index_status", Bson::Int64(t.index_status().bits() as i64));
     d.insert(
@@ -439,17 +472,15 @@ impl TryFrom<Document> for AudioTrack<Uuid7> {
     if let Some(b) = take_opt(&mut d, "musicbrainz_recording_id") {
       t.set_musicbrainz_recording_id(as_smol(b, "musicbrainz_recording_id")?);
     }
-    if let Some(b) = take_opt(&mut d, "speakers") {
-      t.set_speakers(uuid7_vec_from_bson(b, "speakers")?);
-    }
+    // `speakers` + `segments` are reverse-FK lists — NOT stored. Discard
+    // any stale values that may exist on legacy documents.
+    let _ = take_opt(&mut d, "speakers");
+    let _ = take_opt(&mut d, "segments");
     if let Some(b) = take_opt(&mut d, "tags") {
       t.set_tags(Some(tags_from_bson(b, "tags")?));
     }
     if let Some(b) = take_opt(&mut d, "cover_art") {
       t.set_cover_art(Some(cover_art_from_bson(b, "cover_art")?));
-    }
-    if let Some(b) = take_opt(&mut d, "segments") {
-      t.set_segments(uuid7_vec_from_bson(b, "segments")?);
     }
     if let Some(b) = take_opt(&mut d, "provenance") {
       t.set_provenance(provenance_from_bson(b, "provenance")?);
@@ -615,11 +646,30 @@ mod tests {
   fn audio_facet_roundtrip() {
     let a = Audio::try_new(Uuid7::new(), Uuid7::new())
       .unwrap()
+      .with_total_segments(7)
+      .with_track_progress(IndexProgress::try_new(3, 2, 1).unwrap());
+    let doc: Document = (&a).into();
+    let a2: Audio<Uuid7> = doc.try_into().unwrap();
+    // The `tracks` reverse-FK list is intentionally not persisted — the
+    // round-tripped facet has an empty `tracks` slice regardless of what
+    // the source value held.
+    assert!(a2.tracks_slice().is_empty());
+    assert_eq!(a.total_segments(), a2.total_segments());
+    assert_eq!(a.track_progress_ref(), a2.track_progress_ref());
+  }
+
+  #[test]
+  fn audio_facet_drops_reverse_fk_tracks() {
+    // A facet built with a non-empty `tracks` list round-trips to one
+    // with an empty list — the document does not store the reverse FK.
+    let a = Audio::try_new(Uuid7::new(), Uuid7::new())
+      .unwrap()
       .with_tracks(vec![Uuid7::new(), Uuid7::new()])
       .with_total_segments(7);
     let doc: Document = (&a).into();
+    assert!(!doc.contains_key("tracks"));
     let a2: Audio<Uuid7> = doc.try_into().unwrap();
-    assert_eq!(a, a2);
+    assert!(a2.tracks_slice().is_empty());
   }
 
   #[test]
@@ -653,7 +703,6 @@ mod tests {
       .with_isrc("ISRC123")
       .with_acoustid("acoust-xyz")
       .with_musicbrainz_recording_id("mb-abc")
-      .with_speakers(vec![Uuid7::new()])
       .with_tags(Some(
         Tags::new()
           .with_title("Song")
@@ -665,7 +714,6 @@ mod tests {
       .with_cover_art(Some(
         CoverArt::try_new("image/jpeg", vec![0xFFu8, 0xD8, 0xFF]).unwrap(),
       ))
-      .with_segments(vec![Uuid7::new()])
       .with_provenance(Provenance::from_parts("asry", "1.0", "p", "idx"))
       .try_with_index_status(AudioIndexStatus::EXTRACTED | AudioIndexStatus::VAD_DONE)
       .unwrap()
@@ -673,6 +721,23 @@ mod tests {
     let doc: Document = (&t).into();
     let t2: AudioTrack<Uuid7> = doc.try_into().unwrap();
     assert_eq!(t, t2);
+  }
+
+  #[test]
+  fn audio_track_drops_reverse_fk_lists() {
+    // `speakers` + `segments` are reverse-FK lists; the document neither
+    // writes them nor reads stale copies — the round-tripped track has
+    // empty slices regardless of source state.
+    let t = AudioTrack::try_new(Uuid7::new(), Uuid7::new())
+      .unwrap()
+      .with_speakers(vec![Uuid7::new(), Uuid7::new()])
+      .with_segments(vec![Uuid7::new()]);
+    let doc: Document = (&t).into();
+    assert!(!doc.contains_key("speakers"));
+    assert!(!doc.contains_key("segments"));
+    let t2: AudioTrack<Uuid7> = doc.try_into().unwrap();
+    assert!(t2.speakers_slice().is_empty());
+    assert!(t2.segments_slice().is_empty());
   }
 
   #[test]
