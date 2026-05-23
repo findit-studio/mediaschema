@@ -1,30 +1,23 @@
 //! Subtitle media-kind aggregates (locked `schema/subtitle*.md`).
 //!
-//! - [`Subtitle`] — thin subtitle facet of a `Media` (`media_id → Media`);
-//!   holds only the per-track id list and the indexing roll-up.
-//! - [`SubtitleTrack`] — one subtitle stream (`subtitle_id → Subtitle`);
-//!   carries the per-track codec / language / origin / disposition / index
-//!   state plus the per-track [`crate::domain::Provenance`].
-//! - [`SubtitleCue`] — one parsed cue of a `SubtitleTrack`
-//!   (`subtitle_track_id → SubtitleTrack`); media-time span + parsed/OCR text +
-//!   optional inline bitmap.
-//!
-//! Each aggregate is `Aggregate<Id = Uuid7>` and validated through a
-//! `try_new(...)` constructor that rejects nil ids and nil FK parents.
-//!
-//! The per-track descriptor fields use the published `mediaframe` types
-//! ([`mediaframe::codec::SubtitleCodec`], [`mediaframe::subtitle::Format`]
-//! / [`mediaframe::subtitle::TrackOrigin`], [`mediaframe::lang::Language`],
-//! [`mediaframe::disposition::TrackDisposition`]) and the inline cue
-//! bitmap is [`bytes::Bytes`]. The one remaining placeholder is the
-//! per-track time (`mediatime::TrackTime` → `mediatime::Timestamp`)
-//! pending that type's release.
+//! - [`Subtitle`] — thin subtitle facet of a `Media`.
+//! - [`SubtitleTrack`] — one subtitle stream of a `Subtitle`.
+//! - [`SubtitleCue`]`<Id, D>` — one parsed cue, polymorphic over the
+//!   per-format payload `D` (`SrtData`, `VttData`, `AssData`, `LrcData`).
+//!   See [`cue`] for the full type list (per-format `D` types, aggregate
+//!   types `VttRegion`/`VttStyleBlock`/`AssStyle`/`LrcMetadata`, the
+//!   closed [`SubtitleCueKind`] discriminator, and the type aliases
+//!   `SrtCue`/`VttCue`/`AssCue`/`LrcCue`).
 
 pub mod cue;
 pub mod facet;
 pub mod track;
 
 pub use crate::domain::vo::IndexProgress;
-pub use cue::{SubtitleCue, SubtitleCueError};
+pub use cue::{
+  AssCue, AssData, AssStyle, CueData, LrcCue, LrcData, LrcMetadata, LrcWord, SrtCue, SrtData,
+  SubtitleCue, SubtitleCueError, SubtitleCueKind, VttCue, VttData, VttLineAlign, VttPositionAlign,
+  VttRegion, VttStyleBlock, VttTextAlign, VttVertical,
+};
 pub use facet::{Subtitle, SubtitleError};
 pub use track::{SubtitleTrack, SubtitleTrackError};

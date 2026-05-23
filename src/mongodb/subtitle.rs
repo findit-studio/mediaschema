@@ -10,7 +10,15 @@ use mediaframe::{
 use smol_str::SmolStr;
 
 use crate::domain::{
-  aggregates::subtitle::{cue::SubtitleCue, facet::Subtitle, track::SubtitleTrack},
+  aggregates::subtitle::{
+    cue::{
+      AssCue, AssData, AssStyle, LrcCue, LrcData, LrcMetadata, LrcWord, SrtCue, SrtData,
+      SubtitleCue, SubtitleCueKind, VttCue, VttData, VttLineAlign, VttPositionAlign, VttRegion,
+      VttStyleBlock, VttTextAlign, VttVertical,
+    },
+    facet::Subtitle,
+    track::SubtitleTrack,
+  },
   bitflags::SubtitleIndexStatus,
   enums::SubtitleKind,
   vo::{IndexProgress, LocalizedText},
@@ -299,61 +307,487 @@ impl TryFrom<Document> for SubtitleTrack<Uuid7> {
 }
 
 // ---------------------------------------------------------------------------
-// SubtitleCue
+// SubtitleCue — polymorphic per-format bson documents
+//
+// Each cue kind has its own bson `Document` impl. The `kind` SMALLINT-like
+// `Int32` discriminator is stored on the document so callers can dispatch
+// without a JOIN. Detail fields ride alongside the base fields on the
+// same document (mongodb favours embedded shape over a join).
 // ---------------------------------------------------------------------------
 
-impl From<&SubtitleCue<Uuid7>> for Document {
-  fn from(c: &SubtitleCue<Uuid7>) -> Self {
+fn write_base<D>(d: &mut Document, c: &SubtitleCue<Uuid7, D>, kind: SubtitleCueKind) {
+  d.insert("_id", uuid7_to_bson(*c.id_ref()));
+  d.insert("subtitle_track_id", uuid7_to_bson(*c.subtitle_track_id_ref()));
+  d.insert("ordinal", Bson::Int64(c.ordinal() as i64));
+  d.insert("span", time_range_to_bson(c.span_ref()));
+  d.insert("text", loc_text_to_bson(c.text_ref()));
+  d.insert("kind", Bson::Int32(i32::from(kind.to_u8())));
+}
+
+fn read_base(
+  d: &mut Document,
+  expected: SubtitleCueKind,
+) -> Result<
+  (
+    Uuid7,
+    Uuid7,
+    u32,
+    mediatime::TimeRange,
+    LocalizedText,
+  ),
+  MongoError,
+> {
+  let id = uuid7_from_bson(take(d, "_id")?, "_id")?;
+  let subtitle_track_id = uuid7_from_bson(take(d, "subtitle_track_id")?, "subtitle_track_id")?;
+  let ordinal = as_u32(take(d, "ordinal")?, "ordinal")?;
+  let span = time_range_from_bson(take(d, "span")?, "span")?;
+  let text = match take_opt(d, "text") {
+    Some(b) => loc_text_from_bson(b, "text")?,
+    None => LocalizedText::new(),
+  };
+  let kind_i = as_i64(take(d, "kind")?, "kind")?;
+  let kind = u8::try_from(kind_i)
+    .ok()
+    .and_then(SubtitleCueKind::try_from_u8)
+    .ok_or_else(|| MongoError::IntOutOfRange {
+      field: SmolStr::from("kind"),
+      value: kind_i,
+    })?;
+  if kind != expected {
+    return Err(MongoError::IntOutOfRange {
+      field: SmolStr::from("kind"),
+      value: kind_i,
+    });
+  }
+  Ok((id, subtitle_track_id, ordinal, span, text))
+}
+
+// --- SRT ---------------------------------------------------------------------
+
+impl From<&SrtCue<Uuid7>> for Document {
+  fn from(c: &SrtCue<Uuid7>) -> Self {
     let mut d = Document::new();
-    d.insert("_id", uuid7_to_bson(*c.id_ref()));
-    d.insert("subtitle_track_id", uuid7_to_bson(*c.subtitle_track_id_ref()));
-    d.insert("index", Bson::Int64(c.index() as i64));
-    d.insert("span", time_range_to_bson(c.span_ref()));
-    d.insert("text", loc_text_to_bson(c.text_ref()));
-    d.insert("styled_text", Bson::String(c.styled_text().to_owned()));
-    d.insert("image", bytes_to_bson(c.image()));
-    d.insert("ocr_text", loc_text_to_bson(c.ocr_text_ref()));
+    write_base(&mut d, c, SubtitleCueKind::Srt);
     d
   }
 }
 
-impl TryFrom<Document> for SubtitleCue<Uuid7> {
+impl TryFrom<Document> for SrtCue<Uuid7> {
   type Error = MongoError;
-
   fn try_from(mut d: Document) -> Result<Self, Self::Error> {
-    let id = uuid7_from_bson(take(&mut d, "_id")?, "_id")?;
-    let subtitle_track_id = uuid7_from_bson(take(&mut d, "subtitle_track_id")?, "subtitle_track_id")?;
-    let index = as_u32(take(&mut d, "index")?, "index")?;
-    let span = time_range_from_bson(take(&mut d, "span")?, "span")?;
-    // `SubtitleCue::try_new` is a full-args constructor that validates
-    // the text/image/ocr_text content invariant together — gather every
-    // payload field first, then construct once.
-    let text = match take_opt(&mut d, "text") {
-      Some(b) => loc_text_from_bson(b, "text")?,
-      None => LocalizedText::new(),
+    let (id, st_id, ordinal, span, text) = read_base(&mut d, SubtitleCueKind::Srt)?;
+    Ok(SrtCue::try_new(id, st_id, ordinal, span, text, SrtData)?)
+  }
+}
+
+// --- WebVTT ------------------------------------------------------------------
+
+impl From<&VttCue<Uuid7>> for Document {
+  fn from(c: &VttCue<Uuid7>) -> Self {
+    let mut d = Document::new();
+    write_base(&mut d, c, SubtitleCueKind::Vtt);
+    let v = c.data_ref();
+    d.insert("cue_identifier", Bson::String(v.cue_identifier().to_owned()));
+    if let Some(x) = v.vertical() {
+      d.insert("vertical", Bson::Int32(i32::from(x.to_u8())));
+    }
+    d.insert("line_value", Bson::String(v.line_value().to_owned()));
+    if let Some(x) = v.line_align() {
+      d.insert("line_align", Bson::Int32(i32::from(x.to_u8())));
+    }
+    d.insert("position_value", Bson::String(v.position_value().to_owned()));
+    if let Some(x) = v.position_align() {
+      d.insert("position_align", Bson::Int32(i32::from(x.to_u8())));
+    }
+    if let Some(x) = v.size_value() {
+      d.insert("size_value", Bson::Double(x as f64));
+    }
+    if let Some(x) = v.text_align() {
+      d.insert("text_align", Bson::Int32(i32::from(x.to_u8())));
+    }
+    if let Some(id) = v.region_id_ref() {
+      d.insert("region_id", uuid7_to_bson(*id));
+    }
+    d.insert("voice", Bson::String(v.voice().to_owned()));
+    d.insert("styled_text", Bson::String(v.styled_text().to_owned()));
+    d
+  }
+}
+
+fn decode_small_vtt<T>(
+  d: &mut Document,
+  key: &'static str,
+  decode: impl Fn(u8) -> Option<T>,
+) -> Result<Option<T>, MongoError> {
+  match take_opt(d, key) {
+    None => Ok(None),
+    Some(b) => {
+      let i = as_i64(b, key)?;
+      u8::try_from(i)
+        .ok()
+        .and_then(&decode)
+        .map(Some)
+        .ok_or_else(|| MongoError::IntOutOfRange {
+          field: SmolStr::from(key),
+          value: i,
+        })
+    }
+  }
+}
+
+impl TryFrom<Document> for VttCue<Uuid7> {
+  type Error = MongoError;
+  fn try_from(mut d: Document) -> Result<Self, Self::Error> {
+    let (id, st_id, ordinal, span, text) = read_base(&mut d, SubtitleCueKind::Vtt)?;
+    let cue_identifier = match take_opt(&mut d, "cue_identifier") {
+      Some(b) => as_smol(b, "cue_identifier")?,
+      None => SmolStr::default(),
+    };
+    let vertical = decode_small_vtt(&mut d, "vertical", VttVertical::try_from_u8)?;
+    let line_value = match take_opt(&mut d, "line_value") {
+      Some(b) => as_smol(b, "line_value")?,
+      None => SmolStr::default(),
+    };
+    let line_align = decode_small_vtt(&mut d, "line_align", VttLineAlign::try_from_u8)?;
+    let position_value = match take_opt(&mut d, "position_value") {
+      Some(b) => as_smol(b, "position_value")?,
+      None => SmolStr::default(),
+    };
+    let position_align =
+      decode_small_vtt(&mut d, "position_align", VttPositionAlign::try_from_u8)?;
+    let size_value = match take_opt(&mut d, "size_value") {
+      Some(b) => Some(as_f32(b, "size_value")?),
+      None => None,
+    };
+    let text_align = decode_small_vtt(&mut d, "text_align", VttTextAlign::try_from_u8)?;
+    let region_id = match take_opt(&mut d, "region_id") {
+      Some(b) => Some(uuid7_from_bson(b, "region_id")?),
+      None => None,
+    };
+    let voice = match take_opt(&mut d, "voice") {
+      Some(b) => as_smol(b, "voice")?,
+      None => SmolStr::default(),
     };
     let styled_text = match take_opt(&mut d, "styled_text") {
       Some(b) => as_smol(b, "styled_text")?,
       None => SmolStr::default(),
     };
-    let image = match take_opt(&mut d, "image") {
-      Some(b) => as_binary(b, "image")?,
-      None => Vec::new(),
+    let data = VttData::<Uuid7>::new()
+      .with_cue_identifier(cue_identifier)
+      .maybe_vertical(vertical)
+      .with_line_value(line_value)
+      .maybe_line_align(line_align)
+      .with_position_value(position_value)
+      .maybe_position_align(position_align)
+      .maybe_size_value(size_value)
+      .maybe_text_align(text_align)
+      .maybe_region_id(region_id)
+      .with_voice(voice)
+      .with_styled_text(styled_text);
+    Ok(VttCue::try_new(id, st_id, ordinal, span, text, data)?)
+  }
+}
+
+// --- ASS / SSA ---------------------------------------------------------------
+
+impl From<&AssCue<Uuid7>> for Document {
+  fn from(c: &AssCue<Uuid7>) -> Self {
+    let mut d = Document::new();
+    write_base(&mut d, c, SubtitleCueKind::Ass);
+    let a = c.data_ref();
+    d.insert("layer", Bson::Int32(a.layer()));
+    d.insert("style_id", uuid7_to_bson(*a.style_id_ref()));
+    d.insert("name", Bson::String(a.name().to_owned()));
+    d.insert("margin_l", Bson::Int32(a.margin_l()));
+    d.insert("margin_r", Bson::Int32(a.margin_r()));
+    d.insert("margin_v", Bson::Int32(a.margin_v()));
+    d.insert("effect", Bson::String(a.effect().to_owned()));
+    d.insert("styled_text", Bson::String(a.styled_text().to_owned()));
+    d
+  }
+}
+
+fn as_i32(b: Bson, field: &'static str) -> Result<i32, MongoError> {
+  let v = as_i64(b, field)?;
+  i32::try_from(v).map_err(|_| MongoError::IntOutOfRange {
+    field: SmolStr::from(field),
+    value: v,
+  })
+}
+
+impl TryFrom<Document> for AssCue<Uuid7> {
+  type Error = MongoError;
+  fn try_from(mut d: Document) -> Result<Self, Self::Error> {
+    let (id, st_id, ordinal, span, text) = read_base(&mut d, SubtitleCueKind::Ass)?;
+    let layer = as_i32(take(&mut d, "layer")?, "layer")?;
+    let style_id = uuid7_from_bson(take(&mut d, "style_id")?, "style_id")?;
+    let name = match take_opt(&mut d, "name") {
+      Some(b) => as_smol(b, "name")?,
+      None => SmolStr::default(),
     };
-    let ocr_text = match take_opt(&mut d, "ocr_text") {
-      Some(b) => loc_text_from_bson(b, "ocr_text")?,
-      None => LocalizedText::new(),
+    let margin_l = as_i32(take(&mut d, "margin_l")?, "margin_l")?;
+    let margin_r = as_i32(take(&mut d, "margin_r")?, "margin_r")?;
+    let margin_v = as_i32(take(&mut d, "margin_v")?, "margin_v")?;
+    let effect = match take_opt(&mut d, "effect") {
+      Some(b) => as_smol(b, "effect")?,
+      None => SmolStr::default(),
     };
-    Ok(SubtitleCue::try_new(
-      id,
-      subtitle_track_id,
-      index,
-      span,
-      text,
-      styled_text,
-      image,
-      ocr_text,
-    )?)
+    let styled_text = match take_opt(&mut d, "styled_text") {
+      Some(b) => as_smol(b, "styled_text")?,
+      None => SmolStr::default(),
+    };
+    let data = AssData::<Uuid7>::new(style_id)
+      .with_layer(layer)
+      .with_name(name)
+      .with_margin_l(margin_l)
+      .with_margin_r(margin_r)
+      .with_margin_v(margin_v)
+      .with_effect(effect)
+      .with_styled_text(styled_text);
+    Ok(AssCue::try_new(id, st_id, ordinal, span, text, data)?)
+  }
+}
+
+// --- LRC ---------------------------------------------------------------------
+
+impl From<&LrcCue<Uuid7>> for Document {
+  fn from(c: &LrcCue<Uuid7>) -> Self {
+    let mut d = Document::new();
+    write_base(&mut d, c, SubtitleCueKind::Lrc);
+    d.insert("has_word_timing", Bson::Boolean(c.data_ref().has_word_timing()));
+    d
+  }
+}
+
+impl TryFrom<Document> for LrcCue<Uuid7> {
+  type Error = MongoError;
+  fn try_from(mut d: Document) -> Result<Self, Self::Error> {
+    let (id, st_id, ordinal, span, text) = read_base(&mut d, SubtitleCueKind::Lrc)?;
+    let has_word_timing = match take_opt(&mut d, "has_word_timing") {
+      Some(b) => as_bool(b, "has_word_timing")?,
+      None => false,
+    };
+    let data = LrcData::new().maybe_word_timing(has_word_timing);
+    Ok(LrcCue::try_new(id, st_id, ordinal, span, text, data)?)
+  }
+}
+
+// --- LRC word ----------------------------------------------------------------
+
+impl From<&LrcWord<Uuid7>> for Document {
+  fn from(w: &LrcWord<Uuid7>) -> Self {
+    let mut d = Document::new();
+    d.insert("subtitle_cue_id", uuid7_to_bson(*w.subtitle_cue_id_ref()));
+    d.insert("ordinal", Bson::Int64(w.ordinal() as i64));
+    d.insert("text", Bson::String(w.text().to_owned()));
+    d.insert("start_pts", Bson::Int64(w.start_pts()));
+    d
+  }
+}
+
+impl TryFrom<Document> for LrcWord<Uuid7> {
+  type Error = MongoError;
+  fn try_from(mut d: Document) -> Result<Self, Self::Error> {
+    let subtitle_cue_id =
+      uuid7_from_bson(take(&mut d, "subtitle_cue_id")?, "subtitle_cue_id")?;
+    let ordinal = as_u32(take(&mut d, "ordinal")?, "ordinal")?;
+    let text = match take_opt(&mut d, "text") {
+      Some(b) => as_smol(b, "text")?,
+      None => SmolStr::default(),
+    };
+    let start_pts = as_i64(take(&mut d, "start_pts")?, "start_pts")?;
+    Ok(LrcWord::try_new(subtitle_cue_id, ordinal, text, start_pts)?)
+  }
+}
+
+// --- Per-track WebVTT region ------------------------------------------------
+
+impl From<&VttRegion<Uuid7>> for Document {
+  fn from(r: &VttRegion<Uuid7>) -> Self {
+    let mut d = Document::new();
+    d.insert("_id", uuid7_to_bson(*r.id_ref()));
+    d.insert("subtitle_track_id", uuid7_to_bson(*r.subtitle_track_id_ref()));
+    d.insert("name", Bson::String(r.name().to_owned()));
+    d.insert("width", Bson::Double(r.width() as f64));
+    d.insert("lines", Bson::Int64(r.lines() as i64));
+    d.insert("region_anchor_x", Bson::Double(r.region_anchor_x() as f64));
+    d.insert("region_anchor_y", Bson::Double(r.region_anchor_y() as f64));
+    d.insert("viewport_anchor_x", Bson::Double(r.viewport_anchor_x() as f64));
+    d.insert("viewport_anchor_y", Bson::Double(r.viewport_anchor_y() as f64));
+    d.insert("scroll_up", Bson::Boolean(r.scroll_up()));
+    d
+  }
+}
+
+impl TryFrom<Document> for VttRegion<Uuid7> {
+  type Error = MongoError;
+  fn try_from(mut d: Document) -> Result<Self, Self::Error> {
+    let id = uuid7_from_bson(take(&mut d, "_id")?, "_id")?;
+    let st_id =
+      uuid7_from_bson(take(&mut d, "subtitle_track_id")?, "subtitle_track_id")?;
+    let name = match take_opt(&mut d, "name") {
+      Some(b) => as_smol(b, "name")?,
+      None => SmolStr::default(),
+    };
+    let r = VttRegion::try_new(id, st_id, name)?
+      .with_width(as_f32(take(&mut d, "width")?, "width")?)
+      .with_lines(as_u32(take(&mut d, "lines")?, "lines")?)
+      .with_region_anchor(
+        as_f32(take(&mut d, "region_anchor_x")?, "region_anchor_x")?,
+        as_f32(take(&mut d, "region_anchor_y")?, "region_anchor_y")?,
+      )
+      .with_viewport_anchor(
+        as_f32(take(&mut d, "viewport_anchor_x")?, "viewport_anchor_x")?,
+        as_f32(take(&mut d, "viewport_anchor_y")?, "viewport_anchor_y")?,
+      )
+      .maybe_scroll_up(as_bool(take(&mut d, "scroll_up")?, "scroll_up")?);
+    Ok(r)
+  }
+}
+
+// --- Per-track WebVTT style block -------------------------------------------
+
+impl From<&VttStyleBlock<Uuid7>> for Document {
+  fn from(s: &VttStyleBlock<Uuid7>) -> Self {
+    let mut d = Document::new();
+    d.insert("_id", uuid7_to_bson(*s.id_ref()));
+    d.insert("subtitle_track_id", uuid7_to_bson(*s.subtitle_track_id_ref()));
+    d.insert("ordinal", Bson::Int64(s.ordinal() as i64));
+    d.insert("css_text", Bson::String(s.css_text().to_owned()));
+    d
+  }
+}
+
+impl TryFrom<Document> for VttStyleBlock<Uuid7> {
+  type Error = MongoError;
+  fn try_from(mut d: Document) -> Result<Self, Self::Error> {
+    let id = uuid7_from_bson(take(&mut d, "_id")?, "_id")?;
+    let st_id =
+      uuid7_from_bson(take(&mut d, "subtitle_track_id")?, "subtitle_track_id")?;
+    let ordinal = as_u32(take(&mut d, "ordinal")?, "ordinal")?;
+    let css_text = match take_opt(&mut d, "css_text") {
+      Some(b) => as_smol(b, "css_text")?,
+      None => SmolStr::default(),
+    };
+    Ok(VttStyleBlock::try_new(id, st_id, ordinal, css_text)?)
+  }
+}
+
+// --- Per-track ASS style ----------------------------------------------------
+
+impl From<&AssStyle<Uuid7>> for Document {
+  fn from(s: &AssStyle<Uuid7>) -> Self {
+    let mut d = Document::new();
+    d.insert("_id", uuid7_to_bson(*s.id_ref()));
+    d.insert("subtitle_track_id", uuid7_to_bson(*s.subtitle_track_id_ref()));
+    d.insert("name", Bson::String(s.name().to_owned()));
+    d.insert("fontname", Bson::String(s.fontname().to_owned()));
+    d.insert("fontsize", Bson::Double(s.fontsize() as f64));
+    d.insert("primary_colour", Bson::Int64(i64::from(s.primary_colour())));
+    d.insert(
+      "secondary_colour",
+      Bson::Int64(i64::from(s.secondary_colour())),
+    );
+    d.insert("outline_colour", Bson::Int64(i64::from(s.outline_colour())));
+    d.insert("back_colour", Bson::Int64(i64::from(s.back_colour())));
+    d.insert("bold", Bson::Boolean(s.bold()));
+    d.insert("italic", Bson::Boolean(s.italic()));
+    d.insert("underline", Bson::Boolean(s.underline()));
+    d.insert("strikeout", Bson::Boolean(s.strikeout()));
+    d.insert("scale_x", Bson::Int32(s.scale_x()));
+    d.insert("scale_y", Bson::Int32(s.scale_y()));
+    d.insert("spacing", Bson::Int32(s.spacing()));
+    d.insert("angle", Bson::Double(s.angle() as f64));
+    d.insert("border_style", Bson::Int32(i32::from(s.border_style())));
+    d.insert("outline", Bson::Double(s.outline() as f64));
+    d.insert("shadow", Bson::Double(s.shadow() as f64));
+    d.insert("alignment", Bson::Int32(i32::from(s.alignment())));
+    d.insert("margin_l", Bson::Int32(s.margin_l()));
+    d.insert("margin_r", Bson::Int32(s.margin_r()));
+    d.insert("margin_v", Bson::Int32(s.margin_v()));
+    d.insert("encoding", Bson::Int32(s.encoding()));
+    d
+  }
+}
+
+impl TryFrom<Document> for AssStyle<Uuid7> {
+  type Error = MongoError;
+  fn try_from(mut d: Document) -> Result<Self, Self::Error> {
+    let id = uuid7_from_bson(take(&mut d, "_id")?, "_id")?;
+    let st_id =
+      uuid7_from_bson(take(&mut d, "subtitle_track_id")?, "subtitle_track_id")?;
+    let name = as_smol(take(&mut d, "name")?, "name")?;
+    let i16_of = |b: Bson, f: &'static str| -> Result<i16, MongoError> {
+      let v = as_i64(b, f)?;
+      i16::try_from(v).map_err(|_| MongoError::IntOutOfRange {
+        field: SmolStr::from(f),
+        value: v,
+      })
+    };
+    let u32_of = |b: Bson, f: &'static str| -> Result<u32, MongoError> {
+      let v = as_i64(b, f)?;
+      u32::try_from(v).map_err(|_| MongoError::IntOutOfRange {
+        field: SmolStr::from(f),
+        value: v,
+      })
+    };
+    let s = AssStyle::try_new(id, st_id, name)?
+      .with_fontname(as_smol(take(&mut d, "fontname")?, "fontname")?)
+      .with_fontsize(as_f32(take(&mut d, "fontsize")?, "fontsize")?)
+      .with_primary_colour(u32_of(take(&mut d, "primary_colour")?, "primary_colour")?)
+      .with_secondary_colour(u32_of(take(&mut d, "secondary_colour")?, "secondary_colour")?)
+      .with_outline_colour(u32_of(take(&mut d, "outline_colour")?, "outline_colour")?)
+      .with_back_colour(u32_of(take(&mut d, "back_colour")?, "back_colour")?)
+      .maybe_bold(as_bool(take(&mut d, "bold")?, "bold")?)
+      .maybe_italic(as_bool(take(&mut d, "italic")?, "italic")?)
+      .maybe_underline(as_bool(take(&mut d, "underline")?, "underline")?)
+      .maybe_strikeout(as_bool(take(&mut d, "strikeout")?, "strikeout")?)
+      .with_scale_x(as_i32(take(&mut d, "scale_x")?, "scale_x")?)
+      .with_scale_y(as_i32(take(&mut d, "scale_y")?, "scale_y")?)
+      .with_spacing(as_i32(take(&mut d, "spacing")?, "spacing")?)
+      .with_angle(as_f32(take(&mut d, "angle")?, "angle")?)
+      .with_border_style(i16_of(take(&mut d, "border_style")?, "border_style")?)
+      .with_outline(as_f32(take(&mut d, "outline")?, "outline")?)
+      .with_shadow(as_f32(take(&mut d, "shadow")?, "shadow")?)
+      .with_alignment(i16_of(take(&mut d, "alignment")?, "alignment")?)
+      .with_margin_l(as_i32(take(&mut d, "margin_l")?, "margin_l")?)
+      .with_margin_r(as_i32(take(&mut d, "margin_r")?, "margin_r")?)
+      .with_margin_v(as_i32(take(&mut d, "margin_v")?, "margin_v")?)
+      .with_encoding(as_i32(take(&mut d, "encoding")?, "encoding")?);
+    Ok(s)
+  }
+}
+
+// --- Per-track LRC metadata --------------------------------------------------
+
+impl From<&LrcMetadata<Uuid7>> for Document {
+  fn from(m: &LrcMetadata<Uuid7>) -> Self {
+    let mut d = Document::new();
+    d.insert("_id", uuid7_to_bson(*m.subtitle_track_id_ref()));
+    d.insert("title", Bson::String(m.title().to_owned()));
+    d.insert("artist", Bson::String(m.artist().to_owned()));
+    d.insert("album", Bson::String(m.album().to_owned()));
+    d.insert("author", Bson::String(m.author().to_owned()));
+    d.insert("creator", Bson::String(m.creator().to_owned()));
+    d.insert("length", Bson::String(m.length().to_owned()));
+    d.insert("offset_ms", Bson::Int32(m.offset_ms()));
+    d
+  }
+}
+
+impl TryFrom<Document> for LrcMetadata<Uuid7> {
+  type Error = MongoError;
+  fn try_from(mut d: Document) -> Result<Self, Self::Error> {
+    let id = uuid7_from_bson(take(&mut d, "_id")?, "_id")?;
+    let m = LrcMetadata::try_new(id)?
+      .with_title(as_smol(take(&mut d, "title")?, "title")?)
+      .with_artist(as_smol(take(&mut d, "artist")?, "artist")?)
+      .with_album(as_smol(take(&mut d, "album")?, "album")?)
+      .with_author(as_smol(take(&mut d, "author")?, "author")?)
+      .with_creator(as_smol(take(&mut d, "creator")?, "creator")?)
+      .with_length(as_smol(take(&mut d, "length")?, "length")?)
+      .with_offset_ms(as_i32(take(&mut d, "offset_ms")?, "offset_ms")?);
+    Ok(m)
   }
 }
 
@@ -437,30 +871,132 @@ mod tests {
   }
 
   #[test]
-  fn subtitle_cue_roundtrip() {
-    let c = SubtitleCue::try_new(
+  fn srt_cue_roundtrip() {
+    let c = SrtCue::try_new_srt(
       Uuid7::new(),
       Uuid7::new(),
       0,
       sp(1000, 2000),
       LocalizedText::from_src_translated("hola", "hello"),
-      "{\\b1}hello{\\b0}",
-      vec![0u8, 1, 2, 3],
-      LocalizedText::from_src("hello (OCR)"),
     )
     .unwrap();
     let doc: Document = (&c).into();
-    let c2: SubtitleCue<Uuid7> = doc.try_into().unwrap();
+    let c2: SrtCue<Uuid7> = doc.try_into().unwrap();
     assert_eq!(c, c2);
   }
 
   #[test]
-  fn subtitle_cue_missing_span_errors() {
+  fn vtt_cue_roundtrip() {
+    let data = VttData::<Uuid7>::new()
+      .with_cue_identifier("c1")
+      .with_voice("Speaker A")
+      .with_styled_text("<b>hi</b>");
+    let c: VttCue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      sp(0, 1000),
+      LocalizedText::from_src("hi"),
+      data,
+    )
+    .unwrap();
+    let doc: Document = (&c).into();
+    let c2: VttCue<Uuid7> = doc.try_into().unwrap();
+    assert_eq!(c, c2);
+  }
+
+  #[test]
+  fn ass_cue_roundtrip() {
+    let data = AssData::<Uuid7>::new(Uuid7::new())
+      .with_layer(1)
+      .with_name("Alice")
+      .with_styled_text("{\\b1}hi{\\b0}");
+    let c: AssCue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      sp(0, 1000),
+      LocalizedText::new(),
+      data,
+    )
+    .unwrap();
+    let doc: Document = (&c).into();
+    let c2: AssCue<Uuid7> = doc.try_into().unwrap();
+    assert_eq!(c, c2);
+  }
+
+  #[test]
+  fn lrc_cue_roundtrip() {
+    let c: LrcCue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      sp(0, 500),
+      LocalizedText::from_src("la la"),
+      LrcData::new().with_word_timing(),
+    )
+    .unwrap();
+    let doc: Document = (&c).into();
+    let c2: LrcCue<Uuid7> = doc.try_into().unwrap();
+    assert_eq!(c, c2);
+  }
+
+  #[test]
+  fn lrc_word_roundtrip() {
+    let w = LrcWord::try_new(Uuid7::new(), 2, "la", 100).unwrap();
+    let doc: Document = (&w).into();
+    let w2: LrcWord<Uuid7> = doc.try_into().unwrap();
+    assert_eq!(w, w2);
+  }
+
+  #[test]
+  fn vtt_region_roundtrip() {
+    let r = VttRegion::try_new(Uuid7::new(), Uuid7::new(), "footer")
+      .unwrap()
+      .with_lines(2);
+    let doc: Document = (&r).into();
+    let r2: VttRegion<Uuid7> = doc.try_into().unwrap();
+    assert_eq!(r, r2);
+  }
+
+  #[test]
+  fn vtt_style_roundtrip() {
+    let s = VttStyleBlock::try_new(Uuid7::new(), Uuid7::new(), 0, "::cue { color: red }").unwrap();
+    let doc: Document = (&s).into();
+    let s2: VttStyleBlock<Uuid7> = doc.try_into().unwrap();
+    assert_eq!(s, s2);
+  }
+
+  #[test]
+  fn ass_style_roundtrip() {
+    let s = AssStyle::try_new(Uuid7::new(), Uuid7::new(), "Default")
+      .unwrap()
+      .with_fontname("Arial")
+      .with_bold();
+    let doc: Document = (&s).into();
+    let s2: AssStyle<Uuid7> = doc.try_into().unwrap();
+    assert_eq!(s, s2);
+  }
+
+  #[test]
+  fn lrc_metadata_roundtrip() {
+    let m = LrcMetadata::try_new(Uuid7::new())
+      .unwrap()
+      .with_title("Song")
+      .with_offset_ms(-500);
+    let doc: Document = (&m).into();
+    let m2: LrcMetadata<Uuid7> = doc.try_into().unwrap();
+    assert_eq!(m, m2);
+  }
+
+  #[test]
+  fn srt_cue_missing_span_errors() {
     let mut d = Document::new();
     d.insert("_id", uuid7_to_bson(Uuid7::new()));
     d.insert("subtitle_track_id", uuid7_to_bson(Uuid7::new()));
-    d.insert("index", Bson::Int64(0));
-    let err = SubtitleCue::<Uuid7>::try_from(d).unwrap_err();
+    d.insert("ordinal", Bson::Int64(0));
+    d.insert("kind", Bson::Int32(0));
+    let err = SrtCue::<Uuid7>::try_from(d).unwrap_err();
     assert!(err.is_missing_field());
   }
 }

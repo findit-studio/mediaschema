@@ -9,6 +9,7 @@ pub mod audio;
 pub mod leaves;
 pub mod media;
 pub mod media_file;
+pub mod subtitle;
 pub mod video;
 
 pub use audio::{
@@ -20,6 +21,13 @@ pub use leaves::{
 };
 pub use media::SqliteMediaRow;
 pub use media_file::SqliteMediaFileRow;
+pub use subtitle::{
+  SqliteSubtitleCueAssRow, SqliteSubtitleCueBaseRow, SqliteSubtitleCueLrcRow,
+  SqliteSubtitleCueLrcWordRow, SqliteSubtitleCueVttRow, SqliteSubtitleRow,
+  SqliteSubtitleTrackAssStyleRow, SqliteSubtitleTrackIndexErrorRow,
+  SqliteSubtitleTrackLrcMetadataRow, SqliteSubtitleTrackRow, SqliteSubtitleTrackVttRegionRow,
+  SqliteSubtitleTrackVttStyleRow,
+};
 pub use video::{
   SqliteKeyframeActionRow, SqliteKeyframeBarcodeRow, SqliteKeyframeBodyPose3DJointRow,
   SqliteKeyframeBodyPose3DRow, SqliteKeyframeBodyPoseJointRow, SqliteKeyframeBodyPoseRow,

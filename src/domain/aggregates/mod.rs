@@ -31,7 +31,10 @@ pub use curation::{SceneAnnotation, UserTag};
 pub use media::Media;
 pub use media_file::MediaFile;
 pub use speaker::Speaker;
-pub use subtitle::{Subtitle, SubtitleCue, SubtitleTrack};
+pub use subtitle::{
+  AssCue, AssData, AssStyle, LrcCue, LrcData, LrcMetadata, LrcWord, SrtCue, SrtData, Subtitle,
+  SubtitleCue, SubtitleCueKind, SubtitleTrack, VttCue, VttData, VttRegion, VttStyleBlock,
+};
 #[cfg(any(feature = "std", feature = "alloc"))]
 pub use video::{Keyframe, Scene, Video, VideoTrack};
 pub use watched_location::WatchedLocation;

@@ -14,6 +14,7 @@ pub mod audio;
 pub mod leaves;
 pub mod media;
 pub mod media_file;
+pub mod subtitle;
 pub mod video;
 
 pub use audio::{
@@ -22,6 +23,12 @@ pub use audio::{
 pub use leaves::{PgSceneAnnotationRow, PgSpeakerRow, PgUserTagRow, PgWatchedLocationRow};
 pub use media::PgMediaRow;
 pub use media_file::PgMediaFileRow;
+pub use subtitle::{
+  PgSubtitleCueAssRow, PgSubtitleCueBaseRow, PgSubtitleCueLrcRow, PgSubtitleCueLrcWordRow,
+  PgSubtitleCueVttRow, PgSubtitleRow, PgSubtitleTrackAssStyleRow, PgSubtitleTrackIndexErrorRow,
+  PgSubtitleTrackLrcMetadataRow, PgSubtitleTrackRow, PgSubtitleTrackVttRegionRow,
+  PgSubtitleTrackVttStyleRow,
+};
 pub use video::{
   PgKeyframeActionRow, PgKeyframeBarcodeRow, PgKeyframeBodyPose3DJointRow, PgKeyframeBodyPose3DRow,
   PgKeyframeBodyPoseJointRow, PgKeyframeBodyPoseRow, PgKeyframeClassificationRow,
