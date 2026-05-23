@@ -13,6 +13,7 @@ use ::mongodb::{options::IndexOptions, IndexModel};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CollectionName {
   Media,
+  MediaFiles,
   WatchedLocations,
   Speakers,
   UserTags,
@@ -34,6 +35,7 @@ impl CollectionName {
   pub const fn as_str(self) -> &'static str {
     match self {
       Self::Media => "media",
+      Self::MediaFiles => "media_file",
       Self::WatchedLocations => "watched_locations",
       Self::Speakers => "speakers",
       Self::UserTags => "user_tags",
@@ -89,6 +91,19 @@ pub fn media_indexes() -> Vec<IndexModel> {
     index_on(doc! { "kind": 1 }, "media_kind"),
     index_on(doc! { "error_flags": 1 }, "media_error_flags"),
     index_on(doc! { "capture_date": 1 }, "media_capture_date"),
+  ]
+}
+
+/// `media_file` — one physical copy per document. FK indexes on
+/// `media_id` (drives the `Media.files` reverse lookup) and
+/// `watched_location_id` (the discovering watch / WL-deletion cascade).
+pub fn media_file_indexes() -> Vec<IndexModel> {
+  vec![
+    index_on(doc! { "media_id": 1 }, "media_file_media_id"),
+    index_on(
+      doc! { "watched_location_id": 1 },
+      "media_file_watched_location_id",
+    ),
   ]
 }
 
@@ -213,6 +228,7 @@ pub fn subtitle_cue_indexes() -> Vec<IndexModel> {
 pub fn all_indexes() -> Vec<(CollectionName, Vec<IndexModel>)> {
   vec![
     (CollectionName::Media, media_indexes()),
+    (CollectionName::MediaFiles, media_file_indexes()),
     (CollectionName::WatchedLocations, watched_location_indexes()),
     (CollectionName::Speakers, speaker_indexes()),
     (CollectionName::UserTags, user_tag_indexes()),
@@ -241,7 +257,7 @@ mod tests {
   #[test]
   fn all_indexes_covers_every_collection() {
     let v = all_indexes();
-    assert_eq!(v.len(), 15);
+    assert_eq!(v.len(), 16);
     // No collection appears twice.
     let mut names: Vec<_> = v.iter().map(|(c, _)| c.as_str()).collect();
     names.sort();
