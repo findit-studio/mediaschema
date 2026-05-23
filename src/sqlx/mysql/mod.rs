@@ -11,6 +11,7 @@ pub mod audio;
 pub mod leaves;
 pub mod media;
 pub mod media_file;
+pub mod subtitle;
 pub mod video;
 
 pub use audio::{
@@ -22,6 +23,9 @@ pub use leaves::{
 };
 pub use media::MySqlMediaRow;
 pub use media_file::MySqlMediaFileRow;
+pub use subtitle::{
+  MySqlSubtitleCueRow, MySqlSubtitleRow, MySqlSubtitleTrackIndexErrorRow, MySqlSubtitleTrackRow,
+};
 pub use video::{
   MySqlKeyframeActionRow, MySqlKeyframeBarcodeRow, MySqlKeyframeBodyPose3DJointRow,
   MySqlKeyframeBodyPose3DRow, MySqlKeyframeBodyPoseJointRow, MySqlKeyframeBodyPoseRow,
