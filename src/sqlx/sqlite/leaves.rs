@@ -239,6 +239,44 @@ impl TryFrom<SqliteUserTagRow> for UserTag<Uuid7> {
   }
 }
 
+/// Borrowed view of [`SqliteUserTagRow`].
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct SqliteUserTagRowRef<'r> {
+  pub id: &'r [u8],
+  pub name: &'r str,
+  pub color_rgba: Option<i64>,
+  pub created_at_ms: i64,
+}
+
+impl SqliteUserTagRow {
+  /// Cheap borrow — produces a [`SqliteUserTagRowRef`] referencing `self`.
+  pub fn as_ref(&self) -> SqliteUserTagRowRef<'_> {
+    SqliteUserTagRowRef {
+      id: &self.id,
+      name: &self.name,
+      color_rgba: self.color_rgba,
+      created_at_ms: self.created_at_ms,
+    }
+  }
+}
+
+impl<'r> TryFrom<SqliteUserTagRowRef<'r>> for UserTag<Uuid7> {
+  type Error = SqlxError;
+
+  fn try_from(r: SqliteUserTagRowRef<'r>) -> Result<Self, Self::Error> {
+    let id = bytes_to_uuid7(r.id)?;
+    let created_at = millis_to_timestamp(r.created_at_ms)?;
+    let mut tag = UserTag::try_new(id, r.name, created_at)
+      .map_err(|e: NilIdError| SqlxError::DomainConstructorRejected(e.to_string()))?;
+    if let Some(bits) = r.color_rgba {
+      let bits = u32::try_from(bits)
+        .map_err(|e| SqlxError::UnknownDiscriminant(format!("UserTag.color_rgba: {e}")))?;
+      tag = tag.with_color(Some(Rgba::from_bits(bits)));
+    }
+    Ok(tag)
+  }
+}
+
 // ---------------------------------------------------------------------------
 // SceneAnnotationRow + join table
 // ---------------------------------------------------------------------------
@@ -315,6 +353,89 @@ impl
     let mut tags = std::vec::Vec::with_capacity(joins.len());
     for j in joins {
       tags.push(bytes_to_uuid7(&j.user_tag)?);
+    }
+    let rating: Option<u8> = match r.rating {
+      None => None,
+      Some(n) => Some(
+        u8::try_from(n)
+          .map_err(|e| SqlxError::UnknownDiscriminant(format!("SceneAnnotation.rating: {e}")))?,
+      ),
+    };
+    let ann = SceneAnnotation::try_new(id, scene, updated_at)
+      .map_err(|e: SceneAnnotationError| SqlxError::DomainConstructorRejected(e.to_string()))?
+      .with_favorite(r.favorite != 0)
+      .with_user_tags(tags)
+      .with_rating(rating)
+      .with_note(r.note);
+    Ok(ann)
+  }
+}
+
+/// Borrowed view of [`SqliteSceneAnnotationRow`].
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct SqliteSceneAnnotationRowRef<'r> {
+  pub id: &'r [u8],
+  pub scene: &'r [u8],
+  pub favorite: i64,
+  pub rating: Option<i64>,
+  pub note: &'r str,
+  pub updated_at_ms: i64,
+}
+
+/// Borrowed view of [`SqliteSceneAnnotationUserTagRow`].
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct SqliteSceneAnnotationUserTagRowRef<'r> {
+  pub scene_annotation: &'r [u8],
+  pub user_tag: &'r [u8],
+  pub ordinal: i64,
+}
+
+impl SqliteSceneAnnotationRow {
+  /// Cheap borrow — produces a [`SqliteSceneAnnotationRowRef`] referencing `self`.
+  pub fn as_ref(&self) -> SqliteSceneAnnotationRowRef<'_> {
+    SqliteSceneAnnotationRowRef {
+      id: &self.id,
+      scene: &self.scene,
+      favorite: self.favorite,
+      rating: self.rating,
+      note: &self.note,
+      updated_at_ms: self.updated_at_ms,
+    }
+  }
+}
+
+impl SqliteSceneAnnotationUserTagRow {
+  /// Cheap borrow — produces a [`SqliteSceneAnnotationUserTagRowRef`] referencing `self`.
+  pub fn as_ref(&self) -> SqliteSceneAnnotationUserTagRowRef<'_> {
+    SqliteSceneAnnotationUserTagRowRef {
+      scene_annotation: &self.scene_annotation,
+      user_tag: &self.user_tag,
+      ordinal: self.ordinal,
+    }
+  }
+}
+
+impl<'r>
+  TryFrom<(
+    SqliteSceneAnnotationRowRef<'r>,
+    std::vec::Vec<SqliteSceneAnnotationUserTagRowRef<'r>>,
+  )> for SceneAnnotation<Uuid7>
+{
+  type Error = SqlxError;
+
+  fn try_from(
+    (r, mut joins): (
+      SqliteSceneAnnotationRowRef<'r>,
+      std::vec::Vec<SqliteSceneAnnotationUserTagRowRef<'r>>,
+    ),
+  ) -> Result<Self, Self::Error> {
+    let id = bytes_to_uuid7(r.id)?;
+    let scene = bytes_to_uuid7(r.scene)?;
+    let updated_at = millis_to_timestamp(r.updated_at_ms)?;
+    joins.sort_by_key(|j| j.ordinal);
+    let mut tags = std::vec::Vec::with_capacity(joins.len());
+    for j in joins {
+      tags.push(bytes_to_uuid7(j.user_tag)?);
     }
     let rating: Option<u8> = match r.rating {
       None => None,
@@ -427,6 +548,70 @@ impl TryFrom<SqliteWatchedLocationRow> for WatchedLocation<Uuid7> {
   }
 }
 
+/// Borrowed view of [`SqliteWatchedLocationRow`].
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct SqliteWatchedLocationRowRef<'r> {
+  pub id: &'r [u8],
+  pub volume: &'r [u8],
+  pub recursive: i64,
+  pub enabled: i64,
+  pub is_ejectable: i64,
+  pub added_at_ms: i64,
+  pub last_reconciled_at_ms: Option<i64>,
+  pub last_reconcile_status: Option<i64>,
+  pub last_error_code: Option<i64>,
+  pub last_error_message: Option<&'r str>,
+}
+
+impl SqliteWatchedLocationRow {
+  /// Cheap borrow — produces a [`SqliteWatchedLocationRowRef`] referencing `self`.
+  pub fn as_ref(&self) -> SqliteWatchedLocationRowRef<'_> {
+    SqliteWatchedLocationRowRef {
+      id: &self.id,
+      volume: &self.volume,
+      recursive: self.recursive,
+      enabled: self.enabled,
+      is_ejectable: self.is_ejectable,
+      added_at_ms: self.added_at_ms,
+      last_reconciled_at_ms: self.last_reconciled_at_ms,
+      last_reconcile_status: self.last_reconcile_status,
+      last_error_code: self.last_error_code,
+      last_error_message: self.last_error_message.as_deref(),
+    }
+  }
+}
+
+impl<'r> TryFrom<SqliteWatchedLocationRowRef<'r>> for WatchedLocation<Uuid7> {
+  type Error = SqlxError;
+
+  fn try_from(r: SqliteWatchedLocationRowRef<'r>) -> Result<Self, Self::Error> {
+    let id = bytes_to_uuid7(r.id)?;
+    let volume = bytes_to_uuid7(r.volume)?;
+    let added_at = millis_to_timestamp(r.added_at_ms)?;
+    let mut w = WatchedLocation::try_new(id, volume, added_at)
+      .map_err(|e: WatchedLocationError| SqlxError::DomainConstructorRejected(e.to_string()))?
+      .with_recursive(r.recursive != 0)
+      .with_enabled(r.enabled != 0)
+      .with_ejectable(r.is_ejectable != 0);
+    if let Some(ms) = r.last_reconciled_at_ms {
+      w = w.with_last_reconciled_at(Some(millis_to_timestamp(ms)?));
+    }
+    if let Some(s) = r.last_reconcile_status {
+      w = w.with_last_reconcile_status(Some(scan_status_from_i64(s)?));
+    }
+    if let Some(code) = r.last_error_code {
+      let code = u32::try_from(code).map_err(|e| {
+        SqlxError::UnknownDiscriminant(format!("WatchedLocation.last_error_code: {e}"))
+      })?;
+      w = w.with_last_error(Some(ErrorInfo::new(
+        ErrorCode::from_u32(code),
+        r.last_error_message.unwrap_or_default(),
+      )));
+    }
+    Ok(w)
+  }
+}
+
 // ===========================================================================
 // Tests
 // ===========================================================================
@@ -483,6 +668,55 @@ mod tests {
     let row: SqliteSpeakerRow = (&s).into();
     let s2: Speaker<Uuid7> = row.as_ref().try_into().unwrap();
     assert_eq!(s, s2);
+  }
+
+  #[test]
+  fn user_tag_ref_roundtrip() {
+    let t = UserTag::try_new(Uuid7::new(), "Vacation", ts())
+      .unwrap()
+      .with_color(Some(Rgba::from_components(0x12, 0x34, 0x56, 0x78)));
+    let row: SqliteUserTagRow = (&t).into();
+    let t2: UserTag<Uuid7> = row.as_ref().try_into().unwrap();
+    assert_eq!(t, t2);
+  }
+
+  #[test]
+  fn scene_annotation_ref_roundtrip() {
+    let t1 = Uuid7::new();
+    let a = SceneAnnotation::try_new(Uuid7::new(), Uuid7::new(), ts())
+      .unwrap()
+      .with_favorite(true)
+      .with_user_tags(std::vec![t1])
+      .with_rating(Some(4))
+      .with_note("nice");
+    let (row, joins): (
+      SqliteSceneAnnotationRow,
+      std::vec::Vec<SqliteSceneAnnotationUserTagRow>,
+    ) = (&a).into();
+    let join_refs: std::vec::Vec<SqliteSceneAnnotationUserTagRowRef<'_>> = joins
+      .iter()
+      .map(SqliteSceneAnnotationUserTagRow::as_ref)
+      .collect();
+    let a2: SceneAnnotation<Uuid7> = (row.as_ref(), join_refs).try_into().unwrap();
+    assert_eq!(a, a2);
+  }
+
+  #[test]
+  fn watched_location_ref_roundtrip() {
+    let w = WatchedLocation::try_new(Uuid7::new(), Uuid7::new(), ts())
+      .unwrap()
+      .with_recursive(true)
+      .with_enabled(true)
+      .with_ejectable(true)
+      .with_last_reconciled_at(Some(ts()))
+      .with_last_reconcile_status(Some(ScanStatus::Partial))
+      .with_last_error(Some(ErrorInfo::new(
+        ErrorCode::VolumeNotAvailable,
+        "drive offline",
+      )));
+    let row: SqliteWatchedLocationRow = (&w).into();
+    let w2: WatchedLocation<Uuid7> = row.as_ref().try_into().unwrap();
+    assert_eq!(w, w2);
   }
 
   #[test]

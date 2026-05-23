@@ -152,6 +152,117 @@ impl TryFrom<PgMediaRow> for Media<Uuid7> {
   }
 }
 
+/// Borrowed view of [`PgMediaRow`] — zero-copy decode from `&'r Row`.
+#[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
+pub struct PgMediaRowRef<'r> {
+  pub id: Uuid,
+  pub checksum: &'r [u8],
+  pub format: &'r str,
+  pub size: i64,
+  pub duration_raw: Option<i64>,
+  pub kind: i16,
+  pub video: Option<Uuid>,
+  pub audio: Option<Uuid>,
+  pub subtitle: Option<Uuid>,
+  pub error_flags: i32,
+  pub probe_error_code: Option<i32>,
+  pub probe_error_message: Option<&'r str>,
+  pub capture_date_ms: Option<i64>,
+  pub device_make: Option<&'r str>,
+  pub device_model: Option<&'r str>,
+  pub gps_lat: Option<f64>,
+  pub gps_lon: Option<f64>,
+  pub gps_altitude: Option<f32>,
+}
+
+impl PgMediaRow {
+  /// Cheap borrow — produces a [`PgMediaRowRef`] referencing `self`.
+  pub fn as_ref(&self) -> PgMediaRowRef<'_> {
+    PgMediaRowRef {
+      id: self.id,
+      checksum: &self.checksum,
+      format: &self.format,
+      size: self.size,
+      duration_raw: self.duration_raw,
+      kind: self.kind,
+      video: self.video,
+      audio: self.audio,
+      subtitle: self.subtitle,
+      error_flags: self.error_flags,
+      probe_error_code: self.probe_error_code,
+      probe_error_message: self.probe_error_message.as_deref(),
+      capture_date_ms: self.capture_date_ms,
+      device_make: self.device_make.as_deref(),
+      device_model: self.device_model.as_deref(),
+      gps_lat: self.gps_lat,
+      gps_lon: self.gps_lon,
+      gps_altitude: self.gps_altitude,
+    }
+  }
+}
+
+impl<'r> TryFrom<PgMediaRowRef<'r>> for Media<Uuid7> {
+  type Error = SqlxError;
+
+  fn try_from(r: PgMediaRowRef<'r>) -> Result<Self, Self::Error> {
+    let id = uuid_to_uuid7(r.id)?;
+    let checksum = bytes_to_checksum(r.checksum)?;
+    if checksum.is_zero() {
+      return Err(SqlxError::DomainConstructorRejected(
+        "Media.checksum is the zero sentinel".to_owned(),
+      ));
+    }
+    let size = u64::try_from(r.size)
+      .map_err(|e| SqlxError::UnknownDiscriminant(format!("Media.size: {e}")))?;
+    let kind = media_kind_from_i16(r.kind)?;
+    let format = r.format.parse::<Format>().unwrap_or_default();
+    let mut m = Media::try_new(id, checksum, format, size, kind)
+      .map_err(|e: MediaError| SqlxError::DomainConstructorRejected(e.to_string()))?;
+    if let Some(v) = r.video {
+      m = m.with_video(Some(uuid_to_uuid7(v)?));
+    }
+    if let Some(v) = r.audio {
+      m = m.with_audio(Some(uuid_to_uuid7(v)?));
+    }
+    if let Some(v) = r.subtitle {
+      m = m.with_subtitle(Some(uuid_to_uuid7(v)?));
+    }
+    let flag_bits = u16::try_from(r.error_flags)
+      .map_err(|e| SqlxError::UnknownDiscriminant(format!("Media.error_flags: {e}")))?;
+    m = m.with_error_flags(MediaErrorFlags::from_bits_truncate(flag_bits));
+    if let Some(code) = r.probe_error_code {
+      let code = u32::try_from(code)
+        .map_err(|e| SqlxError::UnknownDiscriminant(format!("Media.probe_error_code: {e}")))?;
+      m = m.with_probe_error(Some(ErrorInfo::new(
+        ErrorCode::from_u32(code),
+        r.probe_error_message.unwrap_or_default(),
+      )));
+    }
+    if let Some(ms) = r.capture_date_ms {
+      m = m.with_capture_date(Some(millis_to_timestamp(ms)?));
+    }
+    if r.device_make.is_some() || r.device_model.is_some() {
+      m = m.with_device(Some(
+        Device::new()
+          .with_make(r.device_make.unwrap_or_default())
+          .with_model(r.device_model.unwrap_or_default()),
+      ));
+    }
+    if let Some(lat) = r.gps_lat {
+      let lon = r.gps_lon.ok_or_else(|| {
+        SqlxError::DomainConstructorRejected(
+          "Media.gps_lon missing while gps_lat present".to_owned(),
+        )
+      })?;
+      m = m.with_gps(Some(
+        GeoLocation::try_new(lat, lon, r.gps_altitude)
+          .map_err(|e| SqlxError::DomainConstructorRejected(format!("GeoLocation: {e}")))?,
+      ));
+    }
+    Ok(m)
+  }
+}
+
 // ===========================================================================
 // Tests
 // ===========================================================================
@@ -194,6 +305,32 @@ mod tests {
       m2.probe_error_ref().map(|e| e.code()),
       Some(ErrorCode::ProbeCorrupt)
     );
+    assert_eq!(
+      m2.probe_error_ref().map(|e| e.message()),
+      Some("bad header")
+    );
+  }
+
+  #[test]
+  fn media_ref_roundtrip() {
+    let m = Media::try_new(
+      Uuid7::new(),
+      fake_checksum(),
+      Format::Mp4,
+      1,
+      MediaKind::Video,
+    )
+    .unwrap()
+    .with_device(Some(Device::new().with_make("Apple").with_model("iPhone")))
+    .with_gps(Some(
+      GeoLocation::try_new(37.7749, -122.4194, Some(20.0)).unwrap(),
+    ))
+    .with_probe_error(Some(ErrorInfo::new(ErrorCode::ProbeCorrupt, "bad header")));
+    let row: PgMediaRow = (&m).into();
+    let m2: Media<Uuid7> = row.as_ref().try_into().unwrap();
+    assert_eq!(m.id_ref(), m2.id_ref());
+    assert_eq!(m.checksum_ref(), m2.checksum_ref());
+    assert_eq!(m2.device_ref().unwrap().make(), "Apple");
     assert_eq!(
       m2.probe_error_ref().map(|e| e.message()),
       Some("bad header")
