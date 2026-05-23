@@ -44,6 +44,18 @@ CREATE TABLE IF NOT EXISTS watched_location (
     last_error_message    text
 );
 
+CREATE TABLE IF NOT EXISTS media_file (
+    id                  uuid    NOT NULL PRIMARY KEY,
+    media_id            uuid    NOT NULL,
+    created_at_ms       bigint,
+    location_volume     uuid    NOT NULL,
+    location_path       text    NOT NULL,
+    watched_location_id uuid    NOT NULL,
+    watch_volume        uuid    NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_media_file_media_id            ON media_file(media_id);
+CREATE INDEX IF NOT EXISTS idx_media_file_watched_location_id ON media_file(watched_location_id);
+
 CREATE TABLE IF NOT EXISTS speaker (
     id                  uuid    NOT NULL PRIMARY KEY,
     parent              uuid    NOT NULL,
