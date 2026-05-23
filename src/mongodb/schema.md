@@ -25,6 +25,7 @@ domain`, then `assert_eq!`.
 | `Rgba` | nested `{ r: i32, g: i32, b: i32, a: i32 }` |
 | `ErrorInfo` | nested `{ code: i64, message: String }` |
 | `Provenance` | nested `{ model_name: String, model_version: String, prompt_version: String, indexer_version: String }` |
+| `VoiceFingerprint<Uuid7>` | nested `{ vector_id: Binary(uuid), dimensions: Int32, extracted_at: DateTime, confidence: Double or Null, provenance: { … } }` |
 | `LocalizedText` | nested `{ src: String, translated: String }` |
 | `Location<Uuid7>` | nested `{ kind: "local", volume: Binary, components: [String] }` |
 | domain enums | `Int32` (e.g. `MediaKind::Video → 0`) |
@@ -100,8 +101,45 @@ Indexes: `volume`, `enabled`.
 | `cluster_id` | `Int64` |
 | `name` | `String` |
 | `speech_duration` | `Timestamp` or `Null` |
+| `voiceprint` | `VoiceFingerprint` sub-doc or `Null` |
+| `person` | `Binary(uuid)` (`Person.id`) or `Null` |
 
-Indexes: `parent`.
+`voiceprint` is the per-track aggregated centroid: `{ vector_id:
+Binary(uuid), dimensions: Int32, extracted_at: DateTime, confidence:
+Double or Null, provenance: { model_name, model_version,
+prompt_version, indexer_version } }`. `person` is the FK back into the
+`persons` collection (the cross-track identity anchor).
+
+Indexes: `parent`, `person`.
+
+### `persons`
+
+The cross-track / cross-modality identity anchor. One `Person` ↔ many
+`Speaker`s (one per track they appear in). Modality-neutral: a future
+`FaceDetection.person` link hangs off this aggregate without
+reshaping it.
+
+| field | type |
+| --- | --- |
+| `_id` | `Binary(uuid)` |
+| `name` | `String` (`""` = unnamed) |
+| `confidence` | `Int32` (0 = `AutoMatched`, 1 = `UserConfirmed`) |
+| `voiceprint` | `VoiceFingerprint` sub-doc or `Null` |
+| `created_at` | `DateTime` |
+| `updated_at` | `DateTime` |
+
+`voiceprint` is the aggregated canonical voiceprint (the centroid
+across all linked `Speaker`s' per-track voiceprints) — same embedded
+shape as on `speakers`: `{ vector_id: Binary(uuid), dimensions:
+Int32, extracted_at: DateTime, confidence: Double or Null,
+provenance: { model_name, model_version, prompt_version,
+indexer_version } }`. Only meaningful when the contributing samples
+share one `(model, version)` pair (see `VoiceFingerprint`'s
+`provenance`).
+
+Indexes: compound `(voiceprint.provenance.model_name,
+voiceprint.provenance.model_version)` for "find Persons by embedding
+model" queries.
 
 ### `user_tags`
 
@@ -175,6 +213,11 @@ Indexes: `parent`, `is_primary`, `content`, `language`.
 | `no_speech_prob` | `Double` or `Null` |
 | `avg_logprob` | `Double` or `Null` |
 | `temperature` | `Double` or `Null` |
+| `voice_fingerprint` | `VoiceFingerprint` sub-doc or `Null` |
+
+`voice_fingerprint` is the per-segment voice embedding (same nested
+shape as `speakers.voiceprint`): `{ vector_id, dimensions,
+extracted_at, confidence, provenance }`.
 
 Indexes: `parent`, unique `(parent, index)`, `speaker`.
 
