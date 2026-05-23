@@ -18,6 +18,7 @@ pub enum CollectionName {
   MediaFiles,
   WatchedLocations,
   Speakers,
+  Persons,
   UserTags,
   SceneAnnotations,
   AudioFacets,
@@ -45,6 +46,7 @@ impl CollectionName {
       Self::MediaFiles => "media_files",
       Self::WatchedLocations => "watched_locations",
       Self::Speakers => "speakers",
+      Self::Persons => "persons",
       Self::UserTags => "user_tags",
       Self::SceneAnnotations => "scene_annotations",
       Self::AudioFacets => "audio_facets",
@@ -129,9 +131,30 @@ pub fn watched_location_indexes() -> Vec<IndexModel> {
   ]
 }
 
-/// `speakers` — FK index on `audio_track_id` (`AudioTrack.id`).
+/// `speakers` — FK index on `audio_track_id` (`AudioTrack.id`) and on the
+/// optional `person_id` FK (the `persons` collection back-reference).
 pub fn speaker_indexes() -> Vec<IndexModel> {
-  vec![index_on(doc! { "audio_track_id": 1 }, "speakers_audio_track_id")]
+  vec![
+    index_on(doc! { "audio_track_id": 1 }, "speakers_audio_track_id"),
+    index_on(doc! { "person_id": 1 }, "speakers_person_id"),
+  ]
+}
+
+/// `persons` — cross-track / cross-modality identity anchor. The `_id`
+/// implicit index drives FK lookups from `speakers.person_id`; we add a
+/// compound `(voiceprint.provenance.model_name,
+/// voiceprint.provenance.model_version)` index so "find all Persons
+/// whose canonical voiceprint came from this model" stays a key-scan
+/// (the aggregated centroid is only meaningful when contributing
+/// `Speaker` voiceprints share one `(model, version)` pair).
+pub fn person_indexes() -> Vec<IndexModel> {
+  vec![index_on(
+    doc! {
+      "voiceprint.provenance.model_name": 1,
+      "voiceprint.provenance.model_version": 1,
+    },
+    "persons_voiceprint_model",
+  )]
 }
 
 /// `user_tags` — case-insensitive lookup is a projection concern;
@@ -329,6 +352,7 @@ pub fn all_indexes() -> Vec<(CollectionName, Vec<IndexModel>)> {
     (CollectionName::MediaFiles, media_file_indexes()),
     (CollectionName::WatchedLocations, watched_location_indexes()),
     (CollectionName::Speakers, speaker_indexes()),
+    (CollectionName::Persons, person_indexes()),
     (CollectionName::UserTags, user_tag_indexes()),
     (CollectionName::SceneAnnotations, scene_annotation_indexes()),
     (CollectionName::AudioFacets, audio_facet_indexes()),
@@ -375,7 +399,7 @@ mod tests {
   #[test]
   fn all_indexes_covers_every_collection() {
     let v = all_indexes();
-    assert_eq!(v.len(), 21);
+    assert_eq!(v.len(), 22);
     // No collection appears twice.
     let mut names: Vec<_> = v.iter().map(|(c, _)| c.as_str()).collect();
     names.sort();

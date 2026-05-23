@@ -76,6 +76,7 @@ pub mod indexes;
 pub mod leaves;
 pub mod media;
 pub mod media_file;
+pub mod person;
 pub mod subtitle;
 pub mod util;
 pub mod video;

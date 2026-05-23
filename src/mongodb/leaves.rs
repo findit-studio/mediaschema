@@ -125,6 +125,20 @@ impl From<&Speaker<Uuid7>> for Document {
         .map(|t| media_ts_to_bson(*t))
         .unwrap_or(Bson::Null),
     );
+    // `voiceprint` rides as an embedded sub-document (or `Null`).
+    d.insert(
+      "voiceprint",
+      s.voiceprint_ref()
+        .map(voice_fingerprint_to_bson)
+        .unwrap_or(Bson::Null),
+    );
+    // `person` is the FK back into the `persons` collection.
+    d.insert(
+      "person_id",
+      s.person_id_ref()
+        .map(|p| uuid7_to_bson(*p))
+        .unwrap_or(Bson::Null),
+    );
     d
   }
 }
@@ -140,6 +154,12 @@ impl TryFrom<Document> for Speaker<Uuid7> {
     let mut s = Speaker::try_new(id, audio_track_id, cluster_id, name)?;
     if let Some(b) = take_opt(&mut d, "speech_duration") {
       s.try_set_speech_duration(Some(media_ts_from_bson(b, "speech_duration")?))?;
+    }
+    if let Some(b) = take_opt(&mut d, "voiceprint") {
+      s.set_voiceprint(voice_fingerprint_from_bson(b, "voiceprint")?);
+    }
+    if let Some(b) = take_opt(&mut d, "person_id") {
+      s.set_person_id(uuid7_from_bson(b, "person_id")?);
     }
     Ok(s)
   }
@@ -290,12 +310,44 @@ mod tests {
   }
 
   #[test]
-  fn speaker_roundtrip() {
+  fn speaker_roundtrip_without_voiceprint_or_person() {
     let s = Speaker::try_new(Uuid7::new(), Uuid7::new(), 3, "Jane")
       .unwrap()
       .try_with_speech_duration(Some(MediaTimestamp::new(12000, tb())))
       .unwrap();
     let doc: Document = (&s).into();
+    // Absent fields serialise as `Null`, not omitted.
+    assert_eq!(doc.get("voiceprint"), Some(&Bson::Null));
+    assert_eq!(doc.get("person_id"), Some(&Bson::Null));
+    let s2: Speaker<Uuid7> = doc.try_into().unwrap();
+    assert_eq!(s, s2);
+    assert!(s2.voiceprint_ref().is_none());
+    assert!(s2.person_id_ref().is_none());
+  }
+
+  #[test]
+  fn speaker_roundtrip_with_voiceprint_and_person() {
+    use crate::domain::vo::{Provenance, VoiceFingerprint};
+    let vfp = VoiceFingerprint::try_new(
+      Uuid7::new(),
+      192,
+      JiffTimestamp::from_millisecond(1_700_000_000_000).unwrap(),
+      Some(0.83),
+      Provenance::from_parts("ecapa-tdnn", "v1.0.0", "", "findit-indexer-0.1.0"),
+    )
+    .unwrap();
+    let person_id = Uuid7::new();
+    let s = Speaker::try_new(Uuid7::new(), Uuid7::new(), 3, "Jane")
+      .unwrap()
+      .try_with_speech_duration(Some(MediaTimestamp::new(12000, tb())))
+      .unwrap()
+      .with_voiceprint(vfp)
+      .with_person_id(person_id);
+    let doc: Document = (&s).into();
+    // voiceprint is an embedded sub-doc, not flattened.
+    assert!(matches!(doc.get("voiceprint"), Some(Bson::Document(_))));
+    // person is a Binary(uuid) FK.
+    assert!(matches!(doc.get("person_id"), Some(Bson::Binary(_))));
     let s2: Speaker<Uuid7> = doc.try_into().unwrap();
     assert_eq!(s, s2);
   }
