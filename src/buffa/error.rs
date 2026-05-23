@@ -66,4 +66,9 @@ pub enum BuffaError {
   /// verbatim.
   #[error("wire gps_location is not a valid ISO 6709 location: {0:?}")]
   GpsLocationMalformed(smol_str::SmolStr),
+  /// Wire `Language.bcp47` failed to parse as a well-formed BCP-47
+  /// language identifier via [`mediaframe::lang::Language::from_bcp47`].
+  /// The offending string is wrapped verbatim.
+  #[error("wire Language.bcp47 is not a valid BCP-47 tag: {0:?}")]
+  LanguageMalformed(smol_str::SmolStr),
 }
