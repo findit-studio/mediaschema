@@ -215,6 +215,42 @@ impl TryFrom<MySqlUserTagRow> for UserTag<Uuid7> {
   }
 }
 
+/// Borrowed view of [`MySqlUserTagRow`].
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct MySqlUserTagRowRef<'r> {
+  pub id: &'r [u8],
+  pub name: &'r str,
+  pub color_rgba: Option<u32>,
+  pub created_at_ms: i64,
+}
+
+impl MySqlUserTagRow {
+  /// Cheap borrow — produces a [`MySqlUserTagRowRef`] referencing `self`.
+  pub fn as_ref(&self) -> MySqlUserTagRowRef<'_> {
+    MySqlUserTagRowRef {
+      id: &self.id,
+      name: &self.name,
+      color_rgba: self.color_rgba,
+      created_at_ms: self.created_at_ms,
+    }
+  }
+}
+
+impl<'r> TryFrom<MySqlUserTagRowRef<'r>> for UserTag<Uuid7> {
+  type Error = SqlxError;
+
+  fn try_from(r: MySqlUserTagRowRef<'r>) -> Result<Self, Self::Error> {
+    let id = bytes_to_uuid7(r.id)?;
+    let created_at = millis_to_timestamp(r.created_at_ms)?;
+    let mut tag = UserTag::try_new(id, r.name, created_at)
+      .map_err(|e: NilIdError| SqlxError::DomainConstructorRejected(e.to_string()))?;
+    if let Some(bits) = r.color_rgba {
+      tag = tag.with_color(Some(Rgba::from_bits(bits)));
+    }
+    Ok(tag)
+  }
+}
+
 // ---------------------------------------------------------------------------
 // SceneAnnotationRow + join table
 // ---------------------------------------------------------------------------
@@ -300,6 +336,82 @@ impl
   }
 }
 
+/// Borrowed view of [`MySqlSceneAnnotationRow`].
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct MySqlSceneAnnotationRowRef<'r> {
+  pub id: &'r [u8],
+  pub scene_id: &'r [u8],
+  pub favorite: i8,
+  pub rating: Option<u8>,
+  pub note: &'r str,
+  pub updated_at_ms: i64,
+}
+
+/// Borrowed view of [`MySqlSceneAnnotationUserTagRow`].
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct MySqlSceneAnnotationUserTagRowRef<'r> {
+  pub scene_annotation_id: &'r [u8],
+  pub user_tag_id: &'r [u8],
+  pub ordinal: i32,
+}
+
+impl MySqlSceneAnnotationRow {
+  /// Cheap borrow — produces a [`MySqlSceneAnnotationRowRef`] referencing `self`.
+  pub fn as_ref(&self) -> MySqlSceneAnnotationRowRef<'_> {
+    MySqlSceneAnnotationRowRef {
+      id: &self.id,
+      scene_id: &self.scene_id,
+      favorite: self.favorite,
+      rating: self.rating,
+      note: &self.note,
+      updated_at_ms: self.updated_at_ms,
+    }
+  }
+}
+
+impl MySqlSceneAnnotationUserTagRow {
+  /// Cheap borrow — produces a [`MySqlSceneAnnotationUserTagRowRef`] referencing `self`.
+  pub fn as_ref(&self) -> MySqlSceneAnnotationUserTagRowRef<'_> {
+    MySqlSceneAnnotationUserTagRowRef {
+      scene_annotation_id: &self.scene_annotation_id,
+      user_tag_id: &self.user_tag_id,
+      ordinal: self.ordinal,
+    }
+  }
+}
+
+impl<'r>
+  TryFrom<(
+    MySqlSceneAnnotationRowRef<'r>,
+    std::vec::Vec<MySqlSceneAnnotationUserTagRowRef<'r>>,
+  )> for SceneAnnotation<Uuid7>
+{
+  type Error = SqlxError;
+
+  fn try_from(
+    (r, mut joins): (
+      MySqlSceneAnnotationRowRef<'r>,
+      std::vec::Vec<MySqlSceneAnnotationUserTagRowRef<'r>>,
+    ),
+  ) -> Result<Self, Self::Error> {
+    let id = bytes_to_uuid7(r.id)?;
+    let scene = bytes_to_uuid7(r.scene_id)?;
+    let updated_at = millis_to_timestamp(r.updated_at_ms)?;
+    joins.sort_by_key(|j| j.ordinal);
+    let mut tags = std::vec::Vec::with_capacity(joins.len());
+    for j in joins {
+      tags.push(bytes_to_uuid7(j.user_tag_id)?);
+    }
+    let ann = SceneAnnotation::try_new(id, scene, updated_at)
+      .map_err(|e: SceneAnnotationError| SqlxError::DomainConstructorRejected(e.to_string()))?
+      .with_favorite(r.favorite != 0)
+      .with_user_tags(tags)
+      .with_rating(r.rating)
+      .with_note(r.note);
+    Ok(ann)
+  }
+}
+
 // ---------------------------------------------------------------------------
 // WatchedLocationRow
 // ---------------------------------------------------------------------------
@@ -366,6 +478,70 @@ impl TryFrom<MySqlWatchedLocationRow> for WatchedLocation<Uuid7> {
   fn try_from(r: MySqlWatchedLocationRow) -> Result<Self, Self::Error> {
     let id = bytes_to_uuid7(&r.id)?;
     let volume = bytes_to_uuid7(&r.volume)?;
+    let added_at = millis_to_timestamp(r.added_at_ms)?;
+    let mut w = WatchedLocation::try_new(id, volume, added_at)
+      .map_err(|e: WatchedLocationError| SqlxError::DomainConstructorRejected(e.to_string()))?
+      .with_recursive(r.recursive != 0)
+      .with_enabled(r.enabled != 0)
+      .with_ejectable(r.is_ejectable != 0);
+    if let Some(ms) = r.last_reconciled_at_ms {
+      w = w.with_last_reconciled_at(Some(millis_to_timestamp(ms)?));
+    }
+    if let Some(s) = r.last_reconcile_status {
+      w = w.with_last_reconcile_status(Some(scan_status_from_i16(s)?));
+    }
+    if let Some(code) = r.last_error_code {
+      let code = u32::try_from(code).map_err(|e| {
+        SqlxError::UnknownDiscriminant(format!("WatchedLocation.last_error_code: {e}"))
+      })?;
+      w = w.with_last_error(Some(ErrorInfo::new(
+        ErrorCode::from_u32(code),
+        r.last_error_message.unwrap_or_default(),
+      )));
+    }
+    Ok(w)
+  }
+}
+
+/// Borrowed view of [`MySqlWatchedLocationRow`].
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct MySqlWatchedLocationRowRef<'r> {
+  pub id: &'r [u8],
+  pub volume: &'r [u8],
+  pub recursive: i8,
+  pub enabled: i8,
+  pub is_ejectable: i8,
+  pub added_at_ms: i64,
+  pub last_reconciled_at_ms: Option<i64>,
+  pub last_reconcile_status: Option<i16>,
+  pub last_error_code: Option<i32>,
+  pub last_error_message: Option<&'r str>,
+}
+
+impl MySqlWatchedLocationRow {
+  /// Cheap borrow — produces a [`MySqlWatchedLocationRowRef`] referencing `self`.
+  pub fn as_ref(&self) -> MySqlWatchedLocationRowRef<'_> {
+    MySqlWatchedLocationRowRef {
+      id: &self.id,
+      volume: &self.volume,
+      recursive: self.recursive,
+      enabled: self.enabled,
+      is_ejectable: self.is_ejectable,
+      added_at_ms: self.added_at_ms,
+      last_reconciled_at_ms: self.last_reconciled_at_ms,
+      last_reconcile_status: self.last_reconcile_status,
+      last_error_code: self.last_error_code,
+      last_error_message: self.last_error_message.as_deref(),
+    }
+  }
+}
+
+impl<'r> TryFrom<MySqlWatchedLocationRowRef<'r>> for WatchedLocation<Uuid7> {
+  type Error = SqlxError;
+
+  fn try_from(r: MySqlWatchedLocationRowRef<'r>) -> Result<Self, Self::Error> {
+    let id = bytes_to_uuid7(r.id)?;
+    let volume = bytes_to_uuid7(r.volume)?;
     let added_at = millis_to_timestamp(r.added_at_ms)?;
     let mut w = WatchedLocation::try_new(id, volume, added_at)
       .map_err(|e: WatchedLocationError| SqlxError::DomainConstructorRejected(e.to_string()))?
@@ -510,6 +686,48 @@ mod tests {
     let row: MySqlSpeakerRow = (&s).into();
     let s2: Speaker<Uuid7> = row.as_ref().try_into().unwrap();
     assert_eq!(s, s2);
+  }
+
+  #[test]
+  fn user_tag_ref_roundtrip() {
+    let t = UserTag::try_new(Uuid7::new(), "v", ts())
+      .unwrap()
+      .with_color(Some(Rgba::from_bits(0xdeadbeef)));
+    let row: MySqlUserTagRow = (&t).into();
+    let t2: UserTag<Uuid7> = row.as_ref().try_into().unwrap();
+    assert_eq!(t, t2);
+  }
+
+  #[test]
+  fn scene_annotation_ref_roundtrip() {
+    let t1 = Uuid7::new();
+    let a = SceneAnnotation::try_new(Uuid7::new(), Uuid7::new(), ts())
+      .unwrap()
+      .with_favorite(true)
+      .with_user_tags(std::vec![t1])
+      .with_rating(Some(5))
+      .with_note("ok");
+    let (row, joins): (
+      MySqlSceneAnnotationRow,
+      std::vec::Vec<MySqlSceneAnnotationUserTagRow>,
+    ) = (&a).into();
+    let join_refs: std::vec::Vec<MySqlSceneAnnotationUserTagRowRef<'_>> = joins
+      .iter()
+      .map(MySqlSceneAnnotationUserTagRow::as_ref)
+      .collect();
+    let a2: SceneAnnotation<Uuid7> = (row.as_ref(), join_refs).try_into().unwrap();
+    assert_eq!(a, a2);
+  }
+
+  #[test]
+  fn watched_location_ref_roundtrip() {
+    let w = WatchedLocation::try_new(Uuid7::new(), Uuid7::new(), ts())
+      .unwrap()
+      .with_enabled(true)
+      .with_last_error(Some(ErrorInfo::new(ErrorCode::PathNotFound, "gone")));
+    let row: MySqlWatchedLocationRow = (&w).into();
+    let w2: WatchedLocation<Uuid7> = row.as_ref().try_into().unwrap();
+    assert_eq!(w, w2);
   }
 
   #[test]

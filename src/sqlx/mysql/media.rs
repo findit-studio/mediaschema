@@ -145,6 +145,113 @@ impl TryFrom<MySqlMediaRow> for Media<Uuid7> {
   }
 }
 
+/// Borrowed view of [`MySqlMediaRow`] — zero-copy decode from `&'r Row`.
+#[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
+pub struct MySqlMediaRowRef<'r> {
+  pub id: &'r [u8],
+  pub checksum: &'r [u8],
+  pub format: &'r str,
+  pub size: u64,
+  pub duration_raw: Option<i64>,
+  pub kind: i16,
+  pub video_id: Option<&'r [u8]>,
+  pub audio_id: Option<&'r [u8]>,
+  pub subtitle_id: Option<&'r [u8]>,
+  pub error_flags: u16,
+  pub probe_error_code: Option<i32>,
+  pub probe_error_message: Option<&'r str>,
+  pub capture_date_ms: Option<i64>,
+  pub device_make: Option<&'r str>,
+  pub device_model: Option<&'r str>,
+  pub gps_lat: Option<f64>,
+  pub gps_lon: Option<f64>,
+  pub gps_altitude: Option<f32>,
+}
+
+impl MySqlMediaRow {
+  /// Cheap borrow — produces a [`MySqlMediaRowRef`] referencing `self`.
+  pub fn as_ref(&self) -> MySqlMediaRowRef<'_> {
+    MySqlMediaRowRef {
+      id: &self.id,
+      checksum: &self.checksum,
+      format: &self.format,
+      size: self.size,
+      duration_raw: self.duration_raw,
+      kind: self.kind,
+      video_id: self.video_id.as_deref(),
+      audio_id: self.audio_id.as_deref(),
+      subtitle_id: self.subtitle_id.as_deref(),
+      error_flags: self.error_flags,
+      probe_error_code: self.probe_error_code,
+      probe_error_message: self.probe_error_message.as_deref(),
+      capture_date_ms: self.capture_date_ms,
+      device_make: self.device_make.as_deref(),
+      device_model: self.device_model.as_deref(),
+      gps_lat: self.gps_lat,
+      gps_lon: self.gps_lon,
+      gps_altitude: self.gps_altitude,
+    }
+  }
+}
+
+impl<'r> TryFrom<MySqlMediaRowRef<'r>> for Media<Uuid7> {
+  type Error = SqlxError;
+
+  fn try_from(r: MySqlMediaRowRef<'r>) -> Result<Self, Self::Error> {
+    let id = bytes_to_uuid7(r.id)?;
+    let checksum = bytes_to_checksum(r.checksum)?;
+    if checksum.is_zero() {
+      return Err(SqlxError::DomainConstructorRejected(
+        "Media.checksum is the zero sentinel".to_owned(),
+      ));
+    }
+    let kind = media_kind_from_i16(r.kind)?;
+    let format = r.format.parse::<Format>().unwrap_or_default();
+    let mut m = Media::try_new(id, checksum, format, r.size, kind)
+      .map_err(|e: MediaError| SqlxError::DomainConstructorRejected(e.to_string()))?;
+    if let Some(v) = r.video_id {
+      m = m.with_video_id(Some(bytes_to_uuid7(v)?));
+    }
+    if let Some(v) = r.audio_id {
+      m = m.with_audio_id(Some(bytes_to_uuid7(v)?));
+    }
+    if let Some(v) = r.subtitle_id {
+      m = m.with_subtitle_id(Some(bytes_to_uuid7(v)?));
+    }
+    m = m.with_error_flags(MediaErrorFlags::from_bits_truncate(r.error_flags));
+    if let Some(code) = r.probe_error_code {
+      let code = u32::try_from(code)
+        .map_err(|e| SqlxError::UnknownDiscriminant(format!("Media.probe_error_code: {e}")))?;
+      m = m.with_probe_error(Some(ErrorInfo::new(
+        ErrorCode::from_u32(code),
+        r.probe_error_message.unwrap_or_default(),
+      )));
+    }
+    if let Some(ms) = r.capture_date_ms {
+      m = m.with_capture_date(Some(millis_to_timestamp(ms)?));
+    }
+    if r.device_make.is_some() || r.device_model.is_some() {
+      m = m.with_device(Some(
+        Device::new()
+          .with_make(r.device_make.unwrap_or_default())
+          .with_model(r.device_model.unwrap_or_default()),
+      ));
+    }
+    if let Some(lat) = r.gps_lat {
+      let lon = r.gps_lon.ok_or_else(|| {
+        SqlxError::DomainConstructorRejected(
+          "Media.gps_lon missing while gps_lat present".to_owned(),
+        )
+      })?;
+      m = m.with_gps(Some(
+        GeoLocation::try_new(lat, lon, r.gps_altitude)
+          .map_err(|e| SqlxError::DomainConstructorRejected(format!("GeoLocation: {e}")))?,
+      ));
+    }
+    Ok(m)
+  }
+}
+
 // ===========================================================================
 // Tests
 // ===========================================================================
@@ -180,6 +287,26 @@ mod tests {
     assert_eq!(m.kind(), m2.kind());
     assert_eq!(m.audio_id_ref(), m2.audio_id_ref());
     assert_eq!(m.error_flags(), m2.error_flags());
+    assert_eq!(m2.device_ref().unwrap().model(), "A7 IV");
+  }
+
+  #[test]
+  fn media_ref_roundtrip() {
+    let m = Media::try_new(
+      Uuid7::new(),
+      fake_checksum(),
+      Format::Mp4,
+      1,
+      MediaKind::Audio,
+    )
+    .unwrap()
+    .with_audio_id(Some(Uuid7::new()))
+    .with_error_flags(MediaErrorFlags::AUDIO_ERROR)
+    .with_device(Some(Device::new().with_make("Sony").with_model("A7 IV")));
+    let row: MySqlMediaRow = (&m).into();
+    let m2: Media<Uuid7> = row.as_ref().try_into().unwrap();
+    assert_eq!(m.id_ref(), m2.id_ref());
+    assert_eq!(m.audio_id_ref(), m2.audio_id_ref());
     assert_eq!(m2.device_ref().unwrap().model(), "A7 IV");
   }
 
