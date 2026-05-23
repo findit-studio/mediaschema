@@ -243,8 +243,10 @@ Indexes: `parent`.
 | --- | --- |
 | `_id` | `Binary(uuid)` |
 | `parent` | `Binary(uuid)` (`Media.id`) |
-| `tracks` | `[Binary(uuid)]` |
-| `track_progress` | `{ total, indexed, failed }` |
+| `track_progress` | `{ total, indexed, failed }` (`Int64` fields) |
+
+The `tracks` reverse-FK list is **not** stored — it is derived by
+querying the `subtitle_tracks` collection (keyed by `parent`).
 
 Indexes: `parent`.
 
@@ -252,6 +254,9 @@ Indexes: `parent`.
 
 Per `schema/subtitle_track.md` r3; see `subtitle.rs` for the full
 top-to-bottom shape.
+
+The `cues` reverse-FK list is **not** stored — it is derived by
+querying the `subtitle_cues` collection (keyed by `parent`).
 
 Indexes: `parent`, `is_primary`, `language`.
 
