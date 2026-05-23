@@ -614,6 +614,91 @@ CREATE TABLE IF NOT EXISTS keyframe_vlm_label (
     KEY idx_kf_vlm_label_keyframe (keyframe)
 );
 
--- The subtitle facet/track/per-track-analysis tables (subtitle,
--- subtitle_track, subtitle_cue) are tracked as a follow-up — same scope
--- note as in the SQLite schema.
+-- Subtitle-cluster: the `Subtitle` facet + `SubtitleTrack` +
+-- `SubtitleCue` (+ the `index_errors` child table). Nested value-objects
+-- are flattened into real columns; collections ride in child tables with
+-- an `ordinal` order column; reverse-FK `Vec<Id>` fields are not stored.
+
+CREATE TABLE IF NOT EXISTS subtitle (
+    id                     BINARY(16) NOT NULL,
+    parent                 BINARY(16) NOT NULL,
+    track_progress_total   BIGINT     NOT NULL DEFAULT 0,
+    track_progress_indexed BIGINT     NOT NULL DEFAULT 0,
+    track_progress_failed  BIGINT     NOT NULL DEFAULT 0,
+    PRIMARY KEY (id),
+    KEY idx_subtitle_parent (parent)
+);
+
+CREATE TABLE IF NOT EXISTS subtitle_track (
+    id                         BINARY(16)   NOT NULL,
+    subtitle_id                BINARY(16)   NOT NULL,
+    stream_index               BIGINT,
+    container_track_id         BIGINT,
+    codec                      VARCHAR(64)  NOT NULL,
+    format                     VARCHAR(64)  NOT NULL,
+    origin                     INT          NOT NULL DEFAULT 0,
+    language                   VARCHAR(64),
+    title                      TEXT         NOT NULL,
+    disposition                BIGINT       NOT NULL DEFAULT 0,
+    is_primary                 TINYINT      NOT NULL DEFAULT 0,
+    auto_selected              TINYINT      NOT NULL DEFAULT 0,
+    duration_pts               BIGINT,
+    duration_tb_num            BIGINT,
+    duration_tb_den            BIGINT,
+    cue_count                  BIGINT       NOT NULL DEFAULT 0,
+    provenance_model_name      VARCHAR(255) NOT NULL,
+    provenance_model_version   VARCHAR(255) NOT NULL,
+    provenance_prompt_version  VARCHAR(255) NOT NULL,
+    provenance_indexer_version VARCHAR(255) NOT NULL,
+    source_path_volume         BINARY(16),
+    source_path                TEXT,
+    source_checksum            BINARY(32),
+    character_encoding         VARCHAR(64)  NOT NULL,
+    bom_present                TINYINT      NOT NULL DEFAULT 0,
+    is_sdh                     TINYINT      NOT NULL DEFAULT 0,
+    is_closed_caption          TINYINT      NOT NULL DEFAULT 0,
+    is_translation             TINYINT      NOT NULL DEFAULT 0,
+    kind                       SMALLINT     NOT NULL DEFAULT 0,
+    coverage_ratio             FLOAT,
+    is_empty                   TINYINT      NOT NULL DEFAULT 0,
+    first_cue_pts              BIGINT,
+    first_cue_tb_num           BIGINT,
+    first_cue_tb_den           BIGINT,
+    last_cue_pts               BIGINT,
+    last_cue_tb_num            BIGINT,
+    last_cue_tb_den            BIGINT,
+    index_status               BIGINT       NOT NULL DEFAULT 0,
+    PRIMARY KEY (id),
+    KEY idx_subtitle_track_subtitle_id (subtitle_id),
+    KEY idx_subtitle_track_codec (codec),
+    KEY idx_subtitle_track_language (language),
+    KEY idx_subtitle_track_origin (origin)
+);
+
+CREATE TABLE IF NOT EXISTS subtitle_track_index_error (
+    subtitle_track BINARY(16) NOT NULL,
+    ordinal        INT        NOT NULL,
+    code           INT        NOT NULL,
+    message        TEXT       NOT NULL,
+    PRIMARY KEY (subtitle_track, ordinal),
+    KEY idx_stie_subtitle_track (subtitle_track)
+);
+
+CREATE TABLE IF NOT EXISTS subtitle_cue (
+    id                  BINARY(16) NOT NULL,
+    parent              BINARY(16) NOT NULL,
+    `index`             BIGINT     NOT NULL,
+    span_start_pts      BIGINT     NOT NULL,
+    span_end_pts        BIGINT     NOT NULL,
+    span_tb_num         BIGINT     NOT NULL,
+    span_tb_den         BIGINT     NOT NULL,
+    text_src            TEXT       NOT NULL,
+    text_translated     TEXT       NOT NULL,
+    styled_text         TEXT       NOT NULL,
+    image               LONGBLOB   NOT NULL,
+    ocr_text_src        TEXT       NOT NULL,
+    ocr_text_translated TEXT       NOT NULL,
+    PRIMARY KEY (id),
+    KEY idx_subtitle_cue_parent (parent),
+    UNIQUE KEY idx_subtitle_cue_parent_index (parent, `index`)
+);
