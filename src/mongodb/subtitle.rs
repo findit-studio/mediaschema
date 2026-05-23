@@ -52,10 +52,12 @@ fn subtitle_kind_from_i64(v: i64, field: &'static str) -> Result<SubtitleKind, M
 }
 
 // ---------------------------------------------------------------------------
-// IndexProgress (subtitle copy — the one re-exported at `aggregates`)
+// IndexProgress (subtitle copy — same `vo::IndexProgress` used across facets;
+// kept module-private to mirror audio/video and keep the subtitle module
+// self-contained).
 // ---------------------------------------------------------------------------
 
-pub(super) fn index_progress_to_bson(p: &IndexProgress) -> Bson {
+fn index_progress_to_bson(p: &IndexProgress) -> Bson {
   let mut d = Document::new();
   d.insert("total", Bson::Int64(p.total() as i64));
   d.insert("indexed", Bson::Int64(p.indexed() as i64));
@@ -63,10 +65,7 @@ pub(super) fn index_progress_to_bson(p: &IndexProgress) -> Bson {
   Bson::Document(d)
 }
 
-pub(super) fn index_progress_from_bson(
-  b: Bson,
-  field: &'static str,
-) -> Result<IndexProgress, MongoError> {
+fn index_progress_from_bson(b: Bson, field: &'static str) -> Result<IndexProgress, MongoError> {
   let mut d = as_doc(b, field)?;
   let total = as_u32(take(&mut d, "total")?, "total")?;
   let indexed = as_u32(take(&mut d, "indexed")?, "indexed")?;
@@ -77,13 +76,17 @@ pub(super) fn index_progress_from_bson(
 // ---------------------------------------------------------------------------
 // Subtitle facet
 // ---------------------------------------------------------------------------
+//
+// The `tracks` reverse-FK list is **not** stored — the `subtitle_tracks`
+// collection's `parent` field drives the reverse lookup (mirrors the
+// sqlx convention). Only the rollup field (`track_progress`) is
+// persisted on the facet document alongside the FK to `Media`.
 
 impl From<&Subtitle<Uuid7>> for Document {
   fn from(s: &Subtitle<Uuid7>) -> Self {
     let mut d = Document::new();
     d.insert("_id", uuid7_to_bson(*s.id_ref()));
     d.insert("media_id", uuid7_to_bson(*s.media_id_ref()));
-    d.insert("tracks", uuid7_vec_to_bson(s.tracks_slice()));
     d.insert(
       "track_progress",
       index_progress_to_bson(s.track_progress_ref()),
@@ -99,9 +102,9 @@ impl TryFrom<Document> for Subtitle<Uuid7> {
     let id = uuid7_from_bson(take(&mut d, "_id")?, "_id")?;
     let media_id = uuid7_from_bson(take(&mut d, "media_id")?, "media_id")?;
     let mut s = Subtitle::try_new(id, media_id)?;
-    if let Some(b) = take_opt(&mut d, "tracks") {
-      s.set_tracks(uuid7_vec_from_bson(b, "tracks")?);
-    }
+    // `tracks` is a reverse-FK list — NOT stored. Discard any stale
+    // value that may exist on legacy documents.
+    let _ = take_opt(&mut d, "tracks");
     if let Some(b) = take_opt(&mut d, "track_progress") {
       s.set_track_progress(index_progress_from_bson(b, "track_progress")?);
     }
@@ -149,7 +152,9 @@ impl From<&SubtitleTrack<Uuid7>> for Document {
         .unwrap_or(Bson::Null),
     );
     d.insert("cue_count", Bson::Int64(t.cue_count() as i64));
-    d.insert("cues", uuid7_vec_to_bson(t.cues_slice()));
+    // `cues` is a reverse-FK list — NOT stored on the track document.
+    // The `subtitle_cues` collection's `parent` field drives the
+    // reverse lookup (consistent with the sqlx convention).
     d.insert("provenance", provenance_to_bson(t.provenance_ref()));
     d.insert(
       "source_path",
@@ -249,9 +254,9 @@ impl TryFrom<Document> for SubtitleTrack<Uuid7> {
     if let Some(b) = take_opt(&mut d, "cue_count") {
       t.set_cue_count(as_u32(b, "cue_count")?);
     }
-    if let Some(b) = take_opt(&mut d, "cues") {
-      t.set_cues(uuid7_vec_from_bson(b, "cues")?);
-    }
+    // `cues` is a reverse-FK list — NOT stored. Discard any stale
+    // value that may exist on legacy documents.
+    let _ = take_opt(&mut d, "cues");
     if let Some(b) = take_opt(&mut d, "provenance") {
       t.set_provenance(provenance_from_bson(b, "provenance")?);
     }
@@ -825,11 +830,29 @@ mod tests {
   fn subtitle_facet_roundtrip() {
     let s = Subtitle::try_new(Uuid7::new(), Uuid7::new())
       .unwrap()
-      .with_tracks(vec![Uuid7::new(), Uuid7::new()])
       .with_track_progress(IndexProgress::from_parts(2, 1, 0));
     let doc: Document = (&s).into();
     let s2: Subtitle<Uuid7> = doc.try_into().unwrap();
-    assert_eq!(s, s2);
+    // The `tracks` reverse-FK list is intentionally not persisted — the
+    // round-tripped facet has an empty `tracks` slice regardless of what
+    // the source value held.
+    assert!(s2.tracks_slice().is_empty());
+    assert_eq!(s.media_id_ref(), s2.media_id_ref());
+    assert_eq!(s.track_progress_ref(), s2.track_progress_ref());
+  }
+
+  #[test]
+  fn subtitle_facet_drops_reverse_fk_tracks() {
+    // A facet built with a non-empty `tracks` list round-trips to one
+    // with an empty list — the document does not store the reverse FK.
+    let s = Subtitle::try_new(Uuid7::new(), Uuid7::new())
+      .unwrap()
+      .with_tracks(vec![Uuid7::new(), Uuid7::new()])
+      .with_track_progress(IndexProgress::from_parts(2, 1, 0));
+    let doc: Document = (&s).into();
+    assert!(!doc.contains_key("tracks"));
+    let s2: Subtitle<Uuid7> = doc.try_into().unwrap();
+    assert!(s2.tracks_slice().is_empty());
   }
 
   #[test]
@@ -847,7 +870,6 @@ mod tests {
       .with_auto_selected(false)
       .with_duration(Some(MediaTimestamp::new(60_000, tb())))
       .with_cue_count(500)
-      .with_cues(vec![Uuid7::new()])
       .with_provenance(Provenance::from_parts("srt", "1.0", "p", "idx"))
       .with_source_path(Some(
         Location::try_local_uuid7(vol, ["Movies", "subs.srt"]).unwrap(),
@@ -868,6 +890,20 @@ mod tests {
     let doc: Document = (&t).into();
     let t2: SubtitleTrack<Uuid7> = doc.try_into().unwrap();
     assert_eq!(t, t2);
+  }
+
+  #[test]
+  fn subtitle_track_drops_reverse_fk_cues() {
+    // `cues` is a reverse-FK list; the document neither writes it nor
+    // reads stale copies — the round-tripped track has an empty slice
+    // regardless of source state.
+    let t = SubtitleTrack::try_new(Uuid7::new(), Uuid7::new())
+      .unwrap()
+      .with_cues(vec![Uuid7::new(), Uuid7::new()]);
+    let doc: Document = (&t).into();
+    assert!(!doc.contains_key("cues"));
+    let t2: SubtitleTrack<Uuid7> = doc.try_into().unwrap();
+    assert!(t2.cues_slice().is_empty());
   }
 
   #[test]
