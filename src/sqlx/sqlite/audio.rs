@@ -29,7 +29,7 @@ use crate::{
     Uuid7,
   },
   sqlx::{
-    dto::{bytes_to_uuid7, time_range_from_parts, timestamp_from_parts},
+    dto::{bytes_to_uuid7, timestamp_from_parts},
     SqlxError,
   },
 };
@@ -432,6 +432,10 @@ impl
 // ===========================================================================
 
 /// SQLite row shape for [`AudioSegment`].
+///
+/// `span` flattens to `start_pts` / `end_pts` PTS ticks only; the timebase
+/// lives on the parent `audio_track` (a single stream has one timebase for
+/// all of its segments + words).
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteAudioSegmentRow {
   pub id: std::vec::Vec<u8>,
@@ -439,8 +443,6 @@ pub struct SqliteAudioSegmentRow {
   pub index: i64,
   pub span_start_pts: i64,
   pub span_end_pts: i64,
-  pub span_tb_num: i64,
-  pub span_tb_den: i64,
   pub speaker: Option<std::vec::Vec<u8>>,
   pub text_src: String,
   pub text_translated: String,
@@ -450,7 +452,8 @@ pub struct SqliteAudioSegmentRow {
   pub temperature: Option<f32>,
 }
 
-/// One `audio_segment_word` child row.
+/// One `audio_segment_word` child row. Like its parent row, the timebase
+/// is inherited from `audio_track` and is not stored per word.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteAudioSegmentWordRow {
   pub audio_segment: std::vec::Vec<u8>,
@@ -458,8 +461,6 @@ pub struct SqliteAudioSegmentWordRow {
   pub text: String,
   pub span_start_pts: i64,
   pub span_end_pts: i64,
-  pub span_tb_num: i64,
-  pub span_tb_den: i64,
   pub score: f32,
   pub language: Option<String>,
 }
@@ -473,15 +474,12 @@ impl From<&AudioSegment<Uuid7>>
   fn from(s: &AudioSegment<Uuid7>) -> Self {
     let id = s.id_ref().as_bytes().to_vec();
     let span = s.span_ref();
-    let tb = span.timebase();
     let row = SqliteAudioSegmentRow {
       id: id.clone(),
       parent: s.parent_ref().as_bytes().to_vec(),
       index: i64::from(s.index()),
       span_start_pts: span.start_pts(),
       span_end_pts: span.end_pts(),
-      span_tb_num: i64::from(tb.num()),
-      span_tb_den: i64::from(tb.den().get()),
       speaker: s.speaker_ref().map(|id| id.as_bytes().to_vec()),
       text_src: s.text_ref().src().to_owned(),
       text_translated: s.text_ref().translated().to_owned(),
@@ -496,15 +494,12 @@ impl From<&AudioSegment<Uuid7>>
       .enumerate()
       .map(|(i, w)| {
         let wspan = w.span_ref();
-        let wtb = wspan.timebase();
         SqliteAudioSegmentWordRow {
           audio_segment: id.clone(),
           ordinal: i as i64,
           text: w.text().to_owned(),
           span_start_pts: wspan.start_pts(),
           span_end_pts: wspan.end_pts(),
-          span_tb_num: i64::from(wtb.num()),
-          span_tb_den: i64::from(wtb.den().get()),
           score: w.score(),
           language: w.language().map(|l| l.to_bcp47()),
         }
@@ -514,71 +509,70 @@ impl From<&AudioSegment<Uuid7>>
   }
 }
 
-impl
-  TryFrom<(
-    SqliteAudioSegmentRow,
-    std::vec::Vec<SqliteAudioSegmentWordRow>,
-  )> for AudioSegment<Uuid7>
-{
-  type Error = SqlxError;
-
-  fn try_from(
-    (r, mut words): (
-      SqliteAudioSegmentRow,
-      std::vec::Vec<SqliteAudioSegmentWordRow>,
-    ),
-  ) -> Result<Self, Self::Error> {
-    let id = bytes_to_uuid7(&r.id)?;
-    let parent = bytes_to_uuid7(&r.parent)?;
-    let index = u32_from_i64(r.index, "AudioSegment.index")?;
-    let span = time_range_from_parts(
-      r.span_start_pts,
-      r.span_end_pts,
-      r.span_tb_num,
-      r.span_tb_den,
-    )?;
-    let mut s = AudioSegment::try_new(id, parent, index, span)
-      .map_err(|e: AudioSegmentError| SqlxError::DomainConstructorRejected(e.to_string()))?;
-
-    if let Some(sp) = r.speaker {
-      s = s.with_speaker(Some(bytes_to_uuid7(&sp)?));
-    }
-    s = s
-      .with_text(crate::domain::vo::LocalizedText::from_src_translated(
-        r.text_src,
-        r.text_translated,
+/// Rebuild an [`AudioSegment`] from a stored segment row + its word rows.
+///
+/// The `parent_timebase` is the per-stream timebase carried on the parent
+/// `audio_track` row (`duration_tb_num/den` or `start_pts_tb_num/den` —
+/// both flatten the same `Timebase` for a given stream). Segment and word
+/// spans are reconstructed by stamping their stored PTS ticks with this
+/// timebase.
+pub fn audio_segment_from_rows(
+  r: SqliteAudioSegmentRow,
+  mut words: std::vec::Vec<SqliteAudioSegmentWordRow>,
+  parent_timebase: mediatime::Timebase,
+) -> Result<AudioSegment<Uuid7>, SqlxError> {
+  let id = bytes_to_uuid7(&r.id)?;
+  let parent = bytes_to_uuid7(&r.parent)?;
+  let index = u32_from_i64(r.index, "AudioSegment.index")?;
+  let span = mediatime::TimeRange::try_new(r.span_start_pts, r.span_end_pts, parent_timebase)
+    .ok_or_else(|| {
+      SqlxError::DomainConstructorRejected(format!(
+        "TimeRange start_pts ({}) must be <= end_pts ({})",
+        r.span_start_pts, r.span_end_pts
       ))
-      .with_avg_logprob(r.avg_logprob)
-      .with_temperature(r.temperature);
-    if let Some(l) = r.language {
-      s = s.with_language(Some(parse_language(&l)?));
-    }
-    s = s
-      .try_with_no_speech_prob(r.no_speech_prob)
-      .map_err(seg_err)?;
+    })?;
+  let mut s = AudioSegment::try_new(id, parent, index, span)
+    .map_err(|e: AudioSegmentError| SqlxError::DomainConstructorRejected(e.to_string()))?;
 
-    words.sort_by_key(|w| w.ordinal);
-    let mut built = std::vec::Vec::with_capacity(words.len());
-    for w in words {
-      let wspan = time_range_from_parts(
-        w.span_start_pts,
-        w.span_end_pts,
-        w.span_tb_num,
-        w.span_tb_den,
-      )?;
-      let language = match w.language {
-        Some(l) => Some(parse_language(&l)?),
-        None => None,
-      };
-      built.push(
-        Word::try_from_parts(w.text, wspan, w.score, language)
-          .map_err(|e: WordError| SqlxError::DomainConstructorRejected(e.to_string()))?,
-      );
-    }
-    s = s.try_with_words(built).map_err(seg_err)?;
-
-    Ok(s)
+  if let Some(sp) = r.speaker {
+    s = s.with_speaker(Some(bytes_to_uuid7(&sp)?));
   }
+  s = s
+    .with_text(crate::domain::vo::LocalizedText::from_src_translated(
+      r.text_src,
+      r.text_translated,
+    ))
+    .with_avg_logprob(r.avg_logprob)
+    .with_temperature(r.temperature);
+  if let Some(l) = r.language {
+    s = s.with_language(Some(parse_language(&l)?));
+  }
+  s = s
+    .try_with_no_speech_prob(r.no_speech_prob)
+    .map_err(seg_err)?;
+
+  words.sort_by_key(|w| w.ordinal);
+  let mut built = std::vec::Vec::with_capacity(words.len());
+  for w in words {
+    let wspan = mediatime::TimeRange::try_new(w.span_start_pts, w.span_end_pts, parent_timebase)
+      .ok_or_else(|| {
+        SqlxError::DomainConstructorRejected(format!(
+          "TimeRange start_pts ({}) must be <= end_pts ({})",
+          w.span_start_pts, w.span_end_pts
+        ))
+      })?;
+    let language = match w.language {
+      Some(l) => Some(parse_language(&l)?),
+      None => None,
+    };
+    built.push(
+      Word::try_from_parts(w.text, wspan, w.score, language)
+        .map_err(|e: WordError| SqlxError::DomainConstructorRejected(e.to_string()))?,
+    );
+  }
+  s = s.try_with_words(built).map_err(seg_err)?;
+
+  Ok(s)
 }
 
 // ===========================================================================
@@ -932,8 +926,6 @@ pub struct SqliteAudioSegmentRowRef<'r> {
   pub index: i64,
   pub span_start_pts: i64,
   pub span_end_pts: i64,
-  pub span_tb_num: i64,
-  pub span_tb_den: i64,
   pub speaker: Option<&'r [u8]>,
   pub text_src: &'r str,
   pub text_translated: &'r str,
@@ -951,8 +943,6 @@ pub struct SqliteAudioSegmentWordRowRef<'r> {
   pub text: &'r str,
   pub span_start_pts: i64,
   pub span_end_pts: i64,
-  pub span_tb_num: i64,
-  pub span_tb_den: i64,
   pub score: f32,
   pub language: Option<&'r str>,
 }
@@ -966,8 +956,6 @@ impl SqliteAudioSegmentRow {
       index: self.index,
       span_start_pts: self.span_start_pts,
       span_end_pts: self.span_end_pts,
-      span_tb_num: self.span_tb_num,
-      span_tb_den: self.span_tb_den,
       speaker: self.speaker.as_deref(),
       text_src: &self.text_src,
       text_translated: &self.text_translated,
@@ -988,79 +976,73 @@ impl SqliteAudioSegmentWordRow {
       text: &self.text,
       span_start_pts: self.span_start_pts,
       span_end_pts: self.span_end_pts,
-      span_tb_num: self.span_tb_num,
-      span_tb_den: self.span_tb_den,
       score: self.score,
       language: self.language.as_deref(),
     }
   }
 }
 
-impl<'r>
-  TryFrom<(
-    SqliteAudioSegmentRowRef<'r>,
-    std::vec::Vec<SqliteAudioSegmentWordRowRef<'r>>,
-  )> for AudioSegment<Uuid7>
-{
-  type Error = SqlxError;
-
-  fn try_from(
-    (r, mut words): (
-      SqliteAudioSegmentRowRef<'r>,
-      std::vec::Vec<SqliteAudioSegmentWordRowRef<'r>>,
-    ),
-  ) -> Result<Self, Self::Error> {
-    let id = bytes_to_uuid7(r.id)?;
-    let parent = bytes_to_uuid7(r.parent)?;
-    let index = u32_from_i64(r.index, "AudioSegment.index")?;
-    let span = time_range_from_parts(
-      r.span_start_pts,
-      r.span_end_pts,
-      r.span_tb_num,
-      r.span_tb_den,
-    )?;
-    let mut s = AudioSegment::try_new(id, parent, index, span)
-      .map_err(|e: AudioSegmentError| SqlxError::DomainConstructorRejected(e.to_string()))?;
-
-    if let Some(sp) = r.speaker {
-      s = s.with_speaker(Some(bytes_to_uuid7(sp)?));
-    }
-    s = s
-      .with_text(crate::domain::vo::LocalizedText::from_src_translated(
-        r.text_src,
-        r.text_translated,
+/// Rebuild an [`AudioSegment`] from a borrowed segment row + its borrowed
+/// word rows. The `parent_timebase` is the per-stream timebase carried on
+/// the parent `audio_track` row — see [`audio_segment_from_rows`] for the
+/// owned counterpart.
+pub fn audio_segment_from_row_refs<'r>(
+  r: SqliteAudioSegmentRowRef<'r>,
+  mut words: std::vec::Vec<SqliteAudioSegmentWordRowRef<'r>>,
+  parent_timebase: mediatime::Timebase,
+) -> Result<AudioSegment<Uuid7>, SqlxError> {
+  let id = bytes_to_uuid7(r.id)?;
+  let parent = bytes_to_uuid7(r.parent)?;
+  let index = u32_from_i64(r.index, "AudioSegment.index")?;
+  let span = mediatime::TimeRange::try_new(r.span_start_pts, r.span_end_pts, parent_timebase)
+    .ok_or_else(|| {
+      SqlxError::DomainConstructorRejected(format!(
+        "TimeRange start_pts ({}) must be <= end_pts ({})",
+        r.span_start_pts, r.span_end_pts
       ))
-      .with_avg_logprob(r.avg_logprob)
-      .with_temperature(r.temperature);
-    if let Some(l) = r.language {
-      s = s.with_language(Some(parse_language(l)?));
-    }
-    s = s
-      .try_with_no_speech_prob(r.no_speech_prob)
-      .map_err(seg_err)?;
+    })?;
+  let mut s = AudioSegment::try_new(id, parent, index, span)
+    .map_err(|e: AudioSegmentError| SqlxError::DomainConstructorRejected(e.to_string()))?;
 
-    words.sort_by_key(|w| w.ordinal);
-    let mut built = std::vec::Vec::with_capacity(words.len());
-    for w in words {
-      let wspan = time_range_from_parts(
-        w.span_start_pts,
-        w.span_end_pts,
-        w.span_tb_num,
-        w.span_tb_den,
-      )?;
-      let language = match w.language {
-        Some(l) => Some(parse_language(l)?),
-        None => None,
-      };
-      built.push(
-        Word::try_from_parts(w.text, wspan, w.score, language)
-          .map_err(|e: WordError| SqlxError::DomainConstructorRejected(e.to_string()))?,
-      );
-    }
-    s = s.try_with_words(built).map_err(seg_err)?;
-
-    Ok(s)
+  if let Some(sp) = r.speaker {
+    s = s.with_speaker(Some(bytes_to_uuid7(sp)?));
   }
+  s = s
+    .with_text(crate::domain::vo::LocalizedText::from_src_translated(
+      r.text_src,
+      r.text_translated,
+    ))
+    .with_avg_logprob(r.avg_logprob)
+    .with_temperature(r.temperature);
+  if let Some(l) = r.language {
+    s = s.with_language(Some(parse_language(l)?));
+  }
+  s = s
+    .try_with_no_speech_prob(r.no_speech_prob)
+    .map_err(seg_err)?;
+
+  words.sort_by_key(|w| w.ordinal);
+  let mut built = std::vec::Vec::with_capacity(words.len());
+  for w in words {
+    let wspan = mediatime::TimeRange::try_new(w.span_start_pts, w.span_end_pts, parent_timebase)
+      .ok_or_else(|| {
+        SqlxError::DomainConstructorRejected(format!(
+          "TimeRange start_pts ({}) must be <= end_pts ({})",
+          w.span_start_pts, w.span_end_pts
+        ))
+      })?;
+    let language = match w.language {
+      Some(l) => Some(parse_language(l)?),
+      None => None,
+    };
+    built.push(
+      Word::try_from_parts(w.text, wspan, w.score, language)
+        .map_err(|e: WordError| SqlxError::DomainConstructorRejected(e.to_string()))?,
+    );
+  }
+  s = s.try_with_words(built).map_err(seg_err)?;
+
+  Ok(s)
 }
 
 // ---------------------------------------------------------------------------
@@ -1239,11 +1221,11 @@ mod tests {
       .with_temperature(Some(0.2))
       .try_with_words(std::vec![w1])
       .unwrap();
-    let tuple: (
+    let (row, words): (
       SqliteAudioSegmentRow,
       std::vec::Vec<SqliteAudioSegmentWordRow>,
     ) = (&s).into();
-    let s2: AudioSegment<Uuid7> = tuple.try_into().unwrap();
+    let s2 = audio_segment_from_rows(row, words, tb()).unwrap();
     assert_eq!(s, s2);
   }
 
@@ -1261,7 +1243,7 @@ mod tests {
       std::vec::Vec<SqliteAudioSegmentWordRow>,
     ) = (&s).into();
     words.reverse();
-    let s2: AudioSegment<Uuid7> = (row, words).try_into().unwrap();
+    let s2 = audio_segment_from_rows(row, words, tb()).unwrap();
     assert_eq!(s2.words_slice()[0].text(), "one");
     assert_eq!(s2.words_slice()[2].text(), "three");
   }
@@ -1346,7 +1328,7 @@ mod tests {
       .iter()
       .map(SqliteAudioSegmentWordRow::as_ref)
       .collect();
-    let s2: AudioSegment<Uuid7> = (row.as_ref(), word_refs).try_into().unwrap();
+    let s2 = audio_segment_from_row_refs(row.as_ref(), word_refs, tb()).unwrap();
     assert_eq!(s, s2);
   }
 }

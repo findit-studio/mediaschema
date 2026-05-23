@@ -189,8 +189,6 @@ CREATE TABLE IF NOT EXISTS audio_segment (
     index           bigint  NOT NULL,
     span_start_pts  bigint  NOT NULL,
     span_end_pts    bigint  NOT NULL,
-    span_tb_num     bigint  NOT NULL,
-    span_tb_den     bigint  NOT NULL,
     speaker         uuid,
     text_src        text    NOT NULL,
     text_translated text    NOT NULL,
@@ -207,8 +205,6 @@ CREATE TABLE IF NOT EXISTS audio_segment_word (
     text           text    NOT NULL,
     span_start_pts bigint  NOT NULL,
     span_end_pts   bigint  NOT NULL,
-    span_tb_num    bigint  NOT NULL,
-    span_tb_den    bigint  NOT NULL,
     score          real    NOT NULL,
     language       text,
     PRIMARY KEY (audio_segment, ordinal)

@@ -189,8 +189,6 @@ CREATE TABLE IF NOT EXISTS audio_segment (
     "index"         INTEGER NOT NULL,
     span_start_pts  INTEGER NOT NULL,
     span_end_pts    INTEGER NOT NULL,
-    span_tb_num     INTEGER NOT NULL,
-    span_tb_den     INTEGER NOT NULL,
     speaker         BLOB,               -- FK -> speaker.id; NULL = not diarized
     text_src        TEXT    NOT NULL,
     text_translated TEXT    NOT NULL,
@@ -207,8 +205,6 @@ CREATE TABLE IF NOT EXISTS audio_segment_word (
     text           TEXT    NOT NULL,
     span_start_pts INTEGER NOT NULL,
     span_end_pts   INTEGER NOT NULL,
-    span_tb_num    INTEGER NOT NULL,
-    span_tb_den    INTEGER NOT NULL,
     score          REAL    NOT NULL,
     language       TEXT,
     PRIMARY KEY (audio_segment, ordinal)
