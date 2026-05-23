@@ -184,14 +184,17 @@ Indexes: `audio_track_id`, unique `(audio_track_id, index)`, `speaker_id`.
 | --- | --- |
 | `_id` | `Binary(uuid)` |
 | `total_scenes` | `Int64` |
-| `tracks` | `[Binary(uuid)]` |
-| `track_progress` | `{ total, indexed, failed }` |
+| `track_progress` | `{ total, indexed, failed }` (`Int64` fields) |
+
+The `tracks` reverse-FK list is **not** stored — it is derived by
+querying `video_tracks` where `parent == video._id` (mirrors the sqlx
+convention).
 
 Indexes: `_id` only.
 
 ### `video_tracks`
 
-Full per-stream descriptor from `schema/video_track.md` r7 (see
+Full per-stream descriptor from `schema/video_track.md` r8 (see
 `video.rs`'s `From`/`TryFrom`). The `mediaframe` descriptor types map per
 the table in `mongodb/mod.rs`: `codec` → `String` slug; `pixel_format` /
 `rotation` / `field_order` / `stereo_mode` → `Int32` codes; `disposition`
@@ -200,6 +203,9 @@ the table in `mongodb/mod.rs`: `codec` → `String` slug; `pixel_format` /
 `{ x, y, width, height }`; `color` → 5 `Int32` enum codes; `hdr_static` →
 `{ mastering?, content_light? }`; `dovi` →
 `{ profile, level, rpu_present, el_present, bl_signal_compat_id }`.
+
+The `scenes` reverse-FK list is **not** stored — it is derived by
+querying the `scenes` collection (keyed by `video_track_id`).
 
 Indexes: `video_id`, `is_primary`.
 
@@ -212,8 +218,10 @@ Indexes: `video_id`, `is_primary`.
 | `index` | `Int64` |
 | `span` | `TimeRange` |
 | `detector` | `Int32` |
-| `keyframes` | `[Binary(uuid)]` |
 | `description` | `String` |
+
+The `keyframes` reverse-FK list is **not** stored — it is derived by
+querying the `keyframes` collection (keyed by `scene_id`).
 
 Indexes: `video_track_id`, unique `(video_track_id, index)`.
 
@@ -224,7 +232,8 @@ See `video.rs`'s detection-VO helpers (`detection_to_bson`,
 `bbox_to_bson`, `human_to_bson`, …) for the per-sub-VO layouts.
 `humans` is a nested document with nine arrays (`subjects`, `faces`,
 `body_poses`, `hand_poses`, `body_poses_3d`, `instance_masks`,
-`face_rectangles`, `face_landmarks`, `segmentation_masks`).
+`face_rectangles`, `face_landmarks`, `segmentation_masks`). All
+detection arrays are embedded sub-documents — no reverse-FK lists.
 
 Indexes: `scene_id`.
 
