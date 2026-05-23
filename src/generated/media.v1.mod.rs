@@ -50,6 +50,11 @@ pub mod __buffa {
         #[cfg(feature = "json")]
         reg.register_json_any(super::__VOICE_FINGERPRINT_JSON_ANY);
         #[cfg(feature = "json")] reg.register_json_any(super::__PERSON_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__LOCALIZED_TEXT_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__LANGUAGE_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__WORD_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__SPEAKER_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__AUDIO_SEGMENT_JSON_ANY);
         #[cfg(feature = "json")]
         reg.register_json_any(super::__WATCHED_LOCATION_JSON_ANY);
         #[cfg(feature = "json")] reg.register_json_any(super::__VOLUME_META_JSON_ANY);
