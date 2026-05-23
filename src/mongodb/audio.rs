@@ -575,6 +575,13 @@ impl From<&AudioSegment<Uuid7>> for Document {
         .map(|v| Bson::Double(v as f64))
         .unwrap_or(Bson::Null),
     );
+    // `voice_fingerprint` rides as an embedded sub-document (or `Null`).
+    d.insert(
+      "voice_fingerprint",
+      s.voice_fingerprint_ref()
+        .map(voice_fingerprint_to_bson)
+        .unwrap_or(Bson::Null),
+    );
     d
   }
 }
@@ -614,6 +621,9 @@ impl TryFrom<Document> for AudioSegment<Uuid7> {
     }
     if let Some(b) = take_opt(&mut d, "temperature") {
       s.set_temperature(Some(as_f32(b, "temperature")?));
+    }
+    if let Some(b) = take_opt(&mut d, "voice_fingerprint") {
+      s.set_voice_fingerprint(Some(voice_fingerprint_from_bson(b, "voice_fingerprint")?));
     }
     Ok(s)
   }
@@ -760,6 +770,33 @@ mod tests {
       .with_avg_logprob(Some(-0.4))
       .with_temperature(Some(0.0));
     let doc: Document = (&s).into();
+    // Absent voice_fingerprint serialises as Null.
+    assert_eq!(doc.get("voice_fingerprint"), Some(&Bson::Null));
+    let s2: AudioSegment<Uuid7> = doc.try_into().unwrap();
+    assert_eq!(s, s2);
+    assert!(s2.voice_fingerprint_ref().is_none());
+  }
+
+  #[test]
+  fn audio_segment_roundtrip_with_voice_fingerprint() {
+    use crate::domain::vo::VoiceFingerprint;
+    let vfp = VoiceFingerprint::try_new(
+      Uuid7::new(),
+      192,
+      jiff::Timestamp::from_millisecond(1_700_000_000_000).unwrap(),
+      Some(0.83),
+      Provenance::from_parts("ecapa-tdnn", "v1.0.0", "", "findit-indexer-0.1.0"),
+    )
+    .unwrap();
+    let s = AudioSegment::try_new(Uuid7::new(), Uuid7::new(), 0, sp(0, 1500))
+      .unwrap()
+      .with_voice_fingerprint(Some(vfp));
+    let doc: Document = (&s).into();
+    // voice_fingerprint is an embedded sub-doc (not flattened).
+    assert!(matches!(
+      doc.get("voice_fingerprint"),
+      Some(Bson::Document(_))
+    ));
     let s2: AudioSegment<Uuid7> = doc.try_into().unwrap();
     assert_eq!(s, s2);
   }
