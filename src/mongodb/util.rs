@@ -12,7 +12,7 @@ use smol_str::SmolStr;
 
 use crate::domain::{
   primitives::ErrorCode,
-  vo::{LocalizedText, Provenance},
+  vo::{LocalizedText, Provenance, VoiceFingerprint},
   ErrorInfo, FileChecksum, Location, Rgba, Uuid7,
 };
 
@@ -425,6 +425,50 @@ pub(super) fn provenance_from_bson(b: Bson, field: &'static str) -> Result<Prove
     model_version,
     prompt_version,
     indexer_version,
+  ))
+}
+
+// ---------------------------------------------------------------------------
+// `VoiceFingerprint<Uuid7>` ↔ embedded sub-document
+// ---------------------------------------------------------------------------
+//
+// Shape: `{ vector_id: Binary(uuid), dimensions: Int32, extracted_at:
+// DateTime, confidence: Double | Null, provenance: { … } }`. The
+// document is reconstructed via `VoiceFingerprint::from_parts` — the
+// nil-vector-id / zero-dim / range checks were enforced by `try_new`
+// when first persisted.
+
+pub(super) fn voice_fingerprint_to_bson(v: &VoiceFingerprint<Uuid7>) -> Bson {
+  let mut d = Document::new();
+  d.insert("vector_id", uuid7_to_bson(*v.vector_id_ref()));
+  d.insert("dimensions", Bson::Int32(v.dimensions() as i32));
+  d.insert("extracted_at", jiff_to_bson(v.extracted_at()));
+  d.insert(
+    "confidence",
+    v.confidence()
+      .map(|c| Bson::Double(c as f64))
+      .unwrap_or(Bson::Null),
+  );
+  d.insert("provenance", provenance_to_bson(v.provenance_ref()));
+  Bson::Document(d)
+}
+
+pub(super) fn voice_fingerprint_from_bson(
+  b: Bson,
+  field: &'static str,
+) -> Result<VoiceFingerprint<Uuid7>, MongoError> {
+  let mut d = as_doc(b, field)?;
+  let vector_id = uuid7_from_bson(take(&mut d, "vector_id")?, "vector_id")?;
+  let dimensions = as_u32(take(&mut d, "dimensions")?, "dimensions")?;
+  let extracted_at = jiff_from_bson(take(&mut d, "extracted_at")?, "extracted_at")?;
+  let confidence = opt(take_opt(&mut d, "confidence"), |b| as_f32(b, "confidence"))?;
+  let provenance = provenance_from_bson(take(&mut d, "provenance")?, "provenance")?;
+  Ok(VoiceFingerprint::from_parts(
+    vector_id,
+    dimensions,
+    extracted_at,
+    confidence,
+    provenance,
   ))
 }
 
