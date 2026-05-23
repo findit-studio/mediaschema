@@ -24,12 +24,15 @@ use mediaframe::{
 use crate::{
   domain::{
     aggregates::audio::{segment::WordError, AudioError, AudioSegmentError, AudioTrackError, Word},
-    vo::IndexProgress,
+    vo::{IndexProgress, Provenance, VoiceFingerprint},
     Audio, AudioContentKind, AudioIndexStatus, AudioSegment, AudioTrack, ErrorCode, ErrorInfo,
     Uuid7,
   },
   sqlx::{
-    dto::{bytes_to_uuid7, time_range_from_parts, timestamp_from_parts},
+    dto::{
+      bytes_to_uuid7, millis_to_timestamp, time_range_from_parts, timestamp_from_parts,
+      timestamp_to_millis,
+    },
     SqlxError,
   },
 };
@@ -445,6 +448,16 @@ pub struct SqliteAudioSegmentRow {
   pub no_speech_prob: Option<f32>,
   pub avg_logprob: Option<f32>,
   pub temperature: Option<f32>,
+  /// Per-segment voice embedding — discriminator for the flattened
+  /// `VoiceFingerprint` VO (`Some` = present; `None` = all NULL).
+  pub voice_fingerprint_vector_id: Option<std::vec::Vec<u8>>,
+  pub voice_fingerprint_dimensions: Option<i64>,
+  pub voice_fingerprint_extracted_at_ms: Option<i64>,
+  pub voice_fingerprint_confidence: Option<f32>,
+  pub voice_fingerprint_provenance_model_name: Option<String>,
+  pub voice_fingerprint_provenance_model_version: Option<String>,
+  pub voice_fingerprint_provenance_prompt_version: Option<String>,
+  pub voice_fingerprint_provenance_indexer_version: Option<String>,
 }
 
 /// One `audio_segment_word` child row.
@@ -471,6 +484,8 @@ impl From<&AudioSegment<Uuid7>>
     let id = s.id_ref().as_bytes().to_vec();
     let span = s.span_ref();
     let tb = span.timebase();
+    let vfp = s.voice_fingerprint_ref();
+    let prov = vfp.map(|v| v.provenance_ref());
     let row = SqliteAudioSegmentRow {
       id: id.clone(),
       parent: s.parent_ref().as_bytes().to_vec(),
@@ -486,6 +501,14 @@ impl From<&AudioSegment<Uuid7>>
       no_speech_prob: s.no_speech_prob(),
       avg_logprob: s.avg_logprob(),
       temperature: s.temperature(),
+      voice_fingerprint_vector_id: vfp.map(|v| v.vector_id_ref().as_bytes().to_vec()),
+      voice_fingerprint_dimensions: vfp.map(|v| i64::from(v.dimensions())),
+      voice_fingerprint_extracted_at_ms: vfp.map(|v| timestamp_to_millis(v.extracted_at())),
+      voice_fingerprint_confidence: vfp.and_then(|v| v.confidence()),
+      voice_fingerprint_provenance_model_name: prov.map(|p| p.model_name().to_owned()),
+      voice_fingerprint_provenance_model_version: prov.map(|p| p.model_version().to_owned()),
+      voice_fingerprint_provenance_prompt_version: prov.map(|p| p.prompt_version().to_owned()),
+      voice_fingerprint_provenance_indexer_version: prov.map(|p| p.indexer_version().to_owned()),
     };
     let words = s
       .words_slice()
@@ -553,6 +576,31 @@ impl
     s = s
       .try_with_no_speech_prob(r.no_speech_prob)
       .map_err(seg_err)?;
+
+    if let Some(vid) = r.voice_fingerprint_vector_id {
+      let vector_id = bytes_to_uuid7(&vid)?;
+      let dimensions = u32::try_from(r.voice_fingerprint_dimensions.unwrap_or(0)).map_err(|e| {
+        SqlxError::UnknownDiscriminant(format!("AudioSegment.voice_fingerprint_dimensions: {e}"))
+      })?;
+      let extracted_at = millis_to_timestamp(r.voice_fingerprint_extracted_at_ms.unwrap_or(0))?;
+      let provenance = Provenance::from_parts(
+        r.voice_fingerprint_provenance_model_name
+          .unwrap_or_default(),
+        r.voice_fingerprint_provenance_model_version
+          .unwrap_or_default(),
+        r.voice_fingerprint_provenance_prompt_version
+          .unwrap_or_default(),
+        r.voice_fingerprint_provenance_indexer_version
+          .unwrap_or_default(),
+      );
+      s = s.with_voice_fingerprint(Some(VoiceFingerprint::from_parts(
+        vector_id,
+        dimensions,
+        extracted_at,
+        r.voice_fingerprint_confidence,
+        provenance,
+      )));
+    }
 
     words.sort_by_key(|w| w.ordinal);
     let mut built = std::vec::Vec::with_capacity(words.len());
@@ -760,6 +808,28 @@ mod tests {
     ) = (&s).into();
     let s2: AudioSegment<Uuid7> = tuple.try_into().unwrap();
     assert_eq!(s, s2);
+  }
+
+  #[test]
+  fn audio_segment_roundtrip_with_voice_fingerprint() {
+    let vfp = VoiceFingerprint::try_new(
+      Uuid7::new(),
+      192,
+      jiff::Timestamp::from_millisecond(1_700_000_000_000).unwrap(),
+      Some(0.83),
+      Provenance::from_parts("ecapa-tdnn", "v1.0.0", "", "findit-indexer-0.1.0"),
+    )
+    .unwrap();
+    let s = AudioSegment::try_new(Uuid7::new(), Uuid7::new(), 0, TimeRange::new(0, 1000, tb()))
+      .unwrap()
+      .with_voice_fingerprint(Some(vfp.clone()));
+    let tuple: (
+      SqliteAudioSegmentRow,
+      std::vec::Vec<SqliteAudioSegmentWordRow>,
+    ) = (&s).into();
+    assert!(tuple.0.voice_fingerprint_vector_id.is_some());
+    let s2: AudioSegment<Uuid7> = tuple.try_into().unwrap();
+    assert_eq!(s2.voice_fingerprint_ref(), Some(&vfp));
   }
 
   #[test]
