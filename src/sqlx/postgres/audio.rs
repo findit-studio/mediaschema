@@ -34,7 +34,7 @@ use crate::{
     Uuid7,
   },
   sqlx::{
-    dto::{time_range_from_parts, timestamp_from_parts, uuid7_to_uuid, uuid_to_uuid7},
+    dto::{timestamp_from_parts, uuid7_to_uuid, uuid_to_uuid7},
     SqlxError,
   },
 };
@@ -450,9 +450,11 @@ impl TryFrom<(PgAudioTrackRow, std::vec::Vec<PgAudioTrackIndexErrorRow>)> for Au
 
 /// PostgreSQL row shape for [`AudioSegment`].
 ///
-/// `span` flattens to `start_pts` / `end_pts` + timebase num/den; `text`
-/// (`LocalizedText`) to `text_src` / `text_translated`. `words` ride in
-/// the `audio_segment_word` child table.
+/// `span` flattens to `start_pts` / `end_pts` PTS ticks only; the timebase
+/// lives on the parent `audio_track` (a single stream has one timebase for
+/// all of its segments + words). `text` (`LocalizedText`) flattens to
+/// `text_src` / `text_translated`. `words` ride in the `audio_segment_word`
+/// child table.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct PgAudioSegmentRow {
   pub id: Uuid,
@@ -460,8 +462,6 @@ pub struct PgAudioSegmentRow {
   pub index: i64,
   pub span_start_pts: i64,
   pub span_end_pts: i64,
-  pub span_tb_num: i64,
-  pub span_tb_den: i64,
   /// `speaker` FK → `Speaker`; NULL = not diarized.
   pub speaker: Option<Uuid>,
   pub text_src: String,
@@ -474,7 +474,8 @@ pub struct PgAudioSegmentRow {
 }
 
 /// One `audio_segment_word` child row: a single [`Word`] of an
-/// `AudioSegment`, with its `ordinal` position.
+/// `AudioSegment`, with its `ordinal` position. Like its parent row, the
+/// timebase is inherited from `audio_track` and is not stored per word.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct PgAudioSegmentWordRow {
   pub audio_segment: Uuid,
@@ -482,8 +483,6 @@ pub struct PgAudioSegmentWordRow {
   pub text: String,
   pub span_start_pts: i64,
   pub span_end_pts: i64,
-  pub span_tb_num: i64,
-  pub span_tb_den: i64,
   pub score: f32,
   /// Per-word `Language`, BCP-47; NULL = inherits segment.
   pub language: Option<String>,
@@ -493,15 +492,12 @@ impl From<&AudioSegment<Uuid7>> for (PgAudioSegmentRow, std::vec::Vec<PgAudioSeg
   fn from(s: &AudioSegment<Uuid7>) -> Self {
     let id = uuid7_to_uuid(*s.id_ref());
     let span = s.span_ref();
-    let tb = span.timebase();
     let row = PgAudioSegmentRow {
       id,
       parent: uuid7_to_uuid(*s.parent_ref()),
       index: i64::from(s.index()),
       span_start_pts: span.start_pts(),
       span_end_pts: span.end_pts(),
-      span_tb_num: i64::from(tb.num()),
-      span_tb_den: i64::from(tb.den().get()),
       speaker: s.speaker_ref().map(|id| uuid7_to_uuid(*id)),
       text_src: s.text_ref().src().to_owned(),
       text_translated: s.text_ref().translated().to_owned(),
@@ -516,15 +512,12 @@ impl From<&AudioSegment<Uuid7>> for (PgAudioSegmentRow, std::vec::Vec<PgAudioSeg
       .enumerate()
       .map(|(i, w)| {
         let wspan = w.span_ref();
-        let wtb = wspan.timebase();
         PgAudioSegmentWordRow {
           audio_segment: id,
           ordinal: i as i32,
           text: w.text().to_owned(),
           span_start_pts: wspan.start_pts(),
           span_end_pts: wspan.end_pts(),
-          span_tb_num: i64::from(wtb.num()),
-          span_tb_den: i64::from(wtb.den().get()),
           score: w.score(),
           language: w.language().map(|l| l.to_bcp47()),
         }
@@ -534,63 +527,70 @@ impl From<&AudioSegment<Uuid7>> for (PgAudioSegmentRow, std::vec::Vec<PgAudioSeg
   }
 }
 
-impl TryFrom<(PgAudioSegmentRow, std::vec::Vec<PgAudioSegmentWordRow>)> for AudioSegment<Uuid7> {
-  type Error = SqlxError;
-
-  fn try_from(
-    (r, mut words): (PgAudioSegmentRow, std::vec::Vec<PgAudioSegmentWordRow>),
-  ) -> Result<Self, Self::Error> {
-    let id = uuid_to_uuid7(r.id)?;
-    let parent = uuid_to_uuid7(r.parent)?;
-    let index = u32_from_i64(r.index, "AudioSegment.index")?;
-    let span = time_range_from_parts(
-      r.span_start_pts,
-      r.span_end_pts,
-      r.span_tb_num,
-      r.span_tb_den,
-    )?;
-    let mut s = AudioSegment::try_new(id, parent, index, span)
-      .map_err(|e: AudioSegmentError| SqlxError::DomainConstructorRejected(e.to_string()))?;
-
-    if let Some(sp) = r.speaker {
-      s = s.with_speaker(Some(uuid_to_uuid7(sp)?));
-    }
-    s = s
-      .with_text(crate::domain::vo::LocalizedText::from_src_translated(
-        r.text_src,
-        r.text_translated,
+/// Rebuild an [`AudioSegment`] from a stored segment row + its word rows.
+///
+/// The `parent_timebase` is the per-stream timebase carried on the parent
+/// `audio_track` row (`duration_tb_num/den` or `start_pts_tb_num/den` —
+/// both flatten the same `Timebase` for a given stream). Segment and word
+/// spans are reconstructed by stamping their stored PTS ticks with this
+/// timebase.
+pub fn audio_segment_from_rows(
+  r: PgAudioSegmentRow,
+  mut words: std::vec::Vec<PgAudioSegmentWordRow>,
+  parent_timebase: mediatime::Timebase,
+) -> Result<AudioSegment<Uuid7>, SqlxError> {
+  let id = uuid_to_uuid7(r.id)?;
+  let parent = uuid_to_uuid7(r.parent)?;
+  let index = u32_from_i64(r.index, "AudioSegment.index")?;
+  let span = mediatime::TimeRange::try_new(r.span_start_pts, r.span_end_pts, parent_timebase)
+    .ok_or_else(|| {
+      SqlxError::DomainConstructorRejected(format!(
+        "TimeRange start_pts ({}) must be <= end_pts ({})",
+        r.span_start_pts, r.span_end_pts
       ))
-      .with_avg_logprob(r.avg_logprob)
-      .with_temperature(r.temperature);
-    if let Some(l) = r.language {
-      s = s.with_language(Some(parse_language(&l)?));
-    }
-    s = s
-      .try_with_no_speech_prob(r.no_speech_prob)
-      .map_err(seg_err)?;
+    })?;
+  let mut s = AudioSegment::try_new(id, parent, index, span)
+    .map_err(|e: AudioSegmentError| SqlxError::DomainConstructorRejected(e.to_string()))?;
 
-    words.sort_by_key(|w| w.ordinal);
-    let mut built = std::vec::Vec::with_capacity(words.len());
-    for w in words {
-      let wspan = time_range_from_parts(
-        w.span_start_pts,
-        w.span_end_pts,
-        w.span_tb_num,
-        w.span_tb_den,
-      )?;
-      let language = match w.language {
-        Some(l) => Some(parse_language(&l)?),
-        None => None,
-      };
-      built.push(
-        Word::try_from_parts(w.text, wspan, w.score, language)
-          .map_err(|e: WordError| SqlxError::DomainConstructorRejected(e.to_string()))?,
-      );
-    }
-    s = s.try_with_words(built).map_err(seg_err)?;
-
-    Ok(s)
+  if let Some(sp) = r.speaker {
+    s = s.with_speaker(Some(uuid_to_uuid7(sp)?));
   }
+  s = s
+    .with_text(crate::domain::vo::LocalizedText::from_src_translated(
+      r.text_src,
+      r.text_translated,
+    ))
+    .with_avg_logprob(r.avg_logprob)
+    .with_temperature(r.temperature);
+  if let Some(l) = r.language {
+    s = s.with_language(Some(parse_language(&l)?));
+  }
+  s = s
+    .try_with_no_speech_prob(r.no_speech_prob)
+    .map_err(seg_err)?;
+
+  words.sort_by_key(|w| w.ordinal);
+  let mut built = std::vec::Vec::with_capacity(words.len());
+  for w in words {
+    let wspan = mediatime::TimeRange::try_new(w.span_start_pts, w.span_end_pts, parent_timebase)
+      .ok_or_else(|| {
+        SqlxError::DomainConstructorRejected(format!(
+          "TimeRange start_pts ({}) must be <= end_pts ({})",
+          w.span_start_pts, w.span_end_pts
+        ))
+      })?;
+    let language = match w.language {
+      Some(l) => Some(parse_language(&l)?),
+      None => None,
+    };
+    built.push(
+      Word::try_from_parts(w.text, wspan, w.score, language)
+        .map_err(|e: WordError| SqlxError::DomainConstructorRejected(e.to_string()))?,
+    );
+  }
+  s = s.try_with_words(built).map_err(seg_err)?;
+
+  Ok(s)
 }
 
 // ===========================================================================
@@ -908,8 +908,6 @@ pub struct PgAudioSegmentRowRef<'r> {
   pub index: i64,
   pub span_start_pts: i64,
   pub span_end_pts: i64,
-  pub span_tb_num: i64,
-  pub span_tb_den: i64,
   pub speaker: Option<Uuid>,
   pub text_src: &'r str,
   pub text_translated: &'r str,
@@ -927,8 +925,6 @@ pub struct PgAudioSegmentWordRowRef<'r> {
   pub text: &'r str,
   pub span_start_pts: i64,
   pub span_end_pts: i64,
-  pub span_tb_num: i64,
-  pub span_tb_den: i64,
   pub score: f32,
   pub language: Option<&'r str>,
 }
@@ -942,8 +938,6 @@ impl PgAudioSegmentRow {
       index: self.index,
       span_start_pts: self.span_start_pts,
       span_end_pts: self.span_end_pts,
-      span_tb_num: self.span_tb_num,
-      span_tb_den: self.span_tb_den,
       speaker: self.speaker,
       text_src: &self.text_src,
       text_translated: &self.text_translated,
@@ -964,79 +958,73 @@ impl PgAudioSegmentWordRow {
       text: &self.text,
       span_start_pts: self.span_start_pts,
       span_end_pts: self.span_end_pts,
-      span_tb_num: self.span_tb_num,
-      span_tb_den: self.span_tb_den,
       score: self.score,
       language: self.language.as_deref(),
     }
   }
 }
 
-impl<'r>
-  TryFrom<(
-    PgAudioSegmentRowRef<'r>,
-    std::vec::Vec<PgAudioSegmentWordRowRef<'r>>,
-  )> for AudioSegment<Uuid7>
-{
-  type Error = SqlxError;
-
-  fn try_from(
-    (r, mut words): (
-      PgAudioSegmentRowRef<'r>,
-      std::vec::Vec<PgAudioSegmentWordRowRef<'r>>,
-    ),
-  ) -> Result<Self, Self::Error> {
-    let id = uuid_to_uuid7(r.id)?;
-    let parent = uuid_to_uuid7(r.parent)?;
-    let index = u32_from_i64(r.index, "AudioSegment.index")?;
-    let span = time_range_from_parts(
-      r.span_start_pts,
-      r.span_end_pts,
-      r.span_tb_num,
-      r.span_tb_den,
-    )?;
-    let mut s = AudioSegment::try_new(id, parent, index, span)
-      .map_err(|e: AudioSegmentError| SqlxError::DomainConstructorRejected(e.to_string()))?;
-
-    if let Some(sp) = r.speaker {
-      s = s.with_speaker(Some(uuid_to_uuid7(sp)?));
-    }
-    s = s
-      .with_text(crate::domain::vo::LocalizedText::from_src_translated(
-        r.text_src,
-        r.text_translated,
+/// Rebuild an [`AudioSegment`] from a borrowed segment row + its borrowed
+/// word rows. The `parent_timebase` is the per-stream timebase carried on
+/// the parent `audio_track` row — see [`audio_segment_from_rows`] for the
+/// owned counterpart.
+pub fn audio_segment_from_row_refs<'r>(
+  r: PgAudioSegmentRowRef<'r>,
+  mut words: std::vec::Vec<PgAudioSegmentWordRowRef<'r>>,
+  parent_timebase: mediatime::Timebase,
+) -> Result<AudioSegment<Uuid7>, SqlxError> {
+  let id = uuid_to_uuid7(r.id)?;
+  let parent = uuid_to_uuid7(r.parent)?;
+  let index = u32_from_i64(r.index, "AudioSegment.index")?;
+  let span = mediatime::TimeRange::try_new(r.span_start_pts, r.span_end_pts, parent_timebase)
+    .ok_or_else(|| {
+      SqlxError::DomainConstructorRejected(format!(
+        "TimeRange start_pts ({}) must be <= end_pts ({})",
+        r.span_start_pts, r.span_end_pts
       ))
-      .with_avg_logprob(r.avg_logprob)
-      .with_temperature(r.temperature);
-    if let Some(l) = r.language {
-      s = s.with_language(Some(parse_language(l)?));
-    }
-    s = s
-      .try_with_no_speech_prob(r.no_speech_prob)
-      .map_err(seg_err)?;
+    })?;
+  let mut s = AudioSegment::try_new(id, parent, index, span)
+    .map_err(|e: AudioSegmentError| SqlxError::DomainConstructorRejected(e.to_string()))?;
 
-    words.sort_by_key(|w| w.ordinal);
-    let mut built = std::vec::Vec::with_capacity(words.len());
-    for w in words {
-      let wspan = time_range_from_parts(
-        w.span_start_pts,
-        w.span_end_pts,
-        w.span_tb_num,
-        w.span_tb_den,
-      )?;
-      let language = match w.language {
-        Some(l) => Some(parse_language(l)?),
-        None => None,
-      };
-      built.push(
-        Word::try_from_parts(w.text, wspan, w.score, language)
-          .map_err(|e: WordError| SqlxError::DomainConstructorRejected(e.to_string()))?,
-      );
-    }
-    s = s.try_with_words(built).map_err(seg_err)?;
-
-    Ok(s)
+  if let Some(sp) = r.speaker {
+    s = s.with_speaker(Some(uuid_to_uuid7(sp)?));
   }
+  s = s
+    .with_text(crate::domain::vo::LocalizedText::from_src_translated(
+      r.text_src,
+      r.text_translated,
+    ))
+    .with_avg_logprob(r.avg_logprob)
+    .with_temperature(r.temperature);
+  if let Some(l) = r.language {
+    s = s.with_language(Some(parse_language(l)?));
+  }
+  s = s
+    .try_with_no_speech_prob(r.no_speech_prob)
+    .map_err(seg_err)?;
+
+  words.sort_by_key(|w| w.ordinal);
+  let mut built = std::vec::Vec::with_capacity(words.len());
+  for w in words {
+    let wspan = mediatime::TimeRange::try_new(w.span_start_pts, w.span_end_pts, parent_timebase)
+      .ok_or_else(|| {
+        SqlxError::DomainConstructorRejected(format!(
+          "TimeRange start_pts ({}) must be <= end_pts ({})",
+          w.span_start_pts, w.span_end_pts
+        ))
+      })?;
+    let language = match w.language {
+      Some(l) => Some(parse_language(l)?),
+      None => None,
+    };
+    built.push(
+      Word::try_from_parts(w.text, wspan, w.score, language)
+        .map_err(|e: WordError| SqlxError::DomainConstructorRejected(e.to_string()))?,
+    );
+  }
+  s = s.try_with_words(built).map_err(seg_err)?;
+
+  Ok(s)
 }
 
 // ---------------------------------------------------------------------------
@@ -1233,8 +1221,8 @@ mod tests {
   fn audio_segment_roundtrip_minimal() {
     let s =
       AudioSegment::try_new(Uuid7::new(), Uuid7::new(), 0, TimeRange::new(0, 1500, tb())).unwrap();
-    let tuple: (PgAudioSegmentRow, std::vec::Vec<PgAudioSegmentWordRow>) = (&s).into();
-    let s2: AudioSegment<Uuid7> = tuple.try_into().unwrap();
+    let (row, words): (PgAudioSegmentRow, std::vec::Vec<PgAudioSegmentWordRow>) = (&s).into();
+    let s2 = audio_segment_from_rows(row, words, tb()).unwrap();
     assert_eq!(s, s2);
   }
 
@@ -1257,9 +1245,9 @@ mod tests {
       .with_temperature(Some(0.0))
       .try_with_words(std::vec![w1, w2])
       .unwrap();
-    let tuple: (PgAudioSegmentRow, std::vec::Vec<PgAudioSegmentWordRow>) = (&s).into();
-    assert_eq!(tuple.1.len(), 2);
-    let s2: AudioSegment<Uuid7> = tuple.try_into().unwrap();
+    let (row, words): (PgAudioSegmentRow, std::vec::Vec<PgAudioSegmentWordRow>) = (&s).into();
+    assert_eq!(words.len(), 2);
+    let s2 = audio_segment_from_rows(row, words, tb()).unwrap();
     assert_eq!(s, s2);
   }
 
@@ -1274,7 +1262,7 @@ mod tests {
       .unwrap();
     let (row, mut words): (PgAudioSegmentRow, std::vec::Vec<PgAudioSegmentWordRow>) = (&s).into();
     words.reverse();
-    let s2: AudioSegment<Uuid7> = (row, words).try_into().unwrap();
+    let s2 = audio_segment_from_rows(row, words, tb()).unwrap();
     assert_eq!(s2.words_slice()[0].text(), "a");
     assert_eq!(s2.words_slice()[2].text(), "c");
   }
@@ -1336,7 +1324,7 @@ mod tests {
     let (row, words): (PgAudioSegmentRow, std::vec::Vec<PgAudioSegmentWordRow>) = (&s).into();
     let word_refs: std::vec::Vec<PgAudioSegmentWordRowRef<'_>> =
       words.iter().map(PgAudioSegmentWordRow::as_ref).collect();
-    let s2: AudioSegment<Uuid7> = (row.as_ref(), word_refs).try_into().unwrap();
+    let s2 = audio_segment_from_row_refs(row.as_ref(), word_refs, tb()).unwrap();
     assert_eq!(s, s2);
   }
 
