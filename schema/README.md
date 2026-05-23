@@ -288,7 +288,8 @@ I present, you approve.
 - [x] [subtitle.md](subtitle.md) — `Subtitle` facet — **LOCKED (rev 3)**
 - [x] [audio.md](audio.md) — `Audio` facet — **LOCKED (rev 8)** — A-loc cascade applied: facet `segments` removed, `total_segments` rollup; per-track segments
 - [x] [audio_track.md](audio_track.md) — `AudioTrack` — **LOCKED (rev 3)** — A-loc=per-track; cascades + adopt/defer; `speakers→Speaker`
-- [x] [speaker.md](speaker.md) — `Speaker` (per-track diarized voice) — **LOCKED (rev 1)** — voiceprint→LanceDB
+- [x] [speaker.md](speaker.md) — `Speaker` (per-track diarized voice) — **LOCKED (rev 1)** — voiceprint→LanceDB *(rev 2 drafted — adds per-track `voiceprint: Option<VoiceFingerprint>` + `person: Option<Id>` FK; in-review)*
+- [ ] [person.md](person.md) — `Person` (cross-track / cross-modality identity anchor) — **drafted (rev 1)** — `voiceprint: Option<VoiceFingerprint>` aggregated centroid; `Speaker.person` reverse FK; modality-neutral for future face/visual identity
 - [x] [video.md](video.md) — `Video` facet — **LOCKED (rev 8)** — user-approved
 - [x] [video_track.md](video_track.md) — `VideoTrack` — **LOCKED (rev 6)** — user-approved (`error_status` removed)
 - [x] [scene.md](scene.md) — `Scene` — **LOCKED (rev 6)** — user-approved
@@ -298,12 +299,16 @@ I present, you approve.
 - [x] [enums.md](enums.md) — domain enums — **LOCKED (rev 4)** — user-approved (+ `ErrorCode`; descriptor enums → `::mediaframe`; audio enums pending audio review)
 - [x] [bitflags.md](bitflags.md) — domain bitflags — **LOCKED (rev 4)** — user-approved (no `error_status`; `TrackDisposition`→`::mediaframe`)
 - [x] [primitives.md](primitives.md) — domain newtypes — **LOCKED (rev 5)** — user-approved (+`ErrorInfo`/`ErrorCode`, structured `Location`; `Rational`/`GeoLocation`/**`Language`**(ex-`LanguageCode`)→`::mediaframe`; `medialang`-crate plan superseded)
-- [x] [audio_segments.md](audio_segments.md) — `AudioSegment` — **LOCKED (rev 3)** — user-approved (A-loc=per-track; `speaker`→`Speaker`; `dia`/`asry`-grounded; `mediaframe::Language`)
+- [x] [audio_segments.md](audio_segments.md) — `AudioSegment` — **LOCKED (rev 3)** — user-approved (A-loc=per-track; `speaker`→`Speaker`; `dia`/`asry`-grounded; `mediaframe::Language`) *(rev 4 drafted — adds per-segment `voice_fingerprint: Option<VoiceFingerprint>`; in-review)*
 - [x] [watched_location.md](watched_location.md) — `WatchedLocation` — **LOCKED (rev 5)** — user-approved (FS-event monitor; `is_ejectable`; no link/count/globs; `Local`-only)
 - [x] [wire-only.md](wire-only.md) — WIRE-only boundary — **LOCKED (rev 1)** — user-approved (W-verify passed; query-layer disposition deferred to post-storage+indexer)
 
 *In review — for your one-by-one pass (suggested order):*
 - [tracking] [mediaframe-candidates.md](mediaframe-candidates.md) — `videoframe`→**`mediaframe`** rename + charter broadened (all media-stream vocab); **PR #3** = `mediaframe 0.1.0` (rename + Rational/FrameRate/FieldOrder/StereoMode/DolbyVisionConfig + SAR-via-Rational); audio/subtitle stream vocab appends here as the review surfaces it
+
+*Superseded (stubs, one product Q survives in AFR):*
+- [~] [track_core.md](track_core.md) — no shared track type
+- [~] [audio_file_record.md](audio_file_record.md) — dissolved → `AudioTrack`; **AFR1 product Q open**
 
 **Cross-doc decisions awaiting you (highest-leverage first):**
 1. **A-loc cascade** — move audio diarization/transcript refs per-`AudioTrack`

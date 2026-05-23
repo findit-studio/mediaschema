@@ -114,6 +114,58 @@ message Tag { string name = 1; fixed32 color = 2; }
 // A structured error: numeric code + message.
 message ErrorInfo { uint32 code = 1; string message = 2; }
 
+// Analysis-run reproducibility — which model / prompt / indexer produced
+// this analysis record, so a re-run on upgrade is deterministic. Locked
+// shared cross-cutting VO (see `schema/README.md`). Carried by every
+// analysis record that needs to record its production model + version;
+// empty (all-`""`) is the canonical "not yet recorded" state.
+message Provenance {
+  string model_name = 1;
+  string model_version = 2;
+  string prompt_version = 3;
+  string indexer_version = 4;
+}
+
+// Voice-embedding metadata. The actual vector lives in an external
+// vector store (LanceDB / Qdrant / Milvus / pgvector / …); this message
+// is the linkage + provenance kept in the wire model. Vendor-neutral:
+// `vector_id` is opaque to the wire contract.
+//
+// Embedded into `Person.voiceprint` as `optional VoiceFingerprint`, and
+// (once their wire messages land) into `Speaker.voiceprint` and
+// `AudioSegment.voice_fingerprint`.
+message VoiceFingerprint {
+  bytes vector_id = 1;
+  uint32 dimensions = 2;
+  // ms since Unix epoch.
+  int64 extracted_at = 3;
+  // `optional` so "model did not expose a confidence" distinguishes from
+  // a real 0.0.
+  optional float confidence = 4;
+  Provenance provenance = 5;
+}
+
+// Whether a `Person`'s identification is user-confirmed or auto-matched.
+// Mirrors the domain `PersonConfidence` enum (see `schema/person.md`).
+enum PersonConfidence {
+  PERSON_CONFIDENCE_AUTO_MATCHED = 0;
+  PERSON_CONFIDENCE_USER_CONFIRMED = 1;
+}
+
+// Cross-track / cross-modality identity anchor. One `Person` ↔ many
+// `Speaker`s (one per track they appear in). Modality-neutral so a
+// future face-side identity can hang off the same aggregate.
+message Person {
+  bytes id = 1;
+  string name = 2;       // "" = unnamed
+  PersonConfidence confidence = 3;
+  optional VoiceFingerprint voiceprint = 4;
+  // ms since Unix epoch.
+  int64 created_at = 5;
+  // ms since Unix epoch.
+  int64 updated_at = 6;
+}
+
 // A watched media location with indexing progress counters.
 message WatchedLocation {
   Id id = 1;
