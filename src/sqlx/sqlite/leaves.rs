@@ -13,6 +13,7 @@ use crate::{
       speaker::SpeakerError,
       watched_location::WatchedLocationError,
     },
+    vo::{Provenance, VoiceFingerprint},
     ErrorCode, ErrorInfo, Rgba, ScanStatus, SceneAnnotation, Speaker, UserTag, Uuid7,
     WatchedLocation,
   },
@@ -28,19 +29,35 @@ use crate::{
 
 /// SQLite row shape for [`crate::domain::Speaker`].
 ///
-/// Table: `speaker(id BLOB(16) PK, audio_track_id BLOB(16) FK, cluster_id INTEGER,
-///   name TEXT, speech_duration_ms INTEGER NULL)`.
-#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+/// The optional inner
+/// [`VoiceFingerprint`](crate::domain::vo::VoiceFingerprint) VO and the
+/// `Person` FK are flattened into sibling columns;
+/// `voiceprint_vector_id IS NOT NULL` discriminates the VO's presence.
+#[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteSpeakerRow {
   pub id: std::vec::Vec<u8>,
   pub audio_track_id: std::vec::Vec<u8>,
   pub cluster_id: i64,
   pub name: String,
   pub speech_duration_ms: Option<i64>,
+  /// Per-track aggregated voiceprint — discriminator for the flattened
+  /// `VoiceFingerprint` VO (`Some` = present; `None` = all NULL).
+  pub voiceprint_vector_id: Option<std::vec::Vec<u8>>,
+  pub voiceprint_dimensions: Option<i64>,
+  pub voiceprint_extracted_at_ms: Option<i64>,
+  pub voiceprint_confidence: Option<f32>,
+  pub voiceprint_provenance_model_name: Option<String>,
+  pub voiceprint_provenance_model_version: Option<String>,
+  pub voiceprint_provenance_prompt_version: Option<String>,
+  pub voiceprint_provenance_indexer_version: Option<String>,
+  /// Cross-track identity FK → `person.id`; NULL = not yet identified.
+  pub person_id: Option<std::vec::Vec<u8>>,
 }
 
 impl From<&Speaker<Uuid7>> for SqliteSpeakerRow {
   fn from(s: &Speaker<Uuid7>) -> Self {
+    let vfp = s.voiceprint_ref();
+    let prov = vfp.map(|v| v.provenance_ref());
     Self {
       id: s.id_ref().as_bytes().to_vec(),
       audio_track_id: s.audio_track_id_ref().as_bytes().to_vec(),
@@ -51,6 +68,15 @@ impl From<&Speaker<Uuid7>> for SqliteSpeakerRow {
       // For now we drop the duration on encode (it's None-by-default
       // anyway). Round-trip tests build Speakers without it.
       speech_duration_ms: s.speech_duration_ref().and_then(|_t| None::<i64>),
+      voiceprint_vector_id: vfp.map(|v| v.vector_id_ref().as_bytes().to_vec()),
+      voiceprint_dimensions: vfp.map(|v| i64::from(v.dimensions())),
+      voiceprint_extracted_at_ms: vfp.map(|v| timestamp_to_millis(v.extracted_at())),
+      voiceprint_confidence: vfp.and_then(|v| v.confidence()),
+      voiceprint_provenance_model_name: prov.map(|p| p.model_name().to_owned()),
+      voiceprint_provenance_model_version: prov.map(|p| p.model_version().to_owned()),
+      voiceprint_provenance_prompt_version: prov.map(|p| p.prompt_version().to_owned()),
+      voiceprint_provenance_indexer_version: prov.map(|p| p.indexer_version().to_owned()),
+      person_id: s.person_id_ref().map(|p| p.as_bytes().to_vec()),
     }
   }
 }
@@ -63,8 +89,110 @@ impl TryFrom<SqliteSpeakerRow> for Speaker<Uuid7> {
     let audio_track_id = bytes_to_uuid7(&r.audio_track_id)?;
     let cluster_id = u32::try_from(r.cluster_id)
       .map_err(|e| SqlxError::UnknownDiscriminant(format!("Speaker.cluster_id: {e}")))?;
-    Speaker::try_new(id, audio_track_id, cluster_id, r.name)
-      .map_err(|e: SpeakerError| SqlxError::DomainConstructorRejected(e.to_string()))
+    let mut s = Speaker::try_new(id, audio_track_id, cluster_id, r.name)
+      .map_err(|e: SpeakerError| SqlxError::DomainConstructorRejected(e.to_string()))?;
+    if let Some(vid) = r.voiceprint_vector_id {
+      let vector_id = bytes_to_uuid7(&vid)?;
+      let dimensions = u32::try_from(r.voiceprint_dimensions.unwrap_or(0)).map_err(|e| {
+        SqlxError::UnknownDiscriminant(format!("Speaker.voiceprint_dimensions: {e}"))
+      })?;
+      let extracted_at = millis_to_timestamp(r.voiceprint_extracted_at_ms.unwrap_or(0))?;
+      let provenance = Provenance::from_parts(
+        r.voiceprint_provenance_model_name.unwrap_or_default(),
+        r.voiceprint_provenance_model_version.unwrap_or_default(),
+        r.voiceprint_provenance_prompt_version.unwrap_or_default(),
+        r.voiceprint_provenance_indexer_version.unwrap_or_default(),
+      );
+      s = s.with_voiceprint(VoiceFingerprint::from_parts(
+        vector_id,
+        dimensions,
+        extracted_at,
+        r.voiceprint_confidence,
+        provenance,
+      ));
+    }
+    if let Some(pid) = r.person_id {
+      s = s.with_person_id(bytes_to_uuid7(&pid)?);
+    }
+    Ok(s)
+  }
+}
+
+/// Borrowed view of [`SqliteSpeakerRow`] — zero-copy decode from `&'r Row`.
+#[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
+pub struct SqliteSpeakerRowRef<'r> {
+  pub id: &'r [u8],
+  pub audio_track_id: &'r [u8],
+  pub cluster_id: i64,
+  pub name: &'r str,
+  pub speech_duration_ms: Option<i64>,
+  pub voiceprint_vector_id: Option<&'r [u8]>,
+  pub voiceprint_dimensions: Option<i64>,
+  pub voiceprint_extracted_at_ms: Option<i64>,
+  pub voiceprint_confidence: Option<f32>,
+  pub voiceprint_provenance_model_name: Option<&'r str>,
+  pub voiceprint_provenance_model_version: Option<&'r str>,
+  pub voiceprint_provenance_prompt_version: Option<&'r str>,
+  pub voiceprint_provenance_indexer_version: Option<&'r str>,
+  pub person_id: Option<&'r [u8]>,
+}
+
+impl SqliteSpeakerRow {
+  /// Cheap borrow — produces a [`SqliteSpeakerRowRef`] referencing `self`.
+  pub fn as_ref(&self) -> SqliteSpeakerRowRef<'_> {
+    SqliteSpeakerRowRef {
+      id: &self.id,
+      audio_track_id: &self.audio_track_id,
+      cluster_id: self.cluster_id,
+      name: &self.name,
+      speech_duration_ms: self.speech_duration_ms,
+      voiceprint_vector_id: self.voiceprint_vector_id.as_deref(),
+      voiceprint_dimensions: self.voiceprint_dimensions,
+      voiceprint_extracted_at_ms: self.voiceprint_extracted_at_ms,
+      voiceprint_confidence: self.voiceprint_confidence,
+      voiceprint_provenance_model_name: self.voiceprint_provenance_model_name.as_deref(),
+      voiceprint_provenance_model_version: self.voiceprint_provenance_model_version.as_deref(),
+      voiceprint_provenance_prompt_version: self.voiceprint_provenance_prompt_version.as_deref(),
+      voiceprint_provenance_indexer_version: self.voiceprint_provenance_indexer_version.as_deref(),
+      person_id: self.person_id.as_deref(),
+    }
+  }
+}
+
+impl<'r> TryFrom<SqliteSpeakerRowRef<'r>> for Speaker<Uuid7> {
+  type Error = SqlxError;
+
+  fn try_from(r: SqliteSpeakerRowRef<'r>) -> Result<Self, Self::Error> {
+    let id = bytes_to_uuid7(r.id)?;
+    let audio_track_id = bytes_to_uuid7(r.audio_track_id)?;
+    let cluster_id = u32::try_from(r.cluster_id)
+      .map_err(|e| SqlxError::UnknownDiscriminant(format!("Speaker.cluster_id: {e}")))?;
+    let mut s = Speaker::try_new(id, audio_track_id, cluster_id, r.name)
+      .map_err(|e: SpeakerError| SqlxError::DomainConstructorRejected(e.to_string()))?;
+    if let Some(vid) = r.voiceprint_vector_id {
+      let vector_id = bytes_to_uuid7(vid)?;
+      let dimensions = u32::try_from(r.voiceprint_dimensions.unwrap_or(0)).map_err(|e| {
+        SqlxError::UnknownDiscriminant(format!("Speaker.voiceprint_dimensions: {e}"))
+      })?;
+      let extracted_at = millis_to_timestamp(r.voiceprint_extracted_at_ms.unwrap_or(0))?;
+      let provenance = Provenance::from_parts(
+        r.voiceprint_provenance_model_name.unwrap_or_default(),
+        r.voiceprint_provenance_model_version.unwrap_or_default(),
+        r.voiceprint_provenance_prompt_version.unwrap_or_default(),
+        r.voiceprint_provenance_indexer_version.unwrap_or_default(),
+      );
+      s = s.with_voiceprint(VoiceFingerprint::from_parts(
+        vector_id,
+        dimensions,
+        extracted_at,
+        r.voiceprint_confidence,
+        provenance,
+      ));
+    }
+    if let Some(pid) = r.person_id {
+      s = s.with_person_id(bytes_to_uuid7(pid)?);
+    }
+    Ok(s)
   }
 }
 
@@ -322,6 +450,39 @@ mod tests {
     assert_eq!(s2.audio_track_id_ref(), s.audio_track_id_ref());
     assert_eq!(s2.cluster_id(), s.cluster_id());
     assert_eq!(s2.name(), s.name());
+    assert!(s2.voiceprint_ref().is_none());
+    assert!(s2.person_id_ref().is_none());
+  }
+
+  #[test]
+  fn speaker_roundtrip_with_voiceprint_and_person() {
+    let voiceprint = VoiceFingerprint::try_new(
+      Uuid7::new(),
+      192,
+      ts(),
+      Some(0.83),
+      Provenance::from_parts("ecapa-tdnn", "v1.0.0", "", "findit-indexer-0.1.0"),
+    )
+    .unwrap();
+    let person = Uuid7::new();
+    let s = Speaker::try_new(Uuid7::new(), Uuid7::new(), 1, "Jane")
+      .unwrap()
+      .with_voiceprint(voiceprint.clone())
+      .with_person_id(person);
+    let row: SqliteSpeakerRow = (&s).into();
+    assert!(row.voiceprint_vector_id.is_some());
+    assert_eq!(row.person_id, Some(person.as_bytes().to_vec()));
+    let s2: Speaker<Uuid7> = row.try_into().unwrap();
+    assert_eq!(s2.voiceprint_ref(), Some(&voiceprint));
+    assert_eq!(s2.person_id_ref(), Some(&person));
+  }
+
+  #[test]
+  fn speaker_ref_roundtrip() {
+    let s = Speaker::try_new(Uuid7::new(), Uuid7::new(), 2, "Bob").unwrap();
+    let row: SqliteSpeakerRow = (&s).into();
+    let s2: Speaker<Uuid7> = row.as_ref().try_into().unwrap();
+    assert_eq!(s, s2);
   }
 
   #[test]
@@ -332,6 +493,15 @@ mod tests {
       cluster_id: 0,
       name: String::new(),
       speech_duration_ms: None,
+      voiceprint_vector_id: None,
+      voiceprint_dimensions: None,
+      voiceprint_extracted_at_ms: None,
+      voiceprint_confidence: None,
+      voiceprint_provenance_model_name: None,
+      voiceprint_provenance_model_version: None,
+      voiceprint_provenance_prompt_version: None,
+      voiceprint_provenance_indexer_version: None,
+      person_id: None,
     };
     let err = Speaker::<Uuid7>::try_from(row).unwrap_err();
     assert!(err.is_invalid_uuid(), "got {err:?}");

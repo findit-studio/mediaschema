@@ -71,13 +71,28 @@ CREATE TABLE IF NOT EXISTS media_file (
 );
 
 CREATE TABLE IF NOT EXISTS speaker (
-    id                  BINARY(16) NOT NULL,
-    audio_track_id              BINARY(16) NOT NULL,
-    cluster_id          INT UNSIGNED NOT NULL,
-    name                VARCHAR(256) NOT NULL,
-    speech_duration_ms  BIGINT,
+    id                                    BINARY(16) NOT NULL,
+    audio_track_id                        BINARY(16) NOT NULL,
+    cluster_id                            INT UNSIGNED NOT NULL,
+    name                                  VARCHAR(256) NOT NULL,
+    speech_duration_ms                    BIGINT,
+    -- Per-track aggregated voiceprint. `voiceprint_vector_id IS NOT NULL`
+    -- is the discriminator: when present, the other voiceprint_* columns
+    -- carry the full flattened VO; when NULL, they are all NULL.
+    voiceprint_vector_id                  BINARY(16),
+    voiceprint_dimensions                 INT UNSIGNED,
+    voiceprint_extracted_at_ms            BIGINT,
+    voiceprint_confidence                 FLOAT,
+    voiceprint_provenance_model_name      VARCHAR(256),
+    voiceprint_provenance_model_version   VARCHAR(256),
+    voiceprint_provenance_prompt_version  VARCHAR(256),
+    voiceprint_provenance_indexer_version VARCHAR(256),
+    -- Cross-track identity FK -> person.id; NULL = not yet identified.
+    person_id                             BINARY(16),
     PRIMARY KEY (id),
-    KEY idx_speaker_audio_track_id (audio_track_id)
+    KEY idx_speaker_audio_track_id (audio_track_id),
+    KEY idx_speaker_person_id (person_id)
+);
 );
 
 CREATE TABLE IF NOT EXISTS user_tag (
@@ -209,6 +224,16 @@ CREATE TABLE IF NOT EXISTS audio_segment (
     no_speech_prob  FLOAT,
     avg_logprob     FLOAT,
     temperature     FLOAT,
+    -- Per-segment voice embedding. `voice_fingerprint_vector_id IS NOT NULL`
+    -- discriminates presence of the flattened VoiceFingerprint VO.
+    voice_fingerprint_vector_id                  BINARY(16),
+    voice_fingerprint_dimensions                 INT UNSIGNED,
+    voice_fingerprint_extracted_at_ms            BIGINT,
+    voice_fingerprint_confidence                 FLOAT,
+    voice_fingerprint_provenance_model_name      VARCHAR(255),
+    voice_fingerprint_provenance_model_version   VARCHAR(255),
+    voice_fingerprint_provenance_prompt_version  VARCHAR(255),
+    voice_fingerprint_provenance_indexer_version VARCHAR(255),
     PRIMARY KEY (id),
     KEY idx_audio_segment_audio_track_id (audio_track_id)
 );

@@ -64,13 +64,27 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_media_file_path
     ON media_file(location_volume, location_path);
 
 CREATE TABLE IF NOT EXISTS speaker (
-    id                  uuid    NOT NULL PRIMARY KEY,
-    audio_track_id              uuid    NOT NULL,
-    cluster_id          integer NOT NULL,
-    name                text    NOT NULL,
-    speech_duration_ms  bigint
+    id                                    uuid    NOT NULL PRIMARY KEY,
+    audio_track_id                        uuid    NOT NULL,
+    cluster_id                            integer NOT NULL,
+    name                                  text    NOT NULL,
+    speech_duration_ms                    bigint,
+    -- Per-track aggregated voiceprint. `voiceprint_vector_id IS NOT NULL`
+    -- is the discriminator: when present, the other voiceprint_* columns
+    -- carry the full flattened VO; when NULL, they are all NULL.
+    voiceprint_vector_id                  uuid,
+    voiceprint_dimensions                 integer,
+    voiceprint_extracted_at_ms            bigint,
+    voiceprint_confidence                 real,
+    voiceprint_provenance_model_name      text,
+    voiceprint_provenance_model_version   text,
+    voiceprint_provenance_prompt_version  text,
+    voiceprint_provenance_indexer_version text,
+    -- Cross-track identity FK -> person.id; NULL = not yet identified.
+    person_id                             uuid
 );
 CREATE INDEX IF NOT EXISTS idx_speaker_audio_track_id ON speaker(audio_track_id);
+CREATE INDEX IF NOT EXISTS idx_speaker_person_id ON speaker(person_id);
 
 CREATE TABLE IF NOT EXISTS user_tag (
     id            uuid   NOT NULL PRIMARY KEY,
@@ -195,7 +209,17 @@ CREATE TABLE IF NOT EXISTS audio_segment (
     language        text,
     no_speech_prob  real,
     avg_logprob     real,
-    temperature     real
+    temperature     real,
+    -- Per-segment voice embedding. `voice_fingerprint_vector_id IS NOT NULL`
+    -- discriminates presence of the flattened VoiceFingerprint VO.
+    voice_fingerprint_vector_id                uuid,
+    voice_fingerprint_dimensions               integer,
+    voice_fingerprint_extracted_at_ms          bigint,
+    voice_fingerprint_confidence               real,
+    voice_fingerprint_provenance_model_name    text,
+    voice_fingerprint_provenance_model_version text,
+    voice_fingerprint_provenance_prompt_version text,
+    voice_fingerprint_provenance_indexer_version text
 );
 CREATE INDEX IF NOT EXISTS idx_audio_segment_audio_track_id ON audio_segment(audio_track_id);
 
