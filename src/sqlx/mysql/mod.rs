@@ -11,6 +11,7 @@ pub mod audio;
 pub mod leaves;
 pub mod media;
 pub mod media_file;
+pub mod video;
 
 pub use audio::{
   MySqlAudioRow, MySqlAudioSegmentRow, MySqlAudioSegmentWordRow, MySqlAudioTrackIndexErrorRow,
@@ -21,6 +22,17 @@ pub use leaves::{
 };
 pub use media::MySqlMediaRow;
 pub use media_file::MySqlMediaFileRow;
+pub use video::{
+  MySqlKeyframeActionRow, MySqlKeyframeBarcodeRow, MySqlKeyframeBodyPose3DJointRow,
+  MySqlKeyframeBodyPose3DRow, MySqlKeyframeBodyPoseJointRow, MySqlKeyframeBodyPoseRow,
+  MySqlKeyframeClassificationRow, MySqlKeyframeColorRow, MySqlKeyframeDocumentSegmentRow,
+  MySqlKeyframeFaceLandmarkPointRow, MySqlKeyframeFaceLandmarkRegionRow,
+  MySqlKeyframeFaceLandmarksRow, MySqlKeyframeFaceRow, MySqlKeyframeHandPoseRow,
+  MySqlKeyframeMaskRow, MySqlKeyframeObjectRow, MySqlKeyframeRow, MySqlKeyframeRows,
+  MySqlKeyframeSaliencyRow, MySqlKeyframeSubjectRow, MySqlKeyframeTextDetectionRow,
+  MySqlKeyframeVlmLabelRow, MySqlSceneRow, MySqlVideoRow, MySqlVideoTrackIndexErrorRow,
+  MySqlVideoTrackRow,
+};
 
 /// Canonical MySQL DDL for the mediaschema tables this revision maps.
 pub const SCHEMA_SQL: &str = include_str!("schema.sql");
