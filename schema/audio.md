@@ -1,4 +1,4 @@
-# `Audio<Id>` — audio facet (thin aggregate)  *(rev 8 — LOCKED, user-approved; A-loc=per-track)*
+# `Audio<Id>` — audio facet (thin aggregate)  *(rev 9 — LOCKED, user-approved; A-loc=per-track; `parent` FK to Media)*
 
 > Rev 8 = user-authorized reopen of r7 (the **A-loc cascade**): `segments`
 > moved from facet → **per-track** (`AudioTrack.segments`, mirrors locked
@@ -34,6 +34,7 @@ Generic over `Id` (UUIDv7 single key). Conversions deferred.
 | field | domain type | notes |
 |---|---|---|
 | `id` | `Id` (UUIDv7) | facet id (referenced by `Media.audio`; tracks back-ref it) |
+| `parent` | `Id` (UUIDv7) | **FK → `Media.id`** (rev 9): the `Media` this facet belongs to. Set at construction; identity-bearing (no setter). Mirrors locked `Subtitle.parent`; makes the three facets (Audio/Video/Subtitle) uniform in their back-reference to `Media`. |
 | `tracks` | `Vec<Id>` | refs to child `AudioTrack`s |
 | `total_segments` | `u32` | **rollup** (rev 8): Σ `AudioTrack.segments.len()` across this facet's tracks — cheap "how many segments under this media" facet (mirrors locked `Video.total_scenes`). Truth = the per-track `AudioTrack.segments`. *(Replaces the old facet-level `segments: Vec<Id>`.)* |
 | `track_progress` | `IndexProgress` | rollup; truth = each `AudioTrack.index_stage` |
@@ -51,14 +52,19 @@ Generic over `Id` (UUIDv7 single key). Conversions deferred.
 
 ## Projection notes
 
-- **sqlx**: `audio` table = `id` PK (uuid); `tracks` via `audio_track.audio_id`
-  FK; `total_segments` `u32` column (rollup of `audio_segment` rows joined
-  through `audio_track`); `track_progress.*`.
-- **mongodb**: `_id`=UUIDv7; `tracks` UUID ref array; `total_segments` int.
+- **sqlx**: `audio` table = `id` PK (uuid); `parent` uuid FK → `media.id`;
+  `tracks` via `audio_track.audio_id` FK; `total_segments` `u32` column
+  (rollup of `audio_segment` rows joined through `audio_track`);
+  `track_progress.*`.
+- **mongodb**: `_id`=UUIDv7; `parent` Binary(uuid); `tracks` UUID ref array;
+  `total_segments` int.
 - **graphql**: `track_progress` + `total_segments`; transcript/diarization
   resolves via `AudioTrack.segments` → `AudioSegment`; tags via `AudioTrack`.
 
-**Status: LOCKED (rev 8) — user-approved.** *(rev 8: A-loc cascade complete —
-`segments: Vec<Id>` at facet level **removed**, replaced by `total_segments:
-u32` rollup; segments now live per-track on `AudioTrack.segments`. Mirrors
-locked `Video`/`VideoTrack.scenes` model.)*
+**Status: LOCKED (rev 9) — user-approved.** *(rev 9: `parent: Id` FK to
+`Media` added — mirrors locked `Subtitle.parent` so the three facets
+(Audio/Video/Subtitle) share a uniform back-reference; additive on top of
+`Media.audio`. rev 8: A-loc cascade complete — `segments: Vec<Id>` at
+facet level **removed**, replaced by `total_segments: u32` rollup;
+segments now live per-track on `AudioTrack.segments`. Mirrors locked
+`Video`/`VideoTrack.scenes` model.)*

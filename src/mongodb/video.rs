@@ -132,6 +132,7 @@ impl From<&Video<Uuid7>> for Document {
   fn from(v: &Video<Uuid7>) -> Self {
     let mut d = Document::new();
     d.insert("_id", uuid7_to_bson(*v.id_ref()));
+    d.insert("parent", uuid7_to_bson(*v.parent_ref()));
     d.insert("total_scenes", Bson::Int64(v.total_scenes() as i64));
     d.insert("tracks", uuid7_vec_to_bson(v.tracks_slice()));
     d.insert(
@@ -147,7 +148,8 @@ impl TryFrom<Document> for Video<Uuid7> {
 
   fn try_from(mut d: Document) -> Result<Self, Self::Error> {
     let id = uuid7_from_bson(take(&mut d, "_id")?, "_id")?;
-    let mut v = Video::try_new(id)?;
+    let parent = uuid7_from_bson(take(&mut d, "parent")?, "parent")?;
+    let mut v = Video::try_new(id, parent)?;
     // Fields are independent at the domain layer — see the
     // validation-responsibility note on `Video`. Restore each from the
     // stored row directly.
@@ -1546,7 +1548,7 @@ mod tests {
 
   #[test]
   fn video_facet_roundtrip() {
-    let v = Video::try_new(Uuid7::new())
+    let v = Video::try_new(Uuid7::new(), Uuid7::new())
       .unwrap()
       .with_tracks(vec![Uuid7::new(), Uuid7::new()])
       .with_total_scenes(7)
