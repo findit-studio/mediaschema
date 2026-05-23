@@ -69,13 +69,50 @@ CREATE INDEX        IF NOT EXISTS idx_media_file_path_prefix
     ON media_file(location_volume, location_path);
 
 CREATE TABLE IF NOT EXISTS speaker (
-    id                  uuid    NOT NULL PRIMARY KEY,
-    parent              uuid    NOT NULL,
-    cluster_id          integer NOT NULL,
-    name                text    NOT NULL,
-    speech_duration_ms  bigint
+    id                                  uuid    NOT NULL PRIMARY KEY,
+    parent                              uuid    NOT NULL,
+    cluster_id                          integer NOT NULL,
+    name                                text    NOT NULL,
+    speech_duration_ms                  bigint,
+    -- Per-track aggregated voiceprint. `voiceprint_vector_id IS NOT NULL`
+    -- is the discriminator: when present, the other voiceprint_* columns
+    -- carry the full flattened VO; when NULL, they are all NULL.
+    voiceprint_vector_id                uuid,
+    voiceprint_dimensions               integer,
+    voiceprint_extracted_at_ms          bigint,
+    voiceprint_confidence               real,
+    voiceprint_provenance_model_name    text,
+    voiceprint_provenance_model_version text,
+    voiceprint_provenance_prompt_version text,
+    voiceprint_provenance_indexer_version text,
+    -- Cross-track identity FK -> person.id; NULL = not yet identified.
+    person                              uuid
 );
 CREATE INDEX IF NOT EXISTS idx_speaker_parent ON speaker(parent);
+CREATE INDEX IF NOT EXISTS idx_speaker_person ON speaker(person);
+
+CREATE TABLE IF NOT EXISTS person (
+    id                                    uuid     NOT NULL PRIMARY KEY,
+    name                                  text     NOT NULL,
+    -- 0 = AutoMatched, 1 = UserConfirmed.
+    confidence                            smallint NOT NULL,
+    -- Aggregated canonical voiceprint (centroid across linked Speakers).
+    -- `voiceprint_vector_id IS NOT NULL` discriminates presence of the
+    -- flattened VoiceFingerprint VO.
+    voiceprint_vector_id                  uuid,
+    voiceprint_dimensions                 integer,
+    voiceprint_extracted_at_ms            bigint,
+    voiceprint_confidence                 real,
+    voiceprint_provenance_model_name      text,
+    voiceprint_provenance_model_version   text,
+    voiceprint_provenance_prompt_version  text,
+    voiceprint_provenance_indexer_version text,
+    created_at_ms                         bigint   NOT NULL,
+    updated_at_ms                         bigint   NOT NULL
+);
+-- Supports "find Persons by embedding model" during re-extraction.
+CREATE INDEX IF NOT EXISTS idx_person_voiceprint_model
+    ON person(voiceprint_provenance_model_name, voiceprint_provenance_model_version);
 
 CREATE TABLE IF NOT EXISTS user_tag (
     id            uuid   NOT NULL PRIMARY KEY,
@@ -202,7 +239,17 @@ CREATE TABLE IF NOT EXISTS audio_segment (
     language        text,
     no_speech_prob  real,
     avg_logprob     real,
-    temperature     real
+    temperature     real,
+    -- Per-segment voice embedding. `voice_fingerprint_vector_id IS NOT NULL`
+    -- discriminates presence of the flattened VoiceFingerprint VO.
+    voice_fingerprint_vector_id                uuid,
+    voice_fingerprint_dimensions               integer,
+    voice_fingerprint_extracted_at_ms          bigint,
+    voice_fingerprint_confidence               real,
+    voice_fingerprint_provenance_model_name    text,
+    voice_fingerprint_provenance_model_version text,
+    voice_fingerprint_provenance_prompt_version text,
+    voice_fingerprint_provenance_indexer_version text
 );
 CREATE INDEX IF NOT EXISTS idx_audio_segment_parent ON audio_segment(parent);
 

@@ -9,6 +9,7 @@ pub mod audio;
 pub mod leaves;
 pub mod media;
 pub mod media_file;
+pub mod person;
 pub mod subtitle;
 pub mod video;
 
@@ -21,6 +22,7 @@ pub use leaves::{
 };
 pub use media::SqliteMediaRow;
 pub use media_file::SqliteMediaFileRow;
+pub use person::SqlitePersonRow;
 pub use subtitle::{
   SqliteSubtitleCueRow, SqliteSubtitleRow, SqliteSubtitleTrackIndexErrorRow, SqliteSubtitleTrackRow,
 };

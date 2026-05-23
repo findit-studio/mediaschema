@@ -11,6 +11,7 @@ pub mod audio;
 pub mod leaves;
 pub mod media;
 pub mod media_file;
+pub mod person;
 pub mod subtitle;
 pub mod video;
 
@@ -23,6 +24,7 @@ pub use leaves::{
 };
 pub use media::MySqlMediaRow;
 pub use media_file::MySqlMediaFileRow;
+pub use person::MySqlPersonRow;
 pub use subtitle::{
   MySqlSubtitleCueRow, MySqlSubtitleRow, MySqlSubtitleTrackIndexErrorRow, MySqlSubtitleTrackRow,
 };
