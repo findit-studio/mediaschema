@@ -166,6 +166,68 @@ message Person {
   int64 updated_at = 6;
 }
 
+// Source / translated string pair. "" = absent (empty-string sentinel),
+// not Null — matches the SmolStr empty-means-absent domain convention.
+// Locked shared cross-cutting VO (see `schema/README.md`); embedded in
+// `AudioSegment.text` (and future VLM-narrative parents).
+message LocalizedText {
+  string src = 1;
+  string translated = 2;
+}
+
+// BCP-47 language tag wrapper (mediaframe `lang::Language`). "" or "und"
+// = unspecified; the wire form is the smallest round-trip surface
+// (`Language::from_bcp47` / `to_bcp47`).
+message Language {
+  string bcp47 = 1;
+}
+
+// Word-level timing + score (`asry` output; producer-agnostic). `score`
+// is `[0,1]` and always present (NaN-free per locked spec); per-word
+// `language` carries code-switch / multilingual cues — `None` =
+// inherits the segment language.
+message Word {
+  string text = 1;
+  mediatime.v1.TimeRange span = 2;
+  float score = 3;
+  optional Language language = 4;
+}
+
+// Per-track diarized speaker (locked `schema/speaker.md`). `audio_track_id`
+// references the `AudioTrack.id`. `person_id` (when set) references the
+// `Person.id` — cross-track identity. `voiceprint` is the per-track
+// aggregated centroid (per-segment fingerprints live on
+// `AudioSegment.voice_fingerprint`).
+message Speaker {
+  bytes id = 1;
+  bytes audio_track_id = 2;
+  uint32 cluster_id = 3;
+  string name = 4;
+  optional mediatime.v1.Timestamp speech_duration = 5;
+  optional VoiceFingerprint voiceprint = 6;
+  optional bytes person_id = 7;
+}
+
+// One reconciled `dia ⋈ asry` speak range of an `AudioTrack` (locked
+// `schema/audio_segments.md`). `audio_track_id` references the
+// `AudioTrack.id`. `speaker_id` (when set) references a `Speaker.id`.
+// `voice_fingerprint` is the per-segment embedding (aggregates upward
+// into `Speaker.voiceprint`).
+message AudioSegment {
+  bytes id = 1;
+  bytes audio_track_id = 2;
+  uint32 index = 3;
+  mediatime.v1.TimeRange span = 4;
+  optional bytes speaker_id = 5;
+  LocalizedText text = 6;
+  optional Language language = 7;
+  repeated Word words = 8;
+  optional float no_speech_prob = 9;
+  optional float avg_logprob = 10;
+  optional float temperature = 11;
+  optional VoiceFingerprint voice_fingerprint = 12;
+}
+
 // A watched media location with indexing progress counters.
 message WatchedLocation {
   Id id = 1;
