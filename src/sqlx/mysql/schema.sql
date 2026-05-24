@@ -72,12 +72,12 @@ CREATE TABLE IF NOT EXISTS media_file (
 
 CREATE TABLE IF NOT EXISTS speaker (
     id                  BINARY(16) NOT NULL,
-    parent              BINARY(16) NOT NULL,
+    audio_track_id              BINARY(16) NOT NULL,
     cluster_id          INT UNSIGNED NOT NULL,
     name                VARCHAR(256) NOT NULL,
     speech_duration_ms  BIGINT,
     PRIMARY KEY (id),
-    KEY idx_speaker_parent (parent)
+    KEY idx_speaker_audio_track_id (audio_track_id)
 );
 
 CREATE TABLE IF NOT EXISTS user_tag (
@@ -91,21 +91,21 @@ CREATE TABLE IF NOT EXISTS user_tag (
 
 CREATE TABLE IF NOT EXISTS scene_annotation (
     id              BINARY(16) NOT NULL,
-    scene           BINARY(16) NOT NULL,
+    scene_id           BINARY(16) NOT NULL,
     favorite        TINYINT    NOT NULL DEFAULT 0,
     rating          TINYINT UNSIGNED,
     note            TEXT       NOT NULL,
     updated_at_ms   BIGINT     NOT NULL,
     PRIMARY KEY (id),
-    KEY idx_scene_annotation_scene (scene)
+    KEY idx_scene_annotation_scene_id (scene_id)
 );
 
 CREATE TABLE IF NOT EXISTS scene_annotation_user_tag (
-    scene_annotation  BINARY(16) NOT NULL,
-    user_tag          BINARY(16) NOT NULL,
+    scene_annotation_id  BINARY(16) NOT NULL,
+    user_tag_id          BINARY(16) NOT NULL,
     ordinal           INT        NOT NULL,
-    PRIMARY KEY (scene_annotation, user_tag),
-    KEY idx_saut_user_tag (user_tag)
+    PRIMARY KEY (scene_annotation_id, user_tag_id),
+    KEY idx_saut_user_tag_id (user_tag_id)
 );
 
 -- Audio-cluster: the `Audio` facet + `AudioTrack` + `AudioSegment`
@@ -115,13 +115,13 @@ CREATE TABLE IF NOT EXISTS scene_annotation_user_tag (
 
 CREATE TABLE IF NOT EXISTS audio (
     id                     BINARY(16) NOT NULL,
-    parent                 BINARY(16) NOT NULL,
+    media_id                 BINARY(16) NOT NULL,
     total_segments         BIGINT     NOT NULL DEFAULT 0,
     track_progress_total   BIGINT     NOT NULL DEFAULT 0,
     track_progress_indexed BIGINT     NOT NULL DEFAULT 0,
     track_progress_failed  BIGINT     NOT NULL DEFAULT 0,
     PRIMARY KEY (id),
-    UNIQUE KEY uq_audio_parent (parent)
+    UNIQUE KEY uq_audio_media_id (media_id)
 );
 
 CREATE TABLE IF NOT EXISTS audio_track (
@@ -188,17 +188,17 @@ CREATE TABLE IF NOT EXISTS audio_track (
 );
 
 CREATE TABLE IF NOT EXISTS audio_track_index_error (
-    audio_track BINARY(16) NOT NULL,
+    audio_track_id BINARY(16) NOT NULL,
     ordinal     INT        NOT NULL,
     code        INT        NOT NULL,
     message     TEXT       NOT NULL,
-    PRIMARY KEY (audio_track, ordinal),
-    KEY idx_atie_audio_track (audio_track)
+    PRIMARY KEY (audio_track_id, ordinal),
+    KEY idx_atie_audio_track_id (audio_track_id)
 );
 
 CREATE TABLE IF NOT EXISTS audio_segment (
     id              BINARY(16)   NOT NULL,
-    parent          BINARY(16)   NOT NULL,
+    audio_track_id          BINARY(16)   NOT NULL,
     `index`         BIGINT       NOT NULL,
     span_start_pts  BIGINT       NOT NULL,
     span_end_pts    BIGINT       NOT NULL,
@@ -210,19 +210,19 @@ CREATE TABLE IF NOT EXISTS audio_segment (
     avg_logprob     FLOAT,
     temperature     FLOAT,
     PRIMARY KEY (id),
-    KEY idx_audio_segment_parent (parent)
+    KEY idx_audio_segment_audio_track_id (audio_track_id)
 );
 
 CREATE TABLE IF NOT EXISTS audio_segment_word (
-    audio_segment  BINARY(16) NOT NULL,
+    audio_segment_id  BINARY(16) NOT NULL,
     ordinal        INT        NOT NULL,
     text           TEXT       NOT NULL,
     span_start_pts BIGINT     NOT NULL,
     span_end_pts   BIGINT     NOT NULL,
     score          FLOAT      NOT NULL,
     language       VARCHAR(64),
-    PRIMARY KEY (audio_segment, ordinal),
-    KEY idx_asw_audio_segment (audio_segment)
+    PRIMARY KEY (audio_segment_id, ordinal),
+    KEY idx_asw_audio_segment_id (audio_segment_id)
 );
 
 -- Video-cluster: the `Video` facet + `VideoTrack` + `Scene` + `Keyframe`
@@ -230,13 +230,13 @@ CREATE TABLE IF NOT EXISTS audio_segment_word (
 
 CREATE TABLE IF NOT EXISTS video (
     id                     BINARY(16) NOT NULL,
-    parent                 BINARY(16) NOT NULL,
+    media_id                 BINARY(16) NOT NULL,
     total_scenes           BIGINT     NOT NULL DEFAULT 0,
     track_progress_total   BIGINT     NOT NULL DEFAULT 0,
     track_progress_indexed BIGINT     NOT NULL DEFAULT 0,
     track_progress_failed  BIGINT     NOT NULL DEFAULT 0,
     PRIMARY KEY (id),
-    UNIQUE KEY uq_video_parent (parent)
+    UNIQUE KEY uq_video_media_id (media_id)
 );
 
 CREATE TABLE IF NOT EXISTS video_track (
@@ -314,31 +314,31 @@ CREATE TABLE IF NOT EXISTS video_track (
 );
 
 CREATE TABLE IF NOT EXISTS video_track_index_error (
-    video_track BINARY(16) NOT NULL,
+    video_track_id BINARY(16) NOT NULL,
     ordinal     INT        NOT NULL,
     code        INT        NOT NULL,
     message     TEXT       NOT NULL,
-    PRIMARY KEY (video_track, ordinal),
-    KEY idx_vtie_video_track (video_track)
+    PRIMARY KEY (video_track_id, ordinal),
+    KEY idx_vtie_video_track_id (video_track_id)
 );
 
 CREATE TABLE IF NOT EXISTS scene (
     id              BINARY(16)  NOT NULL,
-    parent          BINARY(16)  NOT NULL,
+    video_track_id          BINARY(16)  NOT NULL,
     `index`         BIGINT      NOT NULL,
     span_start_pts  BIGINT      NOT NULL,
     span_end_pts    BIGINT      NOT NULL,
     detector        VARCHAR(64) NOT NULL,
     description     TEXT        NOT NULL,
     PRIMARY KEY (id),
-    KEY idx_scene_parent (parent),
+    KEY idx_scene_video_track_id (video_track_id),
     KEY idx_scene_detector (detector),
-    UNIQUE KEY idx_scene_parent_index (parent, `index`)
+    UNIQUE KEY idx_scene_video_track_id_index (video_track_id, `index`)
 );
 
 CREATE TABLE IF NOT EXISTS keyframe (
     id                         BINARY(16)   NOT NULL,
-    parent                     BINARY(16)   NOT NULL,
+    scene_id                     BINARY(16)   NOT NULL,
     pts                        BIGINT       NOT NULL,
     data                       LONGBLOB     NOT NULL,
     mime                       VARCHAR(255) NOT NULL,
@@ -353,20 +353,20 @@ CREATE TABLE IF NOT EXISTS keyframe (
     aesthetics_overall_score   FLOAT        NOT NULL,
     aesthetics_is_utility      TINYINT      NOT NULL DEFAULT 0,
     PRIMARY KEY (id),
-    KEY idx_keyframe_parent (parent)
+    KEY idx_keyframe_scene_id (scene_id)
 );
 
 CREATE TABLE IF NOT EXISTS keyframe_classification (
-    keyframe   BINARY(16) NOT NULL,
+    keyframe_id   BINARY(16) NOT NULL,
     ordinal    INT        NOT NULL,
     label      TEXT       NOT NULL,
     confidence FLOAT      NOT NULL,
-    PRIMARY KEY (keyframe, ordinal),
-    KEY idx_kf_classification_keyframe (keyframe)
+    PRIMARY KEY (keyframe_id, ordinal),
+    KEY idx_kf_classification_keyframe_id (keyframe_id)
 );
 
 CREATE TABLE IF NOT EXISTS keyframe_object (
-    keyframe   BINARY(16) NOT NULL,
+    keyframe_id   BINARY(16) NOT NULL,
     ordinal    INT        NOT NULL,
     label      TEXT       NOT NULL,
     confidence FLOAT      NOT NULL,
@@ -375,21 +375,21 @@ CREATE TABLE IF NOT EXISTS keyframe_object (
     bbox_y     FLOAT,
     bbox_w     FLOAT,
     bbox_h     FLOAT,
-    PRIMARY KEY (keyframe, ordinal),
-    KEY idx_kf_object_keyframe (keyframe)
+    PRIMARY KEY (keyframe_id, ordinal),
+    KEY idx_kf_object_keyframe_id (keyframe_id)
 );
 
 CREATE TABLE IF NOT EXISTS keyframe_action (
-    keyframe   BINARY(16) NOT NULL,
+    keyframe_id   BINARY(16) NOT NULL,
     ordinal    INT        NOT NULL,
     label      TEXT       NOT NULL,
     confidence FLOAT      NOT NULL,
-    PRIMARY KEY (keyframe, ordinal),
-    KEY idx_kf_action_keyframe (keyframe)
+    PRIMARY KEY (keyframe_id, ordinal),
+    KEY idx_kf_action_keyframe_id (keyframe_id)
 );
 
 CREATE TABLE IF NOT EXISTS keyframe_text_detection (
-    keyframe   BINARY(16) NOT NULL,
+    keyframe_id   BINARY(16) NOT NULL,
     ordinal    INT        NOT NULL,
     text       TEXT       NOT NULL,
     confidence FLOAT      NOT NULL,
@@ -397,12 +397,12 @@ CREATE TABLE IF NOT EXISTS keyframe_text_detection (
     bbox_y     FLOAT      NOT NULL,
     bbox_w     FLOAT      NOT NULL,
     bbox_h     FLOAT      NOT NULL,
-    PRIMARY KEY (keyframe, ordinal),
-    KEY idx_kf_text_detection_keyframe (keyframe)
+    PRIMARY KEY (keyframe_id, ordinal),
+    KEY idx_kf_text_detection_keyframe_id (keyframe_id)
 );
 
 CREATE TABLE IF NOT EXISTS keyframe_barcode (
-    keyframe   BINARY(16) NOT NULL,
+    keyframe_id   BINARY(16) NOT NULL,
     ordinal    INT        NOT NULL,
     payload    TEXT       NOT NULL,
     symbology  VARCHAR(64) NOT NULL,
@@ -411,12 +411,12 @@ CREATE TABLE IF NOT EXISTS keyframe_barcode (
     bbox_y     FLOAT      NOT NULL,
     bbox_w     FLOAT      NOT NULL,
     bbox_h     FLOAT      NOT NULL,
-    PRIMARY KEY (keyframe, ordinal),
-    KEY idx_kf_barcode_keyframe (keyframe)
+    PRIMARY KEY (keyframe_id, ordinal),
+    KEY idx_kf_barcode_keyframe_id (keyframe_id)
 );
 
 CREATE TABLE IF NOT EXISTS keyframe_saliency (
-    keyframe   BINARY(16) NOT NULL,
+    keyframe_id   BINARY(16) NOT NULL,
     kind       SMALLINT   NOT NULL,
     ordinal    INT        NOT NULL,
     bbox_x     FLOAT      NOT NULL,
@@ -424,12 +424,12 @@ CREATE TABLE IF NOT EXISTS keyframe_saliency (
     bbox_w     FLOAT      NOT NULL,
     bbox_h     FLOAT      NOT NULL,
     confidence FLOAT      NOT NULL,
-    PRIMARY KEY (keyframe, kind, ordinal),
-    KEY idx_kf_saliency_keyframe (keyframe)
+    PRIMARY KEY (keyframe_id, kind, ordinal),
+    KEY idx_kf_saliency_keyframe_id (keyframe_id)
 );
 
 CREATE TABLE IF NOT EXISTS keyframe_document_segment (
-    keyframe   BINARY(16) NOT NULL,
+    keyframe_id   BINARY(16) NOT NULL,
     ordinal    INT        NOT NULL,
     tl_x       FLOAT      NOT NULL,
     tl_y       FLOAT      NOT NULL,
@@ -440,23 +440,23 @@ CREATE TABLE IF NOT EXISTS keyframe_document_segment (
     bl_x       FLOAT      NOT NULL,
     bl_y       FLOAT      NOT NULL,
     confidence FLOAT      NOT NULL,
-    PRIMARY KEY (keyframe, ordinal),
-    KEY idx_kf_document_segment_keyframe (keyframe)
+    PRIMARY KEY (keyframe_id, ordinal),
+    KEY idx_kf_document_segment_keyframe_id (keyframe_id)
 );
 
 CREATE TABLE IF NOT EXISTS keyframe_color (
-    keyframe   BINARY(16) NOT NULL,
+    keyframe_id   BINARY(16) NOT NULL,
     ordinal    INT        NOT NULL,
     rgba       BIGINT     NOT NULL,
     name       VARCHAR(64) NOT NULL,
     percentage FLOAT      NOT NULL,
     population BIGINT     NOT NULL,
-    PRIMARY KEY (keyframe, ordinal),
-    KEY idx_kf_color_keyframe (keyframe)
+    PRIMARY KEY (keyframe_id, ordinal),
+    KEY idx_kf_color_keyframe_id (keyframe_id)
 );
 
 CREATE TABLE IF NOT EXISTS keyframe_subject (
-    keyframe   BINARY(16) NOT NULL,
+    keyframe_id   BINARY(16) NOT NULL,
     scope      SMALLINT   NOT NULL,
     ordinal    INT        NOT NULL,
     label      TEXT       NOT NULL,
@@ -465,12 +465,12 @@ CREATE TABLE IF NOT EXISTS keyframe_subject (
     bbox_y     FLOAT      NOT NULL,
     bbox_w     FLOAT      NOT NULL,
     bbox_h     FLOAT      NOT NULL,
-    PRIMARY KEY (keyframe, scope, ordinal),
-    KEY idx_kf_subject_keyframe (keyframe)
+    PRIMARY KEY (keyframe_id, scope, ordinal),
+    KEY idx_kf_subject_keyframe_id (keyframe_id)
 );
 
 CREATE TABLE IF NOT EXISTS keyframe_face (
-    keyframe        BINARY(16) NOT NULL,
+    keyframe_id        BINARY(16) NOT NULL,
     kind            SMALLINT   NOT NULL,
     ordinal         INT        NOT NULL,
     bbox_x          FLOAT      NOT NULL,
@@ -482,12 +482,12 @@ CREATE TABLE IF NOT EXISTS keyframe_face (
     roll            FLOAT      NOT NULL,
     yaw             FLOAT      NOT NULL,
     pitch           FLOAT      NOT NULL,
-    PRIMARY KEY (keyframe, kind, ordinal),
-    KEY idx_kf_face_keyframe (keyframe)
+    PRIMARY KEY (keyframe_id, kind, ordinal),
+    KEY idx_kf_face_keyframe_id (keyframe_id)
 );
 
 CREATE TABLE IF NOT EXISTS keyframe_body_pose (
-    keyframe   BINARY(16) NOT NULL,
+    keyframe_id   BINARY(16) NOT NULL,
     scope      SMALLINT   NOT NULL,
     ordinal    INT        NOT NULL,
     bbox_x     FLOAT      NOT NULL,
@@ -495,12 +495,12 @@ CREATE TABLE IF NOT EXISTS keyframe_body_pose (
     bbox_w     FLOAT      NOT NULL,
     bbox_h     FLOAT      NOT NULL,
     confidence FLOAT      NOT NULL,
-    PRIMARY KEY (keyframe, scope, ordinal),
-    KEY idx_kf_body_pose_keyframe (keyframe)
+    PRIMARY KEY (keyframe_id, scope, ordinal),
+    KEY idx_kf_body_pose_keyframe_id (keyframe_id)
 );
 
 CREATE TABLE IF NOT EXISTS keyframe_body_pose_joint (
-    keyframe       BINARY(16) NOT NULL,
+    keyframe_id       BINARY(16) NOT NULL,
     scope          SMALLINT   NOT NULL,
     parent_ordinal INT        NOT NULL,
     ordinal        INT        NOT NULL,
@@ -508,12 +508,12 @@ CREATE TABLE IF NOT EXISTS keyframe_body_pose_joint (
     x              FLOAT      NOT NULL,
     y              FLOAT      NOT NULL,
     confidence     FLOAT      NOT NULL,
-    PRIMARY KEY (keyframe, scope, parent_ordinal, ordinal),
-    KEY idx_kf_body_pose_joint_keyframe (keyframe)
+    PRIMARY KEY (keyframe_id, scope, parent_ordinal, ordinal),
+    KEY idx_kf_body_pose_joint_keyframe_id (keyframe_id)
 );
 
 CREATE TABLE IF NOT EXISTS keyframe_hand_pose (
-    keyframe   BINARY(16) NOT NULL,
+    keyframe_id   BINARY(16) NOT NULL,
     ordinal    INT        NOT NULL,
     bbox_x     FLOAT      NOT NULL,
     bbox_y     FLOAT      NOT NULL,
@@ -521,22 +521,22 @@ CREATE TABLE IF NOT EXISTS keyframe_hand_pose (
     bbox_h     FLOAT      NOT NULL,
     confidence FLOAT      NOT NULL,
     chirality  SMALLINT   NOT NULL,
-    PRIMARY KEY (keyframe, ordinal),
-    KEY idx_kf_hand_pose_keyframe (keyframe)
+    PRIMARY KEY (keyframe_id, ordinal),
+    KEY idx_kf_hand_pose_keyframe_id (keyframe_id)
 );
 
 CREATE TABLE IF NOT EXISTS keyframe_body_pose_3d (
-    keyframe          BINARY(16) NOT NULL,
+    keyframe_id          BINARY(16) NOT NULL,
     ordinal           INT        NOT NULL,
     confidence        FLOAT      NOT NULL,
     body_height       FLOAT      NOT NULL,
     height_estimation SMALLINT   NOT NULL,
-    PRIMARY KEY (keyframe, ordinal),
-    KEY idx_kf_body_pose_3d_keyframe (keyframe)
+    PRIMARY KEY (keyframe_id, ordinal),
+    KEY idx_kf_body_pose_3d_keyframe_id (keyframe_id)
 );
 
 CREATE TABLE IF NOT EXISTS keyframe_body_pose_3d_joint (
-    keyframe       BINARY(16) NOT NULL,
+    keyframe_id       BINARY(16) NOT NULL,
     parent_ordinal INT        NOT NULL,
     ordinal        INT        NOT NULL,
     name           VARCHAR(128) NOT NULL,
@@ -544,12 +544,12 @@ CREATE TABLE IF NOT EXISTS keyframe_body_pose_3d_joint (
     y              FLOAT      NOT NULL,
     z              FLOAT      NOT NULL,
     confidence     FLOAT      NOT NULL,
-    PRIMARY KEY (keyframe, parent_ordinal, ordinal),
-    KEY idx_kf_body_pose_3d_joint_keyframe (keyframe)
+    PRIMARY KEY (keyframe_id, parent_ordinal, ordinal),
+    KEY idx_kf_body_pose_3d_joint_keyframe_id (keyframe_id)
 );
 
 CREATE TABLE IF NOT EXISTS keyframe_mask (
-    keyframe       BINARY(16) NOT NULL,
+    keyframe_id       BINARY(16) NOT NULL,
     kind           SMALLINT   NOT NULL,
     ordinal        INT        NOT NULL,
     bbox_x         FLOAT      NOT NULL,
@@ -561,50 +561,50 @@ CREATE TABLE IF NOT EXISTS keyframe_mask (
     width          BIGINT     NOT NULL,
     height         BIGINT     NOT NULL,
     data           LONGBLOB   NOT NULL,
-    PRIMARY KEY (keyframe, kind, ordinal),
-    KEY idx_kf_mask_keyframe (keyframe)
+    PRIMARY KEY (keyframe_id, kind, ordinal),
+    KEY idx_kf_mask_keyframe_id (keyframe_id)
 );
 
 CREATE TABLE IF NOT EXISTS keyframe_face_landmarks (
-    keyframe   BINARY(16) NOT NULL,
+    keyframe_id   BINARY(16) NOT NULL,
     ordinal    INT        NOT NULL,
     bbox_x     FLOAT      NOT NULL,
     bbox_y     FLOAT      NOT NULL,
     bbox_w     FLOAT      NOT NULL,
     bbox_h     FLOAT      NOT NULL,
     confidence FLOAT      NOT NULL,
-    PRIMARY KEY (keyframe, ordinal),
-    KEY idx_kf_face_landmarks_keyframe (keyframe)
+    PRIMARY KEY (keyframe_id, ordinal),
+    KEY idx_kf_face_landmarks_keyframe_id (keyframe_id)
 );
 
 CREATE TABLE IF NOT EXISTS keyframe_face_landmark_region (
-    keyframe       BINARY(16)   NOT NULL,
+    keyframe_id       BINARY(16)   NOT NULL,
     parent_ordinal INT          NOT NULL,
     ordinal        INT          NOT NULL,
     name           VARCHAR(128) NOT NULL,
-    PRIMARY KEY (keyframe, parent_ordinal, ordinal),
-    KEY idx_kf_face_landmark_region_keyframe (keyframe)
+    PRIMARY KEY (keyframe_id, parent_ordinal, ordinal),
+    KEY idx_kf_face_landmark_region_keyframe_id (keyframe_id)
 );
 
 CREATE TABLE IF NOT EXISTS keyframe_face_landmark_point (
-    keyframe       BINARY(16) NOT NULL,
+    keyframe_id       BINARY(16) NOT NULL,
     parent_ordinal INT        NOT NULL,
     region_ordinal INT        NOT NULL,
     ordinal        INT        NOT NULL,
     x              FLOAT      NOT NULL,
     y              FLOAT      NOT NULL,
-    PRIMARY KEY (keyframe, parent_ordinal, region_ordinal, ordinal),
-    KEY idx_kf_face_landmark_point_keyframe (keyframe)
+    PRIMARY KEY (keyframe_id, parent_ordinal, region_ordinal, ordinal),
+    KEY idx_kf_face_landmark_point_keyframe_id (keyframe_id)
 );
 
 CREATE TABLE IF NOT EXISTS keyframe_vlm_label (
-    keyframe   BINARY(16) NOT NULL,
+    keyframe_id   BINARY(16) NOT NULL,
     kind       SMALLINT   NOT NULL,
     ordinal    INT        NOT NULL,
     src        TEXT       NOT NULL,
     translated TEXT       NOT NULL,
-    PRIMARY KEY (keyframe, kind, ordinal),
-    KEY idx_kf_vlm_label_keyframe (keyframe)
+    PRIMARY KEY (keyframe_id, kind, ordinal),
+    KEY idx_kf_vlm_label_keyframe_id (keyframe_id)
 );
 
 -- The subtitle facet/track/per-track-analysis tables (subtitle,

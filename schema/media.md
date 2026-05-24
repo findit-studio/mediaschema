@@ -1,4 +1,4 @@
-# `Media<Id>` — root / content entity  *(rev 9 — LOCKED, user-approved; content/copy split)*
+# `Media<Id>` — root / content entity  *(rev 10 — LOCKED, user-approved; content/copy split)*
 
 ## Domain meaning
 
@@ -32,9 +32,9 @@ meta flattened in. Conversions deferred.
 | `duration` | `Option<TrackTime>` | `MediaMeta.time` | **overall** media length (per-track duration is on the track) |
 | `kind` | `MediaKind` (enum) | `Media.kind: DbMediaKind` | closed; may gain kinds |
 | `files` | `Vec<Id>` | — (reverse lookup) | reverse lookup → [`MediaFile`](media_file.md) copies (reverse side of `MediaFile.media_id`); starts empty |
-| `video` | `Option<Id>` | `Media.video_id` | ref → `Video` facet |
-| `audio` | `Option<Id>` | `Media.audio_id` | ref → `Audio` facet |
-| `subtitle` | `Option<Id>` | `Media.subtitle_id` | ref → `Subtitle` facet |
+| `video_id` | `Option<Id>` | `Media.video_id` | ref → `Video` facet |
+| `audio_id` | `Option<Id>` | `Media.audio_id` | ref → `Audio` facet |
+| `subtitle_id` | `Option<Id>` | `Media.subtitle_id` | ref → `Subtitle` facet |
 | `error_flags` | `MediaErrorFlags` (bitflags! **u16**) | — (rollup) | `VIDEO_ERROR`/`AUDIO_ERROR`/`SUBTITLE_ERROR` + reserved bits |
 | `probe_error` | `Option<ErrorInfo>` | `Media.index_error` (collapsed) | file-level probe failure only |
 | `capture_date` | `Option<jiff::Timestamp>` | `Media.capture_date: i64` | EXIF; ms; `0→None` (stays `jiff` — wall-clock standard, not a mediaframe type) |

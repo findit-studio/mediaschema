@@ -31,7 +31,7 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct PgSpeakerRow {
   pub id: Uuid,
-  pub parent: Uuid,
+  pub audio_track_id: Uuid,
   pub cluster_id: i32,
   pub name: String,
   pub speech_duration_ms: Option<i64>,
@@ -41,7 +41,7 @@ impl From<&Speaker<Uuid7>> for PgSpeakerRow {
   fn from(s: &Speaker<Uuid7>) -> Self {
     Self {
       id: uuid7_to_uuid(*s.id_ref()),
-      parent: uuid7_to_uuid(*s.parent_ref()),
+      audio_track_id: uuid7_to_uuid(*s.audio_track_id_ref()),
       cluster_id: s.cluster_id() as i32,
       name: s.name().to_owned(),
       speech_duration_ms: s.speech_duration_ref().and_then(|_| None::<i64>),
@@ -54,9 +54,9 @@ impl TryFrom<PgSpeakerRow> for Speaker<Uuid7> {
 
   fn try_from(r: PgSpeakerRow) -> Result<Self, Self::Error> {
     let id = uuid_to_uuid7(r.id)?;
-    let parent = uuid_to_uuid7(r.parent)?;
+    let audio_track_id = uuid_to_uuid7(r.audio_track_id)?;
     let cluster_id = r.cluster_id as u32;
-    Speaker::try_new(id, parent, cluster_id, r.name)
+    Speaker::try_new(id, audio_track_id, cluster_id, r.name)
       .map_err(|e: SpeakerError| SqlxError::DomainConstructorRejected(e.to_string()))
   }
 }
@@ -108,7 +108,7 @@ impl TryFrom<PgUserTagRow> for UserTag<Uuid7> {
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct PgSceneAnnotationRow {
   pub id: Uuid,
-  pub scene: Uuid,
+  pub scene_id: Uuid,
   pub favorite: bool,
   pub rating: Option<i16>,
   pub note: String,
@@ -119,8 +119,8 @@ pub struct PgSceneAnnotationRow {
 /// edge with the tag's `ordinal` position in `SceneAnnotation::user_tags`.
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct PgSceneAnnotationUserTagRow {
-  pub scene_annotation: Uuid,
-  pub user_tag: Uuid,
+  pub scene_annotation_id: Uuid,
+  pub user_tag_id: Uuid,
   pub ordinal: i32,
 }
 
@@ -137,14 +137,14 @@ impl From<&SceneAnnotation<Uuid7>>
       .iter()
       .enumerate()
       .map(|(i, tag)| PgSceneAnnotationUserTagRow {
-        scene_annotation: annotation,
-        user_tag: uuid7_to_uuid(*tag),
+        scene_annotation_id: annotation,
+        user_tag_id: uuid7_to_uuid(*tag),
         ordinal: i as i32,
       })
       .collect();
     let row = PgSceneAnnotationRow {
       id: annotation,
-      scene: uuid7_to_uuid(*a.scene_ref()),
+      scene_id: uuid7_to_uuid(*a.scene_id_ref()),
       favorite: a.is_favorite(),
       rating: a.rating().map(i16::from),
       note: a.note().to_owned(),
@@ -169,12 +169,12 @@ impl
     ),
   ) -> Result<Self, Self::Error> {
     let id = uuid_to_uuid7(r.id)?;
-    let scene = uuid_to_uuid7(r.scene)?;
+    let scene_id = uuid_to_uuid7(r.scene_id)?;
     let updated_at = millis_to_timestamp(r.updated_at_ms)?;
     joins.sort_by_key(|j| j.ordinal);
     let mut tags = std::vec::Vec::with_capacity(joins.len());
     for j in joins {
-      tags.push(uuid_to_uuid7(j.user_tag)?);
+      tags.push(uuid_to_uuid7(j.user_tag_id)?);
     }
     let rating = match r.rating {
       None => None,
@@ -184,7 +184,7 @@ impl
       ),
     };
     Ok(
-      SceneAnnotation::try_new(id, scene, updated_at)
+      SceneAnnotation::try_new(id, scene_id, updated_at)
         .map_err(|e: SceneAnnotationError| SqlxError::DomainConstructorRejected(e.to_string()))?
         .with_favorite(r.favorite)
         .with_user_tags(tags)
@@ -304,7 +304,7 @@ mod tests {
     let row: PgSpeakerRow = (&s).into();
     let s2: Speaker<Uuid7> = row.try_into().unwrap();
     assert_eq!(s.id_ref(), s2.id_ref());
-    assert_eq!(s.parent_ref(), s2.parent_ref());
+    assert_eq!(s.audio_track_id_ref(), s2.audio_track_id_ref());
   }
 
   #[test]
@@ -370,7 +370,7 @@ mod tests {
   fn speaker_row_with_nil_uuid_rejected() {
     let row = PgSpeakerRow {
       id: uuid::Uuid::nil(),
-      parent: uuid::Uuid::nil(),
+      audio_track_id: uuid::Uuid::nil(),
       cluster_id: 0,
       name: String::new(),
       speech_duration_ms: None,

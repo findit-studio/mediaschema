@@ -132,7 +132,7 @@ impl From<&Video<Uuid7>> for Document {
   fn from(v: &Video<Uuid7>) -> Self {
     let mut d = Document::new();
     d.insert("_id", uuid7_to_bson(*v.id_ref()));
-    d.insert("parent", uuid7_to_bson(*v.parent_ref()));
+    d.insert("media_id", uuid7_to_bson(*v.media_id_ref()));
     d.insert("total_scenes", Bson::Int64(v.total_scenes() as i64));
     d.insert("tracks", uuid7_vec_to_bson(v.tracks_slice()));
     d.insert(
@@ -148,8 +148,8 @@ impl TryFrom<Document> for Video<Uuid7> {
 
   fn try_from(mut d: Document) -> Result<Self, Self::Error> {
     let id = uuid7_from_bson(take(&mut d, "_id")?, "_id")?;
-    let parent = uuid7_from_bson(take(&mut d, "parent")?, "parent")?;
-    let mut v = Video::try_new(id, parent)?;
+    let media_id = uuid7_from_bson(take(&mut d, "media_id")?, "media_id")?;
+    let mut v = Video::try_new(id, media_id)?;
     // Fields are independent at the domain layer — see the
     // validation-responsibility note on `Video`. Restore each from the
     // stored row directly.
@@ -398,7 +398,7 @@ impl From<&VideoTrack<Uuid7>> for Document {
   fn from(t: &VideoTrack<Uuid7>) -> Self {
     let mut d = Document::new();
     d.insert("_id", uuid7_to_bson(*t.id_ref()));
-    d.insert("parent", uuid7_to_bson(*t.parent_ref()));
+    d.insert("video_id", uuid7_to_bson(*t.video_id_ref()));
     d.insert(
       "stream_index",
       t.stream_index()
@@ -509,8 +509,8 @@ impl TryFrom<Document> for VideoTrack<Uuid7> {
 
   fn try_from(mut d: Document) -> Result<Self, Self::Error> {
     let id = uuid7_from_bson(take(&mut d, "_id")?, "_id")?;
-    let parent = uuid7_from_bson(take(&mut d, "parent")?, "parent")?;
-    let mut t = VideoTrack::try_new(id, parent)?;
+    let video_id = uuid7_from_bson(take(&mut d, "video_id")?, "video_id")?;
+    let mut t = VideoTrack::try_new(id, video_id)?;
 
     if let Some(b) = take_opt(&mut d, "stream_index") {
       t.set_stream_index(Some(as_u32(b, "stream_index")?));
@@ -622,7 +622,7 @@ impl From<&Scene<Uuid7>> for Document {
   fn from(s: &Scene<Uuid7>) -> Self {
     let mut d = Document::new();
     d.insert("_id", uuid7_to_bson(*s.id_ref()));
-    d.insert("parent", uuid7_to_bson(*s.parent_ref()));
+    d.insert("video_track_id", uuid7_to_bson(*s.video_track_id_ref()));
     d.insert("index", Bson::Int64(s.index() as i64));
     d.insert("span", time_range_to_bson(s.span_ref()));
     d.insert("detector", Bson::Int32(scene_detector_to_i32(s.detector())));
@@ -637,12 +637,12 @@ impl TryFrom<Document> for Scene<Uuid7> {
 
   fn try_from(mut d: Document) -> Result<Self, Self::Error> {
     let id = uuid7_from_bson(take(&mut d, "_id")?, "_id")?;
-    let parent = uuid7_from_bson(take(&mut d, "parent")?, "parent")?;
+    let video_track_id = uuid7_from_bson(take(&mut d, "video_track_id")?, "video_track_id")?;
     let index = as_u32(take(&mut d, "index")?, "index")?;
     let span = time_range_from_bson(take(&mut d, "span")?, "span")?;
     let detector =
       scene_detector_from_i64(as_i64(take(&mut d, "detector")?, "detector")?, "detector")?;
-    let mut s = Scene::try_new(id, parent, index, span, detector)?;
+    let mut s = Scene::try_new(id, video_track_id, index, span, detector)?;
     if let Some(b) = take_opt(&mut d, "keyframes") {
       s.set_keyframes(uuid7_vec_from_bson(b, "keyframes")?);
     }
@@ -1321,7 +1321,7 @@ impl From<&Keyframe<Uuid7>> for Document {
   fn from(k: &Keyframe<Uuid7>) -> Self {
     let mut d = Document::new();
     d.insert("_id", uuid7_to_bson(*k.id_ref()));
-    d.insert("parent", uuid7_to_bson(*k.parent_ref()));
+    d.insert("scene_id", uuid7_to_bson(*k.scene_id_ref()));
     d.insert("pts", media_ts_to_bson(*k.pts_ref()));
     d.insert("data", bytes_to_bson(k.data()));
     d.insert("mime", Bson::String(k.mime().to_owned()));
@@ -1421,14 +1421,14 @@ impl TryFrom<Document> for Keyframe<Uuid7> {
 
   fn try_from(mut d: Document) -> Result<Self, Self::Error> {
     let id = uuid7_from_bson(take(&mut d, "_id")?, "_id")?;
-    let parent = uuid7_from_bson(take(&mut d, "parent")?, "parent")?;
+    let scene_id = uuid7_from_bson(take(&mut d, "scene_id")?, "scene_id")?;
     let pts = media_ts_from_bson(take(&mut d, "pts")?, "pts")?;
     let dimensions = dimensions_from_bson(take(&mut d, "dimensions")?, "dimensions")?;
     let extractor = keyframe_extractor_from_i64(
       as_i64(take(&mut d, "extractor")?, "extractor")?,
       "extractor",
     )?;
-    let mut k = Keyframe::try_new(id, parent, pts, dimensions, extractor)?;
+    let mut k = Keyframe::try_new(id, scene_id, pts, dimensions, extractor)?;
 
     if let Some(b) = take_opt(&mut d, "data") {
       k.set_data(as_binary(b, "data")?);
@@ -1711,7 +1711,7 @@ mod tests {
   fn keyframe_zero_dimensions_rejected() {
     let mut d = Document::new();
     d.insert("_id", uuid7_to_bson(Uuid7::new()));
-    d.insert("parent", uuid7_to_bson(Uuid7::new()));
+    d.insert("scene_id", uuid7_to_bson(Uuid7::new()));
     d.insert("pts", media_ts_to_bson(MediaTimestamp::new(0, tb())));
     d.insert("dimensions", dimensions_to_bson(Dimensions::new(0, 0)));
     d.insert("extractor", Bson::Int32(9));

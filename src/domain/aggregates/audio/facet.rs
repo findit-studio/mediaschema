@@ -31,7 +31,7 @@ use crate::domain::{vo::IndexProgress, Uuid7};
 // Audio — the thin facet aggregate
 // ---------------------------------------------------------------------------
 
-/// Audio facet of a `Media`. Parent → `Media` (referenced by `Media.audio`).
+/// Audio facet of a `Media`. FK `media_id → Media` (referenced by `Media.audio_id`).
 ///
 /// Generic over `Id` (default [`Uuid7`]). The `tracks` vector holds refs to
 /// child `AudioTrack`s; `total_segments` is a cheap rollup of
@@ -44,7 +44,7 @@ use crate::domain::{vo::IndexProgress, Uuid7};
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Audio<Id = Uuid7> {
   id: Id,
-  parent: Id,
+  media_id: Id,
   tracks: std::vec::Vec<Id>,
   total_segments: u32,
   track_progress: IndexProgress,
@@ -54,21 +54,21 @@ impl Audio<Uuid7> {
   /// Validating constructor for the canonical `Uuid7` identity type.
   ///
   /// Rejects nil `id` (every aggregate row needs a real identity) and nil
-  /// `parent` (orphaned facet with no `Media` reference). The `tracks`
+  /// `media_id` (orphaned facet with no `Media` reference). The `tracks`
   /// list starts empty, `total_segments` at zero, and `track_progress` as
   /// the empty rollup (`{0, 0, 0}`). All three are populated by
   /// builders/mutators as tracks are attached + segments rolled up — or
   /// assembled directly from a database row.
-  pub fn try_new(id: Uuid7, parent: Uuid7) -> Result<Self, AudioError> {
+  pub fn try_new(id: Uuid7, media_id: Uuid7) -> Result<Self, AudioError> {
     if id.is_nil() {
       return Err(AudioError::NilId);
     }
-    if parent.is_nil() {
-      return Err(AudioError::NilParent);
+    if media_id.is_nil() {
+      return Err(AudioError::NilMediaId);
     }
     Ok(Self {
       id,
-      parent,
+      media_id,
       tracks: std::vec::Vec::new(),
       total_segments: 0,
       track_progress: IndexProgress::new(),
@@ -77,17 +77,17 @@ impl Audio<Uuid7> {
 }
 
 impl<Id> Audio<Id> {
-  /// Canonical identity (also referenced by `Media.audio`).
+  /// Canonical identity (also referenced by `Media.audio_id`).
   #[inline(always)]
   pub const fn id_ref(&self) -> &Id {
     &self.id
   }
 
   /// FK → `Media.id` — the `Media` this facet belongs to. Set at
-  /// construction (identity-bearing — no `with_parent` / `set_parent`).
+  /// construction (identity-bearing — no `with_media_id` / `set_media_id`).
   #[inline(always)]
-  pub const fn parent_ref(&self) -> &Id {
-    &self.parent
+  pub const fn media_id_ref(&self) -> &Id {
+    &self.media_id
   }
 
   /// Refs to child `AudioTrack`s.
@@ -162,10 +162,10 @@ pub enum AudioError {
   /// Supplied `id` was the nil sentinel — not a real identity.
   #[error("Audio id must not be the nil UUID")]
   NilId,
-  /// Supplied `parent` was the nil sentinel — orphaned facet with no
+  /// Supplied `media_id` was the nil sentinel — orphaned facet with no
   /// `Media` reference.
-  #[error("Audio parent (Media) must not be the nil UUID")]
-  NilParent,
+  #[error("Audio `media_id` (FK → Media) must not be the nil UUID")]
+  NilMediaId,
 }
 
 // ===========================================================================
@@ -180,10 +180,10 @@ mod tests {
   #[test]
   fn try_new_happy_path() {
     let id = Uuid7::new();
-    let parent = Uuid7::new();
-    let a = Audio::try_new(id, parent).expect("valid construction must succeed");
+    let media_id = Uuid7::new();
+    let a = Audio::try_new(id, media_id).expect("valid construction must succeed");
     assert_eq!(a.id_ref(), &id);
-    assert_eq!(a.parent_ref(), &parent);
+    assert_eq!(a.media_id_ref(), &media_id);
     assert!(a.tracks_slice().is_empty());
     assert_eq!(a.total_segments(), 0);
     assert_eq!(a.track_progress_ref(), &IndexProgress::new());
@@ -197,17 +197,17 @@ mod tests {
   }
 
   #[test]
-  fn try_new_rejects_nil_parent() {
+  fn try_new_rejects_nil_media_id() {
     let r = Audio::try_new(Uuid7::new(), Uuid7::nil());
-    assert_eq!(r.err(), Some(AudioError::NilParent));
-    assert!(AudioError::NilParent.is_nil_parent());
+    assert_eq!(r.err(), Some(AudioError::NilMediaId));
+    assert!(AudioError::NilMediaId.is_nil_media_id());
   }
 
   #[test]
-  fn parent_ref_returns_constructed_parent() {
-    let parent = Uuid7::new();
-    let a = Audio::try_new(Uuid7::new(), parent).unwrap();
-    assert_eq!(a.parent_ref(), &parent);
+  fn media_id_ref_returns_constructed_media_id() {
+    let media_id = Uuid7::new();
+    let a = Audio::try_new(Uuid7::new(), media_id).unwrap();
+    assert_eq!(a.media_id_ref(), &media_id);
   }
 
   #[test]

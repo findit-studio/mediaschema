@@ -33,7 +33,7 @@ use crate::domain::{
 
 /// One subtitle stream. Generic over `Id` (default [`Uuid7`]).
 ///
-/// **No `Default`** — a `SubtitleTrack` with nil `id`/`parent` would be
+/// **No `Default`** — a `SubtitleTrack` with nil `id`/`subtitle_id` would be
 /// an orphaned stream with no addressable identity. Construct via
 /// [`SubtitleTrack::try_new`]. Fields are private; access via getters
 /// and `with_*` / `set_*` builders/mutators.
@@ -43,7 +43,7 @@ use crate::domain::{
 #[derive(Debug, Clone, PartialEq)]
 pub struct SubtitleTrack<Id = Uuid7> {
   id: Id,
-  parent: Id,
+  subtitle_id: Id,
 
   // Source-locator (not identity).
   stream_index: Option<u32>,
@@ -98,19 +98,19 @@ impl SubtitleTrack<Uuid7> {
   /// Validating constructor for the canonical `Uuid7` identity type.
   ///
   /// Rejects nil `id` (track must be addressable; cues FK to it) and
-  /// nil `parent` (orphaned track with no `Subtitle` facet reference).
+  /// nil `subtitle_id` (orphaned track with no `Subtitle` facet reference).
   /// All other fields take sensible empty/zero defaults — callers
   /// populate via `with_*` / `set_*`.
-  pub fn try_new(id: Uuid7, parent: Uuid7) -> Result<Self, SubtitleTrackError> {
+  pub fn try_new(id: Uuid7, subtitle_id: Uuid7) -> Result<Self, SubtitleTrackError> {
     if id.is_nil() {
       return Err(SubtitleTrackError::NilId);
     }
-    if parent.is_nil() {
-      return Err(SubtitleTrackError::NilParent);
+    if subtitle_id.is_nil() {
+      return Err(SubtitleTrackError::NilSubtitleId);
     }
     Ok(Self {
       id,
-      parent,
+      subtitle_id,
       stream_index: None,
       container_track_id: None,
       // `SubtitleCodec` has no `Default`; the lossless "absent" value is
@@ -154,8 +154,8 @@ impl<Id> SubtitleTrack<Id> {
 
   /// FK → `Subtitle.id`.
   #[inline(always)]
-  pub const fn parent_ref(&self) -> &Id {
-    &self.parent
+  pub const fn subtitle_id_ref(&self) -> &Id {
+    &self.subtitle_id
   }
 
   /// Source-locator stream index (ffmpeg/WebCodecs); `None` for
@@ -830,17 +830,17 @@ impl<Id> SubtitleTrack<Id> {
 }
 
 /// Error returned when [`SubtitleTrack::try_new`] cannot uphold the
-/// non-nil-id / non-nil-parent invariants. Unit-only enum.
+/// non-nil-id / non-nil-subtitle_id invariants. Unit-only enum.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant, thiserror::Error)]
 #[non_exhaustive]
 pub enum SubtitleTrackError {
   /// Supplied `id` was the nil sentinel — cues FK would be orphaned.
   #[error("SubtitleTrack id must not be the nil UUID")]
   NilId,
-  /// Supplied `parent` was the nil sentinel — orphaned track with no
+  /// Supplied `subtitle_id` was the nil sentinel — orphaned track with no
   /// `Subtitle` facet reference.
-  #[error("SubtitleTrack parent (Subtitle) must not be the nil UUID")]
-  NilParent,
+  #[error("SubtitleTrack `subtitle_id` (FK → Subtitle) must not be the nil UUID")]
+  NilSubtitleId,
 }
 
 // ===========================================================================
@@ -854,9 +854,9 @@ mod tests {
 
   #[test]
   fn try_new_happy_path() {
-    let parent = Uuid7::new();
-    let t = SubtitleTrack::try_new(Uuid7::new(), parent).expect("valid construction must succeed");
-    assert_eq!(t.parent_ref(), &parent);
+    let subtitle_id = Uuid7::new();
+    let t = SubtitleTrack::try_new(Uuid7::new(), subtitle_id).expect("valid construction must succeed");
+    assert_eq!(t.subtitle_id_ref(), &subtitle_id);
     assert_eq!(t.codec_ref(), &SubtitleCodec::Other(SmolStr::default()));
     assert_eq!(t.format_ref(), &Format::default());
     assert_eq!(t.origin_ref(), &TrackOrigin::default());
@@ -890,10 +890,10 @@ mod tests {
   }
 
   #[test]
-  fn try_new_rejects_nil_parent() {
+  fn try_new_rejects_nil_subtitle_id() {
     let r = SubtitleTrack::try_new(Uuid7::new(), Uuid7::nil());
-    assert_eq!(r.err(), Some(SubtitleTrackError::NilParent));
-    assert!(SubtitleTrackError::NilParent.is_nil_parent());
+    assert_eq!(r.err(), Some(SubtitleTrackError::NilSubtitleId));
+    assert!(SubtitleTrackError::NilSubtitleId.is_nil_subtitle_id());
   }
 
   #[test]

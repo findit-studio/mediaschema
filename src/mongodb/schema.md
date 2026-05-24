@@ -96,12 +96,12 @@ Indexes: `volume`, `enabled`.
 | field | type |
 | --- | --- |
 | `_id` | `Binary(uuid)` |
-| `parent` | `Binary(uuid)` (`AudioTrack.id`) |
+| `audio_track_id` | `Binary(uuid)` (`AudioTrack.id`) |
 | `cluster_id` | `Int64` |
 | `name` | `String` |
 | `speech_duration` | `Timestamp` or `Null` |
 
-Indexes: `parent`.
+Indexes: `audio_track_id`.
 
 ### `user_tags`
 
@@ -119,14 +119,14 @@ Indexes: `name`.
 | field | type |
 | --- | --- |
 | `_id` | `Binary(uuid)` |
-| `scene` | `Binary(uuid)` (`Scene.id`) |
+| `scene_id` | `Binary(uuid)` (`Scene.id`) |
 | `favorite` | `Boolean` |
 | `user_tags` | `[Binary(uuid)]` |
 | `rating` | `Int32` (0–5) or `Null` |
 | `note` | `String` |
 | `updated_at` | `DateTime` |
 
-Indexes: unique `scene`, plus `favorite`, `rating`.
+Indexes: unique `scene_id`, plus `favorite`, `rating`.
 
 ### `audio_facets`
 
@@ -150,17 +150,17 @@ Full per-recording shape from `schema/audio_track.md` r3 — see
 `musicbrainz_recording_id`, `speakers`, `tags`, `cover_art`, `segments`,
 `provenance`, `index_status`, `index_errors`).
 
-Indexes: `parent`, `is_primary`, `content`, `language`.
+Indexes: `audio_id`, `is_primary`, `content`, `language`.
 
 ### `audio_segments`
 
 | field | type |
 | --- | --- |
 | `_id` | `Binary(uuid)` |
-| `parent` | `Binary(uuid)` |
+| `audio_track_id` | `Binary(uuid)` |
 | `index` | `Int64` |
 | `span` | `TimeRange` |
-| `speaker` | `Binary(uuid)` or `Null` |
+| `speaker_id` | `Binary(uuid)` or `Null` |
 | `text` | `LocalizedText` |
 | `language` | `String` or `Null` |
 | `words` | `[{ text, span, score, language }]` |
@@ -168,7 +168,7 @@ Indexes: `parent`, `is_primary`, `content`, `language`.
 | `avg_logprob` | `Double` or `Null` |
 | `temperature` | `Double` or `Null` |
 
-Indexes: `parent`, unique `(parent, index)`, `speaker`.
+Indexes: `audio_track_id`, unique `(audio_track_id, index)`, `speaker_id`.
 
 ### `video_facets`
 
@@ -193,21 +193,21 @@ the table in `mongodb/mod.rs`: `codec` → `String` slug; `pixel_format` /
 `{ mastering?, content_light? }`; `dovi` →
 `{ profile, level, rpu_present, el_present, bl_signal_compat_id }`.
 
-Indexes: `parent`, `is_primary`.
+Indexes: `video_id`, `is_primary`.
 
 ### `scenes`
 
 | field | type |
 | --- | --- |
 | `_id` | `Binary(uuid)` |
-| `parent` | `Binary(uuid)` (`VideoTrack.id`) |
+| `video_track_id` | `Binary(uuid)` (`VideoTrack.id`) |
 | `index` | `Int64` |
 | `span` | `TimeRange` |
 | `detector` | `Int32` |
 | `keyframes` | `[Binary(uuid)]` |
 | `description` | `String` |
 
-Indexes: `parent`, unique `(parent, index)`.
+Indexes: `video_track_id`, unique `(video_track_id, index)`.
 
 ### `keyframes`
 
@@ -218,32 +218,32 @@ See `video.rs`'s detection-VO helpers (`detection_to_bson`,
 `body_poses`, `hand_poses`, `body_poses_3d`, `instance_masks`,
 `face_rectangles`, `face_landmarks`, `segmentation_masks`).
 
-Indexes: `parent`.
+Indexes: `scene_id`.
 
 ### `subtitle_facets`
 
 | field | type |
 | --- | --- |
 | `_id` | `Binary(uuid)` |
-| `parent` | `Binary(uuid)` (`Media.id`) |
+| `media_id` | `Binary(uuid)` (`Media.id`) |
 | `tracks` | `[Binary(uuid)]` |
 | `track_progress` | `{ total, indexed, failed }` |
 
-Indexes: `parent`.
+Indexes: `media_id`.
 
 ### `subtitle_tracks`
 
 Per `schema/subtitle_track.md` r3; see `subtitle.rs` for the full
 top-to-bottom shape.
 
-Indexes: `parent`, `is_primary`, `language`.
+Indexes: `subtitle_id`, `is_primary`, `language`.
 
 ### `subtitle_cues`
 
 | field | type |
 | --- | --- |
 | `_id` | `Binary(uuid)` |
-| `parent` | `Binary(uuid)` (`SubtitleTrack.id`) |
+| `subtitle_track_id` | `Binary(uuid)` (`SubtitleTrack.id`) |
 | `index` | `Int64` |
 | `span` | `TimeRange` |
 | `text` | `LocalizedText` |
@@ -251,4 +251,4 @@ Indexes: `parent`, `is_primary`, `language`.
 | `image` | `Binary(generic)` (empty = absent) |
 | `ocr_text` | `LocalizedText` |
 
-Indexes: `parent`, unique `(parent, index)`.
+Indexes: `subtitle_track_id`, unique `(subtitle_track_id, index)`.

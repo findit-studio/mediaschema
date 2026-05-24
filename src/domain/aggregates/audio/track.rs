@@ -128,17 +128,17 @@ const fn validate_status_topology(s: AudioIndexStatus) -> Result<(), AudioTrackE
 // AudioTrack
 // ---------------------------------------------------------------------------
 
-/// One audio stream of an `Audio` facet (`parent → Audio.id`).
+/// One audio stream of an `Audio` facet (`audio_id → Audio.id`).
 ///
 /// Generic over `Id` (default [`Uuid7`]). See module docs for the
 /// `mediaframe` descriptor / VO types used by its fields.
 ///
-/// **No `Default`** — defaulting to a nil id + nil parent is an orphan
+/// **No `Default`** — defaulting to a nil id + nil audio_id is an orphan
 /// state. Use [`AudioTrack::try_new`].
 #[derive(Debug, Clone, PartialEq)]
 pub struct AudioTrack<Id = Uuid7> {
   id: Id,
-  parent: Id,
+  audio_id: Id,
   stream_index: Option<u32>,
   container_track_id: Option<u64>,
   codec: AudioCodec,
@@ -182,19 +182,19 @@ impl AudioTrack<Uuid7> {
   /// Validating constructor for the canonical `Uuid7` identity type.
   ///
   /// Rejects nil `id` (every aggregate row needs a real identity) and nil
-  /// `parent` (orphan track with no `Audio` facet). All descriptive fields
+  /// `audio_id` (orphan track with no `Audio` facet). All descriptive fields
   /// start in their `""` / `None` / `0` / `false` neutral state and are
   /// filled by builders/mutators as the indexing pipeline runs.
-  pub fn try_new(id: Uuid7, parent: Uuid7) -> Result<Self, AudioTrackError> {
+  pub fn try_new(id: Uuid7, audio_id: Uuid7) -> Result<Self, AudioTrackError> {
     if id.is_nil() {
       return Err(AudioTrackError::NilId);
     }
-    if parent.is_nil() {
-      return Err(AudioTrackError::NilParent);
+    if audio_id.is_nil() {
+      return Err(AudioTrackError::NilAudioId);
     }
     Ok(Self {
       id,
-      parent,
+      audio_id,
       stream_index: None,
       container_track_id: None,
       codec: AudioCodec::Other(SmolStr::default()),
@@ -241,8 +241,8 @@ impl<Id> AudioTrack<Id> {
 
   /// FK → `Audio.id`.
   #[inline(always)]
-  pub const fn parent_ref(&self) -> &Id {
-    &self.parent
+  pub const fn audio_id_ref(&self) -> &Id {
+    &self.audio_id
   }
 
   /// Source stream index (FFmpeg/container locator; not identity).
@@ -1067,10 +1067,10 @@ pub enum AudioTrackError {
   /// Supplied `id` was the nil sentinel.
   #[error("AudioTrack id must not be the nil UUID")]
   NilId,
-  /// Supplied `parent` was the nil sentinel — orphaned track with no
+  /// Supplied `audio_id` was the nil sentinel — orphaned track with no
   /// `Audio` facet reference.
-  #[error("AudioTrack parent (Audio) must not be the nil UUID")]
-  NilParent,
+  #[error("AudioTrack `audio_id` (FK → Audio) must not be the nil UUID")]
+  NilAudioId,
   /// A `Some(_)` `speech_ratio` was non-finite (NaN / ±∞) or outside the
   /// closed `[0,1]` interval.
   #[error("AudioTrack speech_ratio must be finite and within [0, 1]")]
@@ -1116,9 +1116,9 @@ mod tests {
 
   #[test]
   fn try_new_happy_path() {
-    let parent = Uuid7::new();
-    let t = AudioTrack::try_new(Uuid7::new(), parent).expect("valid construction must succeed");
-    assert_eq!(t.parent_ref(), &parent);
+    let audio_id = Uuid7::new();
+    let t = AudioTrack::try_new(Uuid7::new(), audio_id).expect("valid construction must succeed");
+    assert_eq!(t.audio_id_ref(), &audio_id);
     assert_eq!(t.sample_rate(), 0);
     assert_eq!(t.channels(), 0);
     assert!(t.codec_ref().as_str().is_empty());
@@ -1138,10 +1138,10 @@ mod tests {
   }
 
   #[test]
-  fn try_new_rejects_nil_parent() {
+  fn try_new_rejects_nil_audio_id() {
     let r = AudioTrack::try_new(Uuid7::new(), Uuid7::nil());
-    assert_eq!(r.err(), Some(AudioTrackError::NilParent));
-    assert!(AudioTrackError::NilParent.is_nil_parent());
+    assert_eq!(r.err(), Some(AudioTrackError::NilAudioId));
+    assert!(AudioTrackError::NilAudioId.is_nil_audio_id());
   }
 
   #[test]

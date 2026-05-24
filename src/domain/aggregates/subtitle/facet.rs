@@ -24,7 +24,7 @@ use crate::domain::{vo::IndexProgress, Uuid7};
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Subtitle<Id = Uuid7> {
   id: Id,
-  parent: Id,
+  media_id: Id,
   tracks: std::vec::Vec<Id>,
   track_progress: IndexProgress,
 }
@@ -33,20 +33,20 @@ impl Subtitle<Uuid7> {
   /// Validating constructor for the canonical `Uuid7` identity type.
   ///
   /// Rejects nil `id` (the facet must be addressable from `Media`) and
-  /// nil `parent` (orphaned facet with no `Media` reference). The
+  /// nil `media_id` (orphaned facet with no `Media` reference). The
   /// `tracks` list starts empty and `track_progress` starts at zero —
   /// callers populate via `with_tracks` / `with_track_progress` once
   /// the per-track aggregates are landed.
-  pub fn try_new(id: Uuid7, parent: Uuid7) -> Result<Self, SubtitleError> {
+  pub fn try_new(id: Uuid7, media_id: Uuid7) -> Result<Self, SubtitleError> {
     if id.is_nil() {
       return Err(SubtitleError::NilId);
     }
-    if parent.is_nil() {
-      return Err(SubtitleError::NilParent);
+    if media_id.is_nil() {
+      return Err(SubtitleError::NilMediaId);
     }
     Ok(Self {
       id,
-      parent,
+      media_id,
       tracks: std::vec::Vec::new(),
       track_progress: IndexProgress::new(),
     })
@@ -62,8 +62,8 @@ impl<Id> Subtitle<Id> {
 
   /// FK → `Media.id`.
   #[inline(always)]
-  pub const fn parent_ref(&self) -> &Id {
-    &self.parent
+  pub const fn media_id_ref(&self) -> &Id {
+    &self.media_id
   }
 
   /// Forward refs to child `SubtitleTrack`s.
@@ -111,18 +111,18 @@ impl<Id> Subtitle<Id> {
 }
 
 /// Error returned when [`Subtitle::try_new`] cannot uphold the
-/// non-nil-id / non-nil-parent invariants. Unit-only enum.
+/// non-nil-id / non-nil-media_id invariants. Unit-only enum.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant, thiserror::Error)]
 #[non_exhaustive]
 pub enum SubtitleError {
-  /// Supplied `id` was the nil sentinel — would shadow the parent
+  /// Supplied `id` was the nil sentinel — would shadow the media_id
   /// `Media`'s real subtitle facet.
   #[error("Subtitle id must not be the nil UUID")]
   NilId,
-  /// Supplied `parent` was the nil sentinel — orphaned facet with no
+  /// Supplied `media_id` was the nil sentinel — orphaned facet with no
   /// `Media` reference.
-  #[error("Subtitle parent (Media) must not be the nil UUID")]
-  NilParent,
+  #[error("Subtitle `media_id` (FK → Media) must not be the nil UUID")]
+  NilMediaId,
 }
 
 // ===========================================================================
@@ -135,9 +135,9 @@ mod tests {
 
   #[test]
   fn try_new_happy_path() {
-    let parent = Uuid7::new();
-    let s = Subtitle::try_new(Uuid7::new(), parent).expect("valid construction must succeed");
-    assert_eq!(s.parent_ref(), &parent);
+    let media_id = Uuid7::new();
+    let s = Subtitle::try_new(Uuid7::new(), media_id).expect("valid construction must succeed");
+    assert_eq!(s.media_id_ref(), &media_id);
     assert!(s.tracks_slice().is_empty());
     assert_eq!(s.track_progress_ref(), &IndexProgress::new());
   }
@@ -150,10 +150,10 @@ mod tests {
   }
 
   #[test]
-  fn try_new_rejects_nil_parent() {
+  fn try_new_rejects_nil_media_id() {
     let r = Subtitle::try_new(Uuid7::new(), Uuid7::nil());
-    assert_eq!(r.err(), Some(SubtitleError::NilParent));
-    assert!(SubtitleError::NilParent.is_nil_parent());
+    assert_eq!(r.err(), Some(SubtitleError::NilMediaId));
+    assert!(SubtitleError::NilMediaId.is_nil_media_id());
   }
 
   #[test]

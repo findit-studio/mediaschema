@@ -70,7 +70,7 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct SqliteVideoRow {
   pub id: std::vec::Vec<u8>,
-  pub parent: std::vec::Vec<u8>,
+  pub media_id: std::vec::Vec<u8>,
   pub total_scenes: i64,
   pub track_progress_total: i64,
   pub track_progress_indexed: i64,
@@ -82,7 +82,7 @@ impl From<&Video<Uuid7>> for SqliteVideoRow {
     let p = v.track_progress_ref();
     Self {
       id: v.id_ref().as_bytes().to_vec(),
-      parent: v.parent_ref().as_bytes().to_vec(),
+      media_id: v.media_id_ref().as_bytes().to_vec(),
       total_scenes: i64::from(v.total_scenes()),
       track_progress_total: i64::from(p.total()),
       track_progress_indexed: i64::from(p.indexed()),
@@ -96,14 +96,14 @@ impl TryFrom<SqliteVideoRow> for Video<Uuid7> {
 
   fn try_from(r: SqliteVideoRow) -> Result<Self, Self::Error> {
     let id = bytes_to_uuid7(&r.id)?;
-    let parent = bytes_to_uuid7(&r.parent)?;
+    let media_id = bytes_to_uuid7(&r.media_id)?;
     let total_scenes = u32_from_i64(r.total_scenes, "Video.total_scenes")?;
     let progress = IndexProgress::from_parts(
       u32_from_i64(r.track_progress_total, "Video.track_progress_total")?,
       u32_from_i64(r.track_progress_indexed, "Video.track_progress_indexed")?,
       u32_from_i64(r.track_progress_failed, "Video.track_progress_failed")?,
     );
-    let v = Video::try_new(id, parent)
+    let v = Video::try_new(id, media_id)
       .map_err(|e: VideoError| SqlxError::DomainConstructorRejected(e.to_string()))?;
     Ok(
       v.with_total_scenes(total_scenes)
@@ -228,7 +228,7 @@ pub struct SqliteVideoTrackRow {
 /// One `video_track_index_error` child row.
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct SqliteVideoTrackIndexErrorRow {
-  pub video_track: std::vec::Vec<u8>,
+  pub video_track_id: std::vec::Vec<u8>,
   pub ordinal: i64,
   pub code: i64,
   pub message: String,
@@ -256,7 +256,7 @@ impl From<&VideoTrack<Uuid7>>
     let duration = t.duration_ref();
     let row = SqliteVideoTrackRow {
       id: id.clone(),
-      video_id: t.parent_ref().as_bytes().to_vec(),
+      video_id: t.video_id_ref().as_bytes().to_vec(),
       stream_index: t.stream_index().map(i64::from),
       container_track_id: t.container_track_id().map(|v| v as i64),
       start_pts: start_pts.map(mediatime::Timestamp::pts),
@@ -330,7 +330,7 @@ impl From<&VideoTrack<Uuid7>>
       .iter()
       .enumerate()
       .map(|(i, e)| SqliteVideoTrackIndexErrorRow {
-        video_track: id.clone(),
+        video_track_id: id.clone(),
         ordinal: i as i64,
         code: i64::from(e.code().as_u32()),
         message: e.message().to_owned(),
@@ -355,8 +355,8 @@ impl
     ),
   ) -> Result<Self, Self::Error> {
     let id = bytes_to_uuid7(&r.id)?;
-    let parent = bytes_to_uuid7(&r.video_id)?;
-    let mut t = VideoTrack::try_new(id, parent)
+    let video_id = bytes_to_uuid7(&r.video_id)?;
+    let mut t = VideoTrack::try_new(id, video_id)
       .map_err(|e: VideoTrackError| SqlxError::DomainConstructorRejected(e.to_string()))?;
 
     // Source locators.
@@ -608,7 +608,7 @@ impl
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct SqliteSceneRow {
   pub id: std::vec::Vec<u8>,
-  pub parent: std::vec::Vec<u8>,
+  pub video_track_id: std::vec::Vec<u8>,
   pub index: i64,
   pub span_start_pts: i64,
   pub span_end_pts: i64,
@@ -621,7 +621,7 @@ impl From<&Scene<Uuid7>> for SqliteSceneRow {
     let span = s.span_ref();
     Self {
       id: s.id_ref().as_bytes().to_vec(),
-      parent: s.parent_ref().as_bytes().to_vec(),
+      video_track_id: s.video_track_id_ref().as_bytes().to_vec(),
       index: i64::from(s.index()),
       span_start_pts: span.start_pts(),
       span_end_pts: span.end_pts(),
@@ -638,7 +638,7 @@ pub fn scene_from_row(
   parent_timebase: mediatime::Timebase,
 ) -> Result<Scene<Uuid7>, SqlxError> {
   let id = bytes_to_uuid7(&r.id)?;
-  let parent = bytes_to_uuid7(&r.parent)?;
+  let video_track_id = bytes_to_uuid7(&r.video_track_id)?;
   let index = u32_from_i64(r.index, "Scene.index")?;
   let span = mediatime::TimeRange::try_new(r.span_start_pts, r.span_end_pts, parent_timebase)
     .ok_or_else(|| {
@@ -648,7 +648,7 @@ pub fn scene_from_row(
       ))
     })?;
   let detector = parse_scene_detector(&r.detector)?;
-  let s = Scene::try_new(id, parent, index, span, detector)
+  let s = Scene::try_new(id, video_track_id, index, span, detector)
     .map_err(|e: SceneError| SqlxError::DomainConstructorRejected(e.to_string()))?
     .with_description(r.description);
   Ok(s)
@@ -667,7 +667,7 @@ pub fn scene_from_row(
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeRow {
   pub id: std::vec::Vec<u8>,
-  pub parent: std::vec::Vec<u8>,
+  pub scene_id: std::vec::Vec<u8>,
   pub pts: i64,
   pub data: std::vec::Vec<u8>,
   pub mime: String,
@@ -692,7 +692,7 @@ pub struct SqliteKeyframeRow {
 /// `keyframe_classification` — apple-vision `Detection` `{label,confidence}`.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeClassificationRow {
-  pub keyframe: std::vec::Vec<u8>,
+  pub keyframe_id: std::vec::Vec<u8>,
   pub ordinal: i64,
   pub label: String,
   pub confidence: f32,
@@ -701,7 +701,7 @@ pub struct SqliteKeyframeClassificationRow {
 /// `keyframe_object` — `ObjectDetection`: `Detection` + optional bbox.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeObjectRow {
-  pub keyframe: std::vec::Vec<u8>,
+  pub keyframe_id: std::vec::Vec<u8>,
   pub ordinal: i64,
   pub label: String,
   pub confidence: f32,
@@ -715,7 +715,7 @@ pub struct SqliteKeyframeObjectRow {
 /// `keyframe_action` — apple-vision body-pose-derived action `Detection`.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeActionRow {
-  pub keyframe: std::vec::Vec<u8>,
+  pub keyframe_id: std::vec::Vec<u8>,
   pub ordinal: i64,
   pub label: String,
   pub confidence: f32,
@@ -724,7 +724,7 @@ pub struct SqliteKeyframeActionRow {
 /// `keyframe_text_detection` — OCR text + confidence + bbox.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeTextDetectionRow {
-  pub keyframe: std::vec::Vec<u8>,
+  pub keyframe_id: std::vec::Vec<u8>,
   pub ordinal: i64,
   pub text: String,
   pub confidence: f32,
@@ -737,7 +737,7 @@ pub struct SqliteKeyframeTextDetectionRow {
 /// `keyframe_barcode` — payload + symbology + confidence + bbox.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeBarcodeRow {
-  pub keyframe: std::vec::Vec<u8>,
+  pub keyframe_id: std::vec::Vec<u8>,
   pub ordinal: i64,
   pub payload: String,
   pub symbology: String,
@@ -752,7 +752,7 @@ pub struct SqliteKeyframeBarcodeRow {
 /// `0` for attention, `1` for objectness).
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeSaliencyRow {
-  pub keyframe: std::vec::Vec<u8>,
+  pub keyframe_id: std::vec::Vec<u8>,
   pub kind: i64,
   pub ordinal: i64,
   pub bbox_x: f32,
@@ -765,7 +765,7 @@ pub struct SqliteKeyframeSaliencyRow {
 /// `keyframe_document_segment` — 4 normalised corners + confidence.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeDocumentSegmentRow {
-  pub keyframe: std::vec::Vec<u8>,
+  pub keyframe_id: std::vec::Vec<u8>,
   pub ordinal: i64,
   pub tl_x: f32,
   pub tl_y: f32,
@@ -781,7 +781,7 @@ pub struct SqliteKeyframeDocumentSegmentRow {
 /// `keyframe_color` — colorthief dominant colour.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeColorRow {
-  pub keyframe: std::vec::Vec<u8>,
+  pub keyframe_id: std::vec::Vec<u8>,
   pub ordinal: i64,
   pub rgba: i64,
   pub name: String,
@@ -795,7 +795,7 @@ pub struct SqliteKeyframeColorRow {
 /// shape). `scope` = `0` human-subject, `1` animal-subject.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeSubjectRow {
-  pub keyframe: std::vec::Vec<u8>,
+  pub keyframe_id: std::vec::Vec<u8>,
   pub scope: i64,
   pub ordinal: i64,
   pub label: String,
@@ -811,7 +811,7 @@ pub struct SqliteKeyframeSubjectRow {
 /// `face_rectangles`.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeFaceRow {
-  pub keyframe: std::vec::Vec<u8>,
+  pub keyframe_id: std::vec::Vec<u8>,
   pub kind: i64,
   pub ordinal: i64,
   pub bbox_x: f32,
@@ -829,7 +829,7 @@ pub struct SqliteKeyframeFaceRow {
 /// share the shape). `scope` = `0` human, `1` animal.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeBodyPoseRow {
-  pub keyframe: std::vec::Vec<u8>,
+  pub keyframe_id: std::vec::Vec<u8>,
   pub scope: i64,
   pub ordinal: i64,
   pub bbox_x: f32,
@@ -843,7 +843,7 @@ pub struct SqliteKeyframeBodyPoseRow {
 /// `scope` = `0` human-body, `1` animal-body, `2` hand.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeBodyPoseJointRow {
-  pub keyframe: std::vec::Vec<u8>,
+  pub keyframe_id: std::vec::Vec<u8>,
   pub scope: i64,
   pub parent_ordinal: i64,
   pub ordinal: i64,
@@ -856,7 +856,7 @@ pub struct SqliteKeyframeBodyPoseJointRow {
 /// `keyframe_hand_pose` — 2-D hand-pose detection (humans only).
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeHandPoseRow {
-  pub keyframe: std::vec::Vec<u8>,
+  pub keyframe_id: std::vec::Vec<u8>,
   pub ordinal: i64,
   pub bbox_x: f32,
   pub bbox_y: f32,
@@ -869,7 +869,7 @@ pub struct SqliteKeyframeHandPoseRow {
 /// `keyframe_body_pose_3d` — 3-D body-pose detection.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeBodyPose3DRow {
-  pub keyframe: std::vec::Vec<u8>,
+  pub keyframe_id: std::vec::Vec<u8>,
   pub ordinal: i64,
   pub confidence: f32,
   pub body_height: f32,
@@ -879,7 +879,7 @@ pub struct SqliteKeyframeBodyPose3DRow {
 /// `keyframe_body_pose_3d_joint` — joint of a 3-D body-pose row.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeBodyPose3DJointRow {
-  pub keyframe: std::vec::Vec<u8>,
+  pub keyframe_id: std::vec::Vec<u8>,
   pub parent_ordinal: i64,
   pub ordinal: i64,
   pub name: String,
@@ -893,7 +893,7 @@ pub struct SqliteKeyframeBodyPose3DJointRow {
 /// `0` per-person instance mask, `1` whole-frame segmentation mask.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeMaskRow {
-  pub keyframe: std::vec::Vec<u8>,
+  pub keyframe_id: std::vec::Vec<u8>,
   pub kind: i64,
   pub ordinal: i64,
   pub bbox_x: f32,
@@ -911,7 +911,7 @@ pub struct SqliteKeyframeMaskRow {
 /// face-landmark detection.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeFaceLandmarksRow {
-  pub keyframe: std::vec::Vec<u8>,
+  pub keyframe_id: std::vec::Vec<u8>,
   pub ordinal: i64,
   pub bbox_x: f32,
   pub bbox_y: f32,
@@ -924,7 +924,7 @@ pub struct SqliteKeyframeFaceLandmarksRow {
 /// face-landmarks row.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeFaceLandmarkRegionRow {
-  pub keyframe: std::vec::Vec<u8>,
+  pub keyframe_id: std::vec::Vec<u8>,
   pub parent_ordinal: i64,
   pub ordinal: i64,
   pub name: String,
@@ -933,7 +933,7 @@ pub struct SqliteKeyframeFaceLandmarkRegionRow {
 /// `keyframe_face_landmark_point` — a normalised point inside a region.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeFaceLandmarkPointRow {
-  pub keyframe: std::vec::Vec<u8>,
+  pub keyframe_id: std::vec::Vec<u8>,
   pub parent_ordinal: i64,
   pub region_ordinal: i64,
   pub ordinal: i64,
@@ -947,7 +947,7 @@ pub struct SqliteKeyframeFaceLandmarkPointRow {
 /// `4` = mood, `5` = emotion, `6` = lighting.
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct SqliteKeyframeVlmLabelRow {
-  pub keyframe: std::vec::Vec<u8>,
+  pub keyframe_id: std::vec::Vec<u8>,
   pub kind: i64,
   pub ordinal: i64,
   pub src: String,
@@ -993,7 +993,7 @@ impl From<&Keyframe<Uuid7>> for SqliteKeyframeRows {
     let horizon = k.horizon_ref();
     let row = SqliteKeyframeRow {
       id: id.clone(),
-      parent: k.parent_ref().as_bytes().to_vec(),
+      scene_id: k.scene_id_ref().as_bytes().to_vec(),
       pts: pts.pts(),
       data: k.data().to_vec(),
       mime: k.mime().to_owned(),
@@ -1016,7 +1016,7 @@ impl From<&Keyframe<Uuid7>> for SqliteKeyframeRows {
 
     for (ordinal, d) in k.classifications_slice().iter().enumerate() {
       out.classifications.push(SqliteKeyframeClassificationRow {
-        keyframe: id.clone(),
+        keyframe_id: id.clone(),
         ordinal: ordinal as i64,
         label: d.label().to_owned(),
         confidence: d.confidence(),
@@ -1025,7 +1025,7 @@ impl From<&Keyframe<Uuid7>> for SqliteKeyframeRows {
     for (ordinal, o) in k.objects_slice().iter().enumerate() {
       let bbox = o.bbox_ref();
       out.objects.push(SqliteKeyframeObjectRow {
-        keyframe: id.clone(),
+        keyframe_id: id.clone(),
         ordinal: ordinal as i64,
         label: o.detection_ref().label().to_owned(),
         confidence: o.detection_ref().confidence(),
@@ -1038,7 +1038,7 @@ impl From<&Keyframe<Uuid7>> for SqliteKeyframeRows {
     }
     for (ordinal, a) in k.actions_slice().iter().enumerate() {
       out.actions.push(SqliteKeyframeActionRow {
-        keyframe: id.clone(),
+        keyframe_id: id.clone(),
         ordinal: ordinal as i64,
         label: a.detection_ref().label().to_owned(),
         confidence: a.detection_ref().confidence(),
@@ -1047,7 +1047,7 @@ impl From<&Keyframe<Uuid7>> for SqliteKeyframeRows {
     for (ordinal, t) in k.text_detections_slice().iter().enumerate() {
       let bb = t.bbox_ref();
       out.text_detections.push(SqliteKeyframeTextDetectionRow {
-        keyframe: id.clone(),
+        keyframe_id: id.clone(),
         ordinal: ordinal as i64,
         text: t.text().to_owned(),
         confidence: t.confidence(),
@@ -1060,7 +1060,7 @@ impl From<&Keyframe<Uuid7>> for SqliteKeyframeRows {
     for (ordinal, b) in k.barcodes_slice().iter().enumerate() {
       let bb = b.bbox_ref();
       out.barcodes.push(SqliteKeyframeBarcodeRow {
-        keyframe: id.clone(),
+        keyframe_id: id.clone(),
         ordinal: ordinal as i64,
         payload: b.payload().to_owned(),
         symbology: b.symbology().to_owned(),
@@ -1081,7 +1081,7 @@ impl From<&Keyframe<Uuid7>> for SqliteKeyframeRows {
       out
         .document_segments
         .push(SqliteKeyframeDocumentSegmentRow {
-          keyframe: id.clone(),
+          keyframe_id: id.clone(),
           ordinal: ordinal as i64,
           tl_x: d.top_left().0,
           tl_y: d.top_left().1,
@@ -1096,7 +1096,7 @@ impl From<&Keyframe<Uuid7>> for SqliteKeyframeRows {
     }
     for (ordinal, c) in k.colors_slice().iter().enumerate() {
       out.colors.push(SqliteKeyframeColorRow {
-        keyframe: id.clone(),
+        keyframe_id: id.clone(),
         ordinal: ordinal as i64,
         rgba: i64::from(c.rgb().bits()),
         name: c.name().to_owned(),
@@ -1143,7 +1143,7 @@ impl From<&Keyframe<Uuid7>> for SqliteKeyframeRows {
     for (ordinal, hp) in humans.hand_poses_slice().iter().enumerate() {
       let bb = hp.bbox_ref();
       out.hand_poses.push(SqliteKeyframeHandPoseRow {
-        keyframe: id.clone(),
+        keyframe_id: id.clone(),
         ordinal: ordinal as i64,
         bbox_x: bb.x(),
         bbox_y: bb.y(),
@@ -1154,7 +1154,7 @@ impl From<&Keyframe<Uuid7>> for SqliteKeyframeRows {
       });
       for (jord, j) in hp.joints_slice().iter().enumerate() {
         out.body_pose_joints.push(SqliteKeyframeBodyPoseJointRow {
-          keyframe: id.clone(),
+          keyframe_id: id.clone(),
           scope: 2,
           parent_ordinal: ordinal as i64,
           ordinal: jord as i64,
@@ -1167,7 +1167,7 @@ impl From<&Keyframe<Uuid7>> for SqliteKeyframeRows {
     }
     for (ordinal, b3) in humans.body_poses_3d_slice().iter().enumerate() {
       out.body_poses_3d.push(SqliteKeyframeBodyPose3DRow {
-        keyframe: id.clone(),
+        keyframe_id: id.clone(),
         ordinal: ordinal as i64,
         confidence: b3.confidence(),
         body_height: b3.body_height(),
@@ -1177,7 +1177,7 @@ impl From<&Keyframe<Uuid7>> for SqliteKeyframeRows {
         out
           .body_pose_3d_joints
           .push(SqliteKeyframeBodyPose3DJointRow {
-            keyframe: id.clone(),
+            keyframe_id: id.clone(),
             parent_ordinal: ordinal as i64,
             ordinal: jord as i64,
             name: j.name().to_owned(),
@@ -1192,7 +1192,7 @@ impl From<&Keyframe<Uuid7>> for SqliteKeyframeRows {
       let bb = m.bbox_ref();
       let d = m.dimensions();
       out.masks.push(SqliteKeyframeMaskRow {
-        keyframe: id.clone(),
+        keyframe_id: id.clone(),
         kind: 0,
         ordinal: ordinal as i64,
         bbox_x: bb.x(),
@@ -1210,7 +1210,7 @@ impl From<&Keyframe<Uuid7>> for SqliteKeyframeRows {
       let bb = m.bbox_ref();
       let d = m.dimensions();
       out.masks.push(SqliteKeyframeMaskRow {
-        keyframe: id.clone(),
+        keyframe_id: id.clone(),
         kind: 1,
         ordinal: ordinal as i64,
         bbox_x: bb.x(),
@@ -1227,7 +1227,7 @@ impl From<&Keyframe<Uuid7>> for SqliteKeyframeRows {
     for (ordinal, fl) in humans.face_landmarks_slice().iter().enumerate() {
       let bb = fl.bbox_ref();
       out.face_landmarks.push(SqliteKeyframeFaceLandmarksRow {
-        keyframe: id.clone(),
+        keyframe_id: id.clone(),
         ordinal: ordinal as i64,
         bbox_x: bb.x(),
         bbox_y: bb.y(),
@@ -1239,7 +1239,7 @@ impl From<&Keyframe<Uuid7>> for SqliteKeyframeRows {
         out
           .face_landmark_regions
           .push(SqliteKeyframeFaceLandmarkRegionRow {
-            keyframe: id.clone(),
+            keyframe_id: id.clone(),
             parent_ordinal: ordinal as i64,
             ordinal: rord as i64,
             name: region.name().to_owned(),
@@ -1248,7 +1248,7 @@ impl From<&Keyframe<Uuid7>> for SqliteKeyframeRows {
           out
             .face_landmark_points
             .push(SqliteKeyframeFaceLandmarkPointRow {
-              keyframe: id.clone(),
+              keyframe_id: id.clone(),
               parent_ordinal: ordinal as i64,
               region_ordinal: rord as i64,
               ordinal: pord as i64,
@@ -1284,14 +1284,14 @@ pub fn keyframe_from_rows(
       .keyframe
       .ok_or_else(|| SqlxError::DomainConstructorRejected("Keyframe row is missing".to_owned()))?;
     let id = bytes_to_uuid7(&row.id)?;
-    let parent = bytes_to_uuid7(&row.parent)?;
+    let scene_id = bytes_to_uuid7(&row.scene_id)?;
     let pts = mediatime::Timestamp::new(row.pts, parent_timebase);
     let dimensions = Dimensions::new(
       u32_from_i64(row.width, "Keyframe.width")?,
       u32_from_i64(row.height, "Keyframe.height")?,
     );
     let extractor = parse_keyframe_extractor(&row.extractor)?;
-    let mut kf = Keyframe::try_new(id, parent, pts, dimensions, extractor)
+    let mut kf = Keyframe::try_new(id, scene_id, pts, dimensions, extractor)
       .map_err(|e: KeyframeError| SqlxError::DomainConstructorRejected(e.to_string()))?
       .with_mime(row.mime)
       .with_data(Bytes::from(row.data))
@@ -1581,14 +1581,14 @@ fn height_estimation_from_i16(n: i16) -> Result<BodyPose3DHeightEstimation, Sqlx
 
 fn push_saliency(
   out: &mut std::vec::Vec<SqliteKeyframeSaliencyRow>,
-  keyframe: &[u8],
+  keyframe_id: &[u8],
   kind: i64,
   ordinal: usize,
   s: &SaliencyRegion,
 ) {
   let bb = s.bbox_ref();
   out.push(SqliteKeyframeSaliencyRow {
-    keyframe: keyframe.to_vec(),
+    keyframe_id: keyframe_id.to_vec(),
     kind: kind as i64,
     ordinal: ordinal as i64,
     bbox_x: bb.x(),
@@ -1601,14 +1601,14 @@ fn push_saliency(
 
 fn push_subject(
   out: &mut std::vec::Vec<SqliteKeyframeSubjectRow>,
-  keyframe: &[u8],
+  keyframe_id: &[u8],
   scope: i64,
   ordinal: usize,
   s: &SubjectDetection,
 ) {
   let bb = s.bbox_ref();
   out.push(SqliteKeyframeSubjectRow {
-    keyframe: keyframe.to_vec(),
+    keyframe_id: keyframe_id.to_vec(),
     scope: scope as i64,
     ordinal: ordinal as i64,
     label: s.detection_ref().label().to_owned(),
@@ -1622,14 +1622,14 @@ fn push_subject(
 
 fn push_face(
   out: &mut std::vec::Vec<SqliteKeyframeFaceRow>,
-  keyframe: &[u8],
+  keyframe_id: &[u8],
   kind: i64,
   ordinal: usize,
   f: &FaceDetection,
 ) {
   let bb = f.bbox_ref();
   out.push(SqliteKeyframeFaceRow {
-    keyframe: keyframe.to_vec(),
+    keyframe_id: keyframe_id.to_vec(),
     kind: kind as i64,
     ordinal: ordinal as i64,
     bbox_x: bb.x(),
@@ -1647,14 +1647,14 @@ fn push_face(
 fn push_body_pose(
   rows: &mut std::vec::Vec<SqliteKeyframeBodyPoseRow>,
   joint_rows: &mut std::vec::Vec<SqliteKeyframeBodyPoseJointRow>,
-  keyframe: &[u8],
+  keyframe_id: &[u8],
   scope: i64,
   ordinal: usize,
   bp: &BodyPoseDetection,
 ) {
   let bb = bp.bbox_ref();
   rows.push(SqliteKeyframeBodyPoseRow {
-    keyframe: keyframe.to_vec(),
+    keyframe_id: keyframe_id.to_vec(),
     scope: scope as i64,
     ordinal: ordinal as i64,
     bbox_x: bb.x(),
@@ -1665,7 +1665,7 @@ fn push_body_pose(
   });
   for (jord, j) in bp.joints_slice().iter().enumerate() {
     joint_rows.push(SqliteKeyframeBodyPoseJointRow {
-      keyframe: keyframe.to_vec(),
+      keyframe_id: keyframe_id.to_vec(),
       scope: scope as i64,
       parent_ordinal: ordinal as i64,
       ordinal: jord as i64,
@@ -1679,13 +1679,13 @@ fn push_body_pose(
 
 fn push_vlm(
   out: &mut std::vec::Vec<SqliteKeyframeVlmLabelRow>,
-  keyframe: &[u8],
+  keyframe_id: &[u8],
   kind: i64,
   labels: &[LocalizedText],
 ) {
   for (ordinal, l) in labels.iter().enumerate() {
     out.push(SqliteKeyframeVlmLabelRow {
-      keyframe: keyframe.to_vec(),
+      keyframe_id: keyframe_id.to_vec(),
       kind: kind as i64,
       ordinal: ordinal as i64,
       src: l.src().to_owned(),
@@ -2093,7 +2093,7 @@ fn require_timebase(
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct SqliteVideoRowRef<'r> {
   pub id: &'r [u8],
-  pub parent: &'r [u8],
+  pub media_id: &'r [u8],
   pub total_scenes: i64,
   pub track_progress_total: i64,
   pub track_progress_indexed: i64,
@@ -2105,7 +2105,7 @@ impl SqliteVideoRow {
   pub fn as_ref(&self) -> SqliteVideoRowRef<'_> {
     SqliteVideoRowRef {
       id: &self.id,
-      parent: &self.parent,
+      media_id: &self.media_id,
       total_scenes: self.total_scenes,
       track_progress_total: self.track_progress_total,
       track_progress_indexed: self.track_progress_indexed,
@@ -2119,14 +2119,14 @@ impl<'r> TryFrom<SqliteVideoRowRef<'r>> for Video<Uuid7> {
 
   fn try_from(r: SqliteVideoRowRef<'r>) -> Result<Self, Self::Error> {
     let id = bytes_to_uuid7(r.id)?;
-    let parent = bytes_to_uuid7(r.parent)?;
+    let media_id = bytes_to_uuid7(r.media_id)?;
     let total_scenes = u32_from_i64(r.total_scenes, "Video.total_scenes")?;
     let progress = IndexProgress::from_parts(
       u32_from_i64(r.track_progress_total, "Video.track_progress_total")?,
       u32_from_i64(r.track_progress_indexed, "Video.track_progress_indexed")?,
       u32_from_i64(r.track_progress_failed, "Video.track_progress_failed")?,
     );
-    let v = Video::try_new(id, parent)
+    let v = Video::try_new(id, media_id)
       .map_err(|e: VideoError| SqlxError::DomainConstructorRejected(e.to_string()))?;
     Ok(
       v.with_total_scenes(total_scenes)
@@ -2212,7 +2212,7 @@ pub struct SqliteVideoTrackRowRef<'r> {
 /// Borrowed view of [`SqliteVideoTrackIndexErrorRow`].
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct SqliteVideoTrackIndexErrorRowRef<'r> {
-  pub video_track: &'r [u8],
+  pub video_track_id: &'r [u8],
   pub ordinal: i64,
   pub code: i64,
   pub message: &'r str,
@@ -2299,7 +2299,7 @@ impl SqliteVideoTrackIndexErrorRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> SqliteVideoTrackIndexErrorRowRef<'_> {
     SqliteVideoTrackIndexErrorRowRef {
-      video_track: &self.video_track,
+      video_track_id: &self.video_track_id,
       ordinal: self.ordinal,
       code: self.code,
       message: &self.message,
@@ -2322,8 +2322,8 @@ impl<'r>
     ),
   ) -> Result<Self, Self::Error> {
     let id = bytes_to_uuid7(r.id)?;
-    let parent = bytes_to_uuid7(r.video_id)?;
-    let mut t = VideoTrack::try_new(id, parent)
+    let video_id = bytes_to_uuid7(r.video_id)?;
+    let mut t = VideoTrack::try_new(id, video_id)
       .map_err(|e: VideoTrackError| SqlxError::DomainConstructorRejected(e.to_string()))?;
 
     t = t
@@ -2557,7 +2557,7 @@ impl<'r>
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct SqliteSceneRowRef<'r> {
   pub id: &'r [u8],
-  pub parent: &'r [u8],
+  pub video_track_id: &'r [u8],
   pub index: i64,
   pub span_start_pts: i64,
   pub span_end_pts: i64,
@@ -2570,7 +2570,7 @@ impl SqliteSceneRow {
   pub fn as_ref(&self) -> SqliteSceneRowRef<'_> {
     SqliteSceneRowRef {
       id: &self.id,
-      parent: &self.parent,
+      video_track_id: &self.video_track_id,
       index: self.index,
       span_start_pts: self.span_start_pts,
       span_end_pts: self.span_end_pts,
@@ -2588,7 +2588,7 @@ pub fn scene_from_row_ref<'r>(
   parent_timebase: mediatime::Timebase,
 ) -> Result<Scene<Uuid7>, SqlxError> {
   let id = bytes_to_uuid7(r.id)?;
-  let parent = bytes_to_uuid7(r.parent)?;
+  let video_track_id = bytes_to_uuid7(r.video_track_id)?;
   let index = u32_from_i64(r.index, "Scene.index")?;
   let span = mediatime::TimeRange::try_new(r.span_start_pts, r.span_end_pts, parent_timebase)
     .ok_or_else(|| {
@@ -2598,7 +2598,7 @@ pub fn scene_from_row_ref<'r>(
       ))
     })?;
   let detector = parse_scene_detector(r.detector)?;
-  let s = Scene::try_new(id, parent, index, span, detector)
+  let s = Scene::try_new(id, video_track_id, index, span, detector)
     .map_err(|e: SceneError| SqlxError::DomainConstructorRejected(e.to_string()))?
     .with_description(r.description);
   Ok(s)
@@ -2608,7 +2608,7 @@ pub fn scene_from_row_ref<'r>(
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeRowRef<'r> {
   pub id: &'r [u8],
-  pub parent: &'r [u8],
+  pub scene_id: &'r [u8],
   pub pts: i64,
   pub data: &'r [u8],
   pub mime: &'r str,
@@ -2627,7 +2627,7 @@ pub struct SqliteKeyframeRowRef<'r> {
 /// Borrowed view of [`SqliteKeyframeClassificationRow`].
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeClassificationRowRef<'r> {
-  pub keyframe: &'r [u8],
+  pub keyframe_id: &'r [u8],
   pub ordinal: i64,
   pub label: &'r str,
   pub confidence: f32,
@@ -2636,7 +2636,7 @@ pub struct SqliteKeyframeClassificationRowRef<'r> {
 /// Borrowed view of [`SqliteKeyframeObjectRow`].
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeObjectRowRef<'r> {
-  pub keyframe: &'r [u8],
+  pub keyframe_id: &'r [u8],
   pub ordinal: i64,
   pub label: &'r str,
   pub confidence: f32,
@@ -2650,7 +2650,7 @@ pub struct SqliteKeyframeObjectRowRef<'r> {
 /// Borrowed view of [`SqliteKeyframeActionRow`].
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeActionRowRef<'r> {
-  pub keyframe: &'r [u8],
+  pub keyframe_id: &'r [u8],
   pub ordinal: i64,
   pub label: &'r str,
   pub confidence: f32,
@@ -2659,7 +2659,7 @@ pub struct SqliteKeyframeActionRowRef<'r> {
 /// Borrowed view of [`SqliteKeyframeTextDetectionRow`].
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeTextDetectionRowRef<'r> {
-  pub keyframe: &'r [u8],
+  pub keyframe_id: &'r [u8],
   pub ordinal: i64,
   pub text: &'r str,
   pub confidence: f32,
@@ -2672,7 +2672,7 @@ pub struct SqliteKeyframeTextDetectionRowRef<'r> {
 /// Borrowed view of [`SqliteKeyframeBarcodeRow`].
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeBarcodeRowRef<'r> {
-  pub keyframe: &'r [u8],
+  pub keyframe_id: &'r [u8],
   pub ordinal: i64,
   pub payload: &'r str,
   pub symbology: &'r str,
@@ -2686,7 +2686,7 @@ pub struct SqliteKeyframeBarcodeRowRef<'r> {
 /// Borrowed view of [`SqliteKeyframeSaliencyRow`].
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeSaliencyRowRef<'r> {
-  pub keyframe: &'r [u8],
+  pub keyframe_id: &'r [u8],
   pub kind: i64,
   pub ordinal: i64,
   pub bbox_x: f32,
@@ -2699,7 +2699,7 @@ pub struct SqliteKeyframeSaliencyRowRef<'r> {
 /// Borrowed view of [`SqliteKeyframeDocumentSegmentRow`].
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeDocumentSegmentRowRef<'r> {
-  pub keyframe: &'r [u8],
+  pub keyframe_id: &'r [u8],
   pub ordinal: i64,
   pub tl_x: f32,
   pub tl_y: f32,
@@ -2715,7 +2715,7 @@ pub struct SqliteKeyframeDocumentSegmentRowRef<'r> {
 /// Borrowed view of [`SqliteKeyframeColorRow`].
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeColorRowRef<'r> {
-  pub keyframe: &'r [u8],
+  pub keyframe_id: &'r [u8],
   pub ordinal: i64,
   pub rgba: i64,
   pub name: &'r str,
@@ -2726,7 +2726,7 @@ pub struct SqliteKeyframeColorRowRef<'r> {
 /// Borrowed view of [`SqliteKeyframeSubjectRow`].
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeSubjectRowRef<'r> {
-  pub keyframe: &'r [u8],
+  pub keyframe_id: &'r [u8],
   pub scope: i64,
   pub ordinal: i64,
   pub label: &'r str,
@@ -2740,7 +2740,7 @@ pub struct SqliteKeyframeSubjectRowRef<'r> {
 /// Borrowed view of [`SqliteKeyframeFaceRow`].
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeFaceRowRef<'r> {
-  pub keyframe: &'r [u8],
+  pub keyframe_id: &'r [u8],
   pub kind: i64,
   pub ordinal: i64,
   pub bbox_x: f32,
@@ -2757,7 +2757,7 @@ pub struct SqliteKeyframeFaceRowRef<'r> {
 /// Borrowed view of [`SqliteKeyframeBodyPoseRow`].
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeBodyPoseRowRef<'r> {
-  pub keyframe: &'r [u8],
+  pub keyframe_id: &'r [u8],
   pub scope: i64,
   pub ordinal: i64,
   pub bbox_x: f32,
@@ -2770,7 +2770,7 @@ pub struct SqliteKeyframeBodyPoseRowRef<'r> {
 /// Borrowed view of [`SqliteKeyframeBodyPoseJointRow`].
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeBodyPoseJointRowRef<'r> {
-  pub keyframe: &'r [u8],
+  pub keyframe_id: &'r [u8],
   pub scope: i64,
   pub parent_ordinal: i64,
   pub ordinal: i64,
@@ -2783,7 +2783,7 @@ pub struct SqliteKeyframeBodyPoseJointRowRef<'r> {
 /// Borrowed view of [`SqliteKeyframeHandPoseRow`].
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeHandPoseRowRef<'r> {
-  pub keyframe: &'r [u8],
+  pub keyframe_id: &'r [u8],
   pub ordinal: i64,
   pub bbox_x: f32,
   pub bbox_y: f32,
@@ -2796,7 +2796,7 @@ pub struct SqliteKeyframeHandPoseRowRef<'r> {
 /// Borrowed view of [`SqliteKeyframeBodyPose3DRow`].
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeBodyPose3DRowRef<'r> {
-  pub keyframe: &'r [u8],
+  pub keyframe_id: &'r [u8],
   pub ordinal: i64,
   pub confidence: f32,
   pub body_height: f32,
@@ -2806,7 +2806,7 @@ pub struct SqliteKeyframeBodyPose3DRowRef<'r> {
 /// Borrowed view of [`SqliteKeyframeBodyPose3DJointRow`].
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeBodyPose3DJointRowRef<'r> {
-  pub keyframe: &'r [u8],
+  pub keyframe_id: &'r [u8],
   pub parent_ordinal: i64,
   pub ordinal: i64,
   pub name: &'r str,
@@ -2819,7 +2819,7 @@ pub struct SqliteKeyframeBodyPose3DJointRowRef<'r> {
 /// Borrowed view of [`SqliteKeyframeMaskRow`].
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeMaskRowRef<'r> {
-  pub keyframe: &'r [u8],
+  pub keyframe_id: &'r [u8],
   pub kind: i64,
   pub ordinal: i64,
   pub bbox_x: f32,
@@ -2836,7 +2836,7 @@ pub struct SqliteKeyframeMaskRowRef<'r> {
 /// Borrowed view of [`SqliteKeyframeFaceLandmarksRow`].
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeFaceLandmarksRowRef<'r> {
-  pub keyframe: &'r [u8],
+  pub keyframe_id: &'r [u8],
   pub ordinal: i64,
   pub bbox_x: f32,
   pub bbox_y: f32,
@@ -2848,7 +2848,7 @@ pub struct SqliteKeyframeFaceLandmarksRowRef<'r> {
 /// Borrowed view of [`SqliteKeyframeFaceLandmarkRegionRow`].
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct SqliteKeyframeFaceLandmarkRegionRowRef<'r> {
-  pub keyframe: &'r [u8],
+  pub keyframe_id: &'r [u8],
   pub parent_ordinal: i64,
   pub ordinal: i64,
   pub name: &'r str,
@@ -2857,7 +2857,7 @@ pub struct SqliteKeyframeFaceLandmarkRegionRowRef<'r> {
 /// Borrowed view of [`SqliteKeyframeFaceLandmarkPointRow`].
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeFaceLandmarkPointRowRef<'r> {
-  pub keyframe: &'r [u8],
+  pub keyframe_id: &'r [u8],
   pub parent_ordinal: i64,
   pub region_ordinal: i64,
   pub ordinal: i64,
@@ -2868,7 +2868,7 @@ pub struct SqliteKeyframeFaceLandmarkPointRowRef<'r> {
 /// Borrowed view of [`SqliteKeyframeVlmLabelRow`].
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct SqliteKeyframeVlmLabelRowRef<'r> {
-  pub keyframe: &'r [u8],
+  pub keyframe_id: &'r [u8],
   pub kind: i64,
   pub ordinal: i64,
   pub src: &'r str,
@@ -2880,7 +2880,7 @@ impl SqliteKeyframeRow {
   pub fn as_ref(&self) -> SqliteKeyframeRowRef<'_> {
     SqliteKeyframeRowRef {
       id: &self.id,
-      parent: &self.parent,
+      scene_id: &self.scene_id,
       pts: self.pts,
       data: &self.data,
       mime: &self.mime,
@@ -2902,7 +2902,7 @@ impl SqliteKeyframeClassificationRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> SqliteKeyframeClassificationRowRef<'_> {
     SqliteKeyframeClassificationRowRef {
-      keyframe: &self.keyframe,
+      keyframe_id: &self.keyframe_id,
       ordinal: self.ordinal,
       label: &self.label,
       confidence: self.confidence,
@@ -2914,7 +2914,7 @@ impl SqliteKeyframeObjectRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> SqliteKeyframeObjectRowRef<'_> {
     SqliteKeyframeObjectRowRef {
-      keyframe: &self.keyframe,
+      keyframe_id: &self.keyframe_id,
       ordinal: self.ordinal,
       label: &self.label,
       confidence: self.confidence,
@@ -2931,7 +2931,7 @@ impl SqliteKeyframeActionRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> SqliteKeyframeActionRowRef<'_> {
     SqliteKeyframeActionRowRef {
-      keyframe: &self.keyframe,
+      keyframe_id: &self.keyframe_id,
       ordinal: self.ordinal,
       label: &self.label,
       confidence: self.confidence,
@@ -2943,7 +2943,7 @@ impl SqliteKeyframeTextDetectionRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> SqliteKeyframeTextDetectionRowRef<'_> {
     SqliteKeyframeTextDetectionRowRef {
-      keyframe: &self.keyframe,
+      keyframe_id: &self.keyframe_id,
       ordinal: self.ordinal,
       text: &self.text,
       confidence: self.confidence,
@@ -2959,7 +2959,7 @@ impl SqliteKeyframeBarcodeRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> SqliteKeyframeBarcodeRowRef<'_> {
     SqliteKeyframeBarcodeRowRef {
-      keyframe: &self.keyframe,
+      keyframe_id: &self.keyframe_id,
       ordinal: self.ordinal,
       payload: &self.payload,
       symbology: &self.symbology,
@@ -2976,7 +2976,7 @@ impl SqliteKeyframeSaliencyRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> SqliteKeyframeSaliencyRowRef<'_> {
     SqliteKeyframeSaliencyRowRef {
-      keyframe: &self.keyframe,
+      keyframe_id: &self.keyframe_id,
       kind: self.kind,
       ordinal: self.ordinal,
       bbox_x: self.bbox_x,
@@ -2992,7 +2992,7 @@ impl SqliteKeyframeDocumentSegmentRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> SqliteKeyframeDocumentSegmentRowRef<'_> {
     SqliteKeyframeDocumentSegmentRowRef {
-      keyframe: &self.keyframe,
+      keyframe_id: &self.keyframe_id,
       ordinal: self.ordinal,
       tl_x: self.tl_x,
       tl_y: self.tl_y,
@@ -3011,7 +3011,7 @@ impl SqliteKeyframeColorRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> SqliteKeyframeColorRowRef<'_> {
     SqliteKeyframeColorRowRef {
-      keyframe: &self.keyframe,
+      keyframe_id: &self.keyframe_id,
       ordinal: self.ordinal,
       rgba: self.rgba,
       name: &self.name,
@@ -3025,7 +3025,7 @@ impl SqliteKeyframeSubjectRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> SqliteKeyframeSubjectRowRef<'_> {
     SqliteKeyframeSubjectRowRef {
-      keyframe: &self.keyframe,
+      keyframe_id: &self.keyframe_id,
       scope: self.scope,
       ordinal: self.ordinal,
       label: &self.label,
@@ -3042,7 +3042,7 @@ impl SqliteKeyframeFaceRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> SqliteKeyframeFaceRowRef<'_> {
     SqliteKeyframeFaceRowRef {
-      keyframe: &self.keyframe,
+      keyframe_id: &self.keyframe_id,
       kind: self.kind,
       ordinal: self.ordinal,
       bbox_x: self.bbox_x,
@@ -3062,7 +3062,7 @@ impl SqliteKeyframeBodyPoseRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> SqliteKeyframeBodyPoseRowRef<'_> {
     SqliteKeyframeBodyPoseRowRef {
-      keyframe: &self.keyframe,
+      keyframe_id: &self.keyframe_id,
       scope: self.scope,
       ordinal: self.ordinal,
       bbox_x: self.bbox_x,
@@ -3078,7 +3078,7 @@ impl SqliteKeyframeBodyPoseJointRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> SqliteKeyframeBodyPoseJointRowRef<'_> {
     SqliteKeyframeBodyPoseJointRowRef {
-      keyframe: &self.keyframe,
+      keyframe_id: &self.keyframe_id,
       scope: self.scope,
       parent_ordinal: self.parent_ordinal,
       ordinal: self.ordinal,
@@ -3094,7 +3094,7 @@ impl SqliteKeyframeHandPoseRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> SqliteKeyframeHandPoseRowRef<'_> {
     SqliteKeyframeHandPoseRowRef {
-      keyframe: &self.keyframe,
+      keyframe_id: &self.keyframe_id,
       ordinal: self.ordinal,
       bbox_x: self.bbox_x,
       bbox_y: self.bbox_y,
@@ -3110,7 +3110,7 @@ impl SqliteKeyframeBodyPose3DRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> SqliteKeyframeBodyPose3DRowRef<'_> {
     SqliteKeyframeBodyPose3DRowRef {
-      keyframe: &self.keyframe,
+      keyframe_id: &self.keyframe_id,
       ordinal: self.ordinal,
       confidence: self.confidence,
       body_height: self.body_height,
@@ -3123,7 +3123,7 @@ impl SqliteKeyframeBodyPose3DJointRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> SqliteKeyframeBodyPose3DJointRowRef<'_> {
     SqliteKeyframeBodyPose3DJointRowRef {
-      keyframe: &self.keyframe,
+      keyframe_id: &self.keyframe_id,
       parent_ordinal: self.parent_ordinal,
       ordinal: self.ordinal,
       name: &self.name,
@@ -3139,7 +3139,7 @@ impl SqliteKeyframeMaskRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> SqliteKeyframeMaskRowRef<'_> {
     SqliteKeyframeMaskRowRef {
-      keyframe: &self.keyframe,
+      keyframe_id: &self.keyframe_id,
       kind: self.kind,
       ordinal: self.ordinal,
       bbox_x: self.bbox_x,
@@ -3159,7 +3159,7 @@ impl SqliteKeyframeFaceLandmarksRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> SqliteKeyframeFaceLandmarksRowRef<'_> {
     SqliteKeyframeFaceLandmarksRowRef {
-      keyframe: &self.keyframe,
+      keyframe_id: &self.keyframe_id,
       ordinal: self.ordinal,
       bbox_x: self.bbox_x,
       bbox_y: self.bbox_y,
@@ -3174,7 +3174,7 @@ impl SqliteKeyframeFaceLandmarkRegionRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> SqliteKeyframeFaceLandmarkRegionRowRef<'_> {
     SqliteKeyframeFaceLandmarkRegionRowRef {
-      keyframe: &self.keyframe,
+      keyframe_id: &self.keyframe_id,
       parent_ordinal: self.parent_ordinal,
       ordinal: self.ordinal,
       name: &self.name,
@@ -3186,7 +3186,7 @@ impl SqliteKeyframeFaceLandmarkPointRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> SqliteKeyframeFaceLandmarkPointRowRef<'_> {
     SqliteKeyframeFaceLandmarkPointRowRef {
-      keyframe: &self.keyframe,
+      keyframe_id: &self.keyframe_id,
       parent_ordinal: self.parent_ordinal,
       region_ordinal: self.region_ordinal,
       ordinal: self.ordinal,
@@ -3200,7 +3200,7 @@ impl SqliteKeyframeVlmLabelRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> SqliteKeyframeVlmLabelRowRef<'_> {
     SqliteKeyframeVlmLabelRowRef {
-      keyframe: &self.keyframe,
+      keyframe_id: &self.keyframe_id,
       kind: self.kind,
       ordinal: self.ordinal,
       src: &self.src,
@@ -3357,14 +3357,14 @@ pub fn keyframe_from_rows_ref<'r>(
       .keyframe
       .ok_or_else(|| SqlxError::DomainConstructorRejected("Keyframe row is missing".to_owned()))?;
     let id = bytes_to_uuid7(row.id)?;
-    let parent = bytes_to_uuid7(row.parent)?;
+    let scene_id = bytes_to_uuid7(row.scene_id)?;
     let pts = mediatime::Timestamp::new(row.pts, parent_timebase);
     let dimensions = Dimensions::new(
       u32_from_i64(row.width, "Keyframe.width")?,
       u32_from_i64(row.height, "Keyframe.height")?,
     );
     let extractor = parse_keyframe_extractor(row.extractor)?;
-    let mut kf = Keyframe::try_new(id, parent, pts, dimensions, extractor)
+    let mut kf = Keyframe::try_new(id, scene_id, pts, dimensions, extractor)
       .map_err(|e: KeyframeError| SqlxError::DomainConstructorRejected(e.to_string()))?
       .with_mime(row.mime)
       .with_data(Bytes::copy_from_slice(row.data))
@@ -4180,7 +4180,7 @@ mod tests {
     let row: SqliteVideoRow = (&v).into();
     let v2: Video<Uuid7> = row.as_ref().try_into().unwrap();
     assert_eq!(v.id_ref(), v2.id_ref());
-    assert_eq!(v.parent_ref(), v2.parent_ref());
+    assert_eq!(v.media_id_ref(), v2.media_id_ref());
     assert_eq!(v2.total_scenes(), 7);
     assert_eq!(v2.track_progress_ref().total(), 2);
   }

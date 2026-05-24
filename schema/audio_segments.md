@@ -1,11 +1,11 @@
-# `AudioSegment<Id>` — diarization + transcript segment  *(rev 3 — LOCKED, user-approved; `speaker`→`Speaker`)*
+# `AudioSegment<Id>` — diarization + transcript segment  *(rev 4 — LOCKED, user-approved; `speaker`→`Speaker`)*
 
 ## Domain meaning
 
 One analysis segment of an **audio track** — the heavy segmented-ML aggregate,
 the audio analog of `Scene`. It is the **reconciled join** of two engine
 timelines: `dia` speaker **diarization** (who) ⋈ `asry` word-level **ASR**
-(what), as one timeline span. `parent → AudioTrack.id` (**A-loc = per-track**,
+(what), as one timeline span. ``audio_track_id` → AudioTrack.id` (**A-loc = per-track**,
 your call — mirrors locked `VideoTrack.scenes`; multi-track files keep
 which-track attribution). No progress lifecycle (id list + `Audio.total_segments`
 rollup, like scenes).
@@ -24,7 +24,7 @@ segment. Conversions deferred.
 | field | domain type | source | notes |
 |---|---|---|---|
 | `id` | `Id` (UUIDv7) | — | canonical identity |
-| `parent` | `Id` | seg→track | FK → `AudioTrack.id` (**A-loc per-track**) |
+| `audio_track_id` | `Id` | seg→track | FK → `AudioTrack.id` (**A-loc per-track**) |
 | `index` | `u32` | ordinal | 0-based segment order within the track |
 | `span` | `mediatime::TimeRange` | dia/asry | segment time span (media-time, extern) |
 | `speaker` | `Option<Id>` | `dia` | FK → `Speaker` ([speaker.md](speaker.md)); `None` = not diarized. (The raw `dia` `u32` is `Speaker.cluster_id`; voiceprint → LanceDB keyed by `Speaker.id`) |
@@ -47,12 +47,12 @@ segment. Conversions deferred.
 
 ## Invariants
 
-`id` non-empty; `span.start <= span.end`; `(parent, index)` unique; every
+`id` non-empty; `span.start <= span.end`; `(audio_track_id, index)` unique; every
 `words[i].span` ⊆ `span`; `speaker = None` ⇒ segment not diarized (text-only).
 
 ## Resolved (your calls)
 
-- **A-loc:** per-track — `parent → AudioTrack.id`; `AudioTrack.segments` +
+- **A-loc:** per-track — ``audio_track_id` → AudioTrack.id`; `AudioTrack.segments` +
   `Audio.total_segments` rollup. **Reopens locked `audio.md` r7 → r8** (handled
   in step 3 of the audio order).
 - **A-agg:** **unified** `AudioSegment` (speaker + text + words per span) —
@@ -77,7 +77,7 @@ segment. Conversions deferred.
 
 ## Projection notes
 
-- **sqlx**: `audio_segment` table; `id` PK; `parent` FK → `audio_track`;
+- **sqlx**: `audio_segment` table; `id` PK; `audio_track_id` FK → `audio_track`;
   `span`→`start_pts`/`end_pts`; `speaker_id` INTEGER; `text_src`/
   `text_translated` (derived `display_text` full-text indexed); `words` → side
   table or JSON; quality columns. No vector column (LanceDB).

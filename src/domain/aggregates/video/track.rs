@@ -29,7 +29,7 @@ use crate::domain::{bitflags::VideoIndexStatus, primitives::ErrorInfo, vo::Prove
 /// One video stream of a [`Video`](super::facet::Video) facet.
 ///
 /// Generic over `Id` (default [`Uuid7`]). **No `Default`** — defaulting
-/// to nil `id`/`parent` would be indistinguishable from an orphan
+/// to nil `id`/`video_id` would be indistinguishable from an orphan
 /// stream. Construct via [`VideoTrack::try_new`] then chain `with_*` /
 /// `set_*` mutations.
 ///
@@ -40,7 +40,7 @@ use crate::domain::{bitflags::VideoIndexStatus, primitives::ErrorInfo, vo::Prove
 pub struct VideoTrack<Id = Uuid7> {
   // --- identity ---
   id: Id,
-  parent: Id,
+  video_id: Id,
 
   // --- source locators ---
   stream_index: Option<u32>,
@@ -120,22 +120,22 @@ pub struct VideoTrack<Id = Uuid7> {
 impl VideoTrack<Uuid7> {
   /// Validating constructor for the canonical `Uuid7` identity type.
   ///
-  /// Rejects nil `id` and nil `parent` (orphan-stream guard).
+  /// Rejects nil `id` and nil `video_id` (orphan-stream guard).
   /// All other fields take sensible defaults (codec=`Other("")`,
   /// `bit_rate=0`, dimensions zero, every `Option = None`, every flag
   /// false, no scenes, no errors, empty progress, empty provenance);
   /// the indexer fills them in via `with_*` / `set_*` as probing /
   /// detection / analysis stages land.
-  pub fn try_new(id: Uuid7, parent: Uuid7) -> Result<Self, VideoTrackError> {
+  pub fn try_new(id: Uuid7, video_id: Uuid7) -> Result<Self, VideoTrackError> {
     if id.is_nil() {
       return Err(VideoTrackError::NilId);
     }
-    if parent.is_nil() {
-      return Err(VideoTrackError::NilParent);
+    if video_id.is_nil() {
+      return Err(VideoTrackError::NilVideoId);
     }
     Ok(Self {
       id,
-      parent,
+      video_id,
       stream_index: None,
       container_track_id: None,
       start_pts: None,
@@ -195,8 +195,8 @@ impl<Id> VideoTrack<Id> {
 
   /// FK → `Video.id`.
   #[inline(always)]
-  pub const fn parent_ref(&self) -> &Id {
-    &self.parent
+  pub const fn video_id_ref(&self) -> &Id {
+    &self.video_id
   }
 
   /// Source-locator: ffmpeg `stream_index` / WebCodecs index. Not
@@ -874,10 +874,10 @@ pub enum VideoTrackError {
   /// Supplied `id` was the nil sentinel.
   #[error("VideoTrack id must not be the nil UUID")]
   NilId,
-  /// Supplied `parent` was the nil sentinel — orphaned track with
+  /// Supplied `video_id` was the nil sentinel — orphaned track with
   /// no `Video` facet.
-  #[error("VideoTrack parent (Video facet) must not be the nil UUID")]
-  NilParent,
+  #[error("VideoTrack video_id (Video facet) must not be the nil UUID")]
+  NilVideoId,
   /// Supplied `duration` was `Some(t)` with `t.pts() < 0` — a duration
   /// is semantically non-negative (see the `duration` field doc).
   #[error("VideoTrack duration must not be negative")]
@@ -920,10 +920,10 @@ mod tests {
   #[test]
   fn try_new_happy_path() {
     let id = Uuid7::new();
-    let parent = Uuid7::new();
-    let t = VideoTrack::try_new(id, parent).unwrap();
+    let video_id = Uuid7::new();
+    let t = VideoTrack::try_new(id, video_id).unwrap();
     assert_eq!(t.id_ref(), &id);
-    assert_eq!(t.parent_ref(), &parent);
+    assert_eq!(t.video_id_ref(), &video_id);
     assert_eq!(t.bit_rate(), 0);
     assert!(t.codec_ref().is_other());
     assert_eq!(t.dimensions(), Dimensions::new(0, 0));
@@ -941,10 +941,10 @@ mod tests {
     );
     assert_eq!(
       VideoTrack::try_new(Uuid7::new(), Uuid7::nil()).err(),
-      Some(VideoTrackError::NilParent)
+      Some(VideoTrackError::NilVideoId)
     );
     assert!(VideoTrackError::NilId.is_nil_id());
-    assert!(VideoTrackError::NilParent.is_nil_parent());
+    assert!(VideoTrackError::NilVideoId.is_nil_video_id());
   }
 
   #[test]

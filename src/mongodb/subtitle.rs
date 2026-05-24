@@ -74,7 +74,7 @@ impl From<&Subtitle<Uuid7>> for Document {
   fn from(s: &Subtitle<Uuid7>) -> Self {
     let mut d = Document::new();
     d.insert("_id", uuid7_to_bson(*s.id_ref()));
-    d.insert("parent", uuid7_to_bson(*s.parent_ref()));
+    d.insert("media_id", uuid7_to_bson(*s.media_id_ref()));
     d.insert("tracks", uuid7_vec_to_bson(s.tracks_slice()));
     d.insert(
       "track_progress",
@@ -89,8 +89,8 @@ impl TryFrom<Document> for Subtitle<Uuid7> {
 
   fn try_from(mut d: Document) -> Result<Self, Self::Error> {
     let id = uuid7_from_bson(take(&mut d, "_id")?, "_id")?;
-    let parent = uuid7_from_bson(take(&mut d, "parent")?, "parent")?;
-    let mut s = Subtitle::try_new(id, parent)?;
+    let media_id = uuid7_from_bson(take(&mut d, "media_id")?, "media_id")?;
+    let mut s = Subtitle::try_new(id, media_id)?;
     if let Some(b) = take_opt(&mut d, "tracks") {
       s.set_tracks(uuid7_vec_from_bson(b, "tracks")?);
     }
@@ -109,7 +109,7 @@ impl From<&SubtitleTrack<Uuid7>> for Document {
   fn from(t: &SubtitleTrack<Uuid7>) -> Self {
     let mut d = Document::new();
     d.insert("_id", uuid7_to_bson(*t.id_ref()));
-    d.insert("parent", uuid7_to_bson(*t.parent_ref()));
+    d.insert("subtitle_id", uuid7_to_bson(*t.subtitle_id_ref()));
     d.insert(
       "stream_index",
       t.stream_index()
@@ -197,8 +197,8 @@ impl TryFrom<Document> for SubtitleTrack<Uuid7> {
 
   fn try_from(mut d: Document) -> Result<Self, Self::Error> {
     let id = uuid7_from_bson(take(&mut d, "_id")?, "_id")?;
-    let parent = uuid7_from_bson(take(&mut d, "parent")?, "parent")?;
-    let mut t = SubtitleTrack::try_new(id, parent)?;
+    let subtitle_id = uuid7_from_bson(take(&mut d, "subtitle_id")?, "subtitle_id")?;
+    let mut t = SubtitleTrack::try_new(id, subtitle_id)?;
 
     if let Some(b) = take_opt(&mut d, "stream_index") {
       t.set_stream_index(Some(as_u32(b, "stream_index")?));
@@ -306,7 +306,7 @@ impl From<&SubtitleCue<Uuid7>> for Document {
   fn from(c: &SubtitleCue<Uuid7>) -> Self {
     let mut d = Document::new();
     d.insert("_id", uuid7_to_bson(*c.id_ref()));
-    d.insert("parent", uuid7_to_bson(*c.parent_ref()));
+    d.insert("subtitle_track_id", uuid7_to_bson(*c.subtitle_track_id_ref()));
     d.insert("index", Bson::Int64(c.index() as i64));
     d.insert("span", time_range_to_bson(c.span_ref()));
     d.insert("text", loc_text_to_bson(c.text_ref()));
@@ -322,7 +322,7 @@ impl TryFrom<Document> for SubtitleCue<Uuid7> {
 
   fn try_from(mut d: Document) -> Result<Self, Self::Error> {
     let id = uuid7_from_bson(take(&mut d, "_id")?, "_id")?;
-    let parent = uuid7_from_bson(take(&mut d, "parent")?, "parent")?;
+    let subtitle_track_id = uuid7_from_bson(take(&mut d, "subtitle_track_id")?, "subtitle_track_id")?;
     let index = as_u32(take(&mut d, "index")?, "index")?;
     let span = time_range_from_bson(take(&mut d, "span")?, "span")?;
     // `SubtitleCue::try_new` is a full-args constructor that validates
@@ -346,7 +346,7 @@ impl TryFrom<Document> for SubtitleCue<Uuid7> {
     };
     Ok(SubtitleCue::try_new(
       id,
-      parent,
+      subtitle_track_id,
       index,
       span,
       text,
@@ -458,7 +458,7 @@ mod tests {
   fn subtitle_cue_missing_span_errors() {
     let mut d = Document::new();
     d.insert("_id", uuid7_to_bson(Uuid7::new()));
-    d.insert("parent", uuid7_to_bson(Uuid7::new()));
+    d.insert("subtitle_track_id", uuid7_to_bson(Uuid7::new()));
     d.insert("index", Bson::Int64(0));
     let err = SubtitleCue::<Uuid7>::try_from(d).unwrap_err();
     assert!(err.is_missing_field());

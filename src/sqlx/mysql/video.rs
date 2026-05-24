@@ -70,7 +70,7 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct MySqlVideoRow {
   pub id: std::vec::Vec<u8>,
-  pub parent: std::vec::Vec<u8>,
+  pub media_id: std::vec::Vec<u8>,
   pub total_scenes: i64,
   pub track_progress_total: i64,
   pub track_progress_indexed: i64,
@@ -82,7 +82,7 @@ impl From<&Video<Uuid7>> for MySqlVideoRow {
     let p = v.track_progress_ref();
     Self {
       id: v.id_ref().as_bytes().to_vec(),
-      parent: v.parent_ref().as_bytes().to_vec(),
+      media_id: v.media_id_ref().as_bytes().to_vec(),
       total_scenes: i64::from(v.total_scenes()),
       track_progress_total: i64::from(p.total()),
       track_progress_indexed: i64::from(p.indexed()),
@@ -96,14 +96,14 @@ impl TryFrom<MySqlVideoRow> for Video<Uuid7> {
 
   fn try_from(r: MySqlVideoRow) -> Result<Self, Self::Error> {
     let id = bytes_to_uuid7(&r.id)?;
-    let parent = bytes_to_uuid7(&r.parent)?;
+    let media_id = bytes_to_uuid7(&r.media_id)?;
     let total_scenes = u32_from_i64(r.total_scenes, "Video.total_scenes")?;
     let progress = IndexProgress::from_parts(
       u32_from_i64(r.track_progress_total, "Video.track_progress_total")?,
       u32_from_i64(r.track_progress_indexed, "Video.track_progress_indexed")?,
       u32_from_i64(r.track_progress_failed, "Video.track_progress_failed")?,
     );
-    let v = Video::try_new(id, parent)
+    let v = Video::try_new(id, media_id)
       .map_err(|e: VideoError| SqlxError::DomainConstructorRejected(e.to_string()))?;
     Ok(
       v.with_total_scenes(total_scenes)
@@ -228,7 +228,7 @@ pub struct MySqlVideoTrackRow {
 /// One `video_track_index_error` child row.
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct MySqlVideoTrackIndexErrorRow {
-  pub video_track: std::vec::Vec<u8>,
+  pub video_track_id: std::vec::Vec<u8>,
   pub ordinal: i32,
   pub code: i32,
   pub message: String,
@@ -256,7 +256,7 @@ impl From<&VideoTrack<Uuid7>>
     let duration = t.duration_ref();
     let row = MySqlVideoTrackRow {
       id: id.clone(),
-      video_id: t.parent_ref().as_bytes().to_vec(),
+      video_id: t.video_id_ref().as_bytes().to_vec(),
       stream_index: t.stream_index().map(i64::from),
       container_track_id: t.container_track_id().map(|v| v as i64),
       start_pts: start_pts.map(mediatime::Timestamp::pts),
@@ -330,7 +330,7 @@ impl From<&VideoTrack<Uuid7>>
       .iter()
       .enumerate()
       .map(|(i, e)| MySqlVideoTrackIndexErrorRow {
-        video_track: id.clone(),
+        video_track_id: id.clone(),
         ordinal: i as i32,
         code: e.code().as_u32() as i32,
         message: e.message().to_owned(),
@@ -355,8 +355,8 @@ impl
     ),
   ) -> Result<Self, Self::Error> {
     let id = bytes_to_uuid7(&r.id)?;
-    let parent = bytes_to_uuid7(&r.video_id)?;
-    let mut t = VideoTrack::try_new(id, parent)
+    let video_id = bytes_to_uuid7(&r.video_id)?;
+    let mut t = VideoTrack::try_new(id, video_id)
       .map_err(|e: VideoTrackError| SqlxError::DomainConstructorRejected(e.to_string()))?;
 
     // Source locators.
@@ -608,7 +608,7 @@ impl
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct MySqlSceneRow {
   pub id: std::vec::Vec<u8>,
-  pub parent: std::vec::Vec<u8>,
+  pub video_track_id: std::vec::Vec<u8>,
   pub index: i64,
   pub span_start_pts: i64,
   pub span_end_pts: i64,
@@ -621,7 +621,7 @@ impl From<&Scene<Uuid7>> for MySqlSceneRow {
     let span = s.span_ref();
     Self {
       id: s.id_ref().as_bytes().to_vec(),
-      parent: s.parent_ref().as_bytes().to_vec(),
+      video_track_id: s.video_track_id_ref().as_bytes().to_vec(),
       index: i64::from(s.index()),
       span_start_pts: span.start_pts(),
       span_end_pts: span.end_pts(),
@@ -638,7 +638,7 @@ pub fn scene_from_row(
   parent_timebase: mediatime::Timebase,
 ) -> Result<Scene<Uuid7>, SqlxError> {
   let id = bytes_to_uuid7(&r.id)?;
-  let parent = bytes_to_uuid7(&r.parent)?;
+  let video_track_id = bytes_to_uuid7(&r.video_track_id)?;
   let index = u32_from_i64(r.index, "Scene.index")?;
   let span = mediatime::TimeRange::try_new(r.span_start_pts, r.span_end_pts, parent_timebase)
     .ok_or_else(|| {
@@ -648,7 +648,7 @@ pub fn scene_from_row(
       ))
     })?;
   let detector = parse_scene_detector(&r.detector)?;
-  let s = Scene::try_new(id, parent, index, span, detector)
+  let s = Scene::try_new(id, video_track_id, index, span, detector)
     .map_err(|e: SceneError| SqlxError::DomainConstructorRejected(e.to_string()))?
     .with_description(r.description);
   Ok(s)
@@ -667,7 +667,7 @@ pub fn scene_from_row(
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeRow {
   pub id: std::vec::Vec<u8>,
-  pub parent: std::vec::Vec<u8>,
+  pub scene_id: std::vec::Vec<u8>,
   pub pts: i64,
   pub data: std::vec::Vec<u8>,
   pub mime: String,
@@ -692,7 +692,7 @@ pub struct MySqlKeyframeRow {
 /// `keyframe_classification` — apple-vision `Detection` `{label,confidence}`.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeClassificationRow {
-  pub keyframe: std::vec::Vec<u8>,
+  pub keyframe_id: std::vec::Vec<u8>,
   pub ordinal: i32,
   pub label: String,
   pub confidence: f32,
@@ -701,7 +701,7 @@ pub struct MySqlKeyframeClassificationRow {
 /// `keyframe_object` — `ObjectDetection`: `Detection` + optional bbox.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeObjectRow {
-  pub keyframe: std::vec::Vec<u8>,
+  pub keyframe_id: std::vec::Vec<u8>,
   pub ordinal: i32,
   pub label: String,
   pub confidence: f32,
@@ -715,7 +715,7 @@ pub struct MySqlKeyframeObjectRow {
 /// `keyframe_action` — apple-vision body-pose-derived action `Detection`.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeActionRow {
-  pub keyframe: std::vec::Vec<u8>,
+  pub keyframe_id: std::vec::Vec<u8>,
   pub ordinal: i32,
   pub label: String,
   pub confidence: f32,
@@ -724,7 +724,7 @@ pub struct MySqlKeyframeActionRow {
 /// `keyframe_text_detection` — OCR text + confidence + bbox.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeTextDetectionRow {
-  pub keyframe: std::vec::Vec<u8>,
+  pub keyframe_id: std::vec::Vec<u8>,
   pub ordinal: i32,
   pub text: String,
   pub confidence: f32,
@@ -737,7 +737,7 @@ pub struct MySqlKeyframeTextDetectionRow {
 /// `keyframe_barcode` — payload + symbology + confidence + bbox.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeBarcodeRow {
-  pub keyframe: std::vec::Vec<u8>,
+  pub keyframe_id: std::vec::Vec<u8>,
   pub ordinal: i32,
   pub payload: String,
   pub symbology: String,
@@ -752,7 +752,7 @@ pub struct MySqlKeyframeBarcodeRow {
 /// `0` for attention, `1` for objectness).
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeSaliencyRow {
-  pub keyframe: std::vec::Vec<u8>,
+  pub keyframe_id: std::vec::Vec<u8>,
   pub kind: i16,
   pub ordinal: i32,
   pub bbox_x: f32,
@@ -765,7 +765,7 @@ pub struct MySqlKeyframeSaliencyRow {
 /// `keyframe_document_segment` — 4 normalised corners + confidence.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeDocumentSegmentRow {
-  pub keyframe: std::vec::Vec<u8>,
+  pub keyframe_id: std::vec::Vec<u8>,
   pub ordinal: i32,
   pub tl_x: f32,
   pub tl_y: f32,
@@ -781,7 +781,7 @@ pub struct MySqlKeyframeDocumentSegmentRow {
 /// `keyframe_color` — colorthief dominant colour.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeColorRow {
-  pub keyframe: std::vec::Vec<u8>,
+  pub keyframe_id: std::vec::Vec<u8>,
   pub ordinal: i32,
   pub rgba: i64,
   pub name: String,
@@ -795,7 +795,7 @@ pub struct MySqlKeyframeColorRow {
 /// shape). `scope` = `0` human-subject, `1` animal-subject.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeSubjectRow {
-  pub keyframe: std::vec::Vec<u8>,
+  pub keyframe_id: std::vec::Vec<u8>,
   pub scope: i16,
   pub ordinal: i32,
   pub label: String,
@@ -811,7 +811,7 @@ pub struct MySqlKeyframeSubjectRow {
 /// `face_rectangles`.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeFaceRow {
-  pub keyframe: std::vec::Vec<u8>,
+  pub keyframe_id: std::vec::Vec<u8>,
   pub kind: i16,
   pub ordinal: i32,
   pub bbox_x: f32,
@@ -829,7 +829,7 @@ pub struct MySqlKeyframeFaceRow {
 /// share the shape). `scope` = `0` human, `1` animal.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeBodyPoseRow {
-  pub keyframe: std::vec::Vec<u8>,
+  pub keyframe_id: std::vec::Vec<u8>,
   pub scope: i16,
   pub ordinal: i32,
   pub bbox_x: f32,
@@ -843,7 +843,7 @@ pub struct MySqlKeyframeBodyPoseRow {
 /// `scope` = `0` human-body, `1` animal-body, `2` hand.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeBodyPoseJointRow {
-  pub keyframe: std::vec::Vec<u8>,
+  pub keyframe_id: std::vec::Vec<u8>,
   pub scope: i16,
   pub parent_ordinal: i32,
   pub ordinal: i32,
@@ -856,7 +856,7 @@ pub struct MySqlKeyframeBodyPoseJointRow {
 /// `keyframe_hand_pose` — 2-D hand-pose detection (humans only).
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeHandPoseRow {
-  pub keyframe: std::vec::Vec<u8>,
+  pub keyframe_id: std::vec::Vec<u8>,
   pub ordinal: i32,
   pub bbox_x: f32,
   pub bbox_y: f32,
@@ -869,7 +869,7 @@ pub struct MySqlKeyframeHandPoseRow {
 /// `keyframe_body_pose_3d` — 3-D body-pose detection.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeBodyPose3DRow {
-  pub keyframe: std::vec::Vec<u8>,
+  pub keyframe_id: std::vec::Vec<u8>,
   pub ordinal: i32,
   pub confidence: f32,
   pub body_height: f32,
@@ -879,7 +879,7 @@ pub struct MySqlKeyframeBodyPose3DRow {
 /// `keyframe_body_pose_3d_joint` — joint of a 3-D body-pose row.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeBodyPose3DJointRow {
-  pub keyframe: std::vec::Vec<u8>,
+  pub keyframe_id: std::vec::Vec<u8>,
   pub parent_ordinal: i32,
   pub ordinal: i32,
   pub name: String,
@@ -893,7 +893,7 @@ pub struct MySqlKeyframeBodyPose3DJointRow {
 /// `0` per-person instance mask, `1` whole-frame segmentation mask.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeMaskRow {
-  pub keyframe: std::vec::Vec<u8>,
+  pub keyframe_id: std::vec::Vec<u8>,
   pub kind: i16,
   pub ordinal: i32,
   pub bbox_x: f32,
@@ -911,7 +911,7 @@ pub struct MySqlKeyframeMaskRow {
 /// face-landmark detection.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeFaceLandmarksRow {
-  pub keyframe: std::vec::Vec<u8>,
+  pub keyframe_id: std::vec::Vec<u8>,
   pub ordinal: i32,
   pub bbox_x: f32,
   pub bbox_y: f32,
@@ -924,7 +924,7 @@ pub struct MySqlKeyframeFaceLandmarksRow {
 /// face-landmarks row.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeFaceLandmarkRegionRow {
-  pub keyframe: std::vec::Vec<u8>,
+  pub keyframe_id: std::vec::Vec<u8>,
   pub parent_ordinal: i32,
   pub ordinal: i32,
   pub name: String,
@@ -933,7 +933,7 @@ pub struct MySqlKeyframeFaceLandmarkRegionRow {
 /// `keyframe_face_landmark_point` — a normalised point inside a region.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeFaceLandmarkPointRow {
-  pub keyframe: std::vec::Vec<u8>,
+  pub keyframe_id: std::vec::Vec<u8>,
   pub parent_ordinal: i32,
   pub region_ordinal: i32,
   pub ordinal: i32,
@@ -947,7 +947,7 @@ pub struct MySqlKeyframeFaceLandmarkPointRow {
 /// `4` = mood, `5` = emotion, `6` = lighting.
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct MySqlKeyframeVlmLabelRow {
-  pub keyframe: std::vec::Vec<u8>,
+  pub keyframe_id: std::vec::Vec<u8>,
   pub kind: i16,
   pub ordinal: i32,
   pub src: String,
@@ -993,7 +993,7 @@ impl From<&Keyframe<Uuid7>> for MySqlKeyframeRows {
     let horizon = k.horizon_ref();
     let row = MySqlKeyframeRow {
       id: id.clone(),
-      parent: k.parent_ref().as_bytes().to_vec(),
+      scene_id: k.scene_id_ref().as_bytes().to_vec(),
       pts: pts.pts(),
       data: k.data().to_vec(),
       mime: k.mime().to_owned(),
@@ -1016,7 +1016,7 @@ impl From<&Keyframe<Uuid7>> for MySqlKeyframeRows {
 
     for (ordinal, d) in k.classifications_slice().iter().enumerate() {
       out.classifications.push(MySqlKeyframeClassificationRow {
-        keyframe: id.clone(),
+        keyframe_id: id.clone(),
         ordinal: ordinal as i32,
         label: d.label().to_owned(),
         confidence: d.confidence(),
@@ -1025,7 +1025,7 @@ impl From<&Keyframe<Uuid7>> for MySqlKeyframeRows {
     for (ordinal, o) in k.objects_slice().iter().enumerate() {
       let bbox = o.bbox_ref();
       out.objects.push(MySqlKeyframeObjectRow {
-        keyframe: id.clone(),
+        keyframe_id: id.clone(),
         ordinal: ordinal as i32,
         label: o.detection_ref().label().to_owned(),
         confidence: o.detection_ref().confidence(),
@@ -1038,7 +1038,7 @@ impl From<&Keyframe<Uuid7>> for MySqlKeyframeRows {
     }
     for (ordinal, a) in k.actions_slice().iter().enumerate() {
       out.actions.push(MySqlKeyframeActionRow {
-        keyframe: id.clone(),
+        keyframe_id: id.clone(),
         ordinal: ordinal as i32,
         label: a.detection_ref().label().to_owned(),
         confidence: a.detection_ref().confidence(),
@@ -1047,7 +1047,7 @@ impl From<&Keyframe<Uuid7>> for MySqlKeyframeRows {
     for (ordinal, t) in k.text_detections_slice().iter().enumerate() {
       let bb = t.bbox_ref();
       out.text_detections.push(MySqlKeyframeTextDetectionRow {
-        keyframe: id.clone(),
+        keyframe_id: id.clone(),
         ordinal: ordinal as i32,
         text: t.text().to_owned(),
         confidence: t.confidence(),
@@ -1060,7 +1060,7 @@ impl From<&Keyframe<Uuid7>> for MySqlKeyframeRows {
     for (ordinal, b) in k.barcodes_slice().iter().enumerate() {
       let bb = b.bbox_ref();
       out.barcodes.push(MySqlKeyframeBarcodeRow {
-        keyframe: id.clone(),
+        keyframe_id: id.clone(),
         ordinal: ordinal as i32,
         payload: b.payload().to_owned(),
         symbology: b.symbology().to_owned(),
@@ -1079,7 +1079,7 @@ impl From<&Keyframe<Uuid7>> for MySqlKeyframeRows {
     }
     for (ordinal, d) in k.document_segments_slice().iter().enumerate() {
       out.document_segments.push(MySqlKeyframeDocumentSegmentRow {
-        keyframe: id.clone(),
+        keyframe_id: id.clone(),
         ordinal: ordinal as i32,
         tl_x: d.top_left().0,
         tl_y: d.top_left().1,
@@ -1094,7 +1094,7 @@ impl From<&Keyframe<Uuid7>> for MySqlKeyframeRows {
     }
     for (ordinal, c) in k.colors_slice().iter().enumerate() {
       out.colors.push(MySqlKeyframeColorRow {
-        keyframe: id.clone(),
+        keyframe_id: id.clone(),
         ordinal: ordinal as i32,
         rgba: i64::from(c.rgb().bits()),
         name: c.name().to_owned(),
@@ -1141,7 +1141,7 @@ impl From<&Keyframe<Uuid7>> for MySqlKeyframeRows {
     for (ordinal, hp) in humans.hand_poses_slice().iter().enumerate() {
       let bb = hp.bbox_ref();
       out.hand_poses.push(MySqlKeyframeHandPoseRow {
-        keyframe: id.clone(),
+        keyframe_id: id.clone(),
         ordinal: ordinal as i32,
         bbox_x: bb.x(),
         bbox_y: bb.y(),
@@ -1152,7 +1152,7 @@ impl From<&Keyframe<Uuid7>> for MySqlKeyframeRows {
       });
       for (jord, j) in hp.joints_slice().iter().enumerate() {
         out.body_pose_joints.push(MySqlKeyframeBodyPoseJointRow {
-          keyframe: id.clone(),
+          keyframe_id: id.clone(),
           scope: 2,
           parent_ordinal: ordinal as i32,
           ordinal: jord as i32,
@@ -1165,7 +1165,7 @@ impl From<&Keyframe<Uuid7>> for MySqlKeyframeRows {
     }
     for (ordinal, b3) in humans.body_poses_3d_slice().iter().enumerate() {
       out.body_poses_3d.push(MySqlKeyframeBodyPose3DRow {
-        keyframe: id.clone(),
+        keyframe_id: id.clone(),
         ordinal: ordinal as i32,
         confidence: b3.confidence(),
         body_height: b3.body_height(),
@@ -1175,7 +1175,7 @@ impl From<&Keyframe<Uuid7>> for MySqlKeyframeRows {
         out
           .body_pose_3d_joints
           .push(MySqlKeyframeBodyPose3DJointRow {
-            keyframe: id.clone(),
+            keyframe_id: id.clone(),
             parent_ordinal: ordinal as i32,
             ordinal: jord as i32,
             name: j.name().to_owned(),
@@ -1190,7 +1190,7 @@ impl From<&Keyframe<Uuid7>> for MySqlKeyframeRows {
       let bb = m.bbox_ref();
       let d = m.dimensions();
       out.masks.push(MySqlKeyframeMaskRow {
-        keyframe: id.clone(),
+        keyframe_id: id.clone(),
         kind: 0,
         ordinal: ordinal as i32,
         bbox_x: bb.x(),
@@ -1208,7 +1208,7 @@ impl From<&Keyframe<Uuid7>> for MySqlKeyframeRows {
       let bb = m.bbox_ref();
       let d = m.dimensions();
       out.masks.push(MySqlKeyframeMaskRow {
-        keyframe: id.clone(),
+        keyframe_id: id.clone(),
         kind: 1,
         ordinal: ordinal as i32,
         bbox_x: bb.x(),
@@ -1225,7 +1225,7 @@ impl From<&Keyframe<Uuid7>> for MySqlKeyframeRows {
     for (ordinal, fl) in humans.face_landmarks_slice().iter().enumerate() {
       let bb = fl.bbox_ref();
       out.face_landmarks.push(MySqlKeyframeFaceLandmarksRow {
-        keyframe: id.clone(),
+        keyframe_id: id.clone(),
         ordinal: ordinal as i32,
         bbox_x: bb.x(),
         bbox_y: bb.y(),
@@ -1237,7 +1237,7 @@ impl From<&Keyframe<Uuid7>> for MySqlKeyframeRows {
         out
           .face_landmark_regions
           .push(MySqlKeyframeFaceLandmarkRegionRow {
-            keyframe: id.clone(),
+            keyframe_id: id.clone(),
             parent_ordinal: ordinal as i32,
             ordinal: rord as i32,
             name: region.name().to_owned(),
@@ -1246,7 +1246,7 @@ impl From<&Keyframe<Uuid7>> for MySqlKeyframeRows {
           out
             .face_landmark_points
             .push(MySqlKeyframeFaceLandmarkPointRow {
-              keyframe: id.clone(),
+              keyframe_id: id.clone(),
               parent_ordinal: ordinal as i32,
               region_ordinal: rord as i32,
               ordinal: pord as i32,
@@ -1282,14 +1282,14 @@ pub fn keyframe_from_rows(
       .keyframe
       .ok_or_else(|| SqlxError::DomainConstructorRejected("Keyframe row is missing".to_owned()))?;
     let id = bytes_to_uuid7(&row.id)?;
-    let parent = bytes_to_uuid7(&row.parent)?;
+    let scene_id = bytes_to_uuid7(&row.scene_id)?;
     let pts = mediatime::Timestamp::new(row.pts, parent_timebase);
     let dimensions = Dimensions::new(
       u32_from_i64(row.width, "Keyframe.width")?,
       u32_from_i64(row.height, "Keyframe.height")?,
     );
     let extractor = parse_keyframe_extractor(&row.extractor)?;
-    let mut kf = Keyframe::try_new(id, parent, pts, dimensions, extractor)
+    let mut kf = Keyframe::try_new(id, scene_id, pts, dimensions, extractor)
       .map_err(|e: KeyframeError| SqlxError::DomainConstructorRejected(e.to_string()))?
       .with_mime(row.mime)
       .with_data(Bytes::from(row.data))
@@ -1579,14 +1579,14 @@ fn height_estimation_from_i16(n: i16) -> Result<BodyPose3DHeightEstimation, Sqlx
 
 fn push_saliency(
   out: &mut std::vec::Vec<MySqlKeyframeSaliencyRow>,
-  keyframe: &[u8],
+  keyframe_id: &[u8],
   kind: i16,
   ordinal: usize,
   s: &SaliencyRegion,
 ) {
   let bb = s.bbox_ref();
   out.push(MySqlKeyframeSaliencyRow {
-    keyframe: keyframe.to_vec(),
+    keyframe_id: keyframe_id.to_vec(),
     kind,
     ordinal: ordinal as i32,
     bbox_x: bb.x(),
@@ -1599,14 +1599,14 @@ fn push_saliency(
 
 fn push_subject(
   out: &mut std::vec::Vec<MySqlKeyframeSubjectRow>,
-  keyframe: &[u8],
+  keyframe_id: &[u8],
   scope: i16,
   ordinal: usize,
   s: &SubjectDetection,
 ) {
   let bb = s.bbox_ref();
   out.push(MySqlKeyframeSubjectRow {
-    keyframe: keyframe.to_vec(),
+    keyframe_id: keyframe_id.to_vec(),
     scope,
     ordinal: ordinal as i32,
     label: s.detection_ref().label().to_owned(),
@@ -1620,14 +1620,14 @@ fn push_subject(
 
 fn push_face(
   out: &mut std::vec::Vec<MySqlKeyframeFaceRow>,
-  keyframe: &[u8],
+  keyframe_id: &[u8],
   kind: i16,
   ordinal: usize,
   f: &FaceDetection,
 ) {
   let bb = f.bbox_ref();
   out.push(MySqlKeyframeFaceRow {
-    keyframe: keyframe.to_vec(),
+    keyframe_id: keyframe_id.to_vec(),
     kind,
     ordinal: ordinal as i32,
     bbox_x: bb.x(),
@@ -1645,14 +1645,14 @@ fn push_face(
 fn push_body_pose(
   rows: &mut std::vec::Vec<MySqlKeyframeBodyPoseRow>,
   joint_rows: &mut std::vec::Vec<MySqlKeyframeBodyPoseJointRow>,
-  keyframe: &[u8],
+  keyframe_id: &[u8],
   scope: i16,
   ordinal: usize,
   bp: &BodyPoseDetection,
 ) {
   let bb = bp.bbox_ref();
   rows.push(MySqlKeyframeBodyPoseRow {
-    keyframe: keyframe.to_vec(),
+    keyframe_id: keyframe_id.to_vec(),
     scope,
     ordinal: ordinal as i32,
     bbox_x: bb.x(),
@@ -1663,7 +1663,7 @@ fn push_body_pose(
   });
   for (jord, j) in bp.joints_slice().iter().enumerate() {
     joint_rows.push(MySqlKeyframeBodyPoseJointRow {
-      keyframe: keyframe.to_vec(),
+      keyframe_id: keyframe_id.to_vec(),
       scope,
       parent_ordinal: ordinal as i32,
       ordinal: jord as i32,
@@ -1677,13 +1677,13 @@ fn push_body_pose(
 
 fn push_vlm(
   out: &mut std::vec::Vec<MySqlKeyframeVlmLabelRow>,
-  keyframe: &[u8],
+  keyframe_id: &[u8],
   kind: i16,
   labels: &[LocalizedText],
 ) {
   for (ordinal, l) in labels.iter().enumerate() {
     out.push(MySqlKeyframeVlmLabelRow {
-      keyframe: keyframe.to_vec(),
+      keyframe_id: keyframe_id.to_vec(),
       kind,
       ordinal: ordinal as i32,
       src: l.src().to_owned(),
@@ -2089,7 +2089,7 @@ fn require_timebase(
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct MySqlVideoRowRef<'r> {
   pub id: &'r [u8],
-  pub parent: &'r [u8],
+  pub media_id: &'r [u8],
   pub total_scenes: i64,
   pub track_progress_total: i64,
   pub track_progress_indexed: i64,
@@ -2101,7 +2101,7 @@ impl MySqlVideoRow {
   pub fn as_ref(&self) -> MySqlVideoRowRef<'_> {
     MySqlVideoRowRef {
       id: &self.id,
-      parent: &self.parent,
+      media_id: &self.media_id,
       total_scenes: self.total_scenes,
       track_progress_total: self.track_progress_total,
       track_progress_indexed: self.track_progress_indexed,
@@ -2115,14 +2115,14 @@ impl<'r> TryFrom<MySqlVideoRowRef<'r>> for Video<Uuid7> {
 
   fn try_from(r: MySqlVideoRowRef<'r>) -> Result<Self, Self::Error> {
     let id = bytes_to_uuid7(r.id)?;
-    let parent = bytes_to_uuid7(r.parent)?;
+    let media_id = bytes_to_uuid7(r.media_id)?;
     let total_scenes = u32_from_i64(r.total_scenes, "Video.total_scenes")?;
     let progress = IndexProgress::from_parts(
       u32_from_i64(r.track_progress_total, "Video.track_progress_total")?,
       u32_from_i64(r.track_progress_indexed, "Video.track_progress_indexed")?,
       u32_from_i64(r.track_progress_failed, "Video.track_progress_failed")?,
     );
-    let v = Video::try_new(id, parent)
+    let v = Video::try_new(id, media_id)
       .map_err(|e: VideoError| SqlxError::DomainConstructorRejected(e.to_string()))?;
     Ok(
       v.with_total_scenes(total_scenes)
@@ -2208,7 +2208,7 @@ pub struct MySqlVideoTrackRowRef<'r> {
 /// Borrowed view of [`MySqlVideoTrackIndexErrorRow`].
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct MySqlVideoTrackIndexErrorRowRef<'r> {
-  pub video_track: &'r [u8],
+  pub video_track_id: &'r [u8],
   pub ordinal: i32,
   pub code: i32,
   pub message: &'r str,
@@ -2295,7 +2295,7 @@ impl MySqlVideoTrackIndexErrorRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> MySqlVideoTrackIndexErrorRowRef<'_> {
     MySqlVideoTrackIndexErrorRowRef {
-      video_track: &self.video_track,
+      video_track_id: &self.video_track_id,
       ordinal: self.ordinal,
       code: self.code,
       message: &self.message,
@@ -2318,8 +2318,8 @@ impl<'r>
     ),
   ) -> Result<Self, Self::Error> {
     let id = bytes_to_uuid7(r.id)?;
-    let parent = bytes_to_uuid7(r.video_id)?;
-    let mut t = VideoTrack::try_new(id, parent)
+    let video_id = bytes_to_uuid7(r.video_id)?;
+    let mut t = VideoTrack::try_new(id, video_id)
       .map_err(|e: VideoTrackError| SqlxError::DomainConstructorRejected(e.to_string()))?;
 
     t = t
@@ -2553,7 +2553,7 @@ impl<'r>
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct MySqlSceneRowRef<'r> {
   pub id: &'r [u8],
-  pub parent: &'r [u8],
+  pub video_track_id: &'r [u8],
   pub index: i64,
   pub span_start_pts: i64,
   pub span_end_pts: i64,
@@ -2566,7 +2566,7 @@ impl MySqlSceneRow {
   pub fn as_ref(&self) -> MySqlSceneRowRef<'_> {
     MySqlSceneRowRef {
       id: &self.id,
-      parent: &self.parent,
+      video_track_id: &self.video_track_id,
       index: self.index,
       span_start_pts: self.span_start_pts,
       span_end_pts: self.span_end_pts,
@@ -2584,7 +2584,7 @@ pub fn scene_from_row_ref<'r>(
   parent_timebase: mediatime::Timebase,
 ) -> Result<Scene<Uuid7>, SqlxError> {
   let id = bytes_to_uuid7(r.id)?;
-  let parent = bytes_to_uuid7(r.parent)?;
+  let video_track_id = bytes_to_uuid7(r.video_track_id)?;
   let index = u32_from_i64(r.index, "Scene.index")?;
   let span = mediatime::TimeRange::try_new(r.span_start_pts, r.span_end_pts, parent_timebase)
     .ok_or_else(|| {
@@ -2594,7 +2594,7 @@ pub fn scene_from_row_ref<'r>(
       ))
     })?;
   let detector = parse_scene_detector(r.detector)?;
-  let s = Scene::try_new(id, parent, index, span, detector)
+  let s = Scene::try_new(id, video_track_id, index, span, detector)
     .map_err(|e: SceneError| SqlxError::DomainConstructorRejected(e.to_string()))?
     .with_description(r.description);
   Ok(s)
@@ -2604,7 +2604,7 @@ pub fn scene_from_row_ref<'r>(
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeRowRef<'r> {
   pub id: &'r [u8],
-  pub parent: &'r [u8],
+  pub scene_id: &'r [u8],
   pub pts: i64,
   pub data: &'r [u8],
   pub mime: &'r str,
@@ -2623,7 +2623,7 @@ pub struct MySqlKeyframeRowRef<'r> {
 /// Borrowed view of [`MySqlKeyframeClassificationRow`].
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeClassificationRowRef<'r> {
-  pub keyframe: &'r [u8],
+  pub keyframe_id: &'r [u8],
   pub ordinal: i32,
   pub label: &'r str,
   pub confidence: f32,
@@ -2632,7 +2632,7 @@ pub struct MySqlKeyframeClassificationRowRef<'r> {
 /// Borrowed view of [`MySqlKeyframeObjectRow`].
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeObjectRowRef<'r> {
-  pub keyframe: &'r [u8],
+  pub keyframe_id: &'r [u8],
   pub ordinal: i32,
   pub label: &'r str,
   pub confidence: f32,
@@ -2646,7 +2646,7 @@ pub struct MySqlKeyframeObjectRowRef<'r> {
 /// Borrowed view of [`MySqlKeyframeActionRow`].
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeActionRowRef<'r> {
-  pub keyframe: &'r [u8],
+  pub keyframe_id: &'r [u8],
   pub ordinal: i32,
   pub label: &'r str,
   pub confidence: f32,
@@ -2655,7 +2655,7 @@ pub struct MySqlKeyframeActionRowRef<'r> {
 /// Borrowed view of [`MySqlKeyframeTextDetectionRow`].
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeTextDetectionRowRef<'r> {
-  pub keyframe: &'r [u8],
+  pub keyframe_id: &'r [u8],
   pub ordinal: i32,
   pub text: &'r str,
   pub confidence: f32,
@@ -2668,7 +2668,7 @@ pub struct MySqlKeyframeTextDetectionRowRef<'r> {
 /// Borrowed view of [`MySqlKeyframeBarcodeRow`].
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeBarcodeRowRef<'r> {
-  pub keyframe: &'r [u8],
+  pub keyframe_id: &'r [u8],
   pub ordinal: i32,
   pub payload: &'r str,
   pub symbology: &'r str,
@@ -2683,7 +2683,7 @@ pub struct MySqlKeyframeBarcodeRowRef<'r> {
 /// `keyframe` Uuid bytes; the remaining columns are `Copy`.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeSaliencyRowRef<'r> {
-  pub keyframe: &'r [u8],
+  pub keyframe_id: &'r [u8],
   pub kind: i16,
   pub ordinal: i32,
   pub bbox_x: f32,
@@ -2696,7 +2696,7 @@ pub struct MySqlKeyframeSaliencyRowRef<'r> {
 /// Borrowed view of [`MySqlKeyframeDocumentSegmentRow`].
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeDocumentSegmentRowRef<'r> {
-  pub keyframe: &'r [u8],
+  pub keyframe_id: &'r [u8],
   pub ordinal: i32,
   pub tl_x: f32,
   pub tl_y: f32,
@@ -2712,7 +2712,7 @@ pub struct MySqlKeyframeDocumentSegmentRowRef<'r> {
 /// Borrowed view of [`MySqlKeyframeColorRow`].
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeColorRowRef<'r> {
-  pub keyframe: &'r [u8],
+  pub keyframe_id: &'r [u8],
   pub ordinal: i32,
   pub rgba: i64,
   pub name: &'r str,
@@ -2723,7 +2723,7 @@ pub struct MySqlKeyframeColorRowRef<'r> {
 /// Borrowed view of [`MySqlKeyframeSubjectRow`].
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeSubjectRowRef<'r> {
-  pub keyframe: &'r [u8],
+  pub keyframe_id: &'r [u8],
   pub scope: i16,
   pub ordinal: i32,
   pub label: &'r str,
@@ -2737,7 +2737,7 @@ pub struct MySqlKeyframeSubjectRowRef<'r> {
 /// Borrowed view of [`MySqlKeyframeFaceRow`].
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeFaceRowRef<'r> {
-  pub keyframe: &'r [u8],
+  pub keyframe_id: &'r [u8],
   pub kind: i16,
   pub ordinal: i32,
   pub bbox_x: f32,
@@ -2754,7 +2754,7 @@ pub struct MySqlKeyframeFaceRowRef<'r> {
 /// Borrowed view of [`MySqlKeyframeBodyPoseRow`].
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeBodyPoseRowRef<'r> {
-  pub keyframe: &'r [u8],
+  pub keyframe_id: &'r [u8],
   pub scope: i16,
   pub ordinal: i32,
   pub bbox_x: f32,
@@ -2767,7 +2767,7 @@ pub struct MySqlKeyframeBodyPoseRowRef<'r> {
 /// Borrowed view of [`MySqlKeyframeBodyPoseJointRow`].
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeBodyPoseJointRowRef<'r> {
-  pub keyframe: &'r [u8],
+  pub keyframe_id: &'r [u8],
   pub scope: i16,
   pub parent_ordinal: i32,
   pub ordinal: i32,
@@ -2780,7 +2780,7 @@ pub struct MySqlKeyframeBodyPoseJointRowRef<'r> {
 /// Borrowed view of [`MySqlKeyframeHandPoseRow`].
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeHandPoseRowRef<'r> {
-  pub keyframe: &'r [u8],
+  pub keyframe_id: &'r [u8],
   pub ordinal: i32,
   pub bbox_x: f32,
   pub bbox_y: f32,
@@ -2793,7 +2793,7 @@ pub struct MySqlKeyframeHandPoseRowRef<'r> {
 /// Borrowed view of [`MySqlKeyframeBodyPose3DRow`].
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeBodyPose3DRowRef<'r> {
-  pub keyframe: &'r [u8],
+  pub keyframe_id: &'r [u8],
   pub ordinal: i32,
   pub confidence: f32,
   pub body_height: f32,
@@ -2803,7 +2803,7 @@ pub struct MySqlKeyframeBodyPose3DRowRef<'r> {
 /// Borrowed view of [`MySqlKeyframeBodyPose3DJointRow`].
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeBodyPose3DJointRowRef<'r> {
-  pub keyframe: &'r [u8],
+  pub keyframe_id: &'r [u8],
   pub parent_ordinal: i32,
   pub ordinal: i32,
   pub name: &'r str,
@@ -2816,7 +2816,7 @@ pub struct MySqlKeyframeBodyPose3DJointRowRef<'r> {
 /// Borrowed view of [`MySqlKeyframeMaskRow`].
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeMaskRowRef<'r> {
-  pub keyframe: &'r [u8],
+  pub keyframe_id: &'r [u8],
   pub kind: i16,
   pub ordinal: i32,
   pub bbox_x: f32,
@@ -2833,7 +2833,7 @@ pub struct MySqlKeyframeMaskRowRef<'r> {
 /// Borrowed view of [`MySqlKeyframeFaceLandmarksRow`].
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeFaceLandmarksRowRef<'r> {
-  pub keyframe: &'r [u8],
+  pub keyframe_id: &'r [u8],
   pub ordinal: i32,
   pub bbox_x: f32,
   pub bbox_y: f32,
@@ -2845,7 +2845,7 @@ pub struct MySqlKeyframeFaceLandmarksRowRef<'r> {
 /// Borrowed view of [`MySqlKeyframeFaceLandmarkRegionRow`].
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct MySqlKeyframeFaceLandmarkRegionRowRef<'r> {
-  pub keyframe: &'r [u8],
+  pub keyframe_id: &'r [u8],
   pub parent_ordinal: i32,
   pub ordinal: i32,
   pub name: &'r str,
@@ -2854,7 +2854,7 @@ pub struct MySqlKeyframeFaceLandmarkRegionRowRef<'r> {
 /// Borrowed view of [`MySqlKeyframeFaceLandmarkPointRow`].
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeFaceLandmarkPointRowRef<'r> {
-  pub keyframe: &'r [u8],
+  pub keyframe_id: &'r [u8],
   pub parent_ordinal: i32,
   pub region_ordinal: i32,
   pub ordinal: i32,
@@ -2865,7 +2865,7 @@ pub struct MySqlKeyframeFaceLandmarkPointRowRef<'r> {
 /// Borrowed view of [`MySqlKeyframeVlmLabelRow`].
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct MySqlKeyframeVlmLabelRowRef<'r> {
-  pub keyframe: &'r [u8],
+  pub keyframe_id: &'r [u8],
   pub kind: i16,
   pub ordinal: i32,
   pub src: &'r str,
@@ -2877,7 +2877,7 @@ impl MySqlKeyframeRow {
   pub fn as_ref(&self) -> MySqlKeyframeRowRef<'_> {
     MySqlKeyframeRowRef {
       id: &self.id,
-      parent: &self.parent,
+      scene_id: &self.scene_id,
       pts: self.pts,
       data: &self.data,
       mime: &self.mime,
@@ -2899,7 +2899,7 @@ impl MySqlKeyframeClassificationRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> MySqlKeyframeClassificationRowRef<'_> {
     MySqlKeyframeClassificationRowRef {
-      keyframe: &self.keyframe,
+      keyframe_id: &self.keyframe_id,
       ordinal: self.ordinal,
       label: &self.label,
       confidence: self.confidence,
@@ -2911,7 +2911,7 @@ impl MySqlKeyframeObjectRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> MySqlKeyframeObjectRowRef<'_> {
     MySqlKeyframeObjectRowRef {
-      keyframe: &self.keyframe,
+      keyframe_id: &self.keyframe_id,
       ordinal: self.ordinal,
       label: &self.label,
       confidence: self.confidence,
@@ -2928,7 +2928,7 @@ impl MySqlKeyframeActionRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> MySqlKeyframeActionRowRef<'_> {
     MySqlKeyframeActionRowRef {
-      keyframe: &self.keyframe,
+      keyframe_id: &self.keyframe_id,
       ordinal: self.ordinal,
       label: &self.label,
       confidence: self.confidence,
@@ -2940,7 +2940,7 @@ impl MySqlKeyframeTextDetectionRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> MySqlKeyframeTextDetectionRowRef<'_> {
     MySqlKeyframeTextDetectionRowRef {
-      keyframe: &self.keyframe,
+      keyframe_id: &self.keyframe_id,
       ordinal: self.ordinal,
       text: &self.text,
       confidence: self.confidence,
@@ -2956,7 +2956,7 @@ impl MySqlKeyframeBarcodeRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> MySqlKeyframeBarcodeRowRef<'_> {
     MySqlKeyframeBarcodeRowRef {
-      keyframe: &self.keyframe,
+      keyframe_id: &self.keyframe_id,
       ordinal: self.ordinal,
       payload: &self.payload,
       symbology: &self.symbology,
@@ -2973,7 +2973,7 @@ impl MySqlKeyframeSaliencyRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> MySqlKeyframeSaliencyRowRef<'_> {
     MySqlKeyframeSaliencyRowRef {
-      keyframe: &self.keyframe,
+      keyframe_id: &self.keyframe_id,
       kind: self.kind,
       ordinal: self.ordinal,
       bbox_x: self.bbox_x,
@@ -2989,7 +2989,7 @@ impl MySqlKeyframeDocumentSegmentRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> MySqlKeyframeDocumentSegmentRowRef<'_> {
     MySqlKeyframeDocumentSegmentRowRef {
-      keyframe: &self.keyframe,
+      keyframe_id: &self.keyframe_id,
       ordinal: self.ordinal,
       tl_x: self.tl_x,
       tl_y: self.tl_y,
@@ -3008,7 +3008,7 @@ impl MySqlKeyframeColorRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> MySqlKeyframeColorRowRef<'_> {
     MySqlKeyframeColorRowRef {
-      keyframe: &self.keyframe,
+      keyframe_id: &self.keyframe_id,
       ordinal: self.ordinal,
       rgba: self.rgba,
       name: &self.name,
@@ -3022,7 +3022,7 @@ impl MySqlKeyframeSubjectRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> MySqlKeyframeSubjectRowRef<'_> {
     MySqlKeyframeSubjectRowRef {
-      keyframe: &self.keyframe,
+      keyframe_id: &self.keyframe_id,
       scope: self.scope,
       ordinal: self.ordinal,
       label: &self.label,
@@ -3039,7 +3039,7 @@ impl MySqlKeyframeFaceRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> MySqlKeyframeFaceRowRef<'_> {
     MySqlKeyframeFaceRowRef {
-      keyframe: &self.keyframe,
+      keyframe_id: &self.keyframe_id,
       kind: self.kind,
       ordinal: self.ordinal,
       bbox_x: self.bbox_x,
@@ -3059,7 +3059,7 @@ impl MySqlKeyframeBodyPoseRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> MySqlKeyframeBodyPoseRowRef<'_> {
     MySqlKeyframeBodyPoseRowRef {
-      keyframe: &self.keyframe,
+      keyframe_id: &self.keyframe_id,
       scope: self.scope,
       ordinal: self.ordinal,
       bbox_x: self.bbox_x,
@@ -3075,7 +3075,7 @@ impl MySqlKeyframeBodyPoseJointRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> MySqlKeyframeBodyPoseJointRowRef<'_> {
     MySqlKeyframeBodyPoseJointRowRef {
-      keyframe: &self.keyframe,
+      keyframe_id: &self.keyframe_id,
       scope: self.scope,
       parent_ordinal: self.parent_ordinal,
       ordinal: self.ordinal,
@@ -3091,7 +3091,7 @@ impl MySqlKeyframeHandPoseRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> MySqlKeyframeHandPoseRowRef<'_> {
     MySqlKeyframeHandPoseRowRef {
-      keyframe: &self.keyframe,
+      keyframe_id: &self.keyframe_id,
       ordinal: self.ordinal,
       bbox_x: self.bbox_x,
       bbox_y: self.bbox_y,
@@ -3107,7 +3107,7 @@ impl MySqlKeyframeBodyPose3DRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> MySqlKeyframeBodyPose3DRowRef<'_> {
     MySqlKeyframeBodyPose3DRowRef {
-      keyframe: &self.keyframe,
+      keyframe_id: &self.keyframe_id,
       ordinal: self.ordinal,
       confidence: self.confidence,
       body_height: self.body_height,
@@ -3120,7 +3120,7 @@ impl MySqlKeyframeBodyPose3DJointRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> MySqlKeyframeBodyPose3DJointRowRef<'_> {
     MySqlKeyframeBodyPose3DJointRowRef {
-      keyframe: &self.keyframe,
+      keyframe_id: &self.keyframe_id,
       parent_ordinal: self.parent_ordinal,
       ordinal: self.ordinal,
       name: &self.name,
@@ -3136,7 +3136,7 @@ impl MySqlKeyframeMaskRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> MySqlKeyframeMaskRowRef<'_> {
     MySqlKeyframeMaskRowRef {
-      keyframe: &self.keyframe,
+      keyframe_id: &self.keyframe_id,
       kind: self.kind,
       ordinal: self.ordinal,
       bbox_x: self.bbox_x,
@@ -3156,7 +3156,7 @@ impl MySqlKeyframeFaceLandmarksRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> MySqlKeyframeFaceLandmarksRowRef<'_> {
     MySqlKeyframeFaceLandmarksRowRef {
-      keyframe: &self.keyframe,
+      keyframe_id: &self.keyframe_id,
       ordinal: self.ordinal,
       bbox_x: self.bbox_x,
       bbox_y: self.bbox_y,
@@ -3171,7 +3171,7 @@ impl MySqlKeyframeFaceLandmarkRegionRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> MySqlKeyframeFaceLandmarkRegionRowRef<'_> {
     MySqlKeyframeFaceLandmarkRegionRowRef {
-      keyframe: &self.keyframe,
+      keyframe_id: &self.keyframe_id,
       parent_ordinal: self.parent_ordinal,
       ordinal: self.ordinal,
       name: &self.name,
@@ -3183,7 +3183,7 @@ impl MySqlKeyframeFaceLandmarkPointRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> MySqlKeyframeFaceLandmarkPointRowRef<'_> {
     MySqlKeyframeFaceLandmarkPointRowRef {
-      keyframe: &self.keyframe,
+      keyframe_id: &self.keyframe_id,
       parent_ordinal: self.parent_ordinal,
       region_ordinal: self.region_ordinal,
       ordinal: self.ordinal,
@@ -3197,7 +3197,7 @@ impl MySqlKeyframeVlmLabelRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> MySqlKeyframeVlmLabelRowRef<'_> {
     MySqlKeyframeVlmLabelRowRef {
-      keyframe: &self.keyframe,
+      keyframe_id: &self.keyframe_id,
       kind: self.kind,
       ordinal: self.ordinal,
       src: &self.src,
@@ -3354,14 +3354,14 @@ pub fn keyframe_from_rows_ref<'r>(
       .keyframe
       .ok_or_else(|| SqlxError::DomainConstructorRejected("Keyframe row is missing".to_owned()))?;
     let id = bytes_to_uuid7(row.id)?;
-    let parent = bytes_to_uuid7(row.parent)?;
+    let scene_id = bytes_to_uuid7(row.scene_id)?;
     let pts = mediatime::Timestamp::new(row.pts, parent_timebase);
     let dimensions = Dimensions::new(
       u32_from_i64(row.width, "Keyframe.width")?,
       u32_from_i64(row.height, "Keyframe.height")?,
     );
     let extractor = parse_keyframe_extractor(row.extractor)?;
-    let mut kf = Keyframe::try_new(id, parent, pts, dimensions, extractor)
+    let mut kf = Keyframe::try_new(id, scene_id, pts, dimensions, extractor)
       .map_err(|e: KeyframeError| SqlxError::DomainConstructorRejected(e.to_string()))?
       .with_mime(row.mime)
       .with_data(Bytes::copy_from_slice(row.data))
@@ -4173,7 +4173,7 @@ mod tests {
     let row: MySqlVideoRow = (&v).into();
     let v2: Video<Uuid7> = row.as_ref().try_into().unwrap();
     assert_eq!(v.id_ref(), v2.id_ref());
-    assert_eq!(v.parent_ref(), v2.parent_ref());
+    assert_eq!(v.media_id_ref(), v2.media_id_ref());
     assert_eq!(v2.total_scenes(), 7);
     assert_eq!(v2.track_progress_ref().total(), 2);
   }

@@ -23,9 +23,9 @@ pub struct MySqlMediaRow {
   pub size: u64,
   pub duration_raw: Option<i64>,
   pub kind: i16,
-  pub video: Option<std::vec::Vec<u8>>,
-  pub audio: Option<std::vec::Vec<u8>>,
-  pub subtitle: Option<std::vec::Vec<u8>>,
+  pub video_id: Option<std::vec::Vec<u8>>,
+  pub audio_id: Option<std::vec::Vec<u8>>,
+  pub subtitle_id: Option<std::vec::Vec<u8>>,
   pub error_flags: u16,
   /// `ErrorInfo.code` as the verified `u32` wire value; NULL = no probe
   /// error. Discriminates presence of the flattened `ErrorInfo` VO.
@@ -70,9 +70,9 @@ impl From<&Media<Uuid7>> for MySqlMediaRow {
       size: m.size(),
       duration_raw: m.duration_ref().and_then(|_| None::<i64>),
       kind: media_kind_to_i16(m.kind()),
-      video: m.video_ref().map(|id| id.as_bytes().to_vec()),
-      audio: m.audio_ref().map(|id| id.as_bytes().to_vec()),
-      subtitle: m.subtitle_ref().map(|id| id.as_bytes().to_vec()),
+      video_id: m.video_id_ref().map(|id| id.as_bytes().to_vec()),
+      audio_id: m.audio_id_ref().map(|id| id.as_bytes().to_vec()),
+      subtitle_id: m.subtitle_id_ref().map(|id| id.as_bytes().to_vec()),
       error_flags: m.error_flags().bits(),
       probe_error_code: probe_error.map(|e| e.code().as_u32() as i32),
       probe_error_message: probe_error.map(|e| e.message().to_owned()),
@@ -102,14 +102,14 @@ impl TryFrom<MySqlMediaRow> for Media<Uuid7> {
     let format = r.format.parse::<Format>().unwrap_or_default();
     let mut m = Media::try_new(id, checksum, format, r.size, kind)
       .map_err(|e: MediaError| SqlxError::DomainConstructorRejected(e.to_string()))?;
-    if let Some(v) = r.video {
-      m = m.with_video(Some(bytes_to_uuid7(&v)?));
+    if let Some(v) = r.video_id {
+      m = m.with_video_id(Some(bytes_to_uuid7(&v)?));
     }
-    if let Some(v) = r.audio {
-      m = m.with_audio(Some(bytes_to_uuid7(&v)?));
+    if let Some(v) = r.audio_id {
+      m = m.with_audio_id(Some(bytes_to_uuid7(&v)?));
     }
-    if let Some(v) = r.subtitle {
-      m = m.with_subtitle(Some(bytes_to_uuid7(&v)?));
+    if let Some(v) = r.subtitle_id {
+      m = m.with_subtitle_id(Some(bytes_to_uuid7(&v)?));
     }
     m = m.with_error_flags(MediaErrorFlags::from_bits_truncate(r.error_flags));
     if let Some(code) = r.probe_error_code {
@@ -170,7 +170,7 @@ mod tests {
       MediaKind::Audio,
     )
     .unwrap()
-    .with_audio(Some(Uuid7::new()))
+    .with_audio_id(Some(Uuid7::new()))
     .with_error_flags(MediaErrorFlags::AUDIO_ERROR)
     .with_device(Some(Device::new().with_make("Sony").with_model("A7 IV")));
     let row: MySqlMediaRow = (&m).into();
@@ -178,7 +178,7 @@ mod tests {
     assert_eq!(m.id_ref(), m2.id_ref());
     assert_eq!(m.checksum_ref(), m2.checksum_ref());
     assert_eq!(m.kind(), m2.kind());
-    assert_eq!(m.audio_ref(), m2.audio_ref());
+    assert_eq!(m.audio_id_ref(), m2.audio_id_ref());
     assert_eq!(m.error_flags(), m2.error_flags());
     assert_eq!(m2.device_ref().unwrap().model(), "A7 IV");
   }
@@ -192,9 +192,9 @@ mod tests {
       size: 0,
       duration_raw: None,
       kind: 0,
-      video: None,
-      audio: None,
-      subtitle: None,
+      video_id: None,
+      audio_id: None,
+      subtitle_id: None,
       error_flags: 0,
       probe_error_code: None,
       probe_error_message: None,

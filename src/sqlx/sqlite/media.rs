@@ -32,9 +32,9 @@ pub struct SqliteMediaRow {
   pub duration_raw: Option<i64>,
   /// `MediaKind` discriminant: 0=Video, 1=Audio.
   pub kind: i64,
-  pub video: Option<std::vec::Vec<u8>>,
-  pub audio: Option<std::vec::Vec<u8>>,
-  pub subtitle: Option<std::vec::Vec<u8>>,
+  pub video_id: Option<std::vec::Vec<u8>>,
+  pub audio_id: Option<std::vec::Vec<u8>>,
+  pub subtitle_id: Option<std::vec::Vec<u8>>,
   pub error_flags: i64,
   /// `ErrorInfo.code` as the verified `u32` wire value; NULL = no probe
   /// error. Discriminates presence of the flattened `ErrorInfo` VO.
@@ -84,9 +84,9 @@ impl From<&Media<Uuid7>> for SqliteMediaRow {
       // raw nanoseconds in a sidecar column.
       duration_raw: m.duration_ref().and_then(|_| None::<i64>),
       kind: media_kind_to_i64(m.kind()),
-      video: m.video_ref().map(|id| id.as_bytes().to_vec()),
-      audio: m.audio_ref().map(|id| id.as_bytes().to_vec()),
-      subtitle: m.subtitle_ref().map(|id| id.as_bytes().to_vec()),
+      video_id: m.video_id_ref().map(|id| id.as_bytes().to_vec()),
+      audio_id: m.audio_id_ref().map(|id| id.as_bytes().to_vec()),
+      subtitle_id: m.subtitle_id_ref().map(|id| id.as_bytes().to_vec()),
       error_flags: i64::from(m.error_flags().bits()),
       probe_error_code: probe_error.map(|e| i64::from(e.code().as_u32())),
       probe_error_message: probe_error.map(|e| e.message().to_owned()),
@@ -119,14 +119,14 @@ impl TryFrom<SqliteMediaRow> for Media<Uuid7> {
     let mut m = Media::try_new(id, checksum, format, size, kind)
       .map_err(|e: MediaError| SqlxError::DomainConstructorRejected(e.to_string()))?;
 
-    if let Some(v) = r.video {
-      m = m.with_video(Some(bytes_to_uuid7(&v)?));
+    if let Some(v) = r.video_id {
+      m = m.with_video_id(Some(bytes_to_uuid7(&v)?));
     }
-    if let Some(v) = r.audio {
-      m = m.with_audio(Some(bytes_to_uuid7(&v)?));
+    if let Some(v) = r.audio_id {
+      m = m.with_audio_id(Some(bytes_to_uuid7(&v)?));
     }
-    if let Some(v) = r.subtitle {
-      m = m.with_subtitle(Some(bytes_to_uuid7(&v)?));
+    if let Some(v) = r.subtitle_id {
+      m = m.with_subtitle_id(Some(bytes_to_uuid7(&v)?));
     }
     let flags_bits = u16::try_from(r.error_flags)
       .map_err(|e| SqlxError::UnknownDiscriminant(format!("Media.error_flags: {e}")))?;
@@ -217,8 +217,8 @@ mod tests {
       MediaKind::Video,
     )
     .unwrap()
-    .with_video(Some(video_id))
-    .with_audio(Some(audio_id))
+    .with_video_id(Some(video_id))
+    .with_audio_id(Some(audio_id))
     .with_error_flags(MediaErrorFlags::VIDEO_ERROR | MediaErrorFlags::AUDIO_ERROR)
     .with_capture_date(Some(ts()))
     .with_device(Some(
@@ -230,8 +230,8 @@ mod tests {
     .with_probe_error(Some(ErrorInfo::new(ErrorCode::ProbeCorrupt, "bad header")));
     let row: SqliteMediaRow = (&m).into();
     let m2: Media<Uuid7> = row.try_into().unwrap();
-    assert_eq!(m.video_ref(), m2.video_ref());
-    assert_eq!(m.audio_ref(), m2.audio_ref());
+    assert_eq!(m.video_id_ref(), m2.video_id_ref());
+    assert_eq!(m.audio_id_ref(), m2.audio_id_ref());
     assert_eq!(m.error_flags(), m2.error_flags());
     assert!(m2.device_ref().is_some());
     assert_eq!(m2.device_ref().unwrap().make(), "Apple");
@@ -277,9 +277,9 @@ mod tests {
       size: 0,
       duration_raw: None,
       kind: 0,
-      video: None,
-      audio: None,
-      subtitle: None,
+      video_id: None,
+      audio_id: None,
+      subtitle_id: None,
       error_flags: 0,
       probe_error_code: None,
       probe_error_message: None,
@@ -303,9 +303,9 @@ mod tests {
       size: 0,
       duration_raw: None,
       kind: 0,
-      video: None,
-      audio: None,
-      subtitle: None,
+      video_id: None,
+      audio_id: None,
+      subtitle_id: None,
       error_flags: 0,
       probe_error_code: None,
       probe_error_message: None,

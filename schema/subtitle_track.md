@@ -1,8 +1,8 @@
-# `SubtitleTrack<Id>` — a subtitle stream  *(rev 3 — LOCKED, user-approved; `error_status` removed)*
+# `SubtitleTrack<Id>` — a subtitle stream  *(rev 4 — LOCKED, user-approved; `error_status` removed)*
 
 ## Domain meaning
 
-One subtitle stream of a `Subtitle` facet (`parent → Subtitle.id`). An external
+One subtitle stream of a `Subtitle` facet (``subtitle_id` → Subtitle.id`). An external
 `.srt`/`.vtt` is **one** `SubtitleTrack`; embedded subtitles are **N**. Holds
 the per-track stream/codec descriptor, language/role/origin, the parsed-cue
 aggregate refs, and per-track indexing state. Its own schema (no shared track
@@ -19,7 +19,7 @@ Conversions deferred.
 | field | domain type | wire origin | notes |
 |---|---|---|---|
 | `id` | `Id` (UUIDv7) | `*.id: bytes` | canonical identity |
-| `parent` | `Id` | `subtitle_id` | FK → `Subtitle.id` |
+| `subtitle_id` | `Id` | `subtitle_id` | FK → `Subtitle.id` |
 | `stream_index` | `Option<u32>` | stream idx | source-locator (ffmpeg/WebCodecs); not identity; `None` for external file |
 | `container_track_id` | `Option<u64>` | — | keep only if pipeline uses it |
 | `codec` | `SubtitleCodec` (enum) | codec | `Srt`/`Ass`/`WebVtt`/`MovText`/`DvbSub`/`Pgs`/`DvdSub`/`Other(SmolStr)` (see [enums.md](enums.md)) |
@@ -95,7 +95,7 @@ let external code mark an unknown / image subtitle complete without `OCR_DONE`
 
 ## Projection notes
 
-- **sqlx**: `subtitle_track` table; `id` PK; `parent` FK; `cues` via
+- **sqlx**: `subtitle_track` table; `id` PK; `subtitle_id` FK; `cues` via
   `subtitle_cue.subtitle_track_id` FK; `index_*` `INTEGER` + generated bool cols;
   `language`/`codec`/`origin` indexed.
 - **mongodb**: `_id`=UUIDv7; `cues` UUID ref array; flags as ints.

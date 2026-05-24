@@ -1,4 +1,4 @@
-# `Subtitle<Id>` — subtitle facet (thin aggregate)  *(rev 3 — LOCKED, user-approved)*
+# `Subtitle<Id>` — subtitle facet (thin aggregate)  *(rev 4 — LOCKED, user-approved)*
 
 ## Domain meaning
 

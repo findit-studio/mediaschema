@@ -116,7 +116,7 @@ impl From<&Speaker<Uuid7>> for Document {
   fn from(s: &Speaker<Uuid7>) -> Self {
     let mut d = Document::new();
     d.insert("_id", uuid7_to_bson(*s.id_ref()));
-    d.insert("parent", uuid7_to_bson(*s.parent_ref()));
+    d.insert("audio_track_id", uuid7_to_bson(*s.audio_track_id_ref()));
     d.insert("cluster_id", Bson::Int64(s.cluster_id() as i64));
     d.insert("name", Bson::String(s.name().to_owned()));
     d.insert(
@@ -134,10 +134,10 @@ impl TryFrom<Document> for Speaker<Uuid7> {
 
   fn try_from(mut d: Document) -> Result<Self, Self::Error> {
     let id = uuid7_from_bson(take(&mut d, "_id")?, "_id")?;
-    let parent = uuid7_from_bson(take(&mut d, "parent")?, "parent")?;
+    let audio_track_id = uuid7_from_bson(take(&mut d, "audio_track_id")?, "audio_track_id")?;
     let cluster_id = as_u32(take(&mut d, "cluster_id")?, "cluster_id")?;
     let name = as_smol(take(&mut d, "name")?, "name")?;
-    let mut s = Speaker::try_new(id, parent, cluster_id, name)?;
+    let mut s = Speaker::try_new(id, audio_track_id, cluster_id, name)?;
     if let Some(b) = take_opt(&mut d, "speech_duration") {
       s.try_set_speech_duration(Some(media_ts_from_bson(b, "speech_duration")?))?;
     }
@@ -183,7 +183,7 @@ impl From<&SceneAnnotation<Uuid7>> for Document {
   fn from(a: &SceneAnnotation<Uuid7>) -> Self {
     let mut d = Document::new();
     d.insert("_id", uuid7_to_bson(*a.id_ref()));
-    d.insert("scene", uuid7_to_bson(*a.scene_ref()));
+    d.insert("scene_id", uuid7_to_bson(*a.scene_id_ref()));
     d.insert("favorite", Bson::Boolean(a.is_favorite()));
     d.insert("user_tags", uuid7_vec_to_bson(a.user_tags_slice()));
     d.insert(
@@ -203,9 +203,9 @@ impl TryFrom<Document> for SceneAnnotation<Uuid7> {
 
   fn try_from(mut d: Document) -> Result<Self, Self::Error> {
     let id = uuid7_from_bson(take(&mut d, "_id")?, "_id")?;
-    let scene = uuid7_from_bson(take(&mut d, "scene")?, "scene")?;
+    let scene_id = uuid7_from_bson(take(&mut d, "scene_id")?, "scene_id")?;
     let updated_at = jiff_from_bson(take(&mut d, "updated_at")?, "updated_at")?;
-    let mut a = SceneAnnotation::try_new(id, scene, updated_at)?;
+    let mut a = SceneAnnotation::try_new(id, scene_id, updated_at)?;
     if let Some(b) = take_opt(&mut d, "favorite") {
       a.set_favorite(as_bool(b, "favorite")?);
     }

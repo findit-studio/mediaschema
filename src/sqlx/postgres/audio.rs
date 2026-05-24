@@ -75,7 +75,7 @@ fn content_kind_from_i16(n: i16) -> Result<AudioContentKind, SqlxError> {
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct PgAudioRow {
   pub id: Uuid,
-  pub parent: Uuid,
+  pub media_id: Uuid,
   pub total_segments: i64,
   pub track_progress_total: i64,
   pub track_progress_indexed: i64,
@@ -87,7 +87,7 @@ impl From<&Audio<Uuid7>> for PgAudioRow {
     let p = a.track_progress_ref();
     Self {
       id: uuid7_to_uuid(*a.id_ref()),
-      parent: uuid7_to_uuid(*a.parent_ref()),
+      media_id: uuid7_to_uuid(*a.media_id_ref()),
       total_segments: i64::from(a.total_segments()),
       track_progress_total: i64::from(p.total()),
       track_progress_indexed: i64::from(p.indexed()),
@@ -101,14 +101,14 @@ impl TryFrom<PgAudioRow> for Audio<Uuid7> {
 
   fn try_from(r: PgAudioRow) -> Result<Self, Self::Error> {
     let id = uuid_to_uuid7(r.id)?;
-    let parent = uuid_to_uuid7(r.parent)?;
+    let media_id = uuid_to_uuid7(r.media_id)?;
     let total_segments = u32_from_i64(r.total_segments, "Audio.total_segments")?;
     let progress = IndexProgress::from_parts(
       u32_from_i64(r.track_progress_total, "Audio.track_progress_total")?,
       u32_from_i64(r.track_progress_indexed, "Audio.track_progress_indexed")?,
       u32_from_i64(r.track_progress_failed, "Audio.track_progress_failed")?,
     );
-    let a = Audio::try_new(id, parent)
+    let a = Audio::try_new(id, media_id)
       .map_err(|e: AudioError| SqlxError::DomainConstructorRejected(e.to_string()))?;
     Ok(restore_rollups(a, total_segments, progress))
   }
@@ -209,7 +209,7 @@ pub struct PgAudioTrackRow {
 /// `AudioTrack::index_errors`, with its `ordinal` position.
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct PgAudioTrackIndexErrorRow {
-  pub audio_track: Uuid,
+  pub audio_track_id: Uuid,
   pub ordinal: i32,
   pub code: i32,
   pub message: String,
@@ -227,7 +227,7 @@ impl From<&AudioTrack<Uuid7>> for (PgAudioTrackRow, std::vec::Vec<PgAudioTrackIn
     let start_pts = t.start_pts_ref();
     let row = PgAudioTrackRow {
       id,
-      audio_id: uuid7_to_uuid(*t.parent_ref()),
+      audio_id: uuid7_to_uuid(*t.audio_id_ref()),
       stream_index: t.stream_index().map(i64::from),
       container_track_id: t.container_track_id().map(|v| v as i64),
       codec: t.codec_ref().as_str().to_owned(),
@@ -290,7 +290,7 @@ impl From<&AudioTrack<Uuid7>> for (PgAudioTrackRow, std::vec::Vec<PgAudioTrackIn
       .iter()
       .enumerate()
       .map(|(i, e)| PgAudioTrackIndexErrorRow {
-        audio_track: id,
+        audio_track_id: id,
         ordinal: i as i32,
         code: e.code().as_u32() as i32,
         message: e.message().to_owned(),
@@ -458,12 +458,12 @@ impl TryFrom<(PgAudioTrackRow, std::vec::Vec<PgAudioTrackIndexErrorRow>)> for Au
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct PgAudioSegmentRow {
   pub id: Uuid,
-  pub parent: Uuid,
+  pub audio_track_id: Uuid,
   pub index: i64,
   pub span_start_pts: i64,
   pub span_end_pts: i64,
   /// `speaker` FK → `Speaker`; NULL = not diarized.
-  pub speaker: Option<Uuid>,
+  pub speaker_id: Option<Uuid>,
   pub text_src: String,
   pub text_translated: String,
   /// Chunk `Language`, BCP-47; NULL = absent.
@@ -478,7 +478,7 @@ pub struct PgAudioSegmentRow {
 /// timebase is inherited from `audio_track` and is not stored per word.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct PgAudioSegmentWordRow {
-  pub audio_segment: Uuid,
+  pub audio_segment_id: Uuid,
   pub ordinal: i32,
   pub text: String,
   pub span_start_pts: i64,
@@ -494,11 +494,11 @@ impl From<&AudioSegment<Uuid7>> for (PgAudioSegmentRow, std::vec::Vec<PgAudioSeg
     let span = s.span_ref();
     let row = PgAudioSegmentRow {
       id,
-      parent: uuid7_to_uuid(*s.parent_ref()),
+      audio_track_id: uuid7_to_uuid(*s.audio_track_id_ref()),
       index: i64::from(s.index()),
       span_start_pts: span.start_pts(),
       span_end_pts: span.end_pts(),
-      speaker: s.speaker_ref().map(|id| uuid7_to_uuid(*id)),
+      speaker_id: s.speaker_id_ref().map(|id| uuid7_to_uuid(*id)),
       text_src: s.text_ref().src().to_owned(),
       text_translated: s.text_ref().translated().to_owned(),
       language: s.language().map(|l| l.to_bcp47()),
@@ -513,7 +513,7 @@ impl From<&AudioSegment<Uuid7>> for (PgAudioSegmentRow, std::vec::Vec<PgAudioSeg
       .map(|(i, w)| {
         let wspan = w.span_ref();
         PgAudioSegmentWordRow {
-          audio_segment: id,
+          audio_segment_id: id,
           ordinal: i as i32,
           text: w.text().to_owned(),
           span_start_pts: wspan.start_pts(),
@@ -540,7 +540,7 @@ pub fn audio_segment_from_rows(
   parent_timebase: mediatime::Timebase,
 ) -> Result<AudioSegment<Uuid7>, SqlxError> {
   let id = uuid_to_uuid7(r.id)?;
-  let parent = uuid_to_uuid7(r.parent)?;
+  let audio_track_id = uuid_to_uuid7(r.audio_track_id)?;
   let index = u32_from_i64(r.index, "AudioSegment.index")?;
   let span = mediatime::TimeRange::try_new(r.span_start_pts, r.span_end_pts, parent_timebase)
     .ok_or_else(|| {
@@ -549,11 +549,11 @@ pub fn audio_segment_from_rows(
         r.span_start_pts, r.span_end_pts
       ))
     })?;
-  let mut s = AudioSegment::try_new(id, parent, index, span)
+  let mut s = AudioSegment::try_new(id, audio_track_id, index, span)
     .map_err(|e: AudioSegmentError| SqlxError::DomainConstructorRejected(e.to_string()))?;
 
-  if let Some(sp) = r.speaker {
-    s = s.with_speaker(Some(uuid_to_uuid7(sp)?));
+  if let Some(sp) = r.speaker_id {
+    s = s.with_speaker_id(Some(uuid_to_uuid7(sp)?));
   }
   s = s
     .with_text(crate::domain::vo::LocalizedText::from_src_translated(
@@ -670,7 +670,7 @@ pub struct PgAudioTrackRowRef<'r> {
 /// Borrowed view of [`PgAudioTrackIndexErrorRow`].
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct PgAudioTrackIndexErrorRowRef<'r> {
-  pub audio_track: Uuid,
+  pub audio_track_id: Uuid,
   pub ordinal: i32,
   pub code: i32,
   pub message: &'r str,
@@ -746,7 +746,7 @@ impl PgAudioTrackIndexErrorRow {
   /// Cheap borrow — produces a [`PgAudioTrackIndexErrorRowRef`] referencing `self`.
   pub fn as_ref(&self) -> PgAudioTrackIndexErrorRowRef<'_> {
     PgAudioTrackIndexErrorRowRef {
-      audio_track: self.audio_track,
+      audio_track_id: self.audio_track_id,
       ordinal: self.ordinal,
       code: self.code,
       message: &self.message,
@@ -904,11 +904,11 @@ impl<'r>
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct PgAudioSegmentRowRef<'r> {
   pub id: Uuid,
-  pub parent: Uuid,
+  pub audio_track_id: Uuid,
   pub index: i64,
   pub span_start_pts: i64,
   pub span_end_pts: i64,
-  pub speaker: Option<Uuid>,
+  pub speaker_id: Option<Uuid>,
   pub text_src: &'r str,
   pub text_translated: &'r str,
   pub language: Option<&'r str>,
@@ -920,7 +920,7 @@ pub struct PgAudioSegmentRowRef<'r> {
 /// Borrowed view of [`PgAudioSegmentWordRow`].
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct PgAudioSegmentWordRowRef<'r> {
-  pub audio_segment: Uuid,
+  pub audio_segment_id: Uuid,
   pub ordinal: i32,
   pub text: &'r str,
   pub span_start_pts: i64,
@@ -934,11 +934,11 @@ impl PgAudioSegmentRow {
   pub fn as_ref(&self) -> PgAudioSegmentRowRef<'_> {
     PgAudioSegmentRowRef {
       id: self.id,
-      parent: self.parent,
+      audio_track_id: self.audio_track_id,
       index: self.index,
       span_start_pts: self.span_start_pts,
       span_end_pts: self.span_end_pts,
-      speaker: self.speaker,
+      speaker_id: self.speaker_id,
       text_src: &self.text_src,
       text_translated: &self.text_translated,
       language: self.language.as_deref(),
@@ -953,7 +953,7 @@ impl PgAudioSegmentWordRow {
   /// Cheap borrow — produces a [`PgAudioSegmentWordRowRef`] referencing `self`.
   pub fn as_ref(&self) -> PgAudioSegmentWordRowRef<'_> {
     PgAudioSegmentWordRowRef {
-      audio_segment: self.audio_segment,
+      audio_segment_id: self.audio_segment_id,
       ordinal: self.ordinal,
       text: &self.text,
       span_start_pts: self.span_start_pts,
@@ -974,7 +974,7 @@ pub fn audio_segment_from_row_refs<'r>(
   parent_timebase: mediatime::Timebase,
 ) -> Result<AudioSegment<Uuid7>, SqlxError> {
   let id = uuid_to_uuid7(r.id)?;
-  let parent = uuid_to_uuid7(r.parent)?;
+  let audio_track_id = uuid_to_uuid7(r.audio_track_id)?;
   let index = u32_from_i64(r.index, "AudioSegment.index")?;
   let span = mediatime::TimeRange::try_new(r.span_start_pts, r.span_end_pts, parent_timebase)
     .ok_or_else(|| {
@@ -983,11 +983,11 @@ pub fn audio_segment_from_row_refs<'r>(
         r.span_start_pts, r.span_end_pts
       ))
     })?;
-  let mut s = AudioSegment::try_new(id, parent, index, span)
+  let mut s = AudioSegment::try_new(id, audio_track_id, index, span)
     .map_err(|e: AudioSegmentError| SqlxError::DomainConstructorRejected(e.to_string()))?;
 
-  if let Some(sp) = r.speaker {
-    s = s.with_speaker(Some(uuid_to_uuid7(sp)?));
+  if let Some(sp) = r.speaker_id {
+    s = s.with_speaker_id(Some(uuid_to_uuid7(sp)?));
   }
   s = s
     .with_text(crate::domain::vo::LocalizedText::from_src_translated(
@@ -1233,7 +1233,7 @@ mod tests {
     let w2 = Word::try_new("mundo", TimeRange::new(400, 900, tb()), 0.8).unwrap();
     let s = AudioSegment::try_new(Uuid7::new(), Uuid7::new(), 4, TimeRange::new(0, 1000, tb()))
       .unwrap()
-      .with_speaker(Some(Uuid7::new()))
+      .with_speaker_id(Some(Uuid7::new()))
       .with_text(crate::domain::vo::LocalizedText::from_src_translated(
         "hola mundo",
         "hello world",
@@ -1310,7 +1310,7 @@ mod tests {
     let w2 = Word::try_new("mundo", TimeRange::new(400, 900, tb()), 0.8).unwrap();
     let s = AudioSegment::try_new(Uuid7::new(), Uuid7::new(), 4, TimeRange::new(0, 1000, tb()))
       .unwrap()
-      .with_speaker(Some(Uuid7::new()))
+      .with_speaker_id(Some(Uuid7::new()))
       .with_text(crate::domain::vo::LocalizedText::from_src_translated(
         "hola mundo",
         "hello world",

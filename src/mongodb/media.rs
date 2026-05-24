@@ -103,20 +103,20 @@ impl From<&Media<Uuid7>> for Document {
     );
     d.insert("kind", Bson::Int32(media_kind_to_i32(m.kind())));
     d.insert(
-      "video",
-      m.video_ref()
+      "video_id",
+      m.video_id_ref()
         .map(|i| uuid7_to_bson(*i))
         .unwrap_or(Bson::Null),
     );
     d.insert(
-      "audio",
-      m.audio_ref()
+      "audio_id",
+      m.audio_id_ref()
         .map(|i| uuid7_to_bson(*i))
         .unwrap_or(Bson::Null),
     );
     d.insert(
-      "subtitle",
-      m.subtitle_ref()
+      "subtitle_id",
+      m.subtitle_id_ref()
         .map(|i| uuid7_to_bson(*i))
         .unwrap_or(Bson::Null),
     );
@@ -158,14 +158,14 @@ impl TryFrom<Document> for Media<Uuid7> {
     if let Some(b) = take_opt(&mut d, "duration") {
       m.try_set_duration(Some(media_ts_from_bson(b, "duration")?))?;
     }
-    if let Some(b) = take_opt(&mut d, "video") {
-      m.set_video(Some(uuid7_from_bson(b, "video")?));
+    if let Some(b) = take_opt(&mut d, "video_id") {
+      m.set_video_id(Some(uuid7_from_bson(b, "video_id")?));
     }
-    if let Some(b) = take_opt(&mut d, "audio") {
-      m.set_audio(Some(uuid7_from_bson(b, "audio")?));
+    if let Some(b) = take_opt(&mut d, "audio_id") {
+      m.set_audio_id(Some(uuid7_from_bson(b, "audio_id")?));
     }
-    if let Some(b) = take_opt(&mut d, "subtitle") {
-      m.set_subtitle(Some(uuid7_from_bson(b, "subtitle")?));
+    if let Some(b) = take_opt(&mut d, "subtitle_id") {
+      m.set_subtitle_id(Some(uuid7_from_bson(b, "subtitle_id")?));
     }
     if let Some(b) = take_opt(&mut d, "error_flags") {
       let bits = as_u64(b, "error_flags")?;
@@ -229,9 +229,9 @@ mod tests {
   fn media_full_roundtrip() {
     let m = Media::try_new(Uuid7::new(), cs(), mp4(), 999_999, MediaKind::Audio)
       .unwrap()
-      .with_video(Some(Uuid7::new()))
-      .with_audio(Some(Uuid7::new()))
-      .with_subtitle(Some(Uuid7::new()))
+      .with_video_id(Some(Uuid7::new()))
+      .with_audio_id(Some(Uuid7::new()))
+      .with_subtitle_id(Some(Uuid7::new()))
       .try_with_duration(Some(MediaTimestamp::new(60_000, tb())))
       .unwrap()
       .with_error_flags(MediaErrorFlags::AUDIO_ERROR | MediaErrorFlags::SUBTITLE_ERROR)

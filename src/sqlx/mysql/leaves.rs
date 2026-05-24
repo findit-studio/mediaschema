@@ -28,7 +28,7 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct MySqlSpeakerRow {
   pub id: std::vec::Vec<u8>,
-  pub parent: std::vec::Vec<u8>,
+  pub audio_track_id: std::vec::Vec<u8>,
   pub cluster_id: u32,
   pub name: String,
   pub speech_duration_ms: Option<i64>,
@@ -38,7 +38,7 @@ impl From<&Speaker<Uuid7>> for MySqlSpeakerRow {
   fn from(s: &Speaker<Uuid7>) -> Self {
     Self {
       id: s.id_ref().as_bytes().to_vec(),
-      parent: s.parent_ref().as_bytes().to_vec(),
+      audio_track_id: s.audio_track_id_ref().as_bytes().to_vec(),
       cluster_id: s.cluster_id(),
       name: s.name().to_owned(),
       speech_duration_ms: s.speech_duration_ref().and_then(|_| None::<i64>),
@@ -51,8 +51,8 @@ impl TryFrom<MySqlSpeakerRow> for Speaker<Uuid7> {
 
   fn try_from(r: MySqlSpeakerRow) -> Result<Self, Self::Error> {
     let id = bytes_to_uuid7(&r.id)?;
-    let parent = bytes_to_uuid7(&r.parent)?;
-    Speaker::try_new(id, parent, r.cluster_id, r.name)
+    let audio_track_id = bytes_to_uuid7(&r.audio_track_id)?;
+    Speaker::try_new(id, audio_track_id, r.cluster_id, r.name)
       .map_err(|e: SpeakerError| SqlxError::DomainConstructorRejected(e.to_string()))
   }
 }
@@ -102,7 +102,7 @@ impl TryFrom<MySqlUserTagRow> for UserTag<Uuid7> {
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct MySqlSceneAnnotationRow {
   pub id: std::vec::Vec<u8>,
-  pub scene: std::vec::Vec<u8>,
+  pub scene_id: std::vec::Vec<u8>,
   pub favorite: i8,
   pub rating: Option<u8>,
   pub note: String,
@@ -113,8 +113,8 @@ pub struct MySqlSceneAnnotationRow {
 /// edge with the tag's `ordinal` position in `SceneAnnotation::user_tags`.
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct MySqlSceneAnnotationUserTagRow {
-  pub scene_annotation: std::vec::Vec<u8>,
-  pub user_tag: std::vec::Vec<u8>,
+  pub scene_annotation_id: std::vec::Vec<u8>,
+  pub user_tag_id: std::vec::Vec<u8>,
   pub ordinal: i32,
 }
 
@@ -131,14 +131,14 @@ impl From<&SceneAnnotation<Uuid7>>
       .iter()
       .enumerate()
       .map(|(i, tag)| MySqlSceneAnnotationUserTagRow {
-        scene_annotation: annotation.clone(),
-        user_tag: tag.as_bytes().to_vec(),
+        scene_annotation_id: annotation.clone(),
+        user_tag_id: tag.as_bytes().to_vec(),
         ordinal: i as i32,
       })
       .collect();
     let row = MySqlSceneAnnotationRow {
       id: annotation,
-      scene: a.scene_ref().as_bytes().to_vec(),
+      scene_id: a.scene_id_ref().as_bytes().to_vec(),
       favorite: i8::from(a.is_favorite()),
       rating: a.rating(),
       note: a.note().to_owned(),
@@ -163,14 +163,14 @@ impl
     ),
   ) -> Result<Self, Self::Error> {
     let id = bytes_to_uuid7(&r.id)?;
-    let scene = bytes_to_uuid7(&r.scene)?;
+    let scene_id = bytes_to_uuid7(&r.scene_id)?;
     let updated_at = millis_to_timestamp(r.updated_at_ms)?;
     joins.sort_by_key(|j| j.ordinal);
     let mut tags = std::vec::Vec::with_capacity(joins.len());
     for j in joins {
-      tags.push(bytes_to_uuid7(&j.user_tag)?);
+      tags.push(bytes_to_uuid7(&j.user_tag_id)?);
     }
-    let ann = SceneAnnotation::try_new(id, scene, updated_at)
+    let ann = SceneAnnotation::try_new(id, scene_id, updated_at)
       .map_err(|e: SceneAnnotationError| SqlxError::DomainConstructorRejected(e.to_string()))?
       .with_favorite(r.favorite != 0)
       .with_user_tags(tags)
@@ -286,12 +286,12 @@ mod tests {
 
   #[test]
   fn speaker_roundtrip() {
-    let parent = Uuid7::new();
-    let s = Speaker::try_new(Uuid7::new(), parent, 3, "Jane").unwrap();
+    let audio_track_id = Uuid7::new();
+    let s = Speaker::try_new(Uuid7::new(), audio_track_id, 3, "Jane").unwrap();
     let row: MySqlSpeakerRow = (&s).into();
     let s2: Speaker<Uuid7> = row.try_into().unwrap();
     assert_eq!(s2.id_ref(), s.id_ref());
-    assert_eq!(s2.parent_ref(), s.parent_ref());
+    assert_eq!(s2.audio_track_id_ref(), s.audio_track_id_ref());
     assert_eq!(s2.cluster_id(), s.cluster_id());
     assert_eq!(s2.name(), s.name());
   }
@@ -363,7 +363,7 @@ mod tests {
   fn speaker_row_with_nil_uuid_rejected() {
     let row = MySqlSpeakerRow {
       id: std::vec::Vec::from([0u8; 16]),
-      parent: Uuid7::new().as_bytes().to_vec(),
+      audio_track_id: Uuid7::new().as_bytes().to_vec(),
       cluster_id: 0,
       name: String::new(),
       speech_duration_ms: None,
