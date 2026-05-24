@@ -607,6 +607,200 @@ CREATE TABLE IF NOT EXISTS keyframe_vlm_label (
     KEY idx_kf_vlm_label_keyframe_id (keyframe_id)
 );
 
--- The subtitle facet/track/per-track-analysis tables (subtitle,
--- subtitle_track, subtitle_cue) are tracked as a follow-up — same scope
--- note as in the SQLite schema.
+-- Subtitle-cluster: the `Subtitle` facet + `SubtitleTrack` +
+-- `SubtitleCue` (+ the `index_errors` child table). Nested value-objects
+-- are flattened into real columns; collections ride in child tables with
+-- an `ordinal` order column; reverse-FK `Vec<Id>` fields are not stored.
+
+CREATE TABLE IF NOT EXISTS subtitle (
+    id                     BINARY(16) NOT NULL,
+    media_id                 BINARY(16) NOT NULL,
+    track_progress_total   BIGINT     NOT NULL DEFAULT 0,
+    track_progress_indexed BIGINT     NOT NULL DEFAULT 0,
+    track_progress_failed  BIGINT     NOT NULL DEFAULT 0,
+    PRIMARY KEY (id),
+    KEY idx_subtitle_media_id (media_id)
+);
+
+CREATE TABLE IF NOT EXISTS subtitle_track (
+    id                         BINARY(16)   NOT NULL,
+    subtitle_id                BINARY(16)   NOT NULL,
+    stream_index               BIGINT,
+    container_track_id         BIGINT,
+    codec                      VARCHAR(64)  NOT NULL,
+    format                     VARCHAR(64)  NOT NULL,
+    origin                     INT          NOT NULL DEFAULT 0,
+    language                   VARCHAR(64),
+    title                      TEXT         NOT NULL,
+    disposition                BIGINT       NOT NULL DEFAULT 0,
+    is_primary                 TINYINT      NOT NULL DEFAULT 0,
+    auto_selected              TINYINT      NOT NULL DEFAULT 0,
+    duration_pts               BIGINT,
+    duration_tb_num            BIGINT,
+    duration_tb_den            BIGINT,
+    cue_count                  BIGINT       NOT NULL DEFAULT 0,
+    provenance_model_name      VARCHAR(255) NOT NULL,
+    provenance_model_version   VARCHAR(255) NOT NULL,
+    provenance_prompt_version  VARCHAR(255) NOT NULL,
+    provenance_indexer_version VARCHAR(255) NOT NULL,
+    source_path_volume         BINARY(16),
+    source_path                TEXT,
+    source_checksum            BINARY(32),
+    character_encoding         VARCHAR(64)  NOT NULL,
+    bom_present                TINYINT      NOT NULL DEFAULT 0,
+    is_sdh                     TINYINT      NOT NULL DEFAULT 0,
+    is_closed_caption          TINYINT      NOT NULL DEFAULT 0,
+    is_translation             TINYINT      NOT NULL DEFAULT 0,
+    kind                       SMALLINT     NOT NULL DEFAULT 0,
+    coverage_ratio             FLOAT,
+    is_empty                   TINYINT      NOT NULL DEFAULT 0,
+    first_cue_pts              BIGINT,
+    first_cue_tb_num           BIGINT,
+    first_cue_tb_den           BIGINT,
+    last_cue_pts               BIGINT,
+    last_cue_tb_num            BIGINT,
+    last_cue_tb_den            BIGINT,
+    index_status               BIGINT       NOT NULL DEFAULT 0,
+    PRIMARY KEY (id),
+    KEY idx_subtitle_track_subtitle_id (subtitle_id),
+    KEY idx_subtitle_track_codec (codec),
+    KEY idx_subtitle_track_language (language),
+    KEY idx_subtitle_track_origin (origin)
+);
+
+CREATE TABLE IF NOT EXISTS subtitle_track_index_error (
+    subtitle_track_id BINARY(16) NOT NULL,
+    ordinal        INT        NOT NULL,
+    code           INT        NOT NULL,
+    message        TEXT       NOT NULL,
+    PRIMARY KEY (subtitle_track_id, ordinal),
+    KEY idx_stie_subtitle_track_id (subtitle_track)
+);
+
+-- ── subtitle_cue: polymorphic base (schema/subtitle_cues.md rev 5) ──────
+CREATE TABLE IF NOT EXISTS subtitle_cue (
+    id                  BINARY(16) NOT NULL,
+    subtitle_track_id   BINARY(16) NOT NULL,
+    ordinal             BIGINT     NOT NULL,
+    span_start_pts      BIGINT     NOT NULL,
+    span_end_pts        BIGINT     NOT NULL,
+    text_src            TEXT       NOT NULL,
+    text_translated     TEXT       NOT NULL,
+    kind                SMALLINT   NOT NULL,
+    PRIMARY KEY (id),
+    KEY idx_subtitle_cue_subtitle_track_id (subtitle_track_id),
+    UNIQUE KEY idx_subtitle_cue_subtitle_track_id_ordinal (subtitle_track_id, ordinal),
+    KEY idx_subtitle_cue_kind (kind)
+);
+
+CREATE TABLE IF NOT EXISTS subtitle_cue_vtt (
+    id              BINARY(16) NOT NULL,
+    cue_identifier  TEXT       NOT NULL,
+    vertical        SMALLINT,
+    line_value      TEXT       NOT NULL,
+    line_align      SMALLINT,
+    position_value  TEXT       NOT NULL,
+    position_align  SMALLINT,
+    size_value      FLOAT,
+    text_align      SMALLINT,
+    region_id       BINARY(16),
+    voice           TEXT       NOT NULL,
+    styled_text     TEXT       NOT NULL,
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS subtitle_cue_ass (
+    id            BINARY(16) NOT NULL,
+    layer         INT        NOT NULL DEFAULT 0,
+    style_id      BINARY(16) NOT NULL,
+    name          TEXT       NOT NULL,
+    margin_l      INT        NOT NULL DEFAULT 0,
+    margin_r      INT        NOT NULL DEFAULT 0,
+    margin_v      INT        NOT NULL DEFAULT 0,
+    effect        TEXT       NOT NULL,
+    styled_text   TEXT       NOT NULL,
+    PRIMARY KEY (id),
+    KEY idx_subtitle_cue_ass_style_id (style_id)
+);
+
+CREATE TABLE IF NOT EXISTS subtitle_cue_lrc (
+    id                BINARY(16) NOT NULL,
+    has_word_timing   BOOLEAN    NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS subtitle_cue_lrc_word (
+    subtitle_cue_id   BINARY(16) NOT NULL,
+    ordinal           INT        NOT NULL,
+    text              TEXT       NOT NULL,
+    start_pts         BIGINT     NOT NULL,
+    PRIMARY KEY (subtitle_cue_id, ordinal),
+    KEY idx_subtitle_cue_lrc_word_cue_id (subtitle_cue_id)
+);
+
+CREATE TABLE IF NOT EXISTS subtitle_track_vtt_region (
+    id                  BINARY(16) NOT NULL,
+    subtitle_track_id   BINARY(16) NOT NULL,
+    name                TEXT       NOT NULL,
+    width               FLOAT      NOT NULL,
+    lines               BIGINT     NOT NULL,
+    region_anchor_x     FLOAT      NOT NULL,
+    region_anchor_y     FLOAT      NOT NULL,
+    viewport_anchor_x   FLOAT      NOT NULL,
+    viewport_anchor_y   FLOAT      NOT NULL,
+    scroll_up           BOOLEAN    NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id),
+    KEY idx_subtitle_track_vtt_region_track_id (subtitle_track_id)
+);
+
+CREATE TABLE IF NOT EXISTS subtitle_track_vtt_style (
+    id                  BINARY(16) NOT NULL,
+    subtitle_track_id   BINARY(16) NOT NULL,
+    ordinal             INT        NOT NULL,
+    css_text            TEXT       NOT NULL,
+    PRIMARY KEY (id),
+    KEY idx_subtitle_track_vtt_style_track_id (subtitle_track_id),
+    UNIQUE KEY idx_subtitle_track_vtt_style_track_id_ordinal (subtitle_track_id, ordinal)
+);
+
+CREATE TABLE IF NOT EXISTS subtitle_track_ass_style (
+    id                  BINARY(16) NOT NULL,
+    subtitle_track_id   BINARY(16) NOT NULL,
+    name                TEXT       NOT NULL,
+    fontname            TEXT       NOT NULL,
+    fontsize            FLOAT      NOT NULL,
+    primary_colour      BIGINT     NOT NULL,
+    secondary_colour    BIGINT     NOT NULL,
+    outline_colour      BIGINT     NOT NULL,
+    back_colour         BIGINT     NOT NULL,
+    bold                BOOLEAN    NOT NULL,
+    italic              BOOLEAN    NOT NULL,
+    underline           BOOLEAN    NOT NULL,
+    strikeout           BOOLEAN    NOT NULL,
+    scale_x             INT        NOT NULL,
+    scale_y             INT        NOT NULL,
+    spacing             INT        NOT NULL,
+    angle               FLOAT      NOT NULL,
+    border_style        SMALLINT   NOT NULL,
+    outline             FLOAT      NOT NULL,
+    shadow              FLOAT      NOT NULL,
+    alignment           SMALLINT   NOT NULL,
+    margin_l            INT        NOT NULL,
+    margin_r            INT        NOT NULL,
+    margin_v            INT        NOT NULL,
+    encoding            INT        NOT NULL,
+    PRIMARY KEY (id),
+    KEY idx_subtitle_track_ass_style_track_id (subtitle_track_id)
+);
+
+CREATE TABLE IF NOT EXISTS subtitle_track_lrc_metadata (
+    subtitle_track_id   BINARY(16) NOT NULL,
+    title               TEXT       NOT NULL,
+    artist              TEXT       NOT NULL,
+    album               TEXT       NOT NULL,
+    author              TEXT       NOT NULL,
+    creator             TEXT       NOT NULL,
+    length              TEXT       NOT NULL,
+    offset_ms           INT        NOT NULL DEFAULT 0,
+    PRIMARY KEY (subtitle_track_id)
+);

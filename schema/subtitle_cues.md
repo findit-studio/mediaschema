@@ -1,66 +1,106 @@
-# `SubtitleCue<Id>` — a parsed subtitle cue  *(rev 4 — LOCKED, user-approved)*
+# `SubtitleCue<Id, D>` — a polymorphic subtitle cue  *(rev 5 — polymorphic foundation)*
 
 ## Domain meaning
 
-One parsed cue of a `SubtitleTrack` (``subtitle_track_id` → SubtitleTrack.id`) — the heavy
-per-track segmented aggregate (parallel to locked `Scene` / proposed
-`AudioSegment`); the track keeps only the `cue_count` rollup. Text formats fill
-`text`; bitmap formats (PGS/DVBSUB) carry the inline `image` and an `ocr_text`
-produced by the OCR stage. `text` and `ocr_text` are **kept distinct** (source
-of truth differs — parsed vs OCR). Created now that **ST-cues = referenced
-aggregate** is accepted.
+One parsed cue of a `SubtitleTrack` (`subtitle_track_id → SubtitleTrack.id`).
+**rev 5** generalises rev 4's flat shape into a polymorphic
+`SubtitleCue<Id, D>` whose per-format payload `D` carries the format-specific
+detail. Every supported subtitle format gets a stable discriminant
+([`SubtitleCueKind`]) reserved on day one, and the format-agnostic base
+(`subtitle_cue` table) is the same across all of them. Per-track aggregates
+(WebVTT regions / styles, ASS V4+ Style rows, LRC header metadata) live in
+sibling tables keyed by `subtitle_track_id`.
 
 ## Cross-cutting (locked)
 
-Generic over `Id` (UUIDv7). Media-time = `mediatime` (extern). No progress
-lifecycle (id list + count). **`SmolStr`/`Bytes` use `""`/empty = absent —
-never `Option`** (`Option` only for structured/enum/numeric absence). Free-text
-= **`LocalizedText`** shared cross-cutting VO ([README.md](README.md)).
-**Embeddings → LanceDB** keyed by this `id` — **no embedding field** (same as
-`Scene`/`Keyframe`/`AudioSegment`). Parse/OCR **`Provenance` is per-track**
-(one value per run) → lives on `SubtitleTrack`, **not** per cue. Conversions
-deferred.
+Generic over `Id` (UUIDv7) **and** per-format `D`. Media-time = `mediatime`
+(extern); per-stream timebase lives on the parent `SubtitleTrack`. Strings =
+`SmolStr` (`""`=absent); free-text = **`LocalizedText`** shared VO.
+**Embeddings → LanceDB** keyed by this `id` — no embedding field. Parse/OCR
+**`Provenance` is per-track** (on `SubtitleTrack`, not per cue). The rev-3
+text-non-empty invariant is **lifted**: polymorphic cues' content lives in
+`data` (e.g. `AssData.styled_text`), so `text` empty is legal.
 
-## Fields
+## Base fields (`SubtitleCue<Id, D>`)
 
 | field | domain type | wire origin | notes |
 |---|---|---|---|
-| `id` | `Id` (UUIDv7) | `*.id: bytes` | canonical identity |
+| `id` | `Id` (UUIDv7) | — | canonical identity (LanceDB key) |
 | `subtitle_track_id` | `Id` | cue→track | FK → `SubtitleTrack.id` |
-| `index` | `u32` | ordinal | 0-based cue order |
+| `ordinal` | `u32` | ordinal | 0-based cue order within the track |
 | `span` | `mediatime::TimeRange` | start/end | on-screen interval (media-time) |
-| `text` | `LocalizedText` | text subs | parsed plain text (styling stripped); `src`+`translated`, each `""`=absent |
-| `styled_text` | `SmolStr` | ASS/SSA | original markup retained for render fidelity; `""` = none (no `Option`) |
-| `image` | `Bytes` | bitmap subs | **inline** rendered cue bitmap (PGS/DVBSUB); empty = none (mirrors locked `Keyframe.data` — no `Option`, no `Location`) |
-| `ocr_text` | `LocalizedText` | OCR stage | text extracted from `image`; kept distinct from `text`; `src`+`translated`, each `""`=absent |
+| `text` | `LocalizedText` | text subs | plain (style-stripped) text; `""` legal (un-OCR'd bitmap / ASS cue) |
+| `data` | `D` | per-format payload | see [`SubtitleCueKind`] table below |
+
+## Format implementation status
+
+The closed `SubtitleCueKind` enum reserves a stable numeric discriminant
+for **every** format on day one. Variants flagged 🕒 are **reserved**;
+their `D` types and detail tables land in a follow-up tracked by issue #56.
+
+| discriminant | variant | format | status | detail doc |
+|---|---|---|---|---|
+| 0 | `Srt` | SubRip | ✓ rev 5 | (no detail table — `SrtData` is a unit) |
+| 1 | `Vtt` | WebVTT | ✓ rev 5 | [subtitle_cue_vtt.md](subtitle_cue_vtt.md) |
+| 2 | `Ass` | ASS / SSA | ✓ rev 5 | [subtitle_cue_ass.md](subtitle_cue_ass.md) |
+| 3 | `MicroDvd` | MicroDVD | 🕒 #56 | — |
+| 4 | `SubViewer` | SubViewer | 🕒 #56 | — |
+| 5 | `Sbv` | YouTube SBV | 🕒 #56 | — |
+| 6 | `Lrc` | LRC / Enhanced LRC | ✓ rev 5 | [subtitle_cue_lrc.md](subtitle_cue_lrc.md) |
+| 7 | `Ttml` | TTML | 🕒 #56 | — |
+| 8 | `Sami` | SAMI | 🕒 #56 | — |
+| 9 | `VobSub` | DVD VobSub bitmap | 🕒 #56 | — |
+| 10 | `Pgs` | Blu-ray PGS bitmap | 🕒 #56 | — |
+| 11 | `Cea608` | CEA-608 captions | 🕒 #56 | — |
+| 12 | `EbuStl` | EBU STL teletext | 🕒 #56 | — |
+
+The rev-4 `image: Bytes` + `ocr_text: LocalizedText` fields are gone from
+the base; bitmap formats will own their inline image bytes on their `D`
+type when they land per #56 (the OCR pipeline integration is also tracked
+separately in #57).
+
+## Per-track aggregates
+
+A `SubtitleTrack` may carry per-format aggregate rows that cues reference:
+
+| aggregate | format | doc |
+|---|---|---|
+| `VttRegion<Id>` | WebVTT | [subtitle_track_vtt_region.md](subtitle_track_vtt_region.md) |
+| `VttStyleBlock<Id>` | WebVTT | [subtitle_track_vtt_style.md](subtitle_track_vtt_style.md) |
+| `AssStyle<Id>` | ASS/SSA | [subtitle_track_ass_style.md](subtitle_track_ass_style.md) |
+| `LrcMetadata<Id>` | LRC | [subtitle_track_lrc_metadata.md](subtitle_track_lrc_metadata.md) |
 
 ## Invariants
 
-`id` non-empty; `span.start <= span.end`; `(subtitle_track_id, index)` unique; cue is
-non-empty (at least one of `text` / `ocr_text` / `image` non-empty);
-`ocr_text` non-empty ⇒ `image` non-empty (OCR came from the bitmap).
-
-## Resolved
-
-- **`text`/`ocr_text` kept separate** (your call), both `LocalizedText`.
-- **`styled_text` kept** (your call) — ASS/SSA markup; default render =
-  `text.src`.
-- **`image` inline `Bytes`** (your call: "if it is image then inline bytes").
-- **`display_text` derived** for search/graphql = (`text` ∨ `ocr_text`) then
-  `.translated` ∨ `.src` per consumer locale — not stored.
+- `id` non-empty; `subtitle_track_id` non-empty; `(subtitle_track_id, ordinal)`
+  unique within the track.
+- `span.start ≤ span.end` — enforced by construction (`mediatime::TimeRange`).
+- `kind` matches the discriminant of the cue's `D` payload type (enforced
+  by the row mapper).
 
 ## Projection notes
 
-- **sqlx**: `subtitle_cue` table; `id` PK; `subtitle_track_id` FK; `text_src`/
-  `text_translated`/`ocr_*` columns, derived `display_text` full-text indexed;
-  `image` → `BYTEA`/object-store offload keyed by `id`; `(subtitle_track_id, index)`
-  unique. No vector column (LanceDB).
-- **mongodb**: `_id`=UUIDv7; text index on the derived `display_text`;
-  `image` GridFS if large.
-- **graphql**: `span` + `display_text` (player/search); raw markup not in
-  lists; similarity = LanceDB endpoint keyed by `id` (never a field).
+- **sqlx**: `subtitle_cue` base table (`id` PK, `subtitle_track_id` FK,
+  `kind` SMALLINT, `ordinal`, `span_*`, `text_*`). Per-format detail tables
+  (`subtitle_cue_vtt`, `subtitle_cue_ass`, `subtitle_cue_lrc`) share the
+  `id` PK with the base via a 1:1 JOIN. SubRip has no detail table —
+  `kind = 0` rows are complete on their own.
+- **mongodb**: one document per cue; the per-format detail fields ride
+  alongside the base fields on the same document (mongo favours embedded
+  shape over JOINs). Aggregates (regions, styles, …) are their own
+  collections keyed by `subtitle_track_id`.
+- **buffa wire**: the base `SubtitleCue` message carries a `oneof data { …
+  }` of per-format payloads; new formats extend the oneof additively. The
+  current revision lands the Rust polymorphic surface only; the wire-layer
+  bridges follow in a dedicated PR.
 
-**Status: LOCKED (rev 3) — user-approved.** `text`/`ocr_text` separate, both
-`LocalizedText`; `styled_text` kept (`SmolStr`); `image` inline `Bytes`;
-embedding removed (→LanceDB); no-`Option`/empty=absent throughout;
-per-track `Provenance` lives on `SubtitleTrack`. `display_text` = derived.
+## Reserved → implementable later
+
+The 9 deferred variants exist on `SubtitleCueKind` from rev 5 onward so
+the discriminator is stable across releases. Adding any of them is a
+purely additive change: ship the `D` type + detail table + row-mapper
+helpers, no wire-format break.
+
+**Status: rev 5 — polymorphic foundation + SRT / WebVTT / ASS / LRC
+implemented.** Long-tail formats deferred to GitHub issue #56; bitmap OCR
+pipeline tracked separately in #57.
