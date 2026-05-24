@@ -122,7 +122,7 @@ uuid = { version = "1", default-features = false }
 # Derives used across the domain layer: `IsVariant` (unit/newtype),
 # `Unwrap` / `TryUnwrap` (newtype) with `#[unwrap(ref, ref_mut)]
 # #[try_unwrap(ref, ref_mut)]` for shared-ref + mut-ref accessor flavours.
-derive_more = { version = "2", default-features = false, features = ["is_variant", "unwrap", "try_unwrap"] }
+derive_more = { version = "2", default-features = false, features = ["display", "is_variant", "unwrap", "try_unwrap"] }
 bitflags = { version = "2", default-features = false }
 # `thiserror` 2.x supports `no_std` + `no_alloc` when `default-features = false`
 # (it emits `core::error::Error` impls and uses only the `core::fmt::Formatter`

@@ -8,9 +8,11 @@
 
 use ::bson::{doc, Document};
 use ::mongodb::{options::IndexOptions, IndexModel};
+use derive_more::Display;
 
 /// Canonical collection names. These match `schema.md`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display)]
+#[display("{}", self.as_str())]
 pub enum CollectionName {
   Media,
   MediaFiles,
@@ -35,7 +37,7 @@ impl CollectionName {
   pub const fn as_str(self) -> &'static str {
     match self {
       Self::Media => "media",
-      Self::MediaFiles => "media_file",
+      Self::MediaFiles => "media_files",
       Self::WatchedLocations => "watched_locations",
       Self::Speakers => "speakers",
       Self::UserTags => "user_tags",
@@ -138,10 +140,13 @@ pub fn scene_annotation_indexes() -> Vec<IndexModel> {
   ]
 }
 
-/// `audio_facets` — referenced by `Media.audio_id`, so the `_id` index
-/// is enough; no extra indexes.
+/// `audio_facets` — 1:1 with `Media`. The `media_id` FK is unique
+/// (locked schema: one Audio facet per Media).
 pub fn audio_facet_indexes() -> Vec<IndexModel> {
-  vec![]
+  vec![unique_on(
+    doc! { "media_id": 1 },
+    "audio_facets_media_id_unique",
+  )]
 }
 
 /// `audio_tracks` — FK on `audio_id`, plus `is_primary` / `content` for
@@ -168,9 +173,13 @@ pub fn audio_segment_indexes() -> Vec<IndexModel> {
   ]
 }
 
-/// `video_facets` — no extra indexes (referenced by `Media.video_id`).
+/// `video_facets` — 1:1 with `Media`. The `media_id` FK is unique
+/// (locked schema: one Video facet per Media).
 pub fn video_facet_indexes() -> Vec<IndexModel> {
-  vec![]
+  vec![unique_on(
+    doc! { "media_id": 1 },
+    "video_facets_media_id_unique",
+  )]
 }
 
 /// `video_tracks` — FK on `video_id` + selection signals.
@@ -198,9 +207,13 @@ pub fn keyframe_indexes() -> Vec<IndexModel> {
   vec![index_on(doc! { "scene_id": 1 }, "keyframes_scene_id")]
 }
 
-/// `subtitle_facets` — no extra indexes (referenced by `Media.subtitle_id`).
+/// `subtitle_facets` — 1:1 with `Media`. The `media_id` FK is unique
+/// (locked schema: one Subtitle facet per Media).
 pub fn subtitle_facet_indexes() -> Vec<IndexModel> {
-  vec![index_on(doc! { "media_id": 1 }, "subtitle_facets_media_id")]
+  vec![unique_on(
+    doc! { "media_id": 1 },
+    "subtitle_facets_media_id_unique",
+  )]
 }
 
 /// `subtitle_tracks` — FK on `subtitle_id` + selection signals.
