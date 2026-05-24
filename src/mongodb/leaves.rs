@@ -185,7 +185,7 @@ impl From<&SceneAnnotation<Uuid7>> for Document {
     d.insert("_id", uuid7_to_bson(*a.id_ref()));
     d.insert("scene_id", uuid7_to_bson(*a.scene_id_ref()));
     d.insert("favorite", Bson::Boolean(a.is_favorite()));
-    d.insert("user_tags", uuid7_vec_to_bson(a.user_tags_slice()));
+    d.insert("user_tag_ids", uuid7_vec_to_bson(a.user_tags_slice()));
     d.insert(
       "rating",
       a.rating()
@@ -209,8 +209,8 @@ impl TryFrom<Document> for SceneAnnotation<Uuid7> {
     if let Some(b) = take_opt(&mut d, "favorite") {
       a.set_favorite(as_bool(b, "favorite")?);
     }
-    if let Some(b) = take_opt(&mut d, "user_tags") {
-      a.set_user_tags(uuid7_vec_from_bson(b, "user_tags")?);
+    if let Some(b) = take_opt(&mut d, "user_tag_ids") {
+      a.set_user_tags(uuid7_vec_from_bson(b, "user_tag_ids")?);
     }
     if let Some(b) = take_opt(&mut d, "rating") {
       a.set_rating(Some(as_u8(b, "rating")?));

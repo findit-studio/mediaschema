@@ -57,7 +57,7 @@ shape is constant.
 
 Indexes: unique `checksum`, plus `kind`, `error_flags`, `capture_date`.
 
-### `media_file`
+### `media_files`
 
 One **physical copy** of a piece of content (N copies ↔ 1 `Media`).
 `location` is kept as a natural embedded sub-document (Mongo indexes /
@@ -121,7 +121,7 @@ Indexes: `name`.
 | `_id` | `Binary(uuid)` |
 | `scene_id` | `Binary(uuid)` (`Scene.id`) |
 | `favorite` | `Boolean` |
-| `user_tags` | `[Binary(uuid)]` |
+| `user_tag_ids` | `[Binary(uuid)]` (FK array → `user_tags(_id)`) |
 | `rating` | `Int32` (0–5) or `Null` |
 | `note` | `String` |
 | `updated_at` | `DateTime` |
@@ -133,6 +133,7 @@ Indexes: unique `scene_id`, plus `favorite`, `rating`.
 | field | type |
 | --- | --- |
 | `_id` | `Binary(uuid)` |
+| `media_id` | `Binary(uuid)` (`Media.id`, unique — 1:1) |
 | `track_progress` | `{ total, indexed, failed }` (`Int64` fields) |
 | `total_segments` | `Int64` |
 
@@ -140,7 +141,7 @@ The `tracks` reverse-FK list is **not** stored — it is derived by
 querying `audio_tracks` where `parent == audio._id` (mirrors the sqlx
 convention).
 
-Indexes: `_id` only.
+Indexes: unique `media_id` (1:1 with `Media`).
 
 ### `audio_tracks`
 
@@ -183,6 +184,7 @@ Indexes: `audio_track_id`, unique `(audio_track_id, index)`, `speaker_id`.
 | field | type |
 | --- | --- |
 | `_id` | `Binary(uuid)` |
+| `media_id` | `Binary(uuid)` (`Media.id`, unique — 1:1) |
 | `total_scenes` | `Int64` |
 | `track_progress` | `{ total, indexed, failed }` (`Int64` fields) |
 
@@ -190,7 +192,7 @@ The `tracks` reverse-FK list is **not** stored — it is derived by
 querying `video_tracks` where `parent == video._id` (mirrors the sqlx
 convention).
 
-Indexes: `_id` only.
+Indexes: unique `media_id` (1:1 with `Media`).
 
 ### `video_tracks`
 
@@ -242,11 +244,11 @@ Indexes: `scene_id`.
 | field | type |
 | --- | --- |
 | `_id` | `Binary(uuid)` |
-| `media_id` | `Binary(uuid)` (`Media.id`) |
+| `media_id` | `Binary(uuid)` (`Media.id`, unique — 1:1) |
 | `tracks` | `[Binary(uuid)]` |
 | `track_progress` | `{ total, indexed, failed }` |
 
-Indexes: `media_id`.
+Indexes: unique `media_id` (1:1 with `Media`).
 
 ### `subtitle_tracks`
 
