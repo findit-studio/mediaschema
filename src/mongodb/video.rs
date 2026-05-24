@@ -24,7 +24,7 @@ use crate::domain::{
   },
   bitflags::VideoIndexStatus,
   enums::{KeyframeExtractor, SceneDetector},
-  vo::IndexProgress as VIndexProgress,
+  vo::IndexProgress,
   Uuid7,
 };
 
@@ -98,14 +98,12 @@ fn keyframe_extractor_from_i64(
 }
 
 // ---------------------------------------------------------------------------
-// IndexProgress (video copy) — keep this distinct from subtitle's copy
-// even though the shape is identical; `subtitle::IndexProgress` is the
-// re-exported canonical for now (per the locked follow-up). For the
-// video facet we serialise via the same field shape so the document is
-// interchangeable.
+// IndexProgress (video copy — same `vo::IndexProgress` used across facets;
+// kept module-private to mirror audio/subtitle and keep the video module
+// self-contained).
 // ---------------------------------------------------------------------------
 
-fn v_index_progress_to_bson(p: &VIndexProgress) -> Bson {
+fn index_progress_to_bson(p: &IndexProgress) -> Bson {
   let mut d = Document::new();
   d.insert("total", Bson::Int64(p.total() as i64));
   d.insert("indexed", Bson::Int64(p.indexed() as i64));
@@ -113,20 +111,22 @@ fn v_index_progress_to_bson(p: &VIndexProgress) -> Bson {
   Bson::Document(d)
 }
 
-fn v_index_progress_from_bson(b: Bson, field: &'static str) -> Result<VIndexProgress, MongoError> {
+fn index_progress_from_bson(b: Bson, field: &'static str) -> Result<IndexProgress, MongoError> {
   let mut d = as_doc(b, field)?;
   let total = as_u32(take(&mut d, "total")?, "total")?;
   let indexed = as_u32(take(&mut d, "indexed")?, "indexed")?;
   let failed = as_u32(take(&mut d, "failed")?, "failed")?;
-  VIndexProgress::try_new(total, indexed, failed).map_err(|_| MongoError::IntOutOfRange {
-    field: SmolStr::from(field),
-    value: total as i64,
-  })
+  Ok(IndexProgress::from_parts(total, indexed, failed))
 }
 
 // ---------------------------------------------------------------------------
 // Video facet
 // ---------------------------------------------------------------------------
+//
+// The `tracks` reverse-FK list is **not** stored — the `video_tracks`
+// collection's `parent` field drives the reverse lookup (mirrors the
+// sqlx convention). Only the rollup fields (`total_scenes` +
+// `track_progress`) are persisted on the facet document.
 
 impl From<&Video<Uuid7>> for Document {
   fn from(v: &Video<Uuid7>) -> Self {
@@ -134,10 +134,9 @@ impl From<&Video<Uuid7>> for Document {
     d.insert("_id", uuid7_to_bson(*v.id_ref()));
     d.insert("media_id", uuid7_to_bson(*v.media_id_ref()));
     d.insert("total_scenes", Bson::Int64(v.total_scenes() as i64));
-    d.insert("tracks", uuid7_vec_to_bson(v.tracks_slice()));
     d.insert(
       "track_progress",
-      v_index_progress_to_bson(v.track_progress_ref()),
+      index_progress_to_bson(v.track_progress_ref()),
     );
     d
   }
@@ -150,17 +149,14 @@ impl TryFrom<Document> for Video<Uuid7> {
     let id = uuid7_from_bson(take(&mut d, "_id")?, "_id")?;
     let media_id = uuid7_from_bson(take(&mut d, "media_id")?, "media_id")?;
     let mut v = Video::try_new(id, media_id)?;
-    // Fields are independent at the domain layer — see the
-    // validation-responsibility note on `Video`. Restore each from the
-    // stored row directly.
-    if let Some(b) = take_opt(&mut d, "tracks") {
-      v.set_tracks(uuid7_vec_from_bson(b, "tracks")?);
-    }
+    // `tracks` is a reverse-FK list — NOT stored. Discard any stale
+    // value that may exist on legacy documents.
+    let _ = take_opt(&mut d, "tracks");
     if let Some(b) = take_opt(&mut d, "total_scenes") {
       v.set_total_scenes(as_u32(b, "total_scenes")?);
     }
     if let Some(b) = take_opt(&mut d, "track_progress") {
-      v.set_track_progress(v_index_progress_from_bson(b, "track_progress")?);
+      v.set_track_progress(index_progress_from_bson(b, "track_progress")?);
     }
     Ok(v)
   }
@@ -493,7 +489,9 @@ impl From<&VideoTrack<Uuid7>> for Document {
     d.insert("disposition", Bson::Int64(t.disposition().to_u32() as i64));
     d.insert("is_primary", Bson::Boolean(t.is_primary()));
     d.insert("auto_selected", Bson::Boolean(t.auto_selected()));
-    d.insert("scenes", uuid7_vec_to_bson(t.scenes_slice()));
+    // `scenes` is a reverse-FK list — NOT stored on the track document.
+    // The `scenes` collection's `parent` field drives the reverse lookup
+    // (consistent with the sqlx convention).
     d.insert("index_status", Bson::Int64(t.index_status().bits() as i64));
     d.insert(
       "index_errors",
@@ -593,9 +591,9 @@ impl TryFrom<Document> for VideoTrack<Uuid7> {
     if let Some(b) = take_opt(&mut d, "auto_selected") {
       t.set_auto_selected(as_bool(b, "auto_selected")?);
     }
-    if let Some(b) = take_opt(&mut d, "scenes") {
-      t.set_scenes(uuid7_vec_from_bson(b, "scenes")?);
-    }
+    // `scenes` is a reverse-FK list — NOT stored. Discard any stale
+    // value that may exist on legacy documents.
+    let _ = take_opt(&mut d, "scenes");
     if let Some(b) = take_opt(&mut d, "index_status") {
       let bits = as_u64(b, "index_status")?;
       let bits32 = u32::try_from(bits).map_err(|_| MongoError::IntOutOfRange {
@@ -618,6 +616,10 @@ impl TryFrom<Document> for VideoTrack<Uuid7> {
 // Scene
 // ---------------------------------------------------------------------------
 
+// The `keyframes` reverse-FK list is **not** stored on the scene
+// document — the `keyframes` collection's `parent` field drives the
+// reverse lookup (consistent with the sqlx convention).
+
 impl From<&Scene<Uuid7>> for Document {
   fn from(s: &Scene<Uuid7>) -> Self {
     let mut d = Document::new();
@@ -626,7 +628,6 @@ impl From<&Scene<Uuid7>> for Document {
     d.insert("index", Bson::Int64(s.index() as i64));
     d.insert("span", time_range_to_bson(s.span_ref()));
     d.insert("detector", Bson::Int32(scene_detector_to_i32(s.detector())));
-    d.insert("keyframes", uuid7_vec_to_bson(s.keyframes_slice()));
     d.insert("description", Bson::String(s.description().to_owned()));
     d
   }
@@ -643,9 +644,9 @@ impl TryFrom<Document> for Scene<Uuid7> {
     let detector =
       scene_detector_from_i64(as_i64(take(&mut d, "detector")?, "detector")?, "detector")?;
     let mut s = Scene::try_new(id, video_track_id, index, span, detector)?;
-    if let Some(b) = take_opt(&mut d, "keyframes") {
-      s.set_keyframes(uuid7_vec_from_bson(b, "keyframes")?);
-    }
+    // `keyframes` is a reverse-FK list — NOT stored. Discard any stale
+    // value that may exist on legacy documents.
+    let _ = take_opt(&mut d, "keyframes");
     if let Some(b) = take_opt(&mut d, "description") {
       s.set_description(as_smol(b, "description")?);
     }
@@ -1550,12 +1551,30 @@ mod tests {
   fn video_facet_roundtrip() {
     let v = Video::try_new(Uuid7::new(), Uuid7::new())
       .unwrap()
-      .with_tracks(vec![Uuid7::new(), Uuid7::new()])
       .with_total_scenes(7)
-      .with_track_progress(VIndexProgress::try_new(2, 1, 0).unwrap());
+      .with_track_progress(IndexProgress::from_parts(3, 2, 1));
     let doc: Document = (&v).into();
     let v2: Video<Uuid7> = doc.try_into().unwrap();
-    assert_eq!(v, v2);
+    // The `tracks` reverse-FK list is intentionally not persisted — the
+    // round-tripped facet has an empty `tracks` slice regardless of what
+    // the source value held.
+    assert!(v2.tracks_slice().is_empty());
+    assert_eq!(v.total_scenes(), v2.total_scenes());
+    assert_eq!(v.track_progress_ref(), v2.track_progress_ref());
+  }
+
+  #[test]
+  fn video_facet_drops_reverse_fk_tracks() {
+    // A facet built with a non-empty `tracks` list round-trips to one
+    // with an empty list — the document does not store the reverse FK.
+    let v = Video::try_new(Uuid7::new(), Uuid7::new())
+      .unwrap()
+      .with_tracks(vec![Uuid7::new(), Uuid7::new()])
+      .with_total_scenes(7);
+    let doc: Document = (&v).into();
+    assert!(!doc.contains_key("tracks"));
+    let v2: Video<Uuid7> = doc.try_into().unwrap();
+    assert!(v2.tracks_slice().is_empty());
   }
 
   #[test]
@@ -1568,11 +1587,33 @@ mod tests {
       SceneDetector::Adaptive,
     )
     .unwrap()
-    .with_keyframes(vec![Uuid7::new()])
     .with_description("a dog running");
     let doc: Document = (&s).into();
     let s2: Scene<Uuid7> = doc.try_into().unwrap();
+    // `keyframes` reverse-FK is not persisted — both sides have an
+    // empty slice.
+    assert!(s2.keyframes_slice().is_empty());
     assert_eq!(s, s2);
+  }
+
+  #[test]
+  fn scene_drops_reverse_fk_keyframes() {
+    // A scene built with non-empty `keyframes` round-trips to one with
+    // an empty list — the document does not store the reverse FK.
+    let s = Scene::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      sp(0, 5_000),
+      SceneDetector::Adaptive,
+    )
+    .unwrap()
+    .with_keyframes(vec![Uuid7::new(), Uuid7::new()])
+    .with_description("a dog running");
+    let doc: Document = (&s).into();
+    assert!(!doc.contains_key("keyframes"));
+    let s2: Scene<Uuid7> = doc.try_into().unwrap();
+    assert!(s2.keyframes_slice().is_empty());
   }
 
   #[test]
@@ -1630,13 +1671,26 @@ mod tests {
       .with_disposition(TrackDisposition::from_u32(0x21))
       .with_is_primary(true)
       .with_auto_selected(false)
-      .with_scenes(vec![Uuid7::new()])
       .with_index_status(VideoIndexStatus::PROBED)
       .with_index_errors(vec![ErrorInfo::new(ErrorCode::ProbeCorrupt, "bad")])
       .with_provenance(Provenance::from_parts("qwen", "v1", "p", "idx"));
     let doc: Document = (&t).into();
     let t2: VideoTrack<Uuid7> = doc.try_into().unwrap();
     assert_eq!(t, t2);
+  }
+
+  #[test]
+  fn video_track_drops_reverse_fk_scenes() {
+    // `scenes` is a reverse-FK list; the document neither writes it
+    // nor reads stale copies — the round-tripped track has an empty
+    // slice regardless of source state.
+    let t = VideoTrack::try_new(Uuid7::new(), Uuid7::new())
+      .unwrap()
+      .with_scenes(vec![Uuid7::new(), Uuid7::new()]);
+    let doc: Document = (&t).into();
+    assert!(!doc.contains_key("scenes"));
+    let t2: VideoTrack<Uuid7> = doc.try_into().unwrap();
+    assert!(t2.scenes_slice().is_empty());
   }
 
   #[test]
