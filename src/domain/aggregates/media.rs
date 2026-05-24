@@ -10,7 +10,7 @@
 //! kind facets are thin aggregates and stream/codec data is per-track.
 //! `Media` is the architectural root of the domain — every other aggregate
 //! transitively descends from it via the three optional facet FKs
-//! (`video`/`audio`/`subtitle`).
+//! (`video_id`/`audio_id`/`subtitle_id`).
 //!
 //! ## Cross-cutting (locked)
 //!
@@ -78,11 +78,11 @@ pub struct Media<Id = Uuid7> {
   /// copies (the reverse side of `MediaFile.media_id`).
   files: std::vec::Vec<Id>,
   /// FK → `Video` facet (`None` = no video stream on this file).
-  video: Option<Id>,
+  video_id: Option<Id>,
   /// FK → `Audio` facet (`None` = no audio stream).
-  audio: Option<Id>,
+  audio_id: Option<Id>,
   /// FK → `Subtitle` facet (`None` = no subtitle stream).
-  subtitle: Option<Id>,
+  subtitle_id: Option<Id>,
   /// Maintained rollup: a bit is set iff that kind's `track_progress.failed
   /// > 0`. Drill-down details live on `*Track.index_errors`.
   error_flags: MediaErrorFlags,
@@ -107,8 +107,8 @@ impl Media<Uuid7> {
   /// always has its content hash before reaching the domain). Other
   /// content-intrinsic fields are caller-supplied; `files` starts empty
   /// (filled via `push_file` / `with_files` as copies are discovered) and
-  /// facet FKs default to `None`, filled in via `with_video` /
-  /// `with_audio` / `with_subtitle` after the corresponding facet
+  /// facet FKs default to `None`, filled in via `with_video_id` /
+  /// `with_audio_id` / `with_subtitle_id` after the corresponding facet
   /// aggregates land.
   pub fn try_new(
     id: Uuid7,
@@ -131,9 +131,9 @@ impl Media<Uuid7> {
       duration: None,
       kind,
       files: std::vec::Vec::new(),
-      video: None,
-      audio: None,
-      subtitle: None,
+      video_id: None,
+      audio_id: None,
+      subtitle_id: None,
       error_flags: MediaErrorFlags::new(),
       probe_error: None,
       capture_date: None,
@@ -189,20 +189,20 @@ impl<Id> Media<Id> {
 
   /// FK → `Video` facet.
   #[inline(always)]
-  pub const fn video_ref(&self) -> Option<&Id> {
-    self.video.as_ref()
+  pub const fn video_id_ref(&self) -> Option<&Id> {
+    self.video_id.as_ref()
   }
 
   /// FK → `Audio` facet.
   #[inline(always)]
-  pub const fn audio_ref(&self) -> Option<&Id> {
-    self.audio.as_ref()
+  pub const fn audio_id_ref(&self) -> Option<&Id> {
+    self.audio_id.as_ref()
   }
 
   /// FK → `Subtitle` facet.
   #[inline(always)]
-  pub const fn subtitle_ref(&self) -> Option<&Id> {
-    self.subtitle.as_ref()
+  pub const fn subtitle_id_ref(&self) -> Option<&Id> {
+    self.subtitle_id.as_ref()
   }
 
   /// Per-kind error rollup.
@@ -273,24 +273,24 @@ impl<Id> Media<Id> {
   /// Builder: set the `Video` facet FK.
   #[inline(always)]
   #[must_use]
-  pub fn with_video(mut self, video: Option<Id>) -> Self {
-    self.video = video;
+  pub fn with_video_id(mut self, video_id: Option<Id>) -> Self {
+    self.video_id = video_id;
     self
   }
 
   /// Builder: set the `Audio` facet FK.
   #[inline(always)]
   #[must_use]
-  pub fn with_audio(mut self, audio: Option<Id>) -> Self {
-    self.audio = audio;
+  pub fn with_audio_id(mut self, audio_id: Option<Id>) -> Self {
+    self.audio_id = audio_id;
     self
   }
 
   /// Builder: set the `Subtitle` facet FK.
   #[inline(always)]
   #[must_use]
-  pub fn with_subtitle(mut self, subtitle: Option<Id>) -> Self {
-    self.subtitle = subtitle;
+  pub fn with_subtitle_id(mut self, subtitle_id: Option<Id>) -> Self {
+    self.subtitle_id = subtitle_id;
     self
   }
 
@@ -375,22 +375,22 @@ impl<Id> Media<Id> {
 
   /// In-place mutator for the `Video` facet FK.
   #[inline(always)]
-  pub fn set_video(&mut self, video: Option<Id>) -> &mut Self {
-    self.video = video;
+  pub fn set_video_id(&mut self, video_id: Option<Id>) -> &mut Self {
+    self.video_id = video_id;
     self
   }
 
   /// In-place mutator for the `Audio` facet FK.
   #[inline(always)]
-  pub fn set_audio(&mut self, audio: Option<Id>) -> &mut Self {
-    self.audio = audio;
+  pub fn set_audio_id(&mut self, audio_id: Option<Id>) -> &mut Self {
+    self.audio_id = audio_id;
     self
   }
 
   /// In-place mutator for the `Subtitle` facet FK.
   #[inline(always)]
-  pub fn set_subtitle(&mut self, subtitle: Option<Id>) -> &mut Self {
-    self.subtitle = subtitle;
+  pub fn set_subtitle_id(&mut self, subtitle_id: Option<Id>) -> &mut Self {
+    self.subtitle_id = subtitle_id;
     self
   }
 
@@ -488,9 +488,9 @@ mod tests {
       m.files_slice().is_empty(),
       "files start empty on construction"
     );
-    assert!(m.video_ref().is_none());
-    assert!(m.audio_ref().is_none());
-    assert!(m.subtitle_ref().is_none());
+    assert!(m.video_id_ref().is_none());
+    assert!(m.audio_id_ref().is_none());
+    assert!(m.subtitle_id_ref().is_none());
     assert!(m.duration_ref().is_none());
     assert_eq!(m.error_flags(), MediaErrorFlags::new());
     assert!(m.probe_error_ref().is_none());
@@ -593,8 +593,8 @@ mod tests {
     let gps = GeoLocation::try_new(37.7749, -122.4194, Some(20.0)).expect("valid coordinates");
     let m = Media::try_new(id, fake_checksum(), Format::Mp4, 12_345, MediaKind::Video)
       .unwrap()
-      .with_video(Some(video_id))
-      .with_audio(Some(audio_id))
+      .with_video_id(Some(video_id))
+      .with_audio_id(Some(audio_id))
       .with_error_flags(MediaErrorFlags::VIDEO_ERROR)
       .with_capture_date(Some(real_ts()))
       .with_device(Some(
@@ -602,9 +602,9 @@ mod tests {
       ))
       .with_gps(Some(gps));
 
-    assert_eq!(m.video_ref(), Some(&video_id));
-    assert_eq!(m.audio_ref(), Some(&audio_id));
-    assert!(m.subtitle_ref().is_none());
+    assert_eq!(m.video_id_ref(), Some(&video_id));
+    assert_eq!(m.audio_id_ref(), Some(&audio_id));
+    assert!(m.subtitle_id_ref().is_none());
     assert_eq!(m.error_flags(), MediaErrorFlags::VIDEO_ERROR);
     assert!(m.capture_date_ref().is_some());
     let dev = m.device_ref().expect("device set");
@@ -626,12 +626,12 @@ mod tests {
       MediaKind::Video,
     )
     .unwrap();
-    m.set_video(Some(Uuid7::new()));
+    m.set_video_id(Some(Uuid7::new()));
     m.set_error_flags(MediaErrorFlags::AUDIO_ERROR | MediaErrorFlags::SUBTITLE_ERROR);
     m.set_gps(Some(
       GeoLocation::try_new(0.0, 0.0, None).expect("valid coordinates"),
     ));
-    assert!(m.video_ref().is_some());
+    assert!(m.video_id_ref().is_some());
     assert!(m
       .error_flags()
       .contains(MediaErrorFlags::AUDIO_ERROR | MediaErrorFlags::SUBTITLE_ERROR));

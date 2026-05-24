@@ -58,7 +58,7 @@ impl From<&Audio<Uuid7>> for Document {
   fn from(a: &Audio<Uuid7>) -> Self {
     let mut d = Document::new();
     d.insert("_id", uuid7_to_bson(*a.id_ref()));
-    d.insert("parent", uuid7_to_bson(*a.parent_ref()));
+    d.insert("media_id", uuid7_to_bson(*a.media_id_ref()));
     d.insert("tracks", uuid7_vec_to_bson(a.tracks_slice()));
     d.insert("total_segments", Bson::Int64(a.total_segments() as i64));
     d
@@ -70,8 +70,8 @@ impl TryFrom<Document> for Audio<Uuid7> {
 
   fn try_from(mut d: Document) -> Result<Self, Self::Error> {
     let id = uuid7_from_bson(take(&mut d, "_id")?, "_id")?;
-    let parent = uuid7_from_bson(take(&mut d, "parent")?, "parent")?;
-    let mut a = Audio::try_new(id, parent)?;
+    let media_id = uuid7_from_bson(take(&mut d, "media_id")?, "media_id")?;
+    let mut a = Audio::try_new(id, media_id)?;
     if let Some(b) = take_opt(&mut d, "tracks") {
       a.set_tracks(uuid7_vec_from_bson(b, "tracks")?);
     }
@@ -221,7 +221,7 @@ impl From<&AudioTrack<Uuid7>> for Document {
   fn from(t: &AudioTrack<Uuid7>) -> Self {
     let mut d = Document::new();
     d.insert("_id", uuid7_to_bson(*t.id_ref()));
-    d.insert("parent", uuid7_to_bson(*t.parent_ref()));
+    d.insert("audio_id", uuid7_to_bson(*t.audio_id_ref()));
     d.insert(
       "stream_index",
       t.stream_index()
@@ -337,8 +337,8 @@ impl TryFrom<Document> for AudioTrack<Uuid7> {
 
   fn try_from(mut d: Document) -> Result<Self, Self::Error> {
     let id = uuid7_from_bson(take(&mut d, "_id")?, "_id")?;
-    let parent = uuid7_from_bson(take(&mut d, "parent")?, "parent")?;
-    let mut t = AudioTrack::try_new(id, parent)?;
+    let audio_id = uuid7_from_bson(take(&mut d, "audio_id")?, "audio_id")?;
+    let mut t = AudioTrack::try_new(id, audio_id)?;
 
     if let Some(b) = take_opt(&mut d, "stream_index") {
       t.set_stream_index(Some(as_u32(b, "stream_index")?));
@@ -506,12 +506,12 @@ impl From<&AudioSegment<Uuid7>> for Document {
   fn from(s: &AudioSegment<Uuid7>) -> Self {
     let mut d = Document::new();
     d.insert("_id", uuid7_to_bson(*s.id_ref()));
-    d.insert("parent", uuid7_to_bson(*s.parent_ref()));
+    d.insert("audio_track_id", uuid7_to_bson(*s.audio_track_id_ref()));
     d.insert("index", Bson::Int64(s.index() as i64));
     d.insert("span", time_range_to_bson(s.span_ref()));
     d.insert(
-      "speaker",
-      s.speaker_ref()
+      "speaker_id",
+      s.speaker_id_ref()
         .map(|i| uuid7_to_bson(*i))
         .unwrap_or(Bson::Null),
     );
@@ -553,13 +553,13 @@ impl TryFrom<Document> for AudioSegment<Uuid7> {
 
   fn try_from(mut d: Document) -> Result<Self, Self::Error> {
     let id = uuid7_from_bson(take(&mut d, "_id")?, "_id")?;
-    let parent = uuid7_from_bson(take(&mut d, "parent")?, "parent")?;
+    let audio_track_id = uuid7_from_bson(take(&mut d, "audio_track_id")?, "audio_track_id")?;
     let index = as_u32(take(&mut d, "index")?, "index")?;
     let span = time_range_from_bson(take(&mut d, "span")?, "span")?;
-    let mut s = AudioSegment::try_new(id, parent, index, span)?;
+    let mut s = AudioSegment::try_new(id, audio_track_id, index, span)?;
 
-    if let Some(b) = take_opt(&mut d, "speaker") {
-      s.set_speaker(Some(uuid7_from_bson(b, "speaker")?));
+    if let Some(b) = take_opt(&mut d, "speaker_id") {
+      s.set_speaker_id(Some(uuid7_from_bson(b, "speaker_id")?));
     }
     if let Some(b) = take_opt(&mut d, "text") {
       s.set_text(loc_text_from_bson(b, "text")?);
@@ -679,7 +679,7 @@ mod tests {
   fn audio_segment_roundtrip() {
     let s = AudioSegment::try_new(Uuid7::new(), Uuid7::new(), 0, sp(0, 1500))
       .unwrap()
-      .with_speaker(Some(Uuid7::new()))
+      .with_speaker_id(Some(Uuid7::new()))
       .with_text(LocalizedText::from_src_translated("hola", "hello"))
       .with_language(Some(Language::from_bcp47("es").unwrap()))
       .try_with_words(vec![Word::try_from_parts(
@@ -709,7 +709,7 @@ mod tests {
         bytes: vec![0u8; 16],
       }),
     );
-    d.insert("parent", uuid7_to_bson(Uuid7::new()));
+    d.insert("audio_track_id", uuid7_to_bson(Uuid7::new()));
     d.insert("index", Bson::Int64(0));
     d.insert("span", time_range_to_bson(&sp(0, 500)));
     let err = AudioSegment::<Uuid7>::try_from(d).unwrap_err();

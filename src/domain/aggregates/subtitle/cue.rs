@@ -9,7 +9,7 @@
 //! `Keyframe.data` — no `Option`, no `Location`; cheap-clone via the
 //! refcounted slice matches the wire layer's `::buffa::bytes::Bytes`).
 //!
-//! No `provenance` field — it lives on the parent `SubtitleTrack` (one
+//! No `provenance` field — it lives on the subtitle_track_id `SubtitleTrack` (one
 //! parse/OCR run per track, locked).
 //!
 //! ## Content invariants (locked `subtitle_cues.md`)
@@ -32,14 +32,14 @@ use crate::domain::{vo::LocalizedText, Uuid7};
 
 /// One parsed cue. Generic over `Id` (default [`Uuid7`]).
 ///
-/// **No `Default`** — a `SubtitleCue` with nil `id`/`parent` is an
+/// **No `Default`** — a `SubtitleCue` with nil `id`/`subtitle_track_id` is an
 /// orphan with no track. Construct via [`SubtitleCue::try_new`]. Fields
 /// are private; access via getters and `with_*` / `set_*` /
 /// `try_with_*` / `try_set_*` builders/mutators.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SubtitleCue<Id = Uuid7> {
   id: Id,
-  parent: Id,
+  subtitle_track_id: Id,
   index: u32,
   span: TimeRange,
   text: LocalizedText,
@@ -77,8 +77,8 @@ impl SubtitleCue<Uuid7> {
   ///
   /// Rejects:
   /// - nil `id` (every cue needs a real identity for the LanceDB
-  ///   embedding key + `(parent, index)` projection-level uniqueness);
-  /// - nil `parent` (orphan cue with no `SubtitleTrack` reference);
+  ///   embedding key + `(subtitle_track_id, index)` projection-level uniqueness);
+  /// - nil `subtitle_track_id` (orphan cue with no `SubtitleTrack` reference);
   /// - a fully-blank cue — `text`, `ocr_text` and `image` all empty
   ///   ([`SubtitleCueError::BlankCue`]);
   /// - `ocr_text` non-empty while `image` is empty
@@ -94,7 +94,7 @@ impl SubtitleCue<Uuid7> {
   #[allow(clippy::too_many_arguments)]
   pub fn try_new(
     id: Uuid7,
-    parent: Uuid7,
+    subtitle_track_id: Uuid7,
     index: u32,
     span: TimeRange,
     text: LocalizedText,
@@ -105,14 +105,14 @@ impl SubtitleCue<Uuid7> {
     if id.is_nil() {
       return Err(SubtitleCueError::NilId);
     }
-    if parent.is_nil() {
-      return Err(SubtitleCueError::NilParent);
+    if subtitle_track_id.is_nil() {
+      return Err(SubtitleCueError::NilSubtitleTrackId);
     }
     let image = image.into();
     validate_content(&text, &image, &ocr_text)?;
     Ok(Self {
       id,
-      parent,
+      subtitle_track_id,
       index,
       span,
       text,
@@ -128,14 +128,14 @@ impl SubtitleCue<Uuid7> {
   /// still rejects a blank `text` via [`SubtitleCueError::BlankCue`].
   pub fn try_new_text(
     id: Uuid7,
-    parent: Uuid7,
+    subtitle_track_id: Uuid7,
     index: u32,
     span: TimeRange,
     text: LocalizedText,
   ) -> Result<Self, SubtitleCueError> {
     Self::try_new(
       id,
-      parent,
+      subtitle_track_id,
       index,
       span,
       text,
@@ -155,11 +155,11 @@ impl<Id> SubtitleCue<Id> {
 
   /// FK → `SubtitleTrack.id`.
   #[inline(always)]
-  pub const fn parent_ref(&self) -> &Id {
-    &self.parent
+  pub const fn subtitle_track_id_ref(&self) -> &Id {
+    &self.subtitle_track_id
   }
 
-  /// 0-based cue ordinal within the parent track.
+  /// 0-based cue ordinal within the subtitle_track_id track.
   #[inline(always)]
   pub const fn index(&self) -> u32 {
     self.index
@@ -345,10 +345,10 @@ pub enum SubtitleCueError {
   /// embedding key.
   #[error("SubtitleCue id must not be the nil UUID")]
   NilId,
-  /// Supplied `parent` was the nil sentinel — orphan cue with no
+  /// Supplied `subtitle_track_id` was the nil sentinel — orphan cue with no
   /// `SubtitleTrack` reference.
-  #[error("SubtitleCue parent (SubtitleTrack) must not be the nil UUID")]
-  NilParent,
+  #[error("SubtitleCue `subtitle_track_id` (FK → SubtitleTrack) must not be the nil UUID")]
+  NilSubtitleTrackId,
   /// A cue must carry content — `text`, `ocr_text` and `image` cannot
   /// all be empty.
   #[error("SubtitleCue must be non-empty: text, ocr_text and image are all empty")]
@@ -374,16 +374,16 @@ mod tests {
 
   #[test]
   fn try_new_happy_path_text() {
-    let parent = Uuid7::new();
+    let subtitle_track_id = Uuid7::new();
     let c = SubtitleCue::try_new_text(
       Uuid7::new(),
-      parent,
+      subtitle_track_id,
       0,
       span(),
       LocalizedText::from_src("Hello"),
     )
     .expect("valid text cue must construct");
-    assert_eq!(c.parent_ref(), &parent);
+    assert_eq!(c.subtitle_track_id_ref(), &subtitle_track_id);
     assert_eq!(c.index(), 0);
     assert_eq!(c.span_ref(), &span());
     assert_eq!(c.text_ref().src(), "Hello");
@@ -407,7 +407,7 @@ mod tests {
   }
 
   #[test]
-  fn try_new_rejects_nil_parent() {
+  fn try_new_rejects_nil_subtitle_track_id() {
     let r = SubtitleCue::try_new_text(
       Uuid7::new(),
       Uuid7::nil(),
@@ -415,8 +415,8 @@ mod tests {
       span(),
       LocalizedText::from_src("x"),
     );
-    assert_eq!(r.err(), Some(SubtitleCueError::NilParent));
-    assert!(SubtitleCueError::NilParent.is_nil_parent());
+    assert_eq!(r.err(), Some(SubtitleCueError::NilSubtitleTrackId));
+    assert!(SubtitleCueError::NilSubtitleTrackId.is_nil_subtitle_track_id());
   }
 
   #[test]

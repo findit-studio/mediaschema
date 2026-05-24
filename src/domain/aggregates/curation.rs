@@ -134,7 +134,7 @@ impl Default for NilIdError {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SceneAnnotation<Id = Uuid7> {
   id: Id,
-  scene: Id,
+  scene_id: Id,
   favorite: bool,
   user_tags: std::vec::Vec<Id>,
   rating: Option<u8>,
@@ -149,18 +149,18 @@ impl SceneAnnotation<Uuid7> {
   /// `with_*` / `set_*`.
   pub fn try_new(
     id: Uuid7,
-    scene: Uuid7,
+    scene_id: Uuid7,
     updated_at: Timestamp,
   ) -> Result<Self, SceneAnnotationError> {
     if id.is_nil() {
       return Err(SceneAnnotationError::NilId);
     }
-    if scene.is_nil() {
-      return Err(SceneAnnotationError::NilScene);
+    if scene_id.is_nil() {
+      return Err(SceneAnnotationError::NilSceneId);
     }
     Ok(Self {
       id,
-      scene,
+      scene_id,
       favorite: false,
       user_tags: std::vec::Vec::new(),
       rating: None,
@@ -179,8 +179,8 @@ impl<Id> SceneAnnotation<Id> {
 
   /// FK → `Scene.id`.
   #[inline(always)]
-  pub const fn scene_ref(&self) -> &Id {
-    &self.scene
+  pub const fn scene_id_ref(&self) -> &Id {
+    &self.scene_id
   }
 
   /// Whether the scene is favourited.
@@ -288,8 +288,8 @@ pub enum SceneAnnotationError {
   NilId,
   /// Supplied `scene` FK was nil — would be an orphan annotation with
   /// no `Scene` reference.
-  #[error("SceneAnnotation scene FK must not be the nil UUID")]
-  NilScene,
+  #[error("SceneAnnotation `scene_id` (FK → Scene) must not be the nil UUID")]
+  NilSceneId,
 }
 
 // ===========================================================================
@@ -337,31 +337,31 @@ mod tests {
   }
 
   #[test]
-  fn scene_annotation_try_new_rejects_nil_id_or_scene() {
+  fn scene_annotation_try_new_rejects_nil_id_or_scene_id() {
     assert_eq!(
       SceneAnnotation::try_new(Uuid7::nil(), Uuid7::new(), Timestamp::default()).err(),
       Some(SceneAnnotationError::NilId)
     );
     assert_eq!(
       SceneAnnotation::try_new(Uuid7::new(), Uuid7::nil(), Timestamp::default()).err(),
-      Some(SceneAnnotationError::NilScene)
+      Some(SceneAnnotationError::NilSceneId)
     );
     assert!(SceneAnnotationError::NilId.is_nil_id());
-    assert!(SceneAnnotationError::NilScene.is_nil_scene());
+    assert!(SceneAnnotationError::NilSceneId.is_nil_scene_id());
   }
 
   #[test]
   fn scene_annotation_tags_are_id_refs_not_strings() {
-    let scene = Uuid7::new();
+    let scene_id = Uuid7::new();
     let t1 = Uuid7::new();
     let t2 = Uuid7::new();
-    let a = SceneAnnotation::try_new(Uuid7::new(), scene, Timestamp::default())
+    let a = SceneAnnotation::try_new(Uuid7::new(), scene_id, Timestamp::default())
       .unwrap()
       .with_favorite(true)
       .with_user_tags(std::vec![t1, t2])
       .with_rating(Some(4))
       .with_note("great driving scene");
-    assert_eq!(a.scene_ref(), &scene);
+    assert_eq!(a.scene_id_ref(), &scene_id);
     assert!(a.is_favorite());
     assert_eq!(a.rating(), Some(4));
     assert_eq!(a.user_tags_slice().len(), 2);

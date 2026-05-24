@@ -1,4 +1,4 @@
-# `Speaker<Id>` — a per-track diarized speaker  *(rev 1 — LOCKED, user-approved)*
+# `Speaker<Id>` — a per-track diarized speaker  *(rev 2 — LOCKED, user-approved)*
 
 ## Domain meaning
 
@@ -25,14 +25,14 @@ lifecycle. Conversions deferred.
 | field | domain type | source | notes |
 |---|---|---|---|
 | `id` | `Id` (UUIDv7) | — | canonical identity; **LanceDB voiceprint key** |
-| `parent` | `Id` | speaker→track | FK → `AudioTrack.id` (per-track, A-loc) |
+| `audio_track_id` | `Id` | speaker→track | FK → `AudioTrack.id` (per-track, A-loc) |
 | `cluster_id` | `u32` | `dia` | the `dia` cluster label within this track (`DiarizedSpan.speaker_id`); stable within the diarization run |
 | `name` | `SmolStr` | user/future | human-assigned identity label; `""` = unassigned (diarization is anonymous — `SPEAKER_00`-style display is derived from `cluster_id`, not stored) |
 | `speech_duration` | `Option<mediatime::TrackTime>` | rollup | total time this speaker spoke (Σ of their `AudioSegment.span`s) — list/search facet; maintained rollup, truth = the segments |
 
 ## Invariants
 
-`id` non-empty; `(parent, cluster_id)` unique within the track;
+`id` non-empty; `(audio_track_id, cluster_id)` unique within the track;
 `speech_duration` is a denormalized rollup (truth = this speaker's
 `AudioSegment`s). Voiceprint presence is a LanceDB concern, not a domain
 invariant.
@@ -55,9 +55,9 @@ enhancement, not modelled now).
 
 ## Projection notes
 
-- **sqlx**: `speaker` table; `id` PK; `parent` FK → `audio_track`;
+- **sqlx**: `speaker` table; `id` PK; `audio_track_id` FK → `audio_track`;
   `cluster_id`/`name`/`speech_duration` columns. **No vector column** (voiceprint
-  in LanceDB). `(parent, cluster_id)` unique.
+  in LanceDB). `(audio_track_id, cluster_id)` unique.
 - **mongodb**: `_id`=UUIDv7; single collection; voiceprint not embedded.
 - **graphql**: `name`/`speech_duration`/`cluster_id` exposed; "same voice"
   similarity = a LanceDB endpoint keyed by `id` (never a raw vector field).

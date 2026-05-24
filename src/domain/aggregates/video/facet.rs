@@ -29,13 +29,13 @@ use crate::domain::{vo::IndexProgress, Uuid7};
 // ---------------------------------------------------------------------------
 
 /// The video facet of a `Media`. Holds the facet identity, the FK back
-/// to the parent `Media`, the child-track id list, the `total_scenes`
+/// to the media_id `Media`, the child-track id list, the `total_scenes`
 /// rollup, and the per-kind index progress. **Generic over `Id`**
 /// (default [`Uuid7`]) — `Media.video` also points at this facet, and
 /// each `VideoTrack` carries its own back-reference.
 ///
 /// Fields are private per the encapsulation rule; access via the
-/// `id_ref` / `parent_ref` / `total_scenes` / `tracks_slice` /
+/// `id_ref` / `media_id_ref` / `total_scenes` / `tracks_slice` /
 /// `track_progress_ref` getters and the `with_*` / `set_*`
 /// builders/mutators.
 ///
@@ -45,7 +45,7 @@ use crate::domain::{vo::IndexProgress, Uuid7};
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Video<Id = Uuid7> {
   id: Id,
-  parent: Id,
+  media_id: Id,
   total_scenes: u32,
   tracks: std::vec::Vec<Id>,
   track_progress: IndexProgress,
@@ -54,23 +54,23 @@ pub struct Video<Id = Uuid7> {
 impl Video<Uuid7> {
   /// Validating constructor for the canonical `Uuid7` identity type.
   /// Rejects nil `id` (every facet row needs a real identity) and nil
-  /// `parent` (orphaned facet with no `Media` reference).
+  /// `media_id` (orphaned facet with no `Media` reference).
   ///
   /// The facet starts with no tracks (`tracks = []`), no scenes
   /// (`total_scenes = 0`), and an empty index-progress rollup; the
   /// indexer fills these in via `with_*` / `set_*` as tracks are
   /// created and processed — or the storage layer assembles them
   /// directly from a row.
-  pub fn try_new(id: Uuid7, parent: Uuid7) -> Result<Self, VideoError> {
+  pub fn try_new(id: Uuid7, media_id: Uuid7) -> Result<Self, VideoError> {
     if id.is_nil() {
       return Err(VideoError::NilId);
     }
-    if parent.is_nil() {
-      return Err(VideoError::NilParent);
+    if media_id.is_nil() {
+      return Err(VideoError::NilMediaId);
     }
     Ok(Self {
       id,
-      parent,
+      media_id,
       total_scenes: 0,
       tracks: std::vec::Vec::new(),
       track_progress: IndexProgress::new(),
@@ -80,17 +80,17 @@ impl Video<Uuid7> {
 
 impl<Id> Video<Id> {
   /// Canonical identity (referenced by `Media.video`; child
-  /// `VideoTrack.parent` points here).
+  /// `VideoTrack.media_id` points here).
   #[inline(always)]
   pub const fn id_ref(&self) -> &Id {
     &self.id
   }
 
   /// FK → `Media.id` — the `Media` this facet belongs to. Set at
-  /// construction (identity-bearing — no `with_parent` / `set_parent`).
+  /// construction (identity-bearing — no `with_media_id` / `set_media_id`).
   #[inline(always)]
-  pub const fn parent_ref(&self) -> &Id {
-    &self.parent
+  pub const fn media_id_ref(&self) -> &Id {
+    &self.media_id
   }
 
   /// Total scenes across all child tracks — denormalised rollup
@@ -166,10 +166,10 @@ pub enum VideoError {
   /// The supplied `id` was the nil sentinel — not a real identity.
   #[error("Video facet id must not be the nil UUID")]
   NilId,
-  /// Supplied `parent` was the nil sentinel — orphaned facet with no
+  /// Supplied `media_id` was the nil sentinel — orphaned facet with no
   /// `Media` reference.
-  #[error("Video parent (Media) must not be the nil UUID")]
-  NilParent,
+  #[error("Video `media_id` (FK → Media) must not be the nil UUID")]
+  NilMediaId,
 }
 
 // ===========================================================================
@@ -184,10 +184,10 @@ mod tests {
   #[test]
   fn try_new_happy_path() {
     let id = Uuid7::new();
-    let parent = Uuid7::new();
-    let v = Video::try_new(id, parent).unwrap();
+    let media_id = Uuid7::new();
+    let v = Video::try_new(id, media_id).unwrap();
     assert_eq!(v.id_ref(), &id);
-    assert_eq!(v.parent_ref(), &parent);
+    assert_eq!(v.media_id_ref(), &media_id);
     assert_eq!(v.total_scenes(), 0);
     assert!(v.tracks_slice().is_empty());
     assert_eq!(v.track_progress_ref(), &IndexProgress::new());
@@ -201,17 +201,17 @@ mod tests {
   }
 
   #[test]
-  fn try_new_rejects_nil_parent() {
+  fn try_new_rejects_nil_media_id() {
     let r = Video::try_new(Uuid7::new(), Uuid7::nil());
-    assert_eq!(r.err(), Some(VideoError::NilParent));
-    assert!(VideoError::NilParent.is_nil_parent());
+    assert_eq!(r.err(), Some(VideoError::NilMediaId));
+    assert!(VideoError::NilMediaId.is_nil_media_id());
   }
 
   #[test]
-  fn parent_ref_returns_constructed_parent() {
-    let parent = Uuid7::new();
-    let v = Video::try_new(Uuid7::new(), parent).unwrap();
-    assert_eq!(v.parent_ref(), &parent);
+  fn media_id_ref_returns_constructed_media_id() {
+    let media_id = Uuid7::new();
+    let v = Video::try_new(Uuid7::new(), media_id).unwrap();
+    assert_eq!(v.media_id_ref(), &media_id);
   }
 
   #[test]

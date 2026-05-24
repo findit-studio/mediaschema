@@ -30,7 +30,7 @@ use super::detections::{
 /// encapsulation rule; access via the getter / `with_*` / `set_*`
 /// accessors.
 ///
-/// **No `Default`** — defaulting to nil `id`/`parent` would be an
+/// **No `Default`** — defaulting to nil `id`/`scene_id` would be an
 /// orphan thumbnail with no scene. Construct via [`Keyframe::try_new`]
 /// (which also rejects zero-`dimensions`, per the locked invariant
 /// that a thumbnail has positive W and H).
@@ -38,7 +38,7 @@ use super::detections::{
 pub struct Keyframe<Id = Uuid7> {
   // --- identity / source ---
   id: Id,
-  parent: Id,
+  scene_id: Id,
   pts: Timestamp,
 
   // --- artifact ---
@@ -79,7 +79,7 @@ impl Keyframe<Uuid7> {
   ///
   /// Rejects:
   /// - nil `id` (LanceDB embedding key collision),
-  /// - nil `parent` (orphan keyframe with no `Scene`),
+  /// - nil `scene_id` (orphan keyframe with no `Scene`),
   /// - zero `dimensions` (a thumbnail with W=0 or H=0 is not a valid
   ///   image artifact; the locked spec calls out `dimensions` as
   ///   non-zero in its invariants).
@@ -89,7 +89,7 @@ impl Keyframe<Uuid7> {
   /// stages land.
   pub fn try_new(
     id: Uuid7,
-    parent: Uuid7,
+    scene_id: Uuid7,
     pts: Timestamp,
     dimensions: Dimensions,
     extractor: KeyframeExtractor,
@@ -97,15 +97,15 @@ impl Keyframe<Uuid7> {
     if id.is_nil() {
       return Err(KeyframeError::NilId);
     }
-    if parent.is_nil() {
-      return Err(KeyframeError::NilParent);
+    if scene_id.is_nil() {
+      return Err(KeyframeError::NilSceneId);
     }
     if dimensions.width() == 0 || dimensions.height() == 0 {
       return Err(KeyframeError::ZeroDimensions);
     }
     Ok(Self {
       id,
-      parent,
+      scene_id,
       pts,
       data: Bytes::new(),
       mime: SmolStr::default(),
@@ -138,8 +138,8 @@ impl<Id> Keyframe<Id> {
     &self.id
   }
   #[inline(always)]
-  pub const fn parent_ref(&self) -> &Id {
-    &self.parent
+  pub const fn scene_id_ref(&self) -> &Id {
+    &self.scene_id
   }
   #[inline(always)]
   pub const fn pts_ref(&self) -> &Timestamp {
@@ -476,10 +476,10 @@ pub enum KeyframeError {
   /// Supplied `id` was the nil sentinel.
   #[error("Keyframe id must not be the nil UUID")]
   NilId,
-  /// Supplied `parent` was the nil sentinel — orphan keyframe with no
+  /// Supplied `scene_id` was the nil sentinel — orphan keyframe with no
   /// `Scene` reference.
-  #[error("Keyframe parent (Scene) must not be the nil UUID")]
-  NilParent,
+  #[error("Keyframe `scene_id` (FK → Scene) must not be the nil UUID")]
+  NilSceneId,
   /// `dimensions.width() == 0` or `dimensions.height() == 0` — a
   /// zero-extent thumbnail is not a valid artifact (locked invariant).
   #[error("Keyframe dimensions must be non-zero (locked invariant)")]
@@ -503,17 +503,17 @@ mod tests {
 
   #[test]
   fn try_new_happy_path() {
-    let parent = Uuid7::new();
+    let scene_id = Uuid7::new();
     let ts = Timestamp::new(1234, tb());
     let kf = Keyframe::try_new(
       Uuid7::new(),
-      parent,
+      scene_id,
       ts,
       Dimensions::new(320, 180),
       KeyframeExtractor::CompositeQuality,
     )
     .unwrap();
-    assert_eq!(kf.parent_ref(), &parent);
+    assert_eq!(kf.scene_id_ref(), &scene_id);
     assert_eq!(kf.pts_ref(), &ts);
     assert_eq!(kf.dimensions(), Dimensions::new(320, 180));
     assert!(kf.extractor().is_composite_quality());
@@ -546,10 +546,10 @@ mod tests {
         KeyframeExtractor::Manual
       )
       .err(),
-      Some(KeyframeError::NilParent)
+      Some(KeyframeError::NilSceneId)
     );
     assert!(KeyframeError::NilId.is_nil_id());
-    assert!(KeyframeError::NilParent.is_nil_parent());
+    assert!(KeyframeError::NilSceneId.is_nil_scene_id());
   }
 
   #[test]

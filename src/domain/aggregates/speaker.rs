@@ -43,17 +43,17 @@ const fn is_negative_duration(d: Option<Timestamp>) -> bool {
 /// `AudioTrack.speakers: Vec<Id> → Speaker`; each `AudioSegment.speaker:
 /// Option<Id> → Speaker`.
 ///
-/// **No `Default`**: a `Speaker` with nil `id` and nil `parent` would be
+/// **No `Default`**: a `Speaker` with nil `id` and nil `audio_track_id` would be
 /// an orphan voice clustered as `SPEAKER_NN=0` — a real invalid state.
 /// Construct explicitly via [`Speaker::try_new`].
 ///
 /// Fields are private per the encapsulation rule; access via `id_ref()` /
-/// `parent_ref()` / `cluster_id()` / `name()` / `speech_duration_ref()`
+/// `audio_track_id_ref()` / `cluster_id()` / `name()` / `speech_duration_ref()`
 /// getters and `with_*` / `set_*` builders/mutators.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Speaker<Id = Uuid7> {
   id: Id,
-  parent: Id,
+  audio_track_id: Id,
   cluster_id: u32,
   name: SmolStr,
   /// **Semantically a non-negative duration in the track's timebase**,
@@ -67,22 +67,22 @@ impl Speaker<Uuid7> {
   /// Validating constructor for the canonical `Uuid7` identity type.
   ///
   /// Rejects nil `id` (LanceDB voiceprint key collision) and nil
-  /// `parent` (orphaned voice with no `AudioTrack`).
+  /// `audio_track_id` (orphaned voice with no `AudioTrack`).
   pub fn try_new(
     id: Uuid7,
-    parent: Uuid7,
+    audio_track_id: Uuid7,
     cluster_id: u32,
     name: impl Into<SmolStr>,
   ) -> Result<Self, SpeakerError> {
     if id.is_nil() {
       return Err(SpeakerError::NilId);
     }
-    if parent.is_nil() {
-      return Err(SpeakerError::NilParent);
+    if audio_track_id.is_nil() {
+      return Err(SpeakerError::NilAudioTrackId);
     }
     Ok(Self {
       id,
-      parent,
+      audio_track_id,
       cluster_id,
       name: name.into(),
       speech_duration: None,
@@ -99,8 +99,8 @@ impl<Id> Speaker<Id> {
 
   /// FK → `AudioTrack.id`.
   #[inline(always)]
-  pub const fn parent_ref(&self) -> &Id {
-    &self.parent
+  pub const fn audio_track_id_ref(&self) -> &Id {
+    &self.audio_track_id
   }
 
   /// `dia` cluster label within this track.
@@ -194,10 +194,10 @@ pub enum SpeakerError {
   /// LanceDB voiceprint key.
   #[error("Speaker id must not be the nil UUID")]
   NilId,
-  /// Supplied `parent` was the nil sentinel — orphaned voice with
+  /// Supplied `audio_track_id` was the nil sentinel — orphaned voice with
   /// no `AudioTrack` reference.
-  #[error("Speaker parent (AudioTrack) must not be the nil UUID")]
-  NilParent,
+  #[error("Speaker `audio_track_id` (FK → AudioTrack) must not be the nil UUID")]
+  NilAudioTrackId,
   /// A `Some(_)` `speech_duration` carried a negative `Timestamp` — a
   /// speaker's total speaking time cannot be negative.
   #[error("Speaker speech_duration must not be negative")]
@@ -214,10 +214,10 @@ mod tests {
 
   #[test]
   fn try_new_happy_path() {
-    let parent = Uuid7::new();
+    let audio_track_id = Uuid7::new();
     let s =
-      Speaker::try_new(Uuid7::new(), parent, 2, "Jane").expect("valid construction must succeed");
-    assert_eq!(s.parent_ref(), &parent);
+      Speaker::try_new(Uuid7::new(), audio_track_id, 2, "Jane").expect("valid construction must succeed");
+    assert_eq!(s.audio_track_id_ref(), &audio_track_id);
     assert_eq!(s.cluster_id(), 2);
     assert_eq!(s.name(), "Jane");
     assert!(s.speech_duration_ref().is_none());
@@ -238,10 +238,10 @@ mod tests {
   }
 
   #[test]
-  fn try_new_rejects_nil_parent() {
+  fn try_new_rejects_nil_audio_track_id() {
     let r = Speaker::try_new(Uuid7::new(), Uuid7::nil(), 0, "");
-    assert_eq!(r.err(), Some(SpeakerError::NilParent));
-    assert!(SpeakerError::NilParent.is_nil_parent());
+    assert_eq!(r.err(), Some(SpeakerError::NilAudioTrackId));
+    assert!(SpeakerError::NilAudioTrackId.is_nil_audio_track_id());
   }
 
   #[test]

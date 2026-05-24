@@ -71,7 +71,7 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct PgVideoRow {
   pub id: Uuid,
-  pub parent: Uuid,
+  pub media_id: Uuid,
   pub total_scenes: i64,
   pub track_progress_total: i64,
   pub track_progress_indexed: i64,
@@ -83,7 +83,7 @@ impl From<&Video<Uuid7>> for PgVideoRow {
     let p = v.track_progress_ref();
     Self {
       id: uuid7_to_uuid(*v.id_ref()),
-      parent: uuid7_to_uuid(*v.parent_ref()),
+      media_id: uuid7_to_uuid(*v.media_id_ref()),
       total_scenes: i64::from(v.total_scenes()),
       track_progress_total: i64::from(p.total()),
       track_progress_indexed: i64::from(p.indexed()),
@@ -97,14 +97,14 @@ impl TryFrom<PgVideoRow> for Video<Uuid7> {
 
   fn try_from(r: PgVideoRow) -> Result<Self, Self::Error> {
     let id = uuid_to_uuid7(r.id)?;
-    let parent = uuid_to_uuid7(r.parent)?;
+    let media_id = uuid_to_uuid7(r.media_id)?;
     let total_scenes = u32_from_i64(r.total_scenes, "Video.total_scenes")?;
     let progress = IndexProgress::from_parts(
       u32_from_i64(r.track_progress_total, "Video.track_progress_total")?,
       u32_from_i64(r.track_progress_indexed, "Video.track_progress_indexed")?,
       u32_from_i64(r.track_progress_failed, "Video.track_progress_failed")?,
     );
-    let v = Video::try_new(id, parent)
+    let v = Video::try_new(id, media_id)
       .map_err(|e: VideoError| SqlxError::DomainConstructorRejected(e.to_string()))?;
     Ok(
       v.with_total_scenes(total_scenes)
@@ -229,7 +229,7 @@ pub struct PgVideoTrackRow {
 /// One `video_track_index_error` child row.
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct PgVideoTrackIndexErrorRow {
-  pub video_track: Uuid,
+  pub video_track_id: Uuid,
   pub ordinal: i32,
   pub code: i32,
   pub message: String,
@@ -252,7 +252,7 @@ impl From<&VideoTrack<Uuid7>> for (PgVideoTrackRow, std::vec::Vec<PgVideoTrackIn
     let duration = t.duration_ref();
     let row = PgVideoTrackRow {
       id,
-      video_id: uuid7_to_uuid(*t.parent_ref()),
+      video_id: uuid7_to_uuid(*t.video_id_ref()),
       stream_index: t.stream_index().map(i64::from),
       container_track_id: t.container_track_id().map(|v| v as i64),
       start_pts: start_pts.map(mediatime::Timestamp::pts),
@@ -326,7 +326,7 @@ impl From<&VideoTrack<Uuid7>> for (PgVideoTrackRow, std::vec::Vec<PgVideoTrackIn
       .iter()
       .enumerate()
       .map(|(i, e)| PgVideoTrackIndexErrorRow {
-        video_track: id,
+        video_track_id: id,
         ordinal: i as i32,
         code: e.code().as_u32() as i32,
         message: e.message().to_owned(),
@@ -343,8 +343,8 @@ impl TryFrom<(PgVideoTrackRow, std::vec::Vec<PgVideoTrackIndexErrorRow>)> for Vi
     (r, mut errors): (PgVideoTrackRow, std::vec::Vec<PgVideoTrackIndexErrorRow>),
   ) -> Result<Self, Self::Error> {
     let id = uuid_to_uuid7(r.id)?;
-    let parent = uuid_to_uuid7(r.video_id)?;
-    let mut t = VideoTrack::try_new(id, parent)
+    let video_id = uuid_to_uuid7(r.video_id)?;
+    let mut t = VideoTrack::try_new(id, video_id)
       .map_err(|e: VideoTrackError| SqlxError::DomainConstructorRejected(e.to_string()))?;
 
     // Source locators.
@@ -597,7 +597,7 @@ impl TryFrom<(PgVideoTrackRow, std::vec::Vec<PgVideoTrackIndexErrorRow>)> for Vi
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct PgSceneRow {
   pub id: Uuid,
-  pub parent: Uuid,
+  pub video_track_id: Uuid,
   pub index: i64,
   pub span_start_pts: i64,
   pub span_end_pts: i64,
@@ -610,7 +610,7 @@ impl From<&Scene<Uuid7>> for PgSceneRow {
     let span = s.span_ref();
     Self {
       id: uuid7_to_uuid(*s.id_ref()),
-      parent: uuid7_to_uuid(*s.parent_ref()),
+      video_track_id: uuid7_to_uuid(*s.video_track_id_ref()),
       index: i64::from(s.index()),
       span_start_pts: span.start_pts(),
       span_end_pts: span.end_pts(),
@@ -628,7 +628,7 @@ pub fn scene_from_row(
   parent_timebase: mediatime::Timebase,
 ) -> Result<Scene<Uuid7>, SqlxError> {
   let id = uuid_to_uuid7(r.id)?;
-  let parent = uuid_to_uuid7(r.parent)?;
+  let video_track_id = uuid_to_uuid7(r.video_track_id)?;
   let index = u32_from_i64(r.index, "Scene.index")?;
   let span = mediatime::TimeRange::try_new(r.span_start_pts, r.span_end_pts, parent_timebase)
     .ok_or_else(|| {
@@ -638,7 +638,7 @@ pub fn scene_from_row(
       ))
     })?;
   let detector = parse_scene_detector(&r.detector)?;
-  let s = Scene::try_new(id, parent, index, span, detector)
+  let s = Scene::try_new(id, video_track_id, index, span, detector)
     .map_err(|e: SceneError| SqlxError::DomainConstructorRejected(e.to_string()))?
     .with_description(r.description);
   Ok(s)
@@ -658,7 +658,7 @@ pub fn scene_from_row(
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct PgKeyframeRow {
   pub id: Uuid,
-  pub parent: Uuid,
+  pub scene_id: Uuid,
   pub pts: i64,
   pub data: std::vec::Vec<u8>,
   pub mime: String,
@@ -683,7 +683,7 @@ pub struct PgKeyframeRow {
 /// `keyframe_classification` — apple-vision `Detection` `{label,confidence}`.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct PgKeyframeClassificationRow {
-  pub keyframe: Uuid,
+  pub keyframe_id: Uuid,
   pub ordinal: i32,
   pub label: String,
   pub confidence: f32,
@@ -692,7 +692,7 @@ pub struct PgKeyframeClassificationRow {
 /// `keyframe_object` — `ObjectDetection`: `Detection` + optional bbox.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct PgKeyframeObjectRow {
-  pub keyframe: Uuid,
+  pub keyframe_id: Uuid,
   pub ordinal: i32,
   pub label: String,
   pub confidence: f32,
@@ -706,7 +706,7 @@ pub struct PgKeyframeObjectRow {
 /// `keyframe_action` — apple-vision body-pose-derived action `Detection`.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct PgKeyframeActionRow {
-  pub keyframe: Uuid,
+  pub keyframe_id: Uuid,
   pub ordinal: i32,
   pub label: String,
   pub confidence: f32,
@@ -715,7 +715,7 @@ pub struct PgKeyframeActionRow {
 /// `keyframe_text_detection` — OCR text + confidence + bbox.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct PgKeyframeTextDetectionRow {
-  pub keyframe: Uuid,
+  pub keyframe_id: Uuid,
   pub ordinal: i32,
   pub text: String,
   pub confidence: f32,
@@ -728,7 +728,7 @@ pub struct PgKeyframeTextDetectionRow {
 /// `keyframe_barcode` — payload + symbology + confidence + bbox.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct PgKeyframeBarcodeRow {
-  pub keyframe: Uuid,
+  pub keyframe_id: Uuid,
   pub ordinal: i32,
   pub payload: String,
   pub symbology: String,
@@ -743,7 +743,7 @@ pub struct PgKeyframeBarcodeRow {
 /// `0` for attention, `1` for objectness).
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct PgKeyframeSaliencyRow {
-  pub keyframe: Uuid,
+  pub keyframe_id: Uuid,
   pub kind: i16,
   pub ordinal: i32,
   pub bbox_x: f32,
@@ -756,7 +756,7 @@ pub struct PgKeyframeSaliencyRow {
 /// `keyframe_document_segment` — 4 normalised corners + confidence.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct PgKeyframeDocumentSegmentRow {
-  pub keyframe: Uuid,
+  pub keyframe_id: Uuid,
   pub ordinal: i32,
   pub tl_x: f32,
   pub tl_y: f32,
@@ -772,7 +772,7 @@ pub struct PgKeyframeDocumentSegmentRow {
 /// `keyframe_color` — colorthief dominant colour.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct PgKeyframeColorRow {
-  pub keyframe: Uuid,
+  pub keyframe_id: Uuid,
   pub ordinal: i32,
   pub rgba: i64,
   pub name: String,
@@ -786,7 +786,7 @@ pub struct PgKeyframeColorRow {
 /// shape). `scope` = `0` human-subject, `1` animal-subject.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct PgKeyframeSubjectRow {
-  pub keyframe: Uuid,
+  pub keyframe_id: Uuid,
   pub scope: i16,
   pub ordinal: i32,
   pub label: String,
@@ -802,7 +802,7 @@ pub struct PgKeyframeSubjectRow {
 /// `face_rectangles`.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct PgKeyframeFaceRow {
-  pub keyframe: Uuid,
+  pub keyframe_id: Uuid,
   pub kind: i16,
   pub ordinal: i32,
   pub bbox_x: f32,
@@ -820,7 +820,7 @@ pub struct PgKeyframeFaceRow {
 /// share the shape). `scope` = `0` human, `1` animal.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct PgKeyframeBodyPoseRow {
-  pub keyframe: Uuid,
+  pub keyframe_id: Uuid,
   pub scope: i16,
   pub ordinal: i32,
   pub bbox_x: f32,
@@ -834,7 +834,7 @@ pub struct PgKeyframeBodyPoseRow {
 /// `scope` = `0` human-body, `1` animal-body, `2` hand.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct PgKeyframeBodyPoseJointRow {
-  pub keyframe: Uuid,
+  pub keyframe_id: Uuid,
   pub scope: i16,
   pub parent_ordinal: i32,
   pub ordinal: i32,
@@ -847,7 +847,7 @@ pub struct PgKeyframeBodyPoseJointRow {
 /// `keyframe_hand_pose` — 2-D hand-pose detection (humans only).
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct PgKeyframeHandPoseRow {
-  pub keyframe: Uuid,
+  pub keyframe_id: Uuid,
   pub ordinal: i32,
   pub bbox_x: f32,
   pub bbox_y: f32,
@@ -860,7 +860,7 @@ pub struct PgKeyframeHandPoseRow {
 /// `keyframe_body_pose_3d` — 3-D body-pose detection.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct PgKeyframeBodyPose3DRow {
-  pub keyframe: Uuid,
+  pub keyframe_id: Uuid,
   pub ordinal: i32,
   pub confidence: f32,
   pub body_height: f32,
@@ -870,7 +870,7 @@ pub struct PgKeyframeBodyPose3DRow {
 /// `keyframe_body_pose_3d_joint` — joint of a 3-D body-pose row.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct PgKeyframeBodyPose3DJointRow {
-  pub keyframe: Uuid,
+  pub keyframe_id: Uuid,
   pub parent_ordinal: i32,
   pub ordinal: i32,
   pub name: String,
@@ -884,7 +884,7 @@ pub struct PgKeyframeBodyPose3DJointRow {
 /// `0` per-person instance mask, `1` whole-frame segmentation mask.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct PgKeyframeMaskRow {
-  pub keyframe: Uuid,
+  pub keyframe_id: Uuid,
   pub kind: i16,
   pub ordinal: i32,
   pub bbox_x: f32,
@@ -902,7 +902,7 @@ pub struct PgKeyframeMaskRow {
 /// face-landmark detection.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct PgKeyframeFaceLandmarksRow {
-  pub keyframe: Uuid,
+  pub keyframe_id: Uuid,
   pub ordinal: i32,
   pub bbox_x: f32,
   pub bbox_y: f32,
@@ -915,7 +915,7 @@ pub struct PgKeyframeFaceLandmarksRow {
 /// face-landmarks row.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct PgKeyframeFaceLandmarkRegionRow {
-  pub keyframe: Uuid,
+  pub keyframe_id: Uuid,
   pub parent_ordinal: i32,
   pub ordinal: i32,
   pub name: String,
@@ -924,7 +924,7 @@ pub struct PgKeyframeFaceLandmarkRegionRow {
 /// `keyframe_face_landmark_point` — a normalised point inside a region.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct PgKeyframeFaceLandmarkPointRow {
-  pub keyframe: Uuid,
+  pub keyframe_id: Uuid,
   pub parent_ordinal: i32,
   pub region_ordinal: i32,
   pub ordinal: i32,
@@ -938,7 +938,7 @@ pub struct PgKeyframeFaceLandmarkPointRow {
 /// `4` = mood, `5` = emotion, `6` = lighting.
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct PgKeyframeVlmLabelRow {
-  pub keyframe: Uuid,
+  pub keyframe_id: Uuid,
   pub kind: i16,
   pub ordinal: i32,
   pub src: String,
@@ -984,7 +984,7 @@ impl From<&Keyframe<Uuid7>> for PgKeyframeRows {
     let horizon = k.horizon_ref();
     let row = PgKeyframeRow {
       id,
-      parent: uuid7_to_uuid(*k.parent_ref()),
+      scene_id: uuid7_to_uuid(*k.scene_id_ref()),
       pts: pts.pts(),
       data: k.data().to_vec(),
       mime: k.mime().to_owned(),
@@ -1007,7 +1007,7 @@ impl From<&Keyframe<Uuid7>> for PgKeyframeRows {
 
     for (ordinal, d) in k.classifications_slice().iter().enumerate() {
       out.classifications.push(PgKeyframeClassificationRow {
-        keyframe: id,
+        keyframe_id: id,
         ordinal: ordinal as i32,
         label: d.label().to_owned(),
         confidence: d.confidence(),
@@ -1016,7 +1016,7 @@ impl From<&Keyframe<Uuid7>> for PgKeyframeRows {
     for (ordinal, o) in k.objects_slice().iter().enumerate() {
       let bbox = o.bbox_ref();
       out.objects.push(PgKeyframeObjectRow {
-        keyframe: id,
+        keyframe_id: id,
         ordinal: ordinal as i32,
         label: o.detection_ref().label().to_owned(),
         confidence: o.detection_ref().confidence(),
@@ -1029,7 +1029,7 @@ impl From<&Keyframe<Uuid7>> for PgKeyframeRows {
     }
     for (ordinal, a) in k.actions_slice().iter().enumerate() {
       out.actions.push(PgKeyframeActionRow {
-        keyframe: id,
+        keyframe_id: id,
         ordinal: ordinal as i32,
         label: a.detection_ref().label().to_owned(),
         confidence: a.detection_ref().confidence(),
@@ -1038,7 +1038,7 @@ impl From<&Keyframe<Uuid7>> for PgKeyframeRows {
     for (ordinal, t) in k.text_detections_slice().iter().enumerate() {
       let bb = t.bbox_ref();
       out.text_detections.push(PgKeyframeTextDetectionRow {
-        keyframe: id,
+        keyframe_id: id,
         ordinal: ordinal as i32,
         text: t.text().to_owned(),
         confidence: t.confidence(),
@@ -1051,7 +1051,7 @@ impl From<&Keyframe<Uuid7>> for PgKeyframeRows {
     for (ordinal, b) in k.barcodes_slice().iter().enumerate() {
       let bb = b.bbox_ref();
       out.barcodes.push(PgKeyframeBarcodeRow {
-        keyframe: id,
+        keyframe_id: id,
         ordinal: ordinal as i32,
         payload: b.payload().to_owned(),
         symbology: b.symbology().to_owned(),
@@ -1070,7 +1070,7 @@ impl From<&Keyframe<Uuid7>> for PgKeyframeRows {
     }
     for (ordinal, d) in k.document_segments_slice().iter().enumerate() {
       out.document_segments.push(PgKeyframeDocumentSegmentRow {
-        keyframe: id,
+        keyframe_id: id,
         ordinal: ordinal as i32,
         tl_x: d.top_left().0,
         tl_y: d.top_left().1,
@@ -1085,7 +1085,7 @@ impl From<&Keyframe<Uuid7>> for PgKeyframeRows {
     }
     for (ordinal, c) in k.colors_slice().iter().enumerate() {
       out.colors.push(PgKeyframeColorRow {
-        keyframe: id,
+        keyframe_id: id,
         ordinal: ordinal as i32,
         rgba: i64::from(c.rgb().bits()),
         name: c.name().to_owned(),
@@ -1132,7 +1132,7 @@ impl From<&Keyframe<Uuid7>> for PgKeyframeRows {
     for (ordinal, hp) in humans.hand_poses_slice().iter().enumerate() {
       let bb = hp.bbox_ref();
       out.hand_poses.push(PgKeyframeHandPoseRow {
-        keyframe: id,
+        keyframe_id: id,
         ordinal: ordinal as i32,
         bbox_x: bb.x(),
         bbox_y: bb.y(),
@@ -1143,7 +1143,7 @@ impl From<&Keyframe<Uuid7>> for PgKeyframeRows {
       });
       for (jord, j) in hp.joints_slice().iter().enumerate() {
         out.body_pose_joints.push(PgKeyframeBodyPoseJointRow {
-          keyframe: id,
+          keyframe_id: id,
           scope: 2,
           parent_ordinal: ordinal as i32,
           ordinal: jord as i32,
@@ -1156,7 +1156,7 @@ impl From<&Keyframe<Uuid7>> for PgKeyframeRows {
     }
     for (ordinal, b3) in humans.body_poses_3d_slice().iter().enumerate() {
       out.body_poses_3d.push(PgKeyframeBodyPose3DRow {
-        keyframe: id,
+        keyframe_id: id,
         ordinal: ordinal as i32,
         confidence: b3.confidence(),
         body_height: b3.body_height(),
@@ -1164,7 +1164,7 @@ impl From<&Keyframe<Uuid7>> for PgKeyframeRows {
       });
       for (jord, j) in b3.joints_slice().iter().enumerate() {
         out.body_pose_3d_joints.push(PgKeyframeBodyPose3DJointRow {
-          keyframe: id,
+          keyframe_id: id,
           parent_ordinal: ordinal as i32,
           ordinal: jord as i32,
           name: j.name().to_owned(),
@@ -1179,7 +1179,7 @@ impl From<&Keyframe<Uuid7>> for PgKeyframeRows {
       let bb = m.bbox_ref();
       let d = m.dimensions();
       out.masks.push(PgKeyframeMaskRow {
-        keyframe: id,
+        keyframe_id: id,
         kind: 0,
         ordinal: ordinal as i32,
         bbox_x: bb.x(),
@@ -1197,7 +1197,7 @@ impl From<&Keyframe<Uuid7>> for PgKeyframeRows {
       let bb = m.bbox_ref();
       let d = m.dimensions();
       out.masks.push(PgKeyframeMaskRow {
-        keyframe: id,
+        keyframe_id: id,
         kind: 1,
         ordinal: ordinal as i32,
         bbox_x: bb.x(),
@@ -1214,7 +1214,7 @@ impl From<&Keyframe<Uuid7>> for PgKeyframeRows {
     for (ordinal, fl) in humans.face_landmarks_slice().iter().enumerate() {
       let bb = fl.bbox_ref();
       out.face_landmarks.push(PgKeyframeFaceLandmarksRow {
-        keyframe: id,
+        keyframe_id: id,
         ordinal: ordinal as i32,
         bbox_x: bb.x(),
         bbox_y: bb.y(),
@@ -1226,7 +1226,7 @@ impl From<&Keyframe<Uuid7>> for PgKeyframeRows {
         out
           .face_landmark_regions
           .push(PgKeyframeFaceLandmarkRegionRow {
-            keyframe: id,
+            keyframe_id: id,
             parent_ordinal: ordinal as i32,
             ordinal: rord as i32,
             name: region.name().to_owned(),
@@ -1235,7 +1235,7 @@ impl From<&Keyframe<Uuid7>> for PgKeyframeRows {
           out
             .face_landmark_points
             .push(PgKeyframeFaceLandmarkPointRow {
-              keyframe: id,
+              keyframe_id: id,
               parent_ordinal: ordinal as i32,
               region_ordinal: rord as i32,
               ordinal: pord as i32,
@@ -1272,14 +1272,14 @@ pub fn keyframe_from_rows(
       .keyframe
       .ok_or_else(|| SqlxError::DomainConstructorRejected("Keyframe row is missing".to_owned()))?;
     let id = uuid_to_uuid7(row.id)?;
-    let parent = uuid_to_uuid7(row.parent)?;
+    let scene_id = uuid_to_uuid7(row.scene_id)?;
     let pts = mediatime::Timestamp::new(row.pts, parent_timebase);
     let dimensions = Dimensions::new(
       u32_from_i64(row.width, "Keyframe.width")?,
       u32_from_i64(row.height, "Keyframe.height")?,
     );
     let extractor = parse_keyframe_extractor(&row.extractor)?;
-    let mut kf = Keyframe::try_new(id, parent, pts, dimensions, extractor)
+    let mut kf = Keyframe::try_new(id, scene_id, pts, dimensions, extractor)
       .map_err(|e: KeyframeError| SqlxError::DomainConstructorRejected(e.to_string()))?
       .with_mime(row.mime)
       .with_data(Bytes::from(row.data))
@@ -1569,14 +1569,14 @@ fn height_estimation_from_i16(n: i16) -> Result<BodyPose3DHeightEstimation, Sqlx
 
 fn push_saliency(
   out: &mut std::vec::Vec<PgKeyframeSaliencyRow>,
-  keyframe: Uuid,
+  keyframe_id: Uuid,
   kind: i16,
   ordinal: usize,
   s: &SaliencyRegion,
 ) {
   let bb = s.bbox_ref();
   out.push(PgKeyframeSaliencyRow {
-    keyframe,
+    keyframe_id,
     kind,
     ordinal: ordinal as i32,
     bbox_x: bb.x(),
@@ -1589,14 +1589,14 @@ fn push_saliency(
 
 fn push_subject(
   out: &mut std::vec::Vec<PgKeyframeSubjectRow>,
-  keyframe: Uuid,
+  keyframe_id: Uuid,
   scope: i16,
   ordinal: usize,
   s: &SubjectDetection,
 ) {
   let bb = s.bbox_ref();
   out.push(PgKeyframeSubjectRow {
-    keyframe,
+    keyframe_id,
     scope,
     ordinal: ordinal as i32,
     label: s.detection_ref().label().to_owned(),
@@ -1610,14 +1610,14 @@ fn push_subject(
 
 fn push_face(
   out: &mut std::vec::Vec<PgKeyframeFaceRow>,
-  keyframe: Uuid,
+  keyframe_id: Uuid,
   kind: i16,
   ordinal: usize,
   f: &FaceDetection,
 ) {
   let bb = f.bbox_ref();
   out.push(PgKeyframeFaceRow {
-    keyframe,
+    keyframe_id,
     kind,
     ordinal: ordinal as i32,
     bbox_x: bb.x(),
@@ -1635,14 +1635,14 @@ fn push_face(
 fn push_body_pose(
   rows: &mut std::vec::Vec<PgKeyframeBodyPoseRow>,
   joint_rows: &mut std::vec::Vec<PgKeyframeBodyPoseJointRow>,
-  keyframe: Uuid,
+  keyframe_id: Uuid,
   scope: i16,
   ordinal: usize,
   bp: &BodyPoseDetection,
 ) {
   let bb = bp.bbox_ref();
   rows.push(PgKeyframeBodyPoseRow {
-    keyframe,
+    keyframe_id,
     scope,
     ordinal: ordinal as i32,
     bbox_x: bb.x(),
@@ -1653,7 +1653,7 @@ fn push_body_pose(
   });
   for (jord, j) in bp.joints_slice().iter().enumerate() {
     joint_rows.push(PgKeyframeBodyPoseJointRow {
-      keyframe,
+      keyframe_id,
       scope,
       parent_ordinal: ordinal as i32,
       ordinal: jord as i32,
@@ -1667,13 +1667,13 @@ fn push_body_pose(
 
 fn push_vlm(
   out: &mut std::vec::Vec<PgKeyframeVlmLabelRow>,
-  keyframe: Uuid,
+  keyframe_id: Uuid,
   kind: i16,
   labels: &[LocalizedText],
 ) {
   for (ordinal, l) in labels.iter().enumerate() {
     out.push(PgKeyframeVlmLabelRow {
-      keyframe,
+      keyframe_id,
       kind,
       ordinal: ordinal as i32,
       src: l.src().to_owned(),
@@ -2155,7 +2155,7 @@ pub struct PgVideoTrackRowRef<'r> {
 /// Borrowed view of [`PgVideoTrackIndexErrorRow`].
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct PgVideoTrackIndexErrorRowRef<'r> {
-  pub video_track: Uuid,
+  pub video_track_id: Uuid,
   pub ordinal: i32,
   pub code: i32,
   pub message: &'r str,
@@ -2242,7 +2242,7 @@ impl PgVideoTrackIndexErrorRow {
   /// Cheap borrow — produces a [`PgVideoTrackIndexErrorRowRef`] referencing `self`.
   pub fn as_ref(&self) -> PgVideoTrackIndexErrorRowRef<'_> {
     PgVideoTrackIndexErrorRowRef {
-      video_track: self.video_track,
+      video_track_id: self.video_track_id,
       ordinal: self.ordinal,
       code: self.code,
       message: &self.message,
@@ -2265,8 +2265,8 @@ impl<'r>
     ),
   ) -> Result<Self, Self::Error> {
     let id = uuid_to_uuid7(r.id)?;
-    let parent = uuid_to_uuid7(r.video_id)?;
-    let mut t = VideoTrack::try_new(id, parent)
+    let video_id = uuid_to_uuid7(r.video_id)?;
+    let mut t = VideoTrack::try_new(id, video_id)
       .map_err(|e: VideoTrackError| SqlxError::DomainConstructorRejected(e.to_string()))?;
 
     t = t
@@ -2500,7 +2500,7 @@ impl<'r>
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct PgSceneRowRef<'r> {
   pub id: Uuid,
-  pub parent: Uuid,
+  pub video_track_id: Uuid,
   pub index: i64,
   pub span_start_pts: i64,
   pub span_end_pts: i64,
@@ -2513,7 +2513,7 @@ impl PgSceneRow {
   pub fn as_ref(&self) -> PgSceneRowRef<'_> {
     PgSceneRowRef {
       id: self.id,
-      parent: self.parent,
+      video_track_id: self.video_track_id,
       index: self.index,
       span_start_pts: self.span_start_pts,
       span_end_pts: self.span_end_pts,
@@ -2531,7 +2531,7 @@ pub fn scene_from_row_ref<'r>(
   parent_timebase: mediatime::Timebase,
 ) -> Result<Scene<Uuid7>, SqlxError> {
   let id = uuid_to_uuid7(r.id)?;
-  let parent = uuid_to_uuid7(r.parent)?;
+  let video_track_id = uuid_to_uuid7(r.video_track_id)?;
   let index = u32_from_i64(r.index, "Scene.index")?;
   let span = mediatime::TimeRange::try_new(r.span_start_pts, r.span_end_pts, parent_timebase)
     .ok_or_else(|| {
@@ -2541,7 +2541,7 @@ pub fn scene_from_row_ref<'r>(
       ))
     })?;
   let detector = parse_scene_detector(r.detector)?;
-  let s = Scene::try_new(id, parent, index, span, detector)
+  let s = Scene::try_new(id, video_track_id, index, span, detector)
     .map_err(|e: SceneError| SqlxError::DomainConstructorRejected(e.to_string()))?
     .with_description(r.description);
   Ok(s)
@@ -2551,7 +2551,7 @@ pub fn scene_from_row_ref<'r>(
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct PgKeyframeRowRef<'r> {
   pub id: Uuid,
-  pub parent: Uuid,
+  pub scene_id: Uuid,
   pub pts: i64,
   pub data: &'r [u8],
   pub mime: &'r str,
@@ -2570,7 +2570,7 @@ pub struct PgKeyframeRowRef<'r> {
 /// Borrowed view of [`PgKeyframeClassificationRow`].
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct PgKeyframeClassificationRowRef<'r> {
-  pub keyframe: Uuid,
+  pub keyframe_id: Uuid,
   pub ordinal: i32,
   pub label: &'r str,
   pub confidence: f32,
@@ -2579,7 +2579,7 @@ pub struct PgKeyframeClassificationRowRef<'r> {
 /// Borrowed view of [`PgKeyframeObjectRow`].
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct PgKeyframeObjectRowRef<'r> {
-  pub keyframe: Uuid,
+  pub keyframe_id: Uuid,
   pub ordinal: i32,
   pub label: &'r str,
   pub confidence: f32,
@@ -2593,7 +2593,7 @@ pub struct PgKeyframeObjectRowRef<'r> {
 /// Borrowed view of [`PgKeyframeActionRow`].
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct PgKeyframeActionRowRef<'r> {
-  pub keyframe: Uuid,
+  pub keyframe_id: Uuid,
   pub ordinal: i32,
   pub label: &'r str,
   pub confidence: f32,
@@ -2602,7 +2602,7 @@ pub struct PgKeyframeActionRowRef<'r> {
 /// Borrowed view of [`PgKeyframeTextDetectionRow`].
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct PgKeyframeTextDetectionRowRef<'r> {
-  pub keyframe: Uuid,
+  pub keyframe_id: Uuid,
   pub ordinal: i32,
   pub text: &'r str,
   pub confidence: f32,
@@ -2615,7 +2615,7 @@ pub struct PgKeyframeTextDetectionRowRef<'r> {
 /// Borrowed view of [`PgKeyframeBarcodeRow`].
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct PgKeyframeBarcodeRowRef<'r> {
-  pub keyframe: Uuid,
+  pub keyframe_id: Uuid,
   pub ordinal: i32,
   pub payload: &'r str,
   pub symbology: &'r str,
@@ -2629,7 +2629,7 @@ pub struct PgKeyframeBarcodeRowRef<'r> {
 /// Borrowed view of [`PgKeyframeColorRow`].
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct PgKeyframeColorRowRef<'r> {
-  pub keyframe: Uuid,
+  pub keyframe_id: Uuid,
   pub ordinal: i32,
   pub rgba: i64,
   pub name: &'r str,
@@ -2640,7 +2640,7 @@ pub struct PgKeyframeColorRowRef<'r> {
 /// Borrowed view of [`PgKeyframeSubjectRow`].
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct PgKeyframeSubjectRowRef<'r> {
-  pub keyframe: Uuid,
+  pub keyframe_id: Uuid,
   pub scope: i16,
   pub ordinal: i32,
   pub label: &'r str,
@@ -2654,7 +2654,7 @@ pub struct PgKeyframeSubjectRowRef<'r> {
 /// Borrowed view of [`PgKeyframeBodyPoseJointRow`].
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct PgKeyframeBodyPoseJointRowRef<'r> {
-  pub keyframe: Uuid,
+  pub keyframe_id: Uuid,
   pub scope: i16,
   pub parent_ordinal: i32,
   pub ordinal: i32,
@@ -2667,7 +2667,7 @@ pub struct PgKeyframeBodyPoseJointRowRef<'r> {
 /// Borrowed view of [`PgKeyframeBodyPose3DJointRow`].
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct PgKeyframeBodyPose3DJointRowRef<'r> {
-  pub keyframe: Uuid,
+  pub keyframe_id: Uuid,
   pub parent_ordinal: i32,
   pub ordinal: i32,
   pub name: &'r str,
@@ -2680,7 +2680,7 @@ pub struct PgKeyframeBodyPose3DJointRowRef<'r> {
 /// Borrowed view of [`PgKeyframeMaskRow`].
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct PgKeyframeMaskRowRef<'r> {
-  pub keyframe: Uuid,
+  pub keyframe_id: Uuid,
   pub kind: i16,
   pub ordinal: i32,
   pub bbox_x: f32,
@@ -2697,7 +2697,7 @@ pub struct PgKeyframeMaskRowRef<'r> {
 /// Borrowed view of [`PgKeyframeFaceLandmarkRegionRow`].
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct PgKeyframeFaceLandmarkRegionRowRef<'r> {
-  pub keyframe: Uuid,
+  pub keyframe_id: Uuid,
   pub parent_ordinal: i32,
   pub ordinal: i32,
   pub name: &'r str,
@@ -2706,7 +2706,7 @@ pub struct PgKeyframeFaceLandmarkRegionRowRef<'r> {
 /// Borrowed view of [`PgKeyframeVlmLabelRow`].
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct PgKeyframeVlmLabelRowRef<'r> {
-  pub keyframe: Uuid,
+  pub keyframe_id: Uuid,
   pub kind: i16,
   pub ordinal: i32,
   pub src: &'r str,
@@ -2718,7 +2718,7 @@ impl PgKeyframeRow {
   pub fn as_ref(&self) -> PgKeyframeRowRef<'_> {
     PgKeyframeRowRef {
       id: self.id,
-      parent: self.parent,
+      scene_id: self.scene_id,
       pts: self.pts,
       data: &self.data,
       mime: &self.mime,
@@ -2740,7 +2740,7 @@ impl PgKeyframeClassificationRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> PgKeyframeClassificationRowRef<'_> {
     PgKeyframeClassificationRowRef {
-      keyframe: self.keyframe,
+      keyframe_id: self.keyframe_id,
       ordinal: self.ordinal,
       label: &self.label,
       confidence: self.confidence,
@@ -2752,7 +2752,7 @@ impl PgKeyframeObjectRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> PgKeyframeObjectRowRef<'_> {
     PgKeyframeObjectRowRef {
-      keyframe: self.keyframe,
+      keyframe_id: self.keyframe_id,
       ordinal: self.ordinal,
       label: &self.label,
       confidence: self.confidence,
@@ -2769,7 +2769,7 @@ impl PgKeyframeActionRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> PgKeyframeActionRowRef<'_> {
     PgKeyframeActionRowRef {
-      keyframe: self.keyframe,
+      keyframe_id: self.keyframe_id,
       ordinal: self.ordinal,
       label: &self.label,
       confidence: self.confidence,
@@ -2781,7 +2781,7 @@ impl PgKeyframeTextDetectionRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> PgKeyframeTextDetectionRowRef<'_> {
     PgKeyframeTextDetectionRowRef {
-      keyframe: self.keyframe,
+      keyframe_id: self.keyframe_id,
       ordinal: self.ordinal,
       text: &self.text,
       confidence: self.confidence,
@@ -2797,7 +2797,7 @@ impl PgKeyframeBarcodeRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> PgKeyframeBarcodeRowRef<'_> {
     PgKeyframeBarcodeRowRef {
-      keyframe: self.keyframe,
+      keyframe_id: self.keyframe_id,
       ordinal: self.ordinal,
       payload: &self.payload,
       symbology: &self.symbology,
@@ -2814,7 +2814,7 @@ impl PgKeyframeColorRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> PgKeyframeColorRowRef<'_> {
     PgKeyframeColorRowRef {
-      keyframe: self.keyframe,
+      keyframe_id: self.keyframe_id,
       ordinal: self.ordinal,
       rgba: self.rgba,
       name: &self.name,
@@ -2828,7 +2828,7 @@ impl PgKeyframeSubjectRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> PgKeyframeSubjectRowRef<'_> {
     PgKeyframeSubjectRowRef {
-      keyframe: self.keyframe,
+      keyframe_id: self.keyframe_id,
       scope: self.scope,
       ordinal: self.ordinal,
       label: &self.label,
@@ -2845,7 +2845,7 @@ impl PgKeyframeBodyPoseJointRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> PgKeyframeBodyPoseJointRowRef<'_> {
     PgKeyframeBodyPoseJointRowRef {
-      keyframe: self.keyframe,
+      keyframe_id: self.keyframe_id,
       scope: self.scope,
       parent_ordinal: self.parent_ordinal,
       ordinal: self.ordinal,
@@ -2861,7 +2861,7 @@ impl PgKeyframeBodyPose3DJointRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> PgKeyframeBodyPose3DJointRowRef<'_> {
     PgKeyframeBodyPose3DJointRowRef {
-      keyframe: self.keyframe,
+      keyframe_id: self.keyframe_id,
       parent_ordinal: self.parent_ordinal,
       ordinal: self.ordinal,
       name: &self.name,
@@ -2877,7 +2877,7 @@ impl PgKeyframeMaskRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> PgKeyframeMaskRowRef<'_> {
     PgKeyframeMaskRowRef {
-      keyframe: self.keyframe,
+      keyframe_id: self.keyframe_id,
       kind: self.kind,
       ordinal: self.ordinal,
       bbox_x: self.bbox_x,
@@ -2897,7 +2897,7 @@ impl PgKeyframeFaceLandmarkRegionRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> PgKeyframeFaceLandmarkRegionRowRef<'_> {
     PgKeyframeFaceLandmarkRegionRowRef {
-      keyframe: self.keyframe,
+      keyframe_id: self.keyframe_id,
       parent_ordinal: self.parent_ordinal,
       ordinal: self.ordinal,
       name: &self.name,
@@ -2909,7 +2909,7 @@ impl PgKeyframeVlmLabelRow {
   /// Cheap borrow.
   pub fn as_ref(&self) -> PgKeyframeVlmLabelRowRef<'_> {
     PgKeyframeVlmLabelRowRef {
-      keyframe: self.keyframe,
+      keyframe_id: self.keyframe_id,
       kind: self.kind,
       ordinal: self.ordinal,
       src: &self.src,
@@ -3034,14 +3034,14 @@ pub fn keyframe_from_rows_ref<'r>(
       .keyframe
       .ok_or_else(|| SqlxError::DomainConstructorRejected("Keyframe row is missing".to_owned()))?;
     let id = uuid_to_uuid7(row.id)?;
-    let parent = uuid_to_uuid7(row.parent)?;
+    let scene_id = uuid_to_uuid7(row.scene_id)?;
     let pts = mediatime::Timestamp::new(row.pts, parent_timebase);
     let dimensions = Dimensions::new(
       u32_from_i64(row.width, "Keyframe.width")?,
       u32_from_i64(row.height, "Keyframe.height")?,
     );
     let extractor = parse_keyframe_extractor(row.extractor)?;
-    let mut kf = Keyframe::try_new(id, parent, pts, dimensions, extractor)
+    let mut kf = Keyframe::try_new(id, scene_id, pts, dimensions, extractor)
       .map_err(|e: KeyframeError| SqlxError::DomainConstructorRejected(e.to_string()))?
       .with_mime(row.mime)
       .with_data(Bytes::copy_from_slice(row.data))

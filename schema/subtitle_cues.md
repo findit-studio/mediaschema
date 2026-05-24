@@ -1,8 +1,8 @@
-# `SubtitleCue<Id>` — a parsed subtitle cue  *(rev 3 — LOCKED, user-approved)*
+# `SubtitleCue<Id>` — a parsed subtitle cue  *(rev 4 — LOCKED, user-approved)*
 
 ## Domain meaning
 
-One parsed cue of a `SubtitleTrack` (`parent → SubtitleTrack.id`) — the heavy
+One parsed cue of a `SubtitleTrack` (``subtitle_track_id` → SubtitleTrack.id`) — the heavy
 per-track segmented aggregate (parallel to locked `Scene` / proposed
 `AudioSegment`); the track keeps only the `cue_count` rollup. Text formats fill
 `text`; bitmap formats (PGS/DVBSUB) carry the inline `image` and an `ocr_text`
@@ -26,7 +26,7 @@ deferred.
 | field | domain type | wire origin | notes |
 |---|---|---|---|
 | `id` | `Id` (UUIDv7) | `*.id: bytes` | canonical identity |
-| `parent` | `Id` | cue→track | FK → `SubtitleTrack.id` |
+| `subtitle_track_id` | `Id` | cue→track | FK → `SubtitleTrack.id` |
 | `index` | `u32` | ordinal | 0-based cue order |
 | `span` | `mediatime::TimeRange` | start/end | on-screen interval (media-time) |
 | `text` | `LocalizedText` | text subs | parsed plain text (styling stripped); `src`+`translated`, each `""`=absent |
@@ -36,7 +36,7 @@ deferred.
 
 ## Invariants
 
-`id` non-empty; `span.start <= span.end`; `(parent, index)` unique; cue is
+`id` non-empty; `span.start <= span.end`; `(subtitle_track_id, index)` unique; cue is
 non-empty (at least one of `text` / `ocr_text` / `image` non-empty);
 `ocr_text` non-empty ⇒ `image` non-empty (OCR came from the bitmap).
 
@@ -51,9 +51,9 @@ non-empty (at least one of `text` / `ocr_text` / `image` non-empty);
 
 ## Projection notes
 
-- **sqlx**: `subtitle_cue` table; `id` PK; `parent` FK; `text_src`/
+- **sqlx**: `subtitle_cue` table; `id` PK; `subtitle_track_id` FK; `text_src`/
   `text_translated`/`ocr_*` columns, derived `display_text` full-text indexed;
-  `image` → `BYTEA`/object-store offload keyed by `id`; `(parent,index)`
+  `image` → `BYTEA`/object-store offload keyed by `id`; `(subtitle_track_id, index)`
   unique. No vector column (LanceDB).
 - **mongodb**: `_id`=UUIDv7; text index on the derived `display_text`;
   `image` GridFS if large.

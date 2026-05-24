@@ -20,12 +20,12 @@ use crate::domain::{SceneDetector, Uuid7};
 /// encapsulation rule; access via the getter and `with_*` / `set_*`
 /// accessors.
 ///
-/// **No `Default`** — defaulting to nil `id`/`parent` would be an
+/// **No `Default`** — defaulting to nil `id`/`video_track_id` would be an
 /// orphan segment with no track. Construct via [`Scene::try_new`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Scene<Id = Uuid7> {
   id: Id,
-  parent: Id,
+  video_track_id: Id,
   index: u32,
   span: TimeRange,
   detector: SceneDetector,
@@ -38,7 +38,7 @@ impl Scene<Uuid7> {
   ///
   /// Rejects:
   /// - nil `id`,
-  /// - nil `parent`,
+  /// - nil `video_track_id`,
   /// - an inverted `span` (`start_pts > end_pts`).
   ///
   /// `mediatime::TimeRange::try_new` rejects an inverted span at
@@ -48,7 +48,7 @@ impl Scene<Uuid7> {
   /// the `start <= end` invariant itself rather than trusting upstream.
   pub fn try_new(
     id: Uuid7,
-    parent: Uuid7,
+    video_track_id: Uuid7,
     index: u32,
     span: TimeRange,
     detector: SceneDetector,
@@ -56,15 +56,15 @@ impl Scene<Uuid7> {
     if id.is_nil() {
       return Err(SceneError::NilId);
     }
-    if parent.is_nil() {
-      return Err(SceneError::NilParent);
+    if video_track_id.is_nil() {
+      return Err(SceneError::NilVideoTrackId);
     }
     if span.start_pts() > span.end_pts() {
       return Err(SceneError::InvertedSpan);
     }
     Ok(Self {
       id,
-      parent,
+      video_track_id,
       index,
       span,
       detector,
@@ -98,8 +98,8 @@ impl<Id> Scene<Id> {
 
   /// FK → `VideoTrack.id`.
   #[inline(always)]
-  pub const fn parent_ref(&self) -> &Id {
-    &self.parent
+  pub const fn video_track_id_ref(&self) -> &Id {
+    &self.video_track_id
   }
 
   /// 0-based scene order within the track.
@@ -213,10 +213,10 @@ pub enum SceneError {
   /// Supplied `id` was the nil sentinel.
   #[error("Scene id must not be the nil UUID")]
   NilId,
-  /// Supplied `parent` was the nil sentinel — orphan scene with no
+  /// Supplied `video_track_id` was the nil sentinel — orphan scene with no
   /// `VideoTrack`.
-  #[error("Scene parent (VideoTrack) must not be the nil UUID")]
-  NilParent,
+  #[error("Scene `video_track_id` (FK → VideoTrack) must not be the nil UUID")]
+  NilVideoTrackId,
   /// Supplied `span` was inverted (`start_pts > end_pts`). A
   /// `mediatime::TimeRange` validates `start <= end` at construction,
   /// but its public `with_*`/`set_*` mutators can invert it afterwards,
@@ -243,10 +243,10 @@ mod tests {
 
   #[test]
   fn try_new_happy_path() {
-    let parent = Uuid7::new();
+    let video_track_id = Uuid7::new();
     let span = TimeRange::new(5_000, 10_000, tb());
-    let s = Scene::try_new(Uuid7::new(), parent, 0, span, SceneDetector::Adaptive).unwrap();
-    assert_eq!(s.parent_ref(), &parent);
+    let s = Scene::try_new(Uuid7::new(), video_track_id, 0, span, SceneDetector::Adaptive).unwrap();
+    assert_eq!(s.video_track_id_ref(), &video_track_id);
     assert_eq!(s.index(), 0);
     assert_eq!(s.span_ref(), &span);
     assert!(s.detector().is_adaptive());
@@ -263,10 +263,10 @@ mod tests {
     );
     assert_eq!(
       Scene::try_new(Uuid7::new(), Uuid7::nil(), 0, span, SceneDetector::Manual).err(),
-      Some(SceneError::NilParent)
+      Some(SceneError::NilVideoTrackId)
     );
     assert!(SceneError::NilId.is_nil_id());
-    assert!(SceneError::NilParent.is_nil_parent());
+    assert!(SceneError::NilVideoTrackId.is_nil_video_track_id());
   }
 
   #[test]

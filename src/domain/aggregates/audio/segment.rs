@@ -173,7 +173,7 @@ pub enum WordError {
 
 /// One reconciled `dia ⋈ asry` analysis segment of an `AudioTrack`.
 ///
-/// Generic over `Id` (default [`Uuid7`]). `parent` FK → `AudioTrack.id`
+/// Generic over `Id` (default [`Uuid7`]). `audio_track_id` FK → `AudioTrack.id`
 /// (A-loc per-track). `speaker` FK → `Speaker` (`None` = not diarized).
 ///
 /// **No `Default`** — defaulting to nil identities would be an orphan
@@ -182,10 +182,10 @@ pub enum WordError {
 #[derive(Debug, Clone, PartialEq)]
 pub struct AudioSegment<Id = Uuid7> {
   id: Id,
-  parent: Id,
+  audio_track_id: Id,
   index: u32,
   span: TimeRange,
-  speaker: Option<Id>,
+  speaker_id: Option<Id>,
   text: LocalizedText,
   language: Option<Language>,
   words: std::vec::Vec<Word>,
@@ -198,21 +198,21 @@ impl AudioSegment<Uuid7> {
   /// Validating constructor for the canonical `Uuid7` identity type.
   ///
   /// Rejects nil `id` (every aggregate row needs a real identity), nil
-  /// `parent` (orphan segment with no `AudioTrack`), and inverted
+  /// `audio_track_id` (orphan segment with no `AudioTrack`), and inverted
   /// `span.start > span.end` (locked invariant). All other fields start
   /// in their neutral state (`speaker = None`, empty `text`, no `words`,
   /// `None` quality signals).
   pub fn try_new(
     id: Uuid7,
-    parent: Uuid7,
+    audio_track_id: Uuid7,
     index: u32,
     span: TimeRange,
   ) -> Result<Self, AudioSegmentError> {
     if id.is_nil() {
       return Err(AudioSegmentError::NilId);
     }
-    if parent.is_nil() {
-      return Err(AudioSegmentError::NilParent);
+    if audio_track_id.is_nil() {
+      return Err(AudioSegmentError::NilAudioTrackId);
     }
     // Defence-in-depth: `mediatime::TimeRange::new` already enforces
     // `start <= end` (panicking) and `TimeRange::try_new` rejects the
@@ -224,10 +224,10 @@ impl AudioSegment<Uuid7> {
     }
     Ok(Self {
       id,
-      parent,
+      audio_track_id,
       index,
       span,
-      speaker: None,
+      speaker_id: None,
       text: LocalizedText::new(),
       language: None,
       words: std::vec::Vec::new(),
@@ -240,15 +240,15 @@ impl AudioSegment<Uuid7> {
   /// Builder: replace the `speaker` FK (`None` = not diarized).
   #[inline(always)]
   #[must_use]
-  pub fn with_speaker(mut self, v: Option<Uuid7>) -> Self {
-    self.speaker = v;
+  pub fn with_speaker_id(mut self, v: Option<Uuid7>) -> Self {
+    self.speaker_id = v;
     self
   }
 
   /// In-place mutator for the `speaker` FK (`None` = not diarized).
   #[inline(always)]
-  pub fn set_speaker(&mut self, v: Option<Uuid7>) -> &mut Self {
-    self.speaker = v;
+  pub fn set_speaker_id(&mut self, v: Option<Uuid7>) -> &mut Self {
+    self.speaker_id = v;
     self
   }
 }
@@ -262,11 +262,11 @@ impl<Id> AudioSegment<Id> {
 
   /// FK → `AudioTrack.id`.
   #[inline(always)]
-  pub const fn parent_ref(&self) -> &Id {
-    &self.parent
+  pub const fn audio_track_id_ref(&self) -> &Id {
+    &self.audio_track_id
   }
 
-  /// 0-based segment ordinal within the parent track.
+  /// 0-based segment ordinal within the audio_track_id track.
   #[inline(always)]
   pub const fn index(&self) -> u32 {
     self.index
@@ -281,8 +281,8 @@ impl<Id> AudioSegment<Id> {
   /// FK → `Speaker` (`None` = not diarized; raw `dia` cluster lives on
   /// `Speaker.cluster_id`).
   #[inline(always)]
-  pub const fn speaker_ref(&self) -> Option<&Id> {
-    self.speaker.as_ref()
+  pub const fn speaker_id_ref(&self) -> Option<&Id> {
+    self.speaker_id.as_ref()
   }
 
   /// Transcript text (`src` = `asry` transcript, `translated` =
@@ -495,10 +495,10 @@ pub enum AudioSegmentError {
   /// Supplied `id` was the nil sentinel.
   #[error("AudioSegment id must not be the nil UUID")]
   NilId,
-  /// Supplied `parent` was the nil sentinel — orphan segment with no
+  /// Supplied `audio_track_id` was the nil sentinel — orphan segment with no
   /// `AudioTrack` reference.
-  #[error("AudioSegment parent (AudioTrack) must not be the nil UUID")]
-  NilParent,
+  #[error("AudioSegment `audio_track_id` (FK → AudioTrack) must not be the nil UUID")]
+  NilAudioTrackId,
   /// `span.start > span.end` — inverted segment span (locked invariant).
   #[error("AudioSegment span.start must be <= span.end")]
   InvertedSpan,
@@ -541,12 +541,12 @@ mod tests {
 
   #[test]
   fn try_new_happy_path() {
-    let parent = Uuid7::new();
-    let s = AudioSegment::try_new(Uuid7::new(), parent, 0, span(0, 1500))
+    let audio_track_id = Uuid7::new();
+    let s = AudioSegment::try_new(Uuid7::new(), audio_track_id, 0, span(0, 1500))
       .expect("valid construction must succeed");
-    assert_eq!(s.parent_ref(), &parent);
+    assert_eq!(s.audio_track_id_ref(), &audio_track_id);
     assert_eq!(s.index(), 0);
-    assert!(s.speaker_ref().is_none());
+    assert!(s.speaker_id_ref().is_none());
     assert!(s.text_ref().is_empty());
     assert!(s.words_slice().is_empty());
     assert!(s.language().is_none());
@@ -561,10 +561,10 @@ mod tests {
   }
 
   #[test]
-  fn try_new_rejects_nil_parent() {
+  fn try_new_rejects_nil_audio_track_id() {
     let r = AudioSegment::try_new(Uuid7::new(), Uuid7::nil(), 0, span(0, 1500));
-    assert_eq!(r.err(), Some(AudioSegmentError::NilParent));
-    assert!(AudioSegmentError::NilParent.is_nil_parent());
+    assert_eq!(r.err(), Some(AudioSegmentError::NilAudioTrackId));
+    assert!(AudioSegmentError::NilAudioTrackId.is_nil_audio_track_id());
   }
 
   #[test]
@@ -596,10 +596,10 @@ mod tests {
     let es = Language::from_bcp47("es").unwrap();
     let s = AudioSegment::try_new(Uuid7::new(), Uuid7::new(), 2, span(1000, 2000))
       .unwrap()
-      .with_speaker(Some(speaker))
+      .with_speaker_id(Some(speaker))
       .with_text(LocalizedText::from_src_translated("hola", "hello"))
       .with_language(Some(es));
-    assert_eq!(s.speaker_ref(), Some(&speaker));
+    assert_eq!(s.speaker_id_ref(), Some(&speaker));
     assert_eq!(s.text_ref().src(), "hola");
     assert_eq!(s.text_ref().translated(), "hello");
     assert_eq!(s.language(), Some(es));
@@ -697,12 +697,12 @@ mod tests {
   fn setters_mutate_in_place() {
     let mut s = AudioSegment::try_new(Uuid7::new(), Uuid7::new(), 0, span(0, 500)).unwrap();
     let speaker = Uuid7::new();
-    s.set_speaker(Some(speaker));
+    s.set_speaker_id(Some(speaker));
     s.set_text(LocalizedText::from_src("hello"));
     s.try_set_words(std::vec![Word::try_new("hi", span(0, 100), 0.9).unwrap()])
       .unwrap();
     s.try_set_no_speech_prob(Some(0.01)).unwrap();
-    assert_eq!(s.speaker_ref(), Some(&speaker));
+    assert_eq!(s.speaker_id_ref(), Some(&speaker));
     assert_eq!(s.text_ref().src(), "hello");
     assert_eq!(s.words_slice().len(), 1);
     assert!((s.no_speech_prob().unwrap() - 0.01).abs() < f32::EPSILON);
@@ -784,14 +784,14 @@ mod tests {
   fn with_speaker_and_set_speaker_attach_and_clear() {
     let seg = AudioSegment::try_new(Uuid7::new(), Uuid7::new(), 0, span(0, 500)).unwrap();
     // `None` — the "not diarized" sentinel.
-    let n = seg.clone().with_speaker(None);
-    assert!(n.speaker_ref().is_none());
+    let n = seg.clone().with_speaker_id(None);
+    assert!(n.speaker_id_ref().is_none());
     // a `Speaker` id attaches via the builder.
     let speaker = Uuid7::new();
-    let mut s = seg.with_speaker(Some(speaker));
-    assert_eq!(s.speaker_ref(), Some(&speaker));
+    let mut s = seg.with_speaker_id(Some(speaker));
+    assert_eq!(s.speaker_id_ref(), Some(&speaker));
     // the in-place mutator clears it.
-    s.set_speaker(None);
-    assert!(s.speaker_ref().is_none());
+    s.set_speaker_id(None);
+    assert!(s.speaker_id_ref().is_none());
   }
 }

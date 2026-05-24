@@ -1,8 +1,8 @@
-# `AudioTrack<Id>` — an audio stream  *(rev 3 — LOCKED, user-approved)*
+# `AudioTrack<Id>` — an audio stream  *(rev 4 — LOCKED, user-approved)*
 
 ## Domain meaning
 
-One audio stream of an `Audio` facet (`parent → Audio.id`). A multi-track audio
+One audio stream of an `Audio` facet (``audio_id` → Audio.id`). A multi-track audio
 file holds **N** distinct recordings, so **per-recording music metadata (tags +
 cover art) lives here, not on a file/facet**. Holds the codec/stream
 descriptor, per-track **signal** analysis (loudness/fingerprint), per-track
@@ -29,7 +29,7 @@ track. Conversions deferred.
 | field | domain type | wire/source | notes |
 |---|---|---|---|
 | `id` | `Id` (UUIDv7) | `*.id: bytes` | canonical identity |
-| `parent` | `Id` | `audio_id` | FK → `Audio.id` |
+| `audio_id` | `Id` | `audio_id` | FK → `Audio.id` |
 | `stream_index` | `Option<u32>` | stream idx | source-locator; not identity |
 | `container_track_id` | `Option<u64>` | — | keep iff the pipeline uses it |
 | `codec` | `mediaframe::AudioCodec` | codec | extern; `Aac`/`Mp3`/`Flac`/`Opus`/…/`Other(SmolStr)` |
@@ -124,9 +124,9 @@ track. Conversions deferred.
 
 ## Projection notes
 
-- **sqlx**: `audio_track` table; `id` PK; `parent` FK; `AudioTags`/`Loudness`
+- **sqlx**: `audio_track` table; `id` PK; `audio_id` FK; `AudioTags`/`Loudness`
   flattened to queryable columns (artist/album/genre/lufs); `cover_art.data` →
-  `BYTEA`/object-store; `segments` via `audio_segment.parent` FK;
+  `BYTEA`/object-store; `segments` via `audio_segment.audio_track_id` FK;
   `index_status` INTEGER + generated per-bit bools; `Language` flattens to a
   BCP-47 text column. No vector column (LanceDB).
 - **mongodb**: `_id`=UUIDv7; `tags`/`cover_art`/`loudness`/`fingerprint`

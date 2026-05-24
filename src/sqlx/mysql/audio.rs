@@ -66,7 +66,7 @@ fn content_kind_from_i16(n: i16) -> Result<AudioContentKind, SqlxError> {
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct MySqlAudioRow {
   pub id: std::vec::Vec<u8>,
-  pub parent: std::vec::Vec<u8>,
+  pub media_id: std::vec::Vec<u8>,
   pub total_segments: i64,
   pub track_progress_total: i64,
   pub track_progress_indexed: i64,
@@ -78,7 +78,7 @@ impl From<&Audio<Uuid7>> for MySqlAudioRow {
     let p = a.track_progress_ref();
     Self {
       id: a.id_ref().as_bytes().to_vec(),
-      parent: a.parent_ref().as_bytes().to_vec(),
+      media_id: a.media_id_ref().as_bytes().to_vec(),
       total_segments: i64::from(a.total_segments()),
       track_progress_total: i64::from(p.total()),
       track_progress_indexed: i64::from(p.indexed()),
@@ -92,14 +92,14 @@ impl TryFrom<MySqlAudioRow> for Audio<Uuid7> {
 
   fn try_from(r: MySqlAudioRow) -> Result<Self, Self::Error> {
     let id = bytes_to_uuid7(&r.id)?;
-    let parent = bytes_to_uuid7(&r.parent)?;
+    let media_id = bytes_to_uuid7(&r.media_id)?;
     let total_segments = u32_from_i64(r.total_segments, "Audio.total_segments")?;
     let progress = IndexProgress::from_parts(
       u32_from_i64(r.track_progress_total, "Audio.track_progress_total")?,
       u32_from_i64(r.track_progress_indexed, "Audio.track_progress_indexed")?,
       u32_from_i64(r.track_progress_failed, "Audio.track_progress_failed")?,
     );
-    let a = Audio::try_new(id, parent)
+    let a = Audio::try_new(id, media_id)
       .map_err(|e: AudioError| SqlxError::DomainConstructorRejected(e.to_string()))?;
     Ok(restore_rollups(a, total_segments, progress))
   }
@@ -184,7 +184,7 @@ pub struct MySqlAudioTrackRow {
 /// One `audio_track_index_error` child row.
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct MySqlAudioTrackIndexErrorRow {
-  pub audio_track: std::vec::Vec<u8>,
+  pub audio_track_id: std::vec::Vec<u8>,
   pub ordinal: i32,
   pub code: i32,
   pub message: String,
@@ -207,7 +207,7 @@ impl From<&AudioTrack<Uuid7>>
     let start_pts = t.start_pts_ref();
     let row = MySqlAudioTrackRow {
       id: id.clone(),
-      audio_id: t.parent_ref().as_bytes().to_vec(),
+      audio_id: t.audio_id_ref().as_bytes().to_vec(),
       stream_index: t.stream_index().map(i64::from),
       container_track_id: t.container_track_id().map(|v| v as i64),
       codec: t.codec_ref().as_str().to_owned(),
@@ -270,7 +270,7 @@ impl From<&AudioTrack<Uuid7>>
       .iter()
       .enumerate()
       .map(|(i, e)| MySqlAudioTrackIndexErrorRow {
-        audio_track: id.clone(),
+        audio_track_id: id.clone(),
         ordinal: i as i32,
         code: e.code().as_u32() as i32,
         message: e.message().to_owned(),
@@ -438,11 +438,11 @@ impl
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlAudioSegmentRow {
   pub id: std::vec::Vec<u8>,
-  pub parent: std::vec::Vec<u8>,
+  pub audio_track_id: std::vec::Vec<u8>,
   pub index: i64,
   pub span_start_pts: i64,
   pub span_end_pts: i64,
-  pub speaker: Option<std::vec::Vec<u8>>,
+  pub speaker_id: Option<std::vec::Vec<u8>>,
   pub text_src: String,
   pub text_translated: String,
   pub language: Option<String>,
@@ -455,7 +455,7 @@ pub struct MySqlAudioSegmentRow {
 /// is inherited from `audio_track` and is not stored per word.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlAudioSegmentWordRow {
-  pub audio_segment: std::vec::Vec<u8>,
+  pub audio_segment_id: std::vec::Vec<u8>,
   pub ordinal: i32,
   pub text: String,
   pub span_start_pts: i64,
@@ -475,11 +475,11 @@ impl From<&AudioSegment<Uuid7>>
     let span = s.span_ref();
     let row = MySqlAudioSegmentRow {
       id: id.clone(),
-      parent: s.parent_ref().as_bytes().to_vec(),
+      audio_track_id: s.audio_track_id_ref().as_bytes().to_vec(),
       index: i64::from(s.index()),
       span_start_pts: span.start_pts(),
       span_end_pts: span.end_pts(),
-      speaker: s.speaker_ref().map(|id| id.as_bytes().to_vec()),
+      speaker_id: s.speaker_id_ref().map(|id| id.as_bytes().to_vec()),
       text_src: s.text_ref().src().to_owned(),
       text_translated: s.text_ref().translated().to_owned(),
       language: s.language().map(|l| l.to_bcp47()),
@@ -494,7 +494,7 @@ impl From<&AudioSegment<Uuid7>>
       .map(|(i, w)| {
         let wspan = w.span_ref();
         MySqlAudioSegmentWordRow {
-          audio_segment: id.clone(),
+          audio_segment_id: id.clone(),
           ordinal: i as i32,
           text: w.text().to_owned(),
           span_start_pts: wspan.start_pts(),
@@ -521,7 +521,7 @@ pub fn audio_segment_from_rows(
   parent_timebase: mediatime::Timebase,
 ) -> Result<AudioSegment<Uuid7>, SqlxError> {
   let id = bytes_to_uuid7(&r.id)?;
-  let parent = bytes_to_uuid7(&r.parent)?;
+  let audio_track_id = bytes_to_uuid7(&r.audio_track_id)?;
   let index = u32_from_i64(r.index, "AudioSegment.index")?;
   let span = mediatime::TimeRange::try_new(r.span_start_pts, r.span_end_pts, parent_timebase)
     .ok_or_else(|| {
@@ -530,11 +530,11 @@ pub fn audio_segment_from_rows(
         r.span_start_pts, r.span_end_pts
       ))
     })?;
-  let mut s = AudioSegment::try_new(id, parent, index, span)
+  let mut s = AudioSegment::try_new(id, audio_track_id, index, span)
     .map_err(|e: AudioSegmentError| SqlxError::DomainConstructorRejected(e.to_string()))?;
 
-  if let Some(sp) = r.speaker {
-    s = s.with_speaker(Some(bytes_to_uuid7(&sp)?));
+  if let Some(sp) = r.speaker_id {
+    s = s.with_speaker_id(Some(bytes_to_uuid7(&sp)?));
   }
   s = s
     .with_text(crate::domain::vo::LocalizedText::from_src_translated(
@@ -582,7 +582,7 @@ pub fn audio_segment_from_rows(
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct MySqlAudioRowRef<'r> {
   pub id: &'r [u8],
-  pub parent: &'r [u8],
+  pub media_id: &'r [u8],
   pub total_segments: i64,
   pub track_progress_total: i64,
   pub track_progress_indexed: i64,
@@ -594,7 +594,7 @@ impl MySqlAudioRow {
   pub fn as_ref(&self) -> MySqlAudioRowRef<'_> {
     MySqlAudioRowRef {
       id: &self.id,
-      parent: &self.parent,
+      media_id: &self.media_id,
       total_segments: self.total_segments,
       track_progress_total: self.track_progress_total,
       track_progress_indexed: self.track_progress_indexed,
@@ -608,14 +608,14 @@ impl<'r> TryFrom<MySqlAudioRowRef<'r>> for Audio<Uuid7> {
 
   fn try_from(r: MySqlAudioRowRef<'r>) -> Result<Self, Self::Error> {
     let id = bytes_to_uuid7(r.id)?;
-    let parent = bytes_to_uuid7(r.parent)?;
+    let media_id = bytes_to_uuid7(r.media_id)?;
     let total_segments = u32_from_i64(r.total_segments, "Audio.total_segments")?;
     let progress = IndexProgress::from_parts(
       u32_from_i64(r.track_progress_total, "Audio.track_progress_total")?,
       u32_from_i64(r.track_progress_indexed, "Audio.track_progress_indexed")?,
       u32_from_i64(r.track_progress_failed, "Audio.track_progress_failed")?,
     );
-    let a = Audio::try_new(id, parent)
+    let a = Audio::try_new(id, media_id)
       .map_err(|e: AudioError| SqlxError::DomainConstructorRejected(e.to_string()))?;
     Ok(restore_rollups(a, total_segments, progress))
   }
@@ -687,7 +687,7 @@ pub struct MySqlAudioTrackRowRef<'r> {
 /// Borrowed view of [`MySqlAudioTrackIndexErrorRow`].
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct MySqlAudioTrackIndexErrorRowRef<'r> {
-  pub audio_track: &'r [u8],
+  pub audio_track_id: &'r [u8],
   pub ordinal: i32,
   pub code: i32,
   pub message: &'r str,
@@ -763,7 +763,7 @@ impl MySqlAudioTrackIndexErrorRow {
   /// Cheap borrow — produces a [`MySqlAudioTrackIndexErrorRowRef`] referencing `self`.
   pub fn as_ref(&self) -> MySqlAudioTrackIndexErrorRowRef<'_> {
     MySqlAudioTrackIndexErrorRowRef {
-      audio_track: &self.audio_track,
+      audio_track_id: &self.audio_track_id,
       ordinal: self.ordinal,
       code: self.code,
       message: &self.message,
@@ -921,11 +921,11 @@ impl<'r>
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlAudioSegmentRowRef<'r> {
   pub id: &'r [u8],
-  pub parent: &'r [u8],
+  pub audio_track_id: &'r [u8],
   pub index: i64,
   pub span_start_pts: i64,
   pub span_end_pts: i64,
-  pub speaker: Option<&'r [u8]>,
+  pub speaker_id: Option<&'r [u8]>,
   pub text_src: &'r str,
   pub text_translated: &'r str,
   pub language: Option<&'r str>,
@@ -937,7 +937,7 @@ pub struct MySqlAudioSegmentRowRef<'r> {
 /// Borrowed view of [`MySqlAudioSegmentWordRow`].
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlAudioSegmentWordRowRef<'r> {
-  pub audio_segment: &'r [u8],
+  pub audio_segment_id: &'r [u8],
   pub ordinal: i32,
   pub text: &'r str,
   pub span_start_pts: i64,
@@ -951,11 +951,11 @@ impl MySqlAudioSegmentRow {
   pub fn as_ref(&self) -> MySqlAudioSegmentRowRef<'_> {
     MySqlAudioSegmentRowRef {
       id: &self.id,
-      parent: &self.parent,
+      audio_track_id: &self.audio_track_id,
       index: self.index,
       span_start_pts: self.span_start_pts,
       span_end_pts: self.span_end_pts,
-      speaker: self.speaker.as_deref(),
+      speaker_id: self.speaker_id.as_deref(),
       text_src: &self.text_src,
       text_translated: &self.text_translated,
       language: self.language.as_deref(),
@@ -970,7 +970,7 @@ impl MySqlAudioSegmentWordRow {
   /// Cheap borrow — produces a [`MySqlAudioSegmentWordRowRef`] referencing `self`.
   pub fn as_ref(&self) -> MySqlAudioSegmentWordRowRef<'_> {
     MySqlAudioSegmentWordRowRef {
-      audio_segment: &self.audio_segment,
+      audio_segment_id: &self.audio_segment_id,
       ordinal: self.ordinal,
       text: &self.text,
       span_start_pts: self.span_start_pts,
@@ -991,7 +991,7 @@ pub fn audio_segment_from_row_refs<'r>(
   parent_timebase: mediatime::Timebase,
 ) -> Result<AudioSegment<Uuid7>, SqlxError> {
   let id = bytes_to_uuid7(r.id)?;
-  let parent = bytes_to_uuid7(r.parent)?;
+  let audio_track_id = bytes_to_uuid7(r.audio_track_id)?;
   let index = u32_from_i64(r.index, "AudioSegment.index")?;
   let span = mediatime::TimeRange::try_new(r.span_start_pts, r.span_end_pts, parent_timebase)
     .ok_or_else(|| {
@@ -1000,11 +1000,11 @@ pub fn audio_segment_from_row_refs<'r>(
         r.span_start_pts, r.span_end_pts
       ))
     })?;
-  let mut s = AudioSegment::try_new(id, parent, index, span)
+  let mut s = AudioSegment::try_new(id, audio_track_id, index, span)
     .map_err(|e: AudioSegmentError| SqlxError::DomainConstructorRejected(e.to_string()))?;
 
-  if let Some(sp) = r.speaker {
-    s = s.with_speaker(Some(bytes_to_uuid7(sp)?));
+  if let Some(sp) = r.speaker_id {
+    s = s.with_speaker_id(Some(bytes_to_uuid7(sp)?));
   }
   s = s
     .with_text(crate::domain::vo::LocalizedText::from_src_translated(
@@ -1214,7 +1214,7 @@ mod tests {
     let w2 = Word::try_new("mundo", TimeRange::new(400, 900, tb()), 0.8).unwrap();
     let s = AudioSegment::try_new(Uuid7::new(), Uuid7::new(), 4, TimeRange::new(0, 1000, tb()))
       .unwrap()
-      .with_speaker(Some(Uuid7::new()))
+      .with_speaker_id(Some(Uuid7::new()))
       .with_text(crate::domain::vo::LocalizedText::from_src_translated(
         "hola mundo",
         "hello world",
@@ -1261,7 +1261,7 @@ mod tests {
     let row: MySqlAudioRow = (&a).into();
     let a2: Audio<Uuid7> = row.as_ref().try_into().unwrap();
     assert_eq!(a.id_ref(), a2.id_ref());
-    assert_eq!(a.parent_ref(), a2.parent_ref());
+    assert_eq!(a.media_id_ref(), a2.media_id_ref());
     assert_eq!(a2.total_segments(), 7);
   }
 
@@ -1313,7 +1313,7 @@ mod tests {
     let w2 = Word::try_new("mundo", TimeRange::new(400, 900, tb()), 0.8).unwrap();
     let s = AudioSegment::try_new(Uuid7::new(), Uuid7::new(), 4, TimeRange::new(0, 1000, tb()))
       .unwrap()
-      .with_speaker(Some(Uuid7::new()))
+      .with_speaker_id(Some(Uuid7::new()))
       .with_text(crate::domain::vo::LocalizedText::from_src_translated(
         "hola mundo",
         "hello world",

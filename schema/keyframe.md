@@ -1,9 +1,9 @@
-# `Keyframe<Id>` — a scene thumbnail + structured image analysis  *(rev 15 — LOCKED, user-approved)*
+# `Keyframe<Id>` — a scene thumbnail + structured image analysis  *(rev 16 — LOCKED, user-approved)*
 
 ## Domain meaning
 
 A representative thumbnail of a `Scene` (`keyframes` **are** the thumbnails;
-`Keyframe.parent → Scene.id`). Stores the **inline image bytes** + analysis
+`Keyframe.`scene_id` → Scene.id`). Stores the **inline image bytes** + analysis
 from **two producers**:
 - **apple-vision** → structured detections (calibrated `confidence` +
   `BoundingBox`), mirrored from `findit-proto::database::Keyframe`. Includes
@@ -30,7 +30,7 @@ Conversions deferred.
 | field | domain type | notes |
 |---|---|---|
 | `id` | `Id` (UUIDv7) | identity (LanceDB key) |
-| `parent` | `Id` | FK → `Scene.id` |
+| `scene_id` | `Id` | FK → `Scene.id` |
 | `pts` | `mediatime::Timestamp` | source position |
 | `data` | `Bytes` | the thumbnail image bytes (inline; no `location`) |
 | `mime` · `size` | `SmolStr` · `u32` | artifact meta |

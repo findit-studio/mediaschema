@@ -111,13 +111,13 @@ impl TryFrom<&wire::Media> for Media<Uuid7> {
 
     // --- optional facet FKs ---
     if let Some(b) = &w.video_id {
-      d = d.with_video(Some(opt_id(b)?));
+      d = d.with_video_id(Some(opt_id(b)?));
     }
     if let Some(b) = &w.audio_id {
-      d = d.with_audio(Some(opt_id(b)?));
+      d = d.with_audio_id(Some(opt_id(b)?));
     }
     if let Some(b) = &w.subtitle_id {
-      d = d.with_subtitle(Some(opt_id(b)?));
+      d = d.with_subtitle_id(Some(opt_id(b)?));
     }
 
     // --- probe_error ---
@@ -172,13 +172,13 @@ impl From<&Media<Uuid7>> for wire::Media {
     };
 
     let video_id = d
-      .video_ref()
+      .video_id_ref()
       .map(|id| ::buffa::bytes::Bytes::copy_from_slice(id.as_bytes()));
     let audio_id = d
-      .audio_ref()
+      .audio_id_ref()
       .map(|id| ::buffa::bytes::Bytes::copy_from_slice(id.as_bytes()));
     let subtitle_id = d
-      .subtitle_ref()
+      .subtitle_id_ref()
       .map(|id| ::buffa::bytes::Bytes::copy_from_slice(id.as_bytes()));
 
     let index_error = match d.probe_error_ref() {
@@ -266,8 +266,8 @@ mod tests {
   #[test]
   fn modelled_fields_round_trip() {
     let d = build_domain()
-      .with_video(Some(Uuid7::new()))
-      .with_audio(Some(Uuid7::new()))
+      .with_video_id(Some(Uuid7::new()))
+      .with_audio_id(Some(Uuid7::new()))
       .with_capture_date(Some(
         JiffTimestamp::from_millisecond(1_500_000_000_000).unwrap(),
       ))
@@ -285,9 +285,9 @@ mod tests {
     assert_eq!(d.checksum_ref(), d2.checksum_ref());
     assert_eq!(d.size(), d2.size());
     assert_eq!(d.kind(), d2.kind());
-    assert_eq!(d.video_ref(), d2.video_ref());
-    assert_eq!(d.audio_ref(), d2.audio_ref());
-    assert_eq!(d.subtitle_ref(), d2.subtitle_ref());
+    assert_eq!(d.video_id_ref(), d2.video_id_ref());
+    assert_eq!(d.audio_id_ref(), d2.audio_id_ref());
+    assert_eq!(d.subtitle_id_ref(), d2.subtitle_id_ref());
     assert_eq!(d.capture_date_ref(), d2.capture_date_ref());
     assert_eq!(d.device_ref(), d2.device_ref());
     assert_eq!(d.gps_ref(), d2.gps_ref());

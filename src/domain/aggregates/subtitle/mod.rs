@@ -1,12 +1,12 @@
 //! Subtitle media-kind aggregates (locked `schema/subtitle*.md`).
 //!
-//! - [`Subtitle`] — thin subtitle facet of a `Media` (parent → `Media`); holds
-//!   only the per-track id list and the indexing roll-up.
-//! - [`SubtitleTrack`] — one subtitle stream (parent → `Subtitle`); carries
-//!   the per-track codec / language / origin / disposition / index state
-//!   plus the per-track [`crate::domain::Provenance`].
+//! - [`Subtitle`] — thin subtitle facet of a `Media` (`media_id → Media`);
+//!   holds only the per-track id list and the indexing roll-up.
+//! - [`SubtitleTrack`] — one subtitle stream (`subtitle_id → Subtitle`);
+//!   carries the per-track codec / language / origin / disposition / index
+//!   state plus the per-track [`crate::domain::Provenance`].
 //! - [`SubtitleCue`] — one parsed cue of a `SubtitleTrack`
-//!   (parent → `SubtitleTrack`); media-time span + parsed/OCR text +
+//!   (`subtitle_track_id → SubtitleTrack`); media-time span + parsed/OCR text +
 //!   optional inline bitmap.
 //!
 //! Each aggregate is `Aggregate<Id = Uuid7>` and validated through a

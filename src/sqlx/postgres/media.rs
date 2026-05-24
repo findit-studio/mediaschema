@@ -26,9 +26,9 @@ pub struct PgMediaRow {
   pub size: i64,
   pub duration_raw: Option<i64>,
   pub kind: i16,
-  pub video: Option<Uuid>,
-  pub audio: Option<Uuid>,
-  pub subtitle: Option<Uuid>,
+  pub video_id: Option<Uuid>,
+  pub audio_id: Option<Uuid>,
+  pub subtitle_id: Option<Uuid>,
   pub error_flags: i32,
   /// `ErrorInfo.code` as the verified `u32` wire value; NULL = no probe
   /// error. Discriminates presence of the flattened `ErrorInfo` VO.
@@ -73,9 +73,9 @@ impl From<&Media<Uuid7>> for PgMediaRow {
       size: m.size() as i64,
       duration_raw: m.duration_ref().and_then(|_| None::<i64>),
       kind: media_kind_to_i16(m.kind()),
-      video: m.video_ref().map(|id| uuid7_to_uuid(*id)),
-      audio: m.audio_ref().map(|id| uuid7_to_uuid(*id)),
-      subtitle: m.subtitle_ref().map(|id| uuid7_to_uuid(*id)),
+      video_id: m.video_id_ref().map(|id| uuid7_to_uuid(*id)),
+      audio_id: m.audio_id_ref().map(|id| uuid7_to_uuid(*id)),
+      subtitle_id: m.subtitle_id_ref().map(|id| uuid7_to_uuid(*id)),
       error_flags: i32::from(m.error_flags().bits()),
       probe_error_code: probe_error.map(|e| e.code().as_u32() as i32),
       probe_error_message: probe_error.map(|e| e.message().to_owned()),
@@ -107,14 +107,14 @@ impl TryFrom<PgMediaRow> for Media<Uuid7> {
     let format = r.format.parse::<Format>().unwrap_or_default();
     let mut m = Media::try_new(id, checksum, format, size, kind)
       .map_err(|e: MediaError| SqlxError::DomainConstructorRejected(e.to_string()))?;
-    if let Some(v) = r.video {
-      m = m.with_video(Some(uuid_to_uuid7(v)?));
+    if let Some(v) = r.video_id {
+      m = m.with_video_id(Some(uuid_to_uuid7(v)?));
     }
-    if let Some(v) = r.audio {
-      m = m.with_audio(Some(uuid_to_uuid7(v)?));
+    if let Some(v) = r.audio_id {
+      m = m.with_audio_id(Some(uuid_to_uuid7(v)?));
     }
-    if let Some(v) = r.subtitle {
-      m = m.with_subtitle(Some(uuid_to_uuid7(v)?));
+    if let Some(v) = r.subtitle_id {
+      m = m.with_subtitle_id(Some(uuid_to_uuid7(v)?));
     }
     let flag_bits = u16::try_from(r.error_flags)
       .map_err(|e| SqlxError::UnknownDiscriminant(format!("Media.error_flags: {e}")))?;
@@ -209,9 +209,9 @@ mod tests {
       size: 0,
       duration_raw: None,
       kind: 0,
-      video: None,
-      audio: None,
-      subtitle: None,
+      video_id: None,
+      audio_id: None,
+      subtitle_id: None,
       error_flags: 0,
       probe_error_code: None,
       probe_error_message: None,

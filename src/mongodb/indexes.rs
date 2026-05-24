@@ -117,9 +117,9 @@ pub fn watched_location_indexes() -> Vec<IndexModel> {
   ]
 }
 
-/// `speakers` — FK index on `parent` (`AudioTrack.id`).
+/// `speakers` — FK index on `audio_track_id` (`AudioTrack.id`).
 pub fn speaker_indexes() -> Vec<IndexModel> {
-  vec![index_on(doc! { "parent": 1 }, "speakers_parent")]
+  vec![index_on(doc! { "audio_track_id": 1 }, "speakers_audio_track_id")]
 }
 
 /// `user_tags` — case-insensitive lookup is a projection concern;
@@ -128,97 +128,98 @@ pub fn user_tag_indexes() -> Vec<IndexModel> {
   vec![index_on(doc! { "name": 1 }, "user_tags_name")]
 }
 
-/// `scene_annotations` — FK index on `scene`, plus `favorite` /
+/// `scene_annotations` — FK index on `scene_id`, plus `favorite` /
 /// `rating` for filter queries.
 pub fn scene_annotation_indexes() -> Vec<IndexModel> {
   vec![
-    unique_on(doc! { "scene": 1 }, "scene_annotations_scene_unique"),
+    unique_on(doc! { "scene_id": 1 }, "scene_annotations_scene_id_unique"),
     index_on(doc! { "favorite": 1 }, "scene_annotations_favorite"),
     index_on(doc! { "rating": 1 }, "scene_annotations_rating"),
   ]
 }
 
-/// `audio_facets` — referenced by `Media.audio`, so the `_id` index
+/// `audio_facets` — referenced by `Media.audio_id`, so the `_id` index
 /// is enough; no extra indexes.
 pub fn audio_facet_indexes() -> Vec<IndexModel> {
   vec![]
 }
 
-/// `audio_tracks` — FK on `parent`, plus `is_primary` / `content` for
+/// `audio_tracks` — FK on `audio_id`, plus `is_primary` / `content` for
 /// track-selection queries.
 pub fn audio_track_indexes() -> Vec<IndexModel> {
   vec![
-    index_on(doc! { "parent": 1 }, "audio_tracks_parent"),
+    index_on(doc! { "audio_id": 1 }, "audio_tracks_audio_id"),
     index_on(doc! { "is_primary": 1 }, "audio_tracks_primary"),
     index_on(doc! { "content": 1 }, "audio_tracks_content"),
     index_on(doc! { "language": 1 }, "audio_tracks_language"),
   ]
 }
 
-/// `audio_segments` — FK on `parent` + composite `(parent, index)` for
-/// ordered enumeration.
+/// `audio_segments` — FK on `audio_track_id` + composite
+/// `(audio_track_id, index)` for ordered enumeration.
 pub fn audio_segment_indexes() -> Vec<IndexModel> {
   vec![
-    index_on(doc! { "parent": 1 }, "audio_segments_parent"),
+    index_on(doc! { "audio_track_id": 1 }, "audio_segments_audio_track_id"),
     unique_on(
-      doc! { "parent": 1, "index": 1 },
-      "audio_segments_parent_index_unique",
+      doc! { "audio_track_id": 1, "index": 1 },
+      "audio_segments_audio_track_id_index_unique",
     ),
-    index_on(doc! { "speaker": 1 }, "audio_segments_speaker"),
+    index_on(doc! { "speaker_id": 1 }, "audio_segments_speaker_id"),
   ]
 }
 
-/// `video_facets` — no extra indexes (referenced by `Media.video`).
+/// `video_facets` — no extra indexes (referenced by `Media.video_id`).
 pub fn video_facet_indexes() -> Vec<IndexModel> {
   vec![]
 }
 
-/// `video_tracks` — FK on `parent` + selection signals.
+/// `video_tracks` — FK on `video_id` + selection signals.
 pub fn video_track_indexes() -> Vec<IndexModel> {
   vec![
-    index_on(doc! { "parent": 1 }, "video_tracks_parent"),
+    index_on(doc! { "video_id": 1 }, "video_tracks_video_id"),
     index_on(doc! { "is_primary": 1 }, "video_tracks_primary"),
   ]
 }
 
-/// `scenes` — FK on `parent` (`VideoTrack.id`); composite
-/// `(parent, index)` for ordered enumeration.
+/// `scenes` — FK on `video_track_id` (`VideoTrack.id`); composite
+/// `(video_track_id, index)` for ordered enumeration.
 pub fn scene_indexes() -> Vec<IndexModel> {
   vec![
-    index_on(doc! { "parent": 1 }, "scenes_parent"),
+    index_on(doc! { "video_track_id": 1 }, "scenes_video_track_id"),
     unique_on(
-      doc! { "parent": 1, "index": 1 },
-      "scenes_parent_index_unique",
+      doc! { "video_track_id": 1, "index": 1 },
+      "scenes_video_track_id_index_unique",
     ),
   ]
 }
 
-/// `keyframes` — FK on `parent` (`Scene.id`).
+/// `keyframes` — FK on `scene_id` (`Scene.id`).
 pub fn keyframe_indexes() -> Vec<IndexModel> {
-  vec![index_on(doc! { "parent": 1 }, "keyframes_parent")]
+  vec![index_on(doc! { "scene_id": 1 }, "keyframes_scene_id")]
 }
 
-/// `subtitle_facets` — no extra indexes (referenced by `Media.subtitle`).
+/// `subtitle_facets` — no extra indexes (referenced by `Media.subtitle_id`).
 pub fn subtitle_facet_indexes() -> Vec<IndexModel> {
-  vec![index_on(doc! { "parent": 1 }, "subtitle_facets_parent")]
+  vec![index_on(doc! { "media_id": 1 }, "subtitle_facets_media_id")]
 }
 
-/// `subtitle_tracks` — FK on `parent` + selection signals.
+/// `subtitle_tracks` — FK on `subtitle_id` + selection signals.
 pub fn subtitle_track_indexes() -> Vec<IndexModel> {
   vec![
-    index_on(doc! { "parent": 1 }, "subtitle_tracks_parent"),
+    index_on(doc! { "subtitle_id": 1 }, "subtitle_tracks_subtitle_id"),
     index_on(doc! { "is_primary": 1 }, "subtitle_tracks_primary"),
     index_on(doc! { "language": 1 }, "subtitle_tracks_language"),
   ]
 }
 
-/// `subtitle_cues` — FK on `parent` + composite `(parent, index)`.
+/// `subtitle_cues` — FK on `subtitle_track_id` + composite
+/// `(subtitle_track_id, index)`.
 pub fn subtitle_cue_indexes() -> Vec<IndexModel> {
   vec![
-    index_on(doc! { "parent": 1 }, "subtitle_cues_parent"),
+    index_on(doc! { "subtitle_track_id": 1 }, "subtitle_cues_subtitle_track_id"),
     unique_on(
-      doc! { "parent": 1, "index": 1 },
-      "subtitle_cues_parent_index_unique",
+      doc! { "subtitle_track_id": 1, "index": 1 },
+      "subtitle_cues_subtitle_track_id_index_unique",
     ),
   ]
 }

@@ -1,8 +1,8 @@
-# `VideoTrack<Id>` — a video stream  *(rev 7 — LOCKED, user-approved; `provenance` hoisted from `Scene`/`Keyframe`)*
+# `VideoTrack<Id>` — a video stream  *(rev 8 — LOCKED, user-approved; `provenance` hoisted from `Scene`/`Keyframe`)*
 
 ## Domain meaning
 
-One video stream of a `Video` facet (`parent → Video.id`). Holds stream/codec
+One video stream of a `Video` facet (``video_id` → Video.id`). Holds stream/codec
 descriptors, the frame/pixel/colour vocabulary (`::mediaframe` extern), the
 per-stream `Scene` refs, and per-track indexing state. Its own schema.
 
@@ -17,7 +17,7 @@ WebCodecs only. Conversions deferred.
 | field | domain type | owner | notes |
 |---|---|---|---|
 | `id` | `Id` (UUIDv7) | MS | canonical identity |
-| `parent` | `Id` | MS | FK → `Video.id` |
+| `video_id` | `Id` | MS | FK → `Video.id` |
 | `stream_index` | `Option<u32>` | MS | source-locator (ffmpeg/WebCodecs); not identity |
 | `container_track_id` | `Option<u64>` | MS | keep only if pipeline uses it |
 | `start_pts` | `Option<mediatime::Timestamp>` | MS *(mediatime)* | stream start offset / first PTS — **mediatime-represented** (a pts @ timebase), not a raw `i64` |
@@ -92,7 +92,7 @@ schema review.)
 
 ## Projection notes
 
-- **sqlx**: `video_track` table; `id` PK; `parent` FK; VF/VF\* types flattened
+- **sqlx**: `video_track` table; `id` PK; `video_id` FK; VF/VF\* types flattened
   (`dimensions`→`width`/`height`, `color`→5 enum cols, `pixel_format`→`u32`,
   `frame_rate`→`num`/`den`/`is_vfr`, `dovi`→its scalar cols, `hdr_static`→its
   cols); `start_pts`/`duration`→pts(+timebase); `index_*` `INTEGER` + gen bool.
