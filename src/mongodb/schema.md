@@ -245,8 +245,10 @@ Indexes: `scene_id`.
 | --- | --- |
 | `_id` | `Binary(uuid)` |
 | `media_id` | `Binary(uuid)` (`Media.id`, unique — 1:1) |
-| `tracks` | `[Binary(uuid)]` |
-| `track_progress` | `{ total, indexed, failed }` |
+| `track_progress` | `{ total, indexed, failed }` (`Int64` fields) |
+
+The `tracks` reverse-FK list is **not** stored — it is derived by
+querying the `subtitle_tracks` collection (keyed by `subtitle_id`).
 
 Indexes: unique `media_id` (1:1 with `Media`).
 
@@ -255,19 +257,134 @@ Indexes: unique `media_id` (1:1 with `Media`).
 Per `schema/subtitle_track.md` r3; see `subtitle.rs` for the full
 top-to-bottom shape.
 
+The `cues` reverse-FK list is **not** stored — it is derived by
+querying the `subtitle_cues` collection (keyed by `subtitle_track_id`).
+
 Indexes: `subtitle_id`, `is_primary`, `language`.
 
 ### `subtitle_cues`
 
+Polymorphic cue document. The base shape is shared across all
+subtitle formats; per-format detail fields ride on the same document
+and are dispatched by the `kind` discriminator.
+
+**Base fields** (always present):
+
+| field | type | notes |
+| --- | --- | --- |
+| `_id` | `Binary(uuid)` | `SubtitleCue.id` (`Uuid7`) |
+| `subtitle_track_id` | `Binary(uuid)` | FK → `subtitle_tracks(_id)` |
+| `ordinal` | `Int64` | per-track 0-based position |
+| `span` | `TimeRange` | cue interval (start/end PTS) |
+| `text` | `LocalizedText` | plain text (and translation, if any) |
+| `kind` | `Int32` | `SubtitleCueKind` discriminator (slug table below) |
+
+**Discriminator slug table** (`SubtitleCueKind` → `kind` value):
+
+| slug | int | format |
+| --- | --- | --- |
+| `Srt` | 0 | SubRip |
+| `Vtt` | 1 | WebVTT |
+| `Ass` | 2 | Advanced SubStation Alpha |
+| `Lrc` | 3 | LRC / Enhanced LRC |
+| _(reserved)_ | 4–… | `MicroDvd`, `SubViewer`, `Sbv`, `Ttml`, `Sami`, `VobSub`, `Pgs`, `Cea608`, `EbuStl` — discriminants reserved (no detail / aggregate collections yet, deferred to #56) |
+
+**Per-format detail fields** (present iff `kind == …`):
+
+- `kind = Srt` — no extra fields (base only).
+- `kind = Vtt` — `cue_identifier: String`, `vertical: Int32?`,
+  `line_value: String`, `line_align: Int32?`, `position_value: String`,
+  `position_align: Int32?`, `size_value: Double?`,
+  `text_align: Int32?`, `region_id: Binary(uuid)?` (FK →
+  `subtitle_track_vtt_regions(_id)`), `voice: String`,
+  `styled_text: String`.
+- `kind = Ass` — `layer: Int32`, `style_id: Binary(uuid)?` (FK →
+  `subtitle_track_ass_styles(_id)`), `name: String`,
+  `margin_l: Int32`, `margin_r: Int32`, `margin_v: Int32`,
+  `effect: String`, `styled_text: String`.
+- `kind = Lrc` — `has_word_timing: Boolean`. When set, per-word rows
+  live in the `subtitle_cue_lrc_words` child collection (`subtitle_cue_id`
+  FK).
+
+Indexes: `subtitle_track_id`, unique `(subtitle_track_id, ordinal)`.
+
+### `subtitle_track_vtt_regions`
+
+Per-track WebVTT `REGION` block (one row per `REGION`). Referenced
+from `subtitle_cues.region_id` (FK) when `kind = Vtt`.
+
+| field | type | notes |
+| --- | --- | --- |
+| `_id` | `Binary(uuid)` | `VttRegion.id` |
+| `subtitle_track_id` | `Binary(uuid)` | FK → `subtitle_tracks(_id)` |
+| `name` | `String` | REGION identifier (unique within track) |
+| `width` | `Double` | viewport-percentage |
+| `lines` | `Int64` | line count |
+| `region_anchor_x` / `_y` | `Double` | anchor (percentages) |
+| `viewport_anchor_x` / `_y` | `Double` | viewport-anchor (percentages) |
+| `scroll_up` | `Boolean` | scroll direction |
+
+Indexes: `subtitle_track_id`, unique `(subtitle_track_id, name)`.
+
+### `subtitle_track_vtt_styles`
+
+Per-track WebVTT `STYLE` block (ordered CSS chunks).
+
 | field | type |
 | --- | --- |
 | `_id` | `Binary(uuid)` |
-| `subtitle_track_id` | `Binary(uuid)` (`SubtitleTrack.id`) |
-| `index` | `Int64` |
-| `span` | `TimeRange` |
-| `text` | `LocalizedText` |
-| `styled_text` | `String` |
-| `image` | `Binary(generic)` (empty = absent) |
-| `ocr_text` | `LocalizedText` |
+| `subtitle_track_id` | `Binary(uuid)` |
+| `ordinal` | `Int64` |
+| `css_text` | `String` |
 
-Indexes: `subtitle_track_id`, unique `(subtitle_track_id, index)`.
+Indexes: `subtitle_track_id`, unique `(subtitle_track_id, ordinal)`.
+
+### `subtitle_track_ass_styles`
+
+Per-track ASS `[V4+ Styles]` row. Referenced from
+`subtitle_cues.style_id` (FK) when `kind = Ass`.
+
+| field | type |
+| --- | --- |
+| `_id` | `Binary(uuid)` |
+| `subtitle_track_id` | `Binary(uuid)` |
+| `name` | `String` (unique within track) |
+| `fontname`, `fontsize` | `String`, `Double` |
+| `primary_colour`, `secondary_colour`, `outline_colour`, `back_colour` | `Int64` each (RGBA packed) |
+| `bold`, `italic`, `underline`, `strikeout` | `Boolean` each |
+| `scale_x`, `scale_y`, `spacing` | `Int32` each |
+| `angle` | `Double` |
+| `border_style`, `alignment` | `Int32` each (small-enum codes) |
+| `outline`, `shadow` | `Double` each |
+| `margin_l`, `margin_r`, `margin_v`, `encoding` | `Int32` each |
+
+Indexes: `subtitle_track_id`, unique `(subtitle_track_id, name)`.
+
+### `subtitle_track_lrc_metadata`
+
+Per-track LRC header block (the `[ti]`, `[ar]`, `[al]`, … tags). The
+metadata _is_ the collection of metadata fields for that track (1:1
+with `subtitle_tracks`), so the document's `_id` IS the
+`subtitle_track_id`.
+
+| field | type |
+| --- | --- |
+| `_id` | `Binary(uuid)` (= `SubtitleTrack.id`) |
+| `title`, `artist`, `album`, `author`, `creator`, `length` | `String` each |
+| `offset_ms` | `Int32` |
+
+Indexes: `_id` only (1:1 with `subtitle_tracks`).
+
+### `subtitle_cue_lrc_words`
+
+Per-cue word-timing row, written only when Enhanced LRC carries
+word-level timestamps (`kind = Lrc` AND `has_word_timing = true`).
+
+| field | type |
+| --- | --- |
+| `subtitle_cue_id` | `Binary(uuid)` (FK → `subtitle_cues(_id)`) |
+| `ordinal` | `Int64` |
+| `text` | `String` |
+| `start_pts` | `Int64` |
+
+Indexes: `subtitle_cue_id`, unique `(subtitle_cue_id, ordinal)`.

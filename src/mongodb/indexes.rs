@@ -30,6 +30,11 @@ pub enum CollectionName {
   SubtitleFacets,
   SubtitleTracks,
   SubtitleCues,
+  SubtitleTrackVttRegions,
+  SubtitleTrackVttStyles,
+  SubtitleTrackAssStyles,
+  SubtitleTrackLrcMetadata,
+  SubtitleCueLrcWords,
 }
 
 impl CollectionName {
@@ -52,6 +57,11 @@ impl CollectionName {
       Self::SubtitleFacets => "subtitle_facets",
       Self::SubtitleTracks => "subtitle_tracks",
       Self::SubtitleCues => "subtitle_cues",
+      Self::SubtitleTrackVttRegions => "subtitle_track_vtt_regions",
+      Self::SubtitleTrackVttStyles => "subtitle_track_vtt_styles",
+      Self::SubtitleTrackAssStyles => "subtitle_track_ass_styles",
+      Self::SubtitleTrackLrcMetadata => "subtitle_track_lrc_metadata",
+      Self::SubtitleCueLrcWords => "subtitle_cue_lrc_words",
     }
   }
 }
@@ -225,14 +235,88 @@ pub fn subtitle_track_indexes() -> Vec<IndexModel> {
   ]
 }
 
-/// `subtitle_cues` — FK on `subtitle_track_id` + composite
-/// `(subtitle_track_id, index)`.
+/// `subtitle_cues` — FK on `subtitle_track_id` + composite UNIQUE on
+/// `(subtitle_track_id, ordinal)` (the bson writer in `subtitle.rs`
+/// emits `ordinal`, not `index`).
 pub fn subtitle_cue_indexes() -> Vec<IndexModel> {
   vec![
     index_on(doc! { "subtitle_track_id": 1 }, "subtitle_cues_subtitle_track_id"),
     unique_on(
-      doc! { "subtitle_track_id": 1, "index": 1 },
-      "subtitle_cues_subtitle_track_id_index_unique",
+      doc! { "subtitle_track_id": 1, "ordinal": 1 },
+      "subtitle_cues_subtitle_track_id_ordinal_unique",
+    ),
+  ]
+}
+
+/// `subtitle_track_vtt_regions` — per-track WebVTT `REGION` blocks.
+/// FK on `subtitle_track_id` + UNIQUE composite on
+/// `(subtitle_track_id, name)` (region names are unique within a track).
+pub fn subtitle_track_vtt_region_indexes() -> Vec<IndexModel> {
+  vec![
+    index_on(
+      doc! { "subtitle_track_id": 1 },
+      "subtitle_track_vtt_regions_subtitle_track_id",
+    ),
+    unique_on(
+      doc! { "subtitle_track_id": 1, "name": 1 },
+      "subtitle_track_vtt_regions_subtitle_track_id_name_unique",
+    ),
+  ]
+}
+
+/// `subtitle_track_vtt_styles` — per-track WebVTT `STYLE` blocks
+/// (ordered CSS chunks). FK on `subtitle_track_id` + UNIQUE composite
+/// on `(subtitle_track_id, ordinal)` (one block per ordinal slot).
+pub fn subtitle_track_vtt_style_indexes() -> Vec<IndexModel> {
+  vec![
+    index_on(
+      doc! { "subtitle_track_id": 1 },
+      "subtitle_track_vtt_styles_subtitle_track_id",
+    ),
+    unique_on(
+      doc! { "subtitle_track_id": 1, "ordinal": 1 },
+      "subtitle_track_vtt_styles_subtitle_track_id_ordinal_unique",
+    ),
+  ]
+}
+
+/// `subtitle_track_ass_styles` — per-track ASS `[V4+ Styles]` rows. FK
+/// on `subtitle_track_id` + UNIQUE composite on
+/// `(subtitle_track_id, name)` (style names are unique within a track).
+pub fn subtitle_track_ass_style_indexes() -> Vec<IndexModel> {
+  vec![
+    index_on(
+      doc! { "subtitle_track_id": 1 },
+      "subtitle_track_ass_styles_subtitle_track_id",
+    ),
+    unique_on(
+      doc! { "subtitle_track_id": 1, "name": 1 },
+      "subtitle_track_ass_styles_subtitle_track_id_name_unique",
+    ),
+  ]
+}
+
+/// `subtitle_track_lrc_metadata` — per-track LRC `[ti]/[ar]/…` header
+/// block. The metadata _is_ the collection-of-metadata-fields for that
+/// track (1:1 with `SubtitleTrack`), so the bson writer stores
+/// `subtitle_track_id` as `_id`; an explicit UNIQUE on `_id` is
+/// implicit. No extra indexes needed.
+pub fn subtitle_track_lrc_metadata_indexes() -> Vec<IndexModel> {
+  vec![]
+}
+
+/// `subtitle_cue_lrc_words` — per-cue word-timing rows for Enhanced
+/// LRC. FK on `subtitle_cue_id` + UNIQUE composite on
+/// `(subtitle_cue_id, ordinal)` (one word per ordinal slot).
+pub fn subtitle_cue_lrc_word_indexes() -> Vec<IndexModel> {
+  vec![
+    index_on(
+      doc! { "subtitle_cue_id": 1 },
+      "subtitle_cue_lrc_words_subtitle_cue_id",
+    ),
+    unique_on(
+      doc! { "subtitle_cue_id": 1, "ordinal": 1 },
+      "subtitle_cue_lrc_words_subtitle_cue_id_ordinal_unique",
     ),
   ]
 }
@@ -257,6 +341,26 @@ pub fn all_indexes() -> Vec<(CollectionName, Vec<IndexModel>)> {
     (CollectionName::SubtitleFacets, subtitle_facet_indexes()),
     (CollectionName::SubtitleTracks, subtitle_track_indexes()),
     (CollectionName::SubtitleCues, subtitle_cue_indexes()),
+    (
+      CollectionName::SubtitleTrackVttRegions,
+      subtitle_track_vtt_region_indexes(),
+    ),
+    (
+      CollectionName::SubtitleTrackVttStyles,
+      subtitle_track_vtt_style_indexes(),
+    ),
+    (
+      CollectionName::SubtitleTrackAssStyles,
+      subtitle_track_ass_style_indexes(),
+    ),
+    (
+      CollectionName::SubtitleTrackLrcMetadata,
+      subtitle_track_lrc_metadata_indexes(),
+    ),
+    (
+      CollectionName::SubtitleCueLrcWords,
+      subtitle_cue_lrc_word_indexes(),
+    ),
   ]
 }
 
@@ -271,7 +375,7 @@ mod tests {
   #[test]
   fn all_indexes_covers_every_collection() {
     let v = all_indexes();
-    assert_eq!(v.len(), 16);
+    assert_eq!(v.len(), 21);
     // No collection appears twice.
     let mut names: Vec<_> = v.iter().map(|(c, _)| c.as_str()).collect();
     names.sort();
