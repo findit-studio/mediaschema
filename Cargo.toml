@@ -138,7 +138,7 @@ serde_json = { version = "1", optional = true }
 # = false` keeps us off the `native-tls` default so no OpenSSL dep is
 # pulled. The per-driver feature (`postgres` / `mysql` / `sqlite`) is
 # selected by the `sqlx-<driver>` umbrella feature.
-sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "macros"], optional = true }
+sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "macros"], optional = true }
 # `sha2` backs the mysql-only `media_file.location_path_hash` column that
 # powers the `UNIQUE (location_volume, location_path_hash)` natural-key
 # index. mysql/InnoDB needs a fixed-width column for `UNIQUE` over
