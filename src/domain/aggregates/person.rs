@@ -15,7 +15,7 @@
 //!
 //! Source doc: `schema/person.md` (added in a later stacked PR).
 
-use derive_more::IsVariant;
+use derive_more::{Display, IsVariant};
 use jiff::Timestamp as JiffTimestamp;
 use smol_str::SmolStr;
 
@@ -255,13 +255,35 @@ impl<Id> Person<Id> {
 ///
 /// Defaults to [`PersonConfidence::AutoMatched`] — a freshly clustered
 /// identity hasn't been reviewed yet.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, IsVariant)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, IsVariant, Display)]
+#[display("{}", self.as_str())]
 pub enum PersonConfidence {
   /// Auto-clustered by similarity, not yet reviewed.
   #[default]
   AutoMatched,
   /// User confirmed (or manually created / edited).
   UserConfirmed,
+}
+
+impl PersonConfidence {
+  /// Stable snake_case slug — the canonical string form of every variant.
+  #[inline(always)]
+  pub const fn as_str(&self) -> &'static str {
+    match self {
+      Self::AutoMatched => "auto_matched",
+      Self::UserConfirmed => "user_confirmed",
+    }
+  }
+  /// Inverse of [`as_str`](Self::as_str). Returns `None` for any input
+  /// that isn't an exact match of one of the slugs.
+  #[inline]
+  pub fn from_str(s: &str) -> Option<Self> {
+    Some(match s {
+      "auto_matched" => Self::AutoMatched,
+      "user_confirmed" => Self::UserConfirmed,
+      _ => return None,
+    })
+  }
 }
 
 /// Error returned by [`Person::try_new`] when an invariant cannot be
@@ -282,6 +304,17 @@ pub enum PersonError {
 mod tests {
   use super::*;
   use crate::domain::vo::Provenance;
+
+  #[test]
+  fn person_confidence_slug_roundtrip() {
+    for v in [
+      PersonConfidence::AutoMatched,
+      PersonConfidence::UserConfirmed,
+    ] {
+      assert_eq!(PersonConfidence::from_str(v.as_str()), Some(v), "{v:?}");
+    }
+    assert_eq!(PersonConfidence::from_str("not_a_slug"), None);
+  }
 
   fn ts() -> JiffTimestamp {
     JiffTimestamp::from_millisecond(1_700_000_000_000).expect("valid timestamp")

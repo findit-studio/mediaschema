@@ -8,7 +8,7 @@
 //! the type is `LocalizedText` (locked rev 14/15 rule).
 
 use bytes::Bytes;
-use derive_more::IsVariant;
+use derive_more::{Display, IsVariant};
 use mediaframe::frame::Dimensions;
 use smol_str::SmolStr;
 
@@ -827,7 +827,8 @@ impl BodyPose3DJoint {
 }
 
 /// Hand chirality (apple-vision hand-pose request).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, IsVariant)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, IsVariant, Display)]
+#[display("{}", self.as_str())]
 #[non_exhaustive]
 pub enum HandChirality {
   #[default]
@@ -836,14 +837,61 @@ pub enum HandChirality {
   Right,
 }
 
+impl HandChirality {
+  /// Stable snake_case slug — the canonical string form of every variant.
+  #[inline(always)]
+  pub const fn as_str(&self) -> &'static str {
+    match self {
+      Self::Unknown => "unknown",
+      Self::Left => "left",
+      Self::Right => "right",
+    }
+  }
+  /// Inverse of [`as_str`](Self::as_str). Returns `None` for any input
+  /// that isn't an exact match of one of the slugs.
+  #[inline]
+  pub fn from_str(s: &str) -> Option<Self> {
+    Some(match s {
+      "unknown" => Self::Unknown,
+      "left" => Self::Left,
+      "right" => Self::Right,
+      _ => return None,
+    })
+  }
+}
+
 /// 3-D body-pose height-estimation source.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, IsVariant)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, IsVariant, Display)]
+#[display("{}", self.as_str())]
 #[non_exhaustive]
 pub enum BodyPose3DHeightEstimation {
   #[default]
   Unknown,
   Reference,
   Measured,
+}
+
+impl BodyPose3DHeightEstimation {
+  /// Stable snake_case slug — the canonical string form of every variant.
+  #[inline(always)]
+  pub const fn as_str(&self) -> &'static str {
+    match self {
+      Self::Unknown => "unknown",
+      Self::Reference => "reference",
+      Self::Measured => "measured",
+    }
+  }
+  /// Inverse of [`as_str`](Self::as_str). Returns `None` for any input
+  /// that isn't an exact match of one of the slugs.
+  #[inline]
+  pub fn from_str(s: &str) -> Option<Self> {
+    Some(match s {
+      "unknown" => Self::Unknown,
+      "reference" => Self::Reference,
+      "measured" => Self::Measured,
+      _ => return None,
+    })
+  }
 }
 
 /// 2-D body-pose detection.
@@ -1888,6 +1936,34 @@ impl Default for VlmAnalysis {
 #[cfg(all(test, feature = "std"))]
 mod tests {
   use super::*;
+
+  #[test]
+  fn hand_chirality_slug_roundtrip() {
+    for v in [
+      HandChirality::Unknown,
+      HandChirality::Left,
+      HandChirality::Right,
+    ] {
+      assert_eq!(HandChirality::from_str(v.as_str()), Some(v), "{v:?}");
+    }
+    assert_eq!(HandChirality::from_str("not_a_slug"), None);
+  }
+
+  #[test]
+  fn body_pose_3d_height_estimation_slug_roundtrip() {
+    for v in [
+      BodyPose3DHeightEstimation::Unknown,
+      BodyPose3DHeightEstimation::Reference,
+      BodyPose3DHeightEstimation::Measured,
+    ] {
+      assert_eq!(
+        BodyPose3DHeightEstimation::from_str(v.as_str()),
+        Some(v),
+        "{v:?}"
+      );
+    }
+    assert_eq!(BodyPose3DHeightEstimation::from_str("not_a_slug"), None);
+  }
 
   #[test]
   fn confidence_rejects_nan_inf_and_out_of_range() {
