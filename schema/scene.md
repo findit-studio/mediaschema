@@ -66,8 +66,6 @@ modules + manual): `Histogram` · `Phash` · `Threshold` · `Content` ·
   `detector` enum col (indexed — filterable in smart folders);
   `(video_track_id, index)` unique. No embedding column (LanceDB).
 - **mongodb**: `_id`=UUIDv7; `keyframes` UUID ref array.
-- **graphql**: `description`/`span`/`keyframes`/`detector`;
-  similarity = LanceDB endpoint keyed by `id`.
 
 **Status: LOCKED (rev 7) — user-approved.** Thin described-segment:
 `id`/`video_track_id`(→VideoTrack)/`index`/`span`(mediatime)/`detector`(SceneDetector)/

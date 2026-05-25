@@ -96,11 +96,6 @@ segment. Conversions deferred.
   wire field on `AudioSegment`'s proto3 message (alongside the new shared
   `VoiceFingerprint` and `Provenance` messages added in PR #44); the bridge
   follows the wire-only boundary ([wire-only.md](wire-only.md)).
-- **graphql**: transcript (`text`/`words`/`speaker`/`span`/`language`)
-  exposed for the player; `voice_fingerprint` exposes the VO metadata
-  (`dimensions` / `extracted_at` / `confidence` / `provenance`) but never
-  `vector_id` (opaque) and never a raw vector — similarity is a vector-store
-  endpoint keyed by `id`, never a field.
 
 **Status: drafted (rev 4) — pending user review.** *(rev 4: added
 `voice_fingerprint: Option<VoiceFingerprint>` — the per-segment raw

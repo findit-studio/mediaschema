@@ -88,9 +88,6 @@ playlists/albums too.
   `collection`/`collection_member`. Smart-folder query = AST compiled to SQL.
 - **mongodb**: collections per aggregate; `filter` embedded; smart-folder = AST
   → Mongo query.
-- **graphql**: full CRUD for tags/annotations/smart-folders; resolving a smart
-  folder runs the compiled filter (paginated); `favorite`/`user_tags` are
-  first-class facets.
 
 **Status: in review (rev 1) — new layer; SF-target RESOLVED (scene-level);
 open: SF-filter / SF-user / SF-collection. NOT self-locked.**

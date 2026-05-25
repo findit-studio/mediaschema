@@ -166,8 +166,6 @@ defined in [README.md](README.md).
   `data` → `BYTEA` or object-store offload keyed by `id`; `text_detections.
   text` full-text; colours in `keyframe_color`. No vector column (LanceDB).
 - **mongodb**: `_id`=UUIDv7; detections embedded; `data` GridFS if large.
-- **graphql**: image via signed-URL endpoint (never raw `data` in lists) +
-  detections/OCR/colours for search; similarity = LanceDB by `id`.
 
 **Status: LOCKED (rev 16) — user-approved.** Full apple-vision body-pose depth
 (9-field `HumanAnalysis` + joint/mask VOs); `mood`/`emotion`/`lighting`→VLM;

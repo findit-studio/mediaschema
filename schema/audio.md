@@ -58,8 +58,6 @@ Generic over `Id` (UUIDv7 single key). Conversions deferred.
   `track_progress.*`.
 - **mongodb**: `_id`=UUIDv7; `media_id` Binary(uuid); `tracks` UUID ref array;
   `total_segments` int.
-- **graphql**: `track_progress` + `total_segments`; transcript/diarization
-  resolves via `AudioTrack.segments` → `AudioSegment`; tags via `AudioTrack`.
 
 **Status: LOCKED (rev 10) — user-approved.** *(rev 10: FK field renamed
 from `parent` → `media_id` (consistent `<target>_id` naming across all FK

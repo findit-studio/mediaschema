@@ -28,6 +28,5 @@ tracks — all per-track detail lives on `SubtitleTrack`.
 - **sqlx**: `subtitle` table = `id` PK (uuid); `tracks` via
   `subtitle_track.subtitle_id` FK; `track_progress.*`.
 - **mongodb**: `_id`=UUIDv7; `tracks` UUID ref array; progress embedded.
-- **graphql**: thin; per-track detail via `SubtitleTrack`.
 
 **Status: LOCKED (rev 3) — user-approved.**

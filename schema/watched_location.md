@@ -146,10 +146,6 @@ call) governs behavior: an ejectable volume going away is
   CASCADE`** (rev 6 cascade rule) — deleting a watch drops its file copies.
 - **mongodb**: `_id`=UUIDv7; single collection. The cascade is enforced by
   the indexer (delete the watch's `media_file` documents in the same op).
-- **graphql**: management surface only (CRUD watch folders + monitor
-  health/last-reconcile); a "files discovered here" resolver may join
-  `media_file` on `watched_location_id`, but there is still no direct
-  `Media` resolver (no `Media` link).
 
 **Status: LOCKED (rev 8) — user-approved.** *(rev 8: the rev-7 docs-only
 "volume-scoped" clarification was **rejected** in Codex round 3 because the

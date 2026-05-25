@@ -2,18 +2,18 @@
 
 The **63 WIRE-only** types from the type audit: RPC/transport envelopes that
 exist only in `proto/media/v1/types.proto` (buffa-generated). They are **not**
-mirrored in the domain layer and **not** projected to sqlx/mongodb; the
-async-graphql API is curated from domain aggregates, not these. Listed by
-category so the boundary is explicit (not enumerated one-by-one — they track
-the proto, not the domain).
+mirrored in the domain layer and **not** projected to sqlx/mongodb; the API
+projection is curated from domain aggregates, not these. Listed by category
+so the boundary is explicit (not enumerated one-by-one — they track the
+proto, not the domain).
 
 | category | what | why no domain twin |
 |---|---|---|
 | RPC request/response pairs | `*Request`/`*Response` for each service method | transport DTOs; the handler maps wire ⇄ domain aggregate |
 | Streaming chunks | progress/event/chunk messages for streamed RPCs | per-call framing; ephemeral |
-| Pagination | cursor/page/`*Page`/`*Connection` wrappers | a query concern; graphql defines its own pagination |
+| Pagination | cursor/page/`*Page`/`*Connection` wrappers | a query concern; the query layer defines its own pagination |
 | Error envelopes | RPC status/error-detail wrappers | domain uses `ErrorInfo`; transport wraps it |
-| Filter/sort inputs | list-query parameter messages | belong to the query/graphql layer, shaped there |
+| Filter/sort inputs | list-query parameter messages | belong to the query layer, shaped there |
 | Codegen smoke fixtures (3) | `Sp2CodegenSmoke`, `Sp3CodegenSmoke`, … | regression guards only — **excluded from domain** (locked) |
 
 ## Rule
@@ -34,11 +34,11 @@ the proto, not the domain).
   correctly no domain twin. `UpdateAnnotationRequest` embeds `Tag` = transport
   for the curation layer (domain home = `smart_folder.md`). **No domain
   aggregate is hidden inside a WIRE-only type — the audit bucketing holds.**
-- **W-graphql — only `Pagination` confirmable now (your correction):**
+- **W-query — only `Pagination` confirmable now (your correction):**
   `Pagination` is unambiguously a wire transport wrapper with no domain twin —
   confirmed. **`SearchFilter`/`*Filter`/`Sort`/`BrowseItem` are NOT confirmed
   yet** — their query-layer disposition depends on the **storage layer** (sqlx/
-  mongodb) being designed first; the query/graphql shaping waits for that
+  mongodb) being designed first; the query-layer shaping waits for that
   (task #68 / persistence sub-projects). They stay catalogued here as
   *not domain twins* (the boundary holds), but their final query-layer
   treatment is **deferred to the storage+query layer**, not asserted now.
@@ -46,7 +46,7 @@ the proto, not the domain).
 **Status: LOCKED (rev 1) — user-approved.** Boundary policy: the 63 are
 transport, no domain mirror, conversions only at the RPC boundary. W-verify
 PASSED (spot-checked — no domain aggregate hidden; the audit bucketing holds).
-W-graphql: `Pagination` confirmed; `SearchFilter`/`Sort`/`BrowseItem`
+W-query: `Pagination` confirmed; `SearchFilter`/`Sort`/`BrowseItem`
 query-layer disposition **deferred** — the query layer is designed **only
 after (a) all storage schema is finished AND (b) the indexer is finished**
 (query is downstream of storage + indexer; user sequencing). They remain

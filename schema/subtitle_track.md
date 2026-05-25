@@ -99,9 +99,6 @@ let external code mark an unknown / image subtitle complete without `OCR_DONE`
   `subtitle_cue.subtitle_track_id` FK; `index_*` `INTEGER` + generated bool cols;
   `language`/`codec`/`origin` indexed.
 - **mongodb**: `_id`=UUIDv7; `cues` UUID ref array; flags as ints.
-- **graphql**: codec/language/origin/disposition exposed; cues + OCR text
-  searchable via the cue aggregate; `index_errors` exposed (error-state /
-  which-stage derived from it + `index_status`).
 
 ## Forgotten-info pass — resolved
 
