@@ -1,4 +1,4 @@
-# `SubtitleTrack<Id>` — a subtitle stream  *(rev 4 — LOCKED, user-approved; `error_status` removed)*
+# `SubtitleTrack<Id>` — a subtitle stream  *(rev 5 — LOCKED, user-approved; `source_path` dropped per #67)*
 
 ## Domain meaning
 
@@ -35,8 +35,7 @@ Conversions deferred.
 | `cues` | `Vec<Id>` | — | refs to the per-track `SubtitleCue` segment aggregate |
 | `provenance` | `Provenance` (shared VO) | — | parse/OCR reproducibility; shared cross-cutting VO ([README.md](README.md)) |
 | — *adopted rev 2 (all obtainable via ffmpeg-probe / parse / ingest — your "if we can obtain them" gate met)* — |
-| `source_path` | `Option<Location>` | ingest | external `.srt`/`.vtt` *is its own file*; `None` for embedded (structured ⇒ `Option` OK) |
-| `source_checksum` | `Option<FileChecksum>` | ingest | change-detection / re-index; `None` for embedded |
+| `source_checksum` | `Option<FileChecksum>` | ingest | change-detection / re-index; `None` for embedded. **`source_path` was dropped in rev 5 (#67)** — with the polymorphic-cue redesign every cue is parsed and stored as a `subtitle_cue` row, so the storage layer no longer needs the source file path; FS-rescan change detection now keys on the checksum alone |
 | `character_encoding` | `SmolStr` | parse | charset (Win-1252/GBK/…); `""`=absent (ffmpeg `sub_charenc` / detector) |
 | `bom_present` | `bool` | parse | BOM sniffed at parse |
 | `is_sdh` | `bool` | ffmpeg disp/title | SDH (deaf/HoH) — finer than `disposition.HEARING_IMPAIRED` (best-effort) |
@@ -102,8 +101,9 @@ let external code mark an unknown / image subtitle complete without `OCR_DONE`
 
 ## Forgotten-info pass — resolved
 
-**Adopted (rev 2, in the Fields table):** `source_path`+`source_checksum`
-(external-file identity — embedded ⇒ `None`), `character_encoding`+
+**Adopted (rev 2, in the Fields table; `source_path` dropped in rev 5
+per #67):** `source_checksum`
+(external-file change-detection on FS rescan — embedded ⇒ `None`), `character_encoding`+
 `bom_present` (charset / silent-corruption guard), `is_sdh`,
 `is_closed_caption` (CEA-608/708 lifted; relates to
 `VideoTrack.has_embedded_captions`), `is_translation`, `kind: SubtitleKind`,

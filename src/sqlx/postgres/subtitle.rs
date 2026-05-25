@@ -2,7 +2,7 @@
 //! `Subtitle` facet, `SubtitleTrack`, and `SubtitleCue`.
 //!
 //! Identity / FK columns are native `uuid`. Nested value-objects
-//! (`Provenance`, `LocalizedText`, `Location`) are flattened into real,
+//! (`Provenance`, `LocalizedText`) are flattened into real,
 //! individually-typed columns — `Option<VO>` rides as a discriminating
 //! column plus all-NULL payload columns when absent. The open descriptor
 //! enums (`SubtitleCodec`, `Format`) ride as `text` slugs; the closed
@@ -33,7 +33,7 @@ use crate::{
       SubtitleCueError, SubtitleCueKind, SubtitleError, SubtitleTrackError, VttCue, VttData,
       VttLineAlign, VttPositionAlign, VttRegion, VttStyleBlock, VttTextAlign, VttVertical,
     },
-    primitives::{ErrorInfo, Location},
+    primitives::ErrorInfo,
     vo::{IndexProgress, LocalizedText, Provenance},
     ErrorCode, Subtitle, SubtitleCue, SubtitleIndexStatus, SubtitleKind, SubtitleTrack, Uuid7,
   },
@@ -119,11 +119,13 @@ impl TryFrom<PgSubtitleRow> for Subtitle<Uuid7> {
 
 /// PostgreSQL row shape for [`SubtitleTrack`].
 ///
-/// `Location::Local` flattens to `source_path_volume` (`uuid`) +
-/// `source_path` (`text`); `source_path_volume` NULL discriminates an
-/// absent source-path. `FileChecksum` rides as `BYTEA` (32 bytes), NULL =
-/// absent. `Provenance` flattens to the same four `provenance_*` columns
-/// used in `audio_track`. `cues` reverse-FK is NOT stored.
+/// `FileChecksum` rides as `BYTEA` (32 bytes), NULL = absent.
+/// `Provenance` flattens to the same four `provenance_*` columns used
+/// in `audio_track`. `cues` reverse-FK is NOT stored. The pre-rev-4
+/// `source_path_volume` / `source_path` columns were dropped in #67
+/// — with the polymorphic-cue redesign the storage layer no longer
+/// needs the source file path; only the `source_checksum` is kept for
+/// FS-rescan change detection.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct PgSubtitleTrackRow {
   pub id: Uuid,
@@ -155,11 +157,6 @@ pub struct PgSubtitleTrackRow {
   pub provenance_model_version: String,
   pub provenance_prompt_version: String,
   pub provenance_indexer_version: String,
-  /// `Location::Local` of an external `.srt`/`.vtt` (`None` for
-  /// embedded). `source_path_volume` NULL discriminates absence.
-  pub source_path_volume: Option<Uuid>,
-  /// `Location::Local` path components joined by `/`.
-  pub source_path: Option<String>,
   /// `FileChecksum` of the external file (32 bytes); NULL = absent.
   pub source_checksum: Option<std::vec::Vec<u8>>,
   pub character_encoding: String,
@@ -203,18 +200,6 @@ impl From<&SubtitleTrack<Uuid7>>
     let duration = t.duration_ref();
     let first_cue = t.first_cue_ref();
     let last_cue = t.last_cue_ref();
-    let (source_path_volume, source_path) = match t.source_path_ref() {
-      None => (None, None),
-      Some(Location::Local(local)) => {
-        let path = local
-          .components_slice()
-          .iter()
-          .map(AsRef::as_ref)
-          .collect::<std::vec::Vec<&str>>()
-          .join("/");
-        (Some(uuid7_to_uuid(*local.volume_ref())), Some(path))
-      }
-    };
     let row = PgSubtitleTrackRow {
       id,
       subtitle_id: uuid7_to_uuid(*t.subtitle_id_ref()),
@@ -236,8 +221,6 @@ impl From<&SubtitleTrack<Uuid7>>
       provenance_model_version: prov.model_version().to_owned(),
       provenance_prompt_version: prov.prompt_version().to_owned(),
       provenance_indexer_version: prov.indexer_version().to_owned(),
-      source_path_volume,
-      source_path,
       source_checksum: t.source_checksum_ref().map(|c| c.as_bytes().to_vec()),
       character_encoding: t.character_encoding().to_owned(),
       bom_present: t.bom_present(),
@@ -344,14 +327,6 @@ impl
       t = t.with_last_cue(Some(timestamp_from_parts(pts, num, den)?));
     }
 
-    if let Some(vol) = r.source_path_volume {
-      let path = r.source_path.unwrap_or_default();
-      let volume = uuid_to_uuid7(vol)?;
-      let location = Location::try_local_uuid7(volume, path.split('/')).map_err(|e| {
-        SqlxError::DomainConstructorRejected(format!("SubtitleTrack.source_path: {e}"))
-      })?;
-      t = t.with_source_path(Some(location));
-    }
     if let Some(bytes) = r.source_checksum {
       t = t.with_source_checksum(Some(bytes_to_checksum(&bytes)?));
     }
@@ -963,8 +938,6 @@ pub struct PgSubtitleTrackRowRef<'r> {
   pub provenance_model_version: &'r str,
   pub provenance_prompt_version: &'r str,
   pub provenance_indexer_version: &'r str,
-  pub source_path_volume: Option<Uuid>,
-  pub source_path: Option<&'r str>,
   pub source_checksum: Option<&'r [u8]>,
   pub character_encoding: &'r str,
   pub bom_present: bool,
@@ -1546,8 +1519,6 @@ impl PgSubtitleTrackRow {
       provenance_model_version: &self.provenance_model_version,
       provenance_prompt_version: &self.provenance_prompt_version,
       provenance_indexer_version: &self.provenance_indexer_version,
-      source_path_volume: self.source_path_volume,
-      source_path: self.source_path.as_deref(),
       source_checksum: self.source_checksum.as_deref(),
       character_encoding: &self.character_encoding,
       bom_present: self.bom_present,
@@ -1655,14 +1626,6 @@ impl<'r>
       t = t.with_last_cue(Some(timestamp_from_parts(pts, num, den)?));
     }
 
-    if let Some(vol) = r.source_path_volume {
-      let path = r.source_path.unwrap_or_default();
-      let volume = uuid_to_uuid7(vol)?;
-      let location = Location::try_local_uuid7(volume, path.split('/')).map_err(|e| {
-        SqlxError::DomainConstructorRejected(format!("SubtitleTrack.source_path: {e}"))
-      })?;
-      t = t.with_source_path(Some(location));
-    }
     if let Some(bytes) = r.source_checksum {
       t = t.with_source_checksum(Some(bytes_to_checksum(bytes)?));
     }
@@ -1805,8 +1768,6 @@ mod tests {
   #[test]
   fn subtitle_track_roundtrip_full() {
     let en = Language::from_bcp47("en").unwrap();
-    let vol = Uuid7::new();
-    let location = Location::try_local_uuid7(vol, ["Movies", "subs", "en.srt"]).unwrap();
     let mut bytes = [0u8; 32];
     bytes[0] = 1;
     let cs = FileChecksum::from_bytes(bytes);
@@ -1828,7 +1789,6 @@ mod tests {
         "p1",
         "indexer-0.4.2",
       ))
-      .with_source_path(Some(location))
       .with_source_checksum(Some(cs))
       .with_character_encoding("UTF-8")
       .with_bom_present(true)
@@ -2039,8 +1999,6 @@ mod tests {
   #[test]
   fn subtitle_track_ref_roundtrip() {
     let en = Language::from_bcp47("en").unwrap();
-    let vol = Uuid7::new();
-    let location = Location::try_local_uuid7(vol, ["Movies", "subs", "en.srt"]).unwrap();
     let mut bytes = [0u8; 32];
     bytes[0] = 1;
     let cs = FileChecksum::from_bytes(bytes);
@@ -2062,7 +2020,6 @@ mod tests {
         "p1",
         "indexer-0.4.2",
       ))
-      .with_source_path(Some(location))
       .with_source_checksum(Some(cs))
       .with_character_encoding("UTF-8")
       .with_bom_present(true)

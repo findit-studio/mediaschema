@@ -668,8 +668,6 @@ CREATE TABLE IF NOT EXISTS subtitle_track (
     provenance_model_version   VARCHAR(255) NOT NULL,
     provenance_prompt_version  VARCHAR(255) NOT NULL,
     provenance_indexer_version VARCHAR(255) NOT NULL,
-    source_path_volume         BINARY(16),
-    source_path                TEXT,
     source_checksum            BINARY(32),
     character_encoding         VARCHAR(64)  NOT NULL,
     bom_present                TINYINT      NOT NULL DEFAULT 0,

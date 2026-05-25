@@ -157,12 +157,6 @@ impl From<&SubtitleTrack<Uuid7>> for Document {
     // reverse lookup (consistent with the sqlx convention).
     d.insert("provenance", provenance_to_bson(t.provenance_ref()));
     d.insert(
-      "source_path",
-      t.source_path_ref()
-        .map(location_to_bson)
-        .unwrap_or(Bson::Null),
-    );
-    d.insert(
       "source_checksum",
       t.source_checksum_ref()
         .map(checksum_to_bson)
@@ -259,9 +253,6 @@ impl TryFrom<Document> for SubtitleTrack<Uuid7> {
     let _ = take_opt(&mut d, "cues");
     if let Some(b) = take_opt(&mut d, "provenance") {
       t.set_provenance(provenance_from_bson(b, "provenance")?);
-    }
-    if let Some(b) = take_opt(&mut d, "source_path") {
-      t.set_source_path(Some(location_from_bson(b, "source_path")?));
     }
     if let Some(b) = take_opt(&mut d, "source_checksum") {
       t.set_source_checksum(Some(checksum_from_bson(b, "source_checksum")?));
@@ -806,7 +797,6 @@ mod tests {
   use crate::domain::{
     primitives::{ErrorCode, ErrorInfo, FileChecksum},
     vo::{LocalizedText, Provenance},
-    Location,
   };
   use ::mediaframe::lang::Language;
   use core::num::NonZeroU32;
@@ -857,7 +847,6 @@ mod tests {
 
   #[test]
   fn subtitle_track_roundtrip() {
-    let vol = Uuid7::new();
     let t = SubtitleTrack::try_new(Uuid7::new(), Uuid7::new())
       .unwrap()
       .with_codec(SubtitleCodec::Subrip)
@@ -871,9 +860,6 @@ mod tests {
       .with_duration(Some(MediaTimestamp::new(60_000, tb())))
       .with_cue_count(500)
       .with_provenance(Provenance::from_parts("srt", "1.0", "p", "idx"))
-      .with_source_path(Some(
-        Location::try_local_uuid7(vol, ["Movies", "subs.srt"]).unwrap(),
-      ))
       .with_source_checksum(Some(cs()))
       .with_character_encoding("utf-8")
       .with_bom_present(true)
