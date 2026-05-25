@@ -20,7 +20,7 @@ use derive_more::IsVariant;
 use mediatime::Timestamp;
 use smol_str::SmolStr;
 
-use crate::domain::Uuid7;
+use crate::domain::{vo::VoiceFingerprint, Uuid7};
 
 // ---------------------------------------------------------------------------
 // Duration validation — shared by `speech_duration`'s validating mutators
@@ -48,9 +48,16 @@ const fn is_negative_duration(d: Option<Timestamp>) -> bool {
 /// Construct explicitly via [`Speaker::try_new`].
 ///
 /// Fields are private per the encapsulation rule; access via `id_ref()` /
-/// `audio_track_id_ref()` / `cluster_id()` / `name()` / `speech_duration_ref()`
+/// `audio_track_id_ref()` / `cluster_id()` / `name()` /
+/// `speech_duration_ref()` / `voiceprint_ref()` / `person_id_ref()`
 /// getters and `with_*` / `set_*` builders/mutators.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+///
+/// `Eq` / `Hash` are intentionally **not** derived — the per-track
+/// `voiceprint` carries an `Option<f32>` confidence (via
+/// [`VoiceFingerprint`]), which precludes total equality and hashing.
+/// Speakers are keyed by `id`; callers should hash / equate them by id
+/// rather than by the whole value.
+#[derive(Debug, Clone, PartialEq)]
 pub struct Speaker<Id = Uuid7> {
   id: Id,
   audio_track_id: Id,
@@ -61,6 +68,12 @@ pub struct Speaker<Id = Uuid7> {
   /// has no dedicated `Duration`). A proper `TrackDuration` newtype is
   /// a tracked follow-up in `mediatime`.
   speech_duration: Option<Timestamp>,
+  /// Per-track aggregated voiceprint — the centroid across this track's
+  /// `AudioSegment.voice_fingerprint`s. `None` until aggregation runs.
+  voiceprint: Option<VoiceFingerprint<Id>>,
+  /// Cross-track identity FK → [`Person`](crate::domain::Person). `None`
+  /// = not yet identified.
+  person_id: Option<Id>,
 }
 
 impl Speaker<Uuid7> {
@@ -86,6 +99,8 @@ impl Speaker<Uuid7> {
       cluster_id,
       name: name.into(),
       speech_duration: None,
+      voiceprint: None,
+      person_id: None,
     })
   }
 }
@@ -119,6 +134,19 @@ impl<Id> Speaker<Id> {
   #[inline(always)]
   pub const fn speech_duration_ref(&self) -> Option<&Timestamp> {
     self.speech_duration.as_ref()
+  }
+
+  /// Per-track aggregated voiceprint (`None` until aggregation runs).
+  #[inline(always)]
+  pub const fn voiceprint_ref(&self) -> Option<&VoiceFingerprint<Id>> {
+    self.voiceprint.as_ref()
+  }
+
+  /// Cross-track identity FK → [`Person`](crate::domain::Person) (`None`
+  /// = not yet identified).
+  #[inline(always)]
+  pub const fn person_id_ref(&self) -> Option<&Id> {
+    self.person_id.as_ref()
   }
 
   /// Builder: replace `name` and return `self`.
@@ -181,6 +209,84 @@ impl<Id> Speaker<Id> {
   #[inline(always)]
   pub const fn set_cluster_id(&mut self, cluster_id: u32) -> &mut Self {
     self.cluster_id = cluster_id;
+    self
+  }
+
+  // ----- `voiceprint` — full `Option<T>` mutator vocabulary ----------------
+
+  /// Builder: put `voiceprint` into the *present* state.
+  #[inline(always)]
+  #[must_use]
+  pub fn with_voiceprint(mut self, voiceprint: VoiceFingerprint<Id>) -> Self {
+    self.voiceprint = Some(voiceprint);
+    self
+  }
+
+  /// Builder: assign the *raw* `voiceprint` wrapper.
+  #[inline(always)]
+  #[must_use]
+  pub fn maybe_voiceprint(mut self, voiceprint: Option<VoiceFingerprint<Id>>) -> Self {
+    self.voiceprint = voiceprint;
+    self
+  }
+
+  /// In-place mutator: put `voiceprint` into the *present* state.
+  #[inline(always)]
+  pub fn set_voiceprint(&mut self, voiceprint: VoiceFingerprint<Id>) -> &mut Self {
+    self.voiceprint = Some(voiceprint);
+    self
+  }
+
+  /// In-place mutator: assign the *raw* `voiceprint` wrapper.
+  #[inline(always)]
+  pub fn update_voiceprint(&mut self, voiceprint: Option<VoiceFingerprint<Id>>) -> &mut Self {
+    self.voiceprint = voiceprint;
+    self
+  }
+
+  /// In-place mutator: clear `voiceprint`.
+  #[inline(always)]
+  pub fn clear_voiceprint(&mut self) -> &mut Self {
+    self.voiceprint = None;
+    self
+  }
+
+  // ----- `person_id` — full `Option<T>` mutator vocabulary --------------------
+
+  /// Builder: put `person_id` into the *present* state.
+  #[inline(always)]
+  #[must_use]
+  pub fn with_person_id(mut self, person_id: Id) -> Self {
+    self.person_id = Some(person_id);
+    self
+  }
+
+  /// Builder: assign the *raw* `person_id` wrapper.
+  #[inline(always)]
+  #[must_use]
+  pub fn maybe_person_id(mut self, person_id: Option<Id>) -> Self {
+    self.person_id = person_id;
+    self
+  }
+
+  /// In-place mutator: put `person_id` into the *present* state.
+  #[inline(always)]
+  pub fn set_person_id(&mut self, person_id: Id) -> &mut Self {
+    self.person_id = Some(person_id);
+    self
+  }
+
+  /// In-place mutator: assign the *raw* `person_id` wrapper.
+  #[inline(always)]
+  pub fn update_person_id(&mut self, person_id: Option<Id>) -> &mut Self {
+    self.person_id = person_id;
+    self
+  }
+
+  /// In-place mutator: clear `person_id`.
+  #[inline(always)]
+  pub fn clear_person_id(&mut self) -> &mut Self {
+    self.person_id = None;
     self
   }
 }
@@ -295,6 +401,71 @@ mod tests {
     // absent
     let n = s.try_with_speech_duration(None).expect("None accepted");
     assert!(n.speech_duration_ref().is_none());
+  }
+
+  // --- voiceprint / person FK additive fields -------------------------------
+
+  fn vfp() -> VoiceFingerprint<Uuid7> {
+    use crate::domain::vo::Provenance;
+    VoiceFingerprint::try_new(
+      Uuid7::new(),
+      192,
+      jiff::Timestamp::from_millisecond(1_700_000_000_000).expect("valid ts"),
+      Some(0.9),
+      Provenance::from_parts("ecapa-tdnn", "v1.0.0", "", "findit-indexer-0.1.0"),
+    )
+    .expect("valid voiceprint")
+  }
+
+  #[test]
+  fn voiceprint_and_person_default_to_none() {
+    let s = Speaker::try_new(Uuid7::new(), Uuid7::new(), 0, "").unwrap();
+    assert!(s.voiceprint_ref().is_none());
+    assert!(s.person_id_ref().is_none());
+  }
+
+  #[test]
+  fn voiceprint_full_option_mutator_vocabulary() {
+    let v = vfp();
+    let s = Speaker::try_new(Uuid7::new(), Uuid7::new(), 0, "")
+      .unwrap()
+      .with_voiceprint(v.clone());
+    assert_eq!(s.voiceprint_ref(), Some(&v));
+    let s = s.maybe_voiceprint(None);
+    assert!(s.voiceprint_ref().is_none());
+    let s = s.maybe_voiceprint(Some(v.clone()));
+    assert_eq!(s.voiceprint_ref(), Some(&v));
+    let mut s = s;
+    s.clear_voiceprint();
+    assert!(s.voiceprint_ref().is_none());
+    s.set_voiceprint(v.clone());
+    assert_eq!(s.voiceprint_ref(), Some(&v));
+    s.update_voiceprint(None);
+    assert!(s.voiceprint_ref().is_none());
+    s.update_voiceprint(Some(v.clone()));
+    assert_eq!(s.voiceprint_ref(), Some(&v));
+  }
+
+  #[test]
+  fn person_full_option_mutator_vocabulary() {
+    let pid = Uuid7::new();
+    let s = Speaker::try_new(Uuid7::new(), Uuid7::new(), 0, "")
+      .unwrap()
+      .with_person_id(pid);
+    assert_eq!(s.person_id_ref(), Some(&pid));
+    let s = s.maybe_person_id(None);
+    assert!(s.person_id_ref().is_none());
+    let s = s.maybe_person_id(Some(pid));
+    assert_eq!(s.person_id_ref(), Some(&pid));
+    let mut s = s;
+    s.clear_person_id();
+    assert!(s.person_id_ref().is_none());
+    s.set_person_id(pid);
+    assert_eq!(s.person_id_ref(), Some(&pid));
+    s.update_person_id(None);
+    assert!(s.person_id_ref().is_none());
+    s.update_person_id(Some(pid));
+    assert_eq!(s.person_id_ref(), Some(&pid));
   }
 
   #[test]

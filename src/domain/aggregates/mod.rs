@@ -15,6 +15,7 @@ pub mod audio;
 pub mod curation;
 pub mod media;
 pub mod media_file;
+pub mod person;
 pub mod speaker;
 pub mod subtitle;
 #[cfg(any(feature = "std", feature = "alloc"))]
@@ -30,6 +31,7 @@ pub use audio::{
 pub use curation::{SceneAnnotation, UserTag};
 pub use media::Media;
 pub use media_file::MediaFile;
+pub use person::{Person, PersonConfidence, PersonError};
 pub use speaker::Speaker;
 pub use subtitle::{
   AssCue, AssData, AssStyle, LrcCue, LrcData, LrcMetadata, LrcWord, SrtCue, SrtData, Subtitle,
