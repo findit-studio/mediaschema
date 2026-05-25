@@ -175,10 +175,5 @@ exposes the FK + VO surface, not the policy.
   bridges follow the existing wire-only boundary
   ([wire-only.md](wire-only.md)). `vector_id` rides as `bytes` (the 16-byte
   UUIDv7); `extracted_at` / `created_at` / `updated_at` ride as `int64` ms.
-- **graphql**: `Person` exposed with `name` / `confidence` /
-  `voiceprint?.{dimensions, extracted_at, confidence, provenance}` (never a
-  raw vector — `vector_id` stays opaque, and the *vector* is a vector-store
-  endpoint, not a field); the inverse `speakers: [Speaker!]!` resolver is a
-  back-reference query on `Speaker.person`.
 
 **Status: drafted (rev 1) — pending user review.**

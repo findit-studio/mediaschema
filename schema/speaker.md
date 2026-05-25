@@ -78,11 +78,6 @@ speaker(person_id)` for FK lookup from a `Person`. `(audio_track_id, cluster_id)
   audit at PR #44 — `Speaker` sits outside the existing wire boundary, see
   [wire-only.md](wire-only.md)); the `voiceprint` and `person` wire fields
   will be added together when `Speaker` is bridged.
-- **graphql**: `name`/`speech_duration`/`cluster_id` exposed; `person`
-  resolves to the linked [`Person`](person.md); `voiceprint` exposes the VO
-  metadata (`dimensions` / `extracted_at` / `confidence` / `provenance`) but
-  never `vector_id` (opaque) and never a raw vector — "same voice" similarity
-  is a vector-store endpoint, not a field.
 
 **Status: drafted (rev 2) — pending user review.** *(rev 2: per-track
 aggregated `voiceprint: Option<VoiceFingerprint>` first-class on the

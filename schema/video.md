@@ -36,7 +36,6 @@ stream/scene-level → `VideoTrack`.
   `video_track`-scoped.)
 - **mongodb**: `_id`=UUIDv7; `media_id` Binary(uuid); `tracks` UUID ref array;
   counts/progress embedded.
-- **graphql**: `total_scenes` + `track_progress`; scene detail via `VideoTrack`.
 
 **Status: LOCKED (rev 10) — user-approved.** *(rev 10: FK field renamed
 `parent` → `media_id` (consistent `<target>_id` naming across all FK

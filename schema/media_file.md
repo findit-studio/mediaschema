@@ -110,8 +110,6 @@ with nil ids is an orphan copy, same reasoning as `Media`'s "No Default".
   constraint models "one copy per path".
 - **mongodb**: `_id` = UUIDv7; single `media_file` collection; `media_id` /
   `watched_location_id` stored as `BinData`.
-- **graphql**: expose the copy's path/name + a resolver to its `Media`
-  content and discovering `WatchedLocation`; opaque external id.
 - **volume consistency**: `watch_volume` is a denormalised copy of
   `watched_location(volume)`; it is *not* a separate FK column and is kept in
   lock-step with `watched_location_id` by the fallible domain mutators.
