@@ -114,6 +114,10 @@ pub use generated::media::v1::response::Kind as ResponseKind;
 /// Oneof variant for [`SubtitleTrackOrigin`]: `Source::SourceAudioTrackId(…)` or `Source::SourceSubtitleTrackId(…)`.
 #[cfg(feature = "buffa")]
 pub use generated::media::v1::subtitle_track_origin::Source as SubtitleTrackOriginSource;
+/// Oneof variant for [`SubtitleCue`]: the per-format `data` arm
+/// (`Data::Srt` / `Data::Vtt` / `Data::Ass` / `Data::Lrc`).
+#[cfg(feature = "buffa")]
+pub use generated::media::v1::subtitle_cue::Data as SubtitleCueData;
 #[cfg(feature = "buffa")]
 pub use generated::media::v1::{
   ActionDetection, Aesthetics, AnimalAnalysis, AppPathBuf, Audio, AudioAnalysis,
@@ -140,10 +144,22 @@ pub use generated::media::v1::{
   RemoveLocationResponse, Request, RequestEnvelope, Response, ResponseEnvelope, RetryFailedRequest,
   RetryFailedResponse, SaliencyRegion, Scene, SceneMeta, SceneVlmResult, SearchFilter, SearchHit,
   SearchRequest, SearchResponse, SoundSource, Sp2CodegenSmoke, Sp3CodegenSmoke, Speaker,
-  SpeakerSegment, SubjectDetection, Subtitle, SubtitleCue, SubtitleMeta, SubtitleTrack,
-  SubtitleTrackFormat, SubtitleTrackMeta, SubtitleTrackOrigin, SubtitleTrackRole, Tag,
+  SpeakerSegment, SrtData, SubjectDetection, Subtitle, SubtitleCue, SubtitleCueKind,
+  SubtitleMeta, SubtitleTrack, SubtitleTrackFormat, SubtitleTrackMeta, SubtitleTrackOrigin,
+  SubtitleTrackRole, Tag,
   TagConfidence, TextDetection, Timecode, TimedDetection, TrackClassificationType, TrackRecord,
   TrackTag, TrackTime, TrackTimeSource, UpdateAnnotationRequest, UpdateAnnotationResponse, Video,
   VideoFormat, VideoMeta, VideoStreamMeta, VideoTrack, VideoTrackMeta, VoiceFingerprint, Volume,
   VolumeMeta, VolumeStateChangedEvent, WatchedLocation, Word,
 };
+/// Per-format subtitle-cue payload messages — the oneof arms of
+/// [`SubtitleCue.data`](SubtitleCue).
+#[cfg(feature = "buffa")]
+pub use generated::media::v1::{AssData, AssStyle, LrcData, LrcMetadata, LrcWord, VttData};
+/// WebVTT cue-setting enums (used by [`VttData`]).
+#[cfg(feature = "buffa")]
+pub use generated::media::v1::{VttLineAlign, VttPositionAlign, VttTextAlign, VttVertical};
+/// Per-track subtitle aggregate messages — WebVTT regions / style
+/// blocks (siblings of [`VttData`]).
+#[cfg(feature = "buffa")]
+pub use generated::media::v1::{VttRegion, VttStyleBlock};

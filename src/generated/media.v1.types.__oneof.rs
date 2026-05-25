@@ -153,6 +153,84 @@ pub mod subtitle_track_origin {
         }
     }
 }
+pub mod subtitle_cue {
+    #[allow(unused_imports)]
+    use super::*;
+    #[derive(Clone, PartialEq, Debug)]
+    #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
+    pub enum Data {
+        Srt(::buffa::alloc::boxed::Box<super::super::super::SrtData>),
+        Vtt(::buffa::alloc::boxed::Box<super::super::super::VttData>),
+        Ass(::buffa::alloc::boxed::Box<super::super::super::AssData>),
+        Lrc(::buffa::alloc::boxed::Box<super::super::super::LrcData>),
+    }
+    impl ::buffa::Oneof for Data {}
+    impl From<super::super::super::SrtData> for Data {
+        fn from(v: super::super::super::SrtData) -> Self {
+            Self::Srt(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::SrtData> for ::core::option::Option<Data> {
+        fn from(v: super::super::super::SrtData) -> Self {
+            Self::Some(Data::from(v))
+        }
+    }
+    impl From<super::super::super::VttData> for Data {
+        fn from(v: super::super::super::VttData) -> Self {
+            Self::Vtt(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::VttData> for ::core::option::Option<Data> {
+        fn from(v: super::super::super::VttData) -> Self {
+            Self::Some(Data::from(v))
+        }
+    }
+    impl From<super::super::super::AssData> for Data {
+        fn from(v: super::super::super::AssData) -> Self {
+            Self::Ass(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::AssData> for ::core::option::Option<Data> {
+        fn from(v: super::super::super::AssData) -> Self {
+            Self::Some(Data::from(v))
+        }
+    }
+    impl From<super::super::super::LrcData> for Data {
+        fn from(v: super::super::super::LrcData) -> Self {
+            Self::Lrc(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::LrcData> for ::core::option::Option<Data> {
+        fn from(v: super::super::super::LrcData) -> Self {
+            Self::Some(Data::from(v))
+        }
+    }
+    #[cfg(feature = "json")]
+    impl serde::Serialize for Data {
+        fn serialize<S: serde::Serializer>(
+            &self,
+            s: S,
+        ) -> ::core::result::Result<S::Ok, S::Error> {
+            use serde::ser::SerializeMap;
+            let mut map = s.serialize_map(Some(1))?;
+            match self {
+                Self::Srt(v) => {
+                    map.serialize_entry("srt", v)?;
+                }
+                Self::Vtt(v) => {
+                    map.serialize_entry("vtt", v)?;
+                }
+                Self::Ass(v) => {
+                    map.serialize_entry("ass", v)?;
+                }
+                Self::Lrc(v) => {
+                    map.serialize_entry("lrc", v)?;
+                }
+            }
+            map.end()
+        }
+    }
+}
 pub mod request {
     #[allow(unused_imports)]
     use super::*;

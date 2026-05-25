@@ -39,6 +39,13 @@
 //!     `domain::AudioSegment` (1:1 with the locked schema; nested
 //!     `Word` list + `LocalizedText` + `Language` +
 //!     `voice_fingerprint` all bridged).
+//!   - [`subtitle`] — polymorphic `media.v1::SubtitleCue` ⇄
+//!     `domain::SubtitleCue<Uuid7, SubtitleCueDetails<Uuid7>>` (with
+//!     per-format `SrtCue` / `VttCue` / `AssCue` / `LrcCue` infallible
+//!     encoders), plus the per-track aggregates `VttRegion`,
+//!     `VttStyleBlock`, `AssStyle`, `LrcMetadata`, and the LRC child
+//!     `LrcWord`. Wire timebase is dedup'd onto the parent
+//!     `SubtitleTrack`; decode takes a `parent_timebase` argument.
 //! - **Cross-cutting VOs**:
 //!   - [`voice_fingerprint`] — `media.v1::VoiceFingerprint` ⇄
 //!     `domain::VoiceFingerprint` and `media.v1::Provenance` ⇄
@@ -71,8 +78,9 @@
 //!   `AudioMeta`/`AudioStreamMeta`/`AudioSummary` tree that doesn't
 //!   match the locked aggregates. `AudioSegment` is bridged
 //!   independently above against its own freshly-added wire message.
-//! - `Subtitle` / `SubtitleTrack` / `SubtitleCue` — same: the wire
-//!   `Subtitle` carries pre-locked-schema cue / track fields.
+//! - `Subtitle` / `SubtitleTrack` — wire `Subtitle` / `SubtitleTrack`
+//!   carry pre-locked-schema fields; only the polymorphic `SubtitleCue`
+//!   redesign is bridged (above).
 //! - `UserTag`, `SceneAnnotation`, `IndexProgress` — no wire
 //!   counterpart at all (or a fundamentally different shape).
 //! - The capture VOs are now the published mediaframe types
@@ -99,6 +107,7 @@ pub mod media_file;
 pub mod person;
 pub mod primitives;
 pub mod speaker;
+pub mod subtitle;
 pub mod voice_fingerprint;
 pub mod watched_location;
 

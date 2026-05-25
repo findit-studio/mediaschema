@@ -851,14 +851,180 @@ message SubtitleTrack {
   optional ErrorInfo index_error = 13;
 }
 
+// Polymorphic subtitle cue — base fields plus a `data` oneof carrying the
+// per-format payload (mirrors the domain `SubtitleCue<Id, D>` shape).
+//
+// `kind` is the closed [`SubtitleCueKind`] discriminator (the per-format
+// data oneof MUST match; mismatch is rejected at the bridge). PTS only on
+// the wire — timebase lives on the parent `SubtitleTrack` (timebase-dedup).
 message SubtitleCue {
   bytes id = 1;
   bytes subtitle_track_id = 2;
-  mediatime.v1.TimeRange range = 3;
-  string text = 4;
-  string language = 5;
-  optional float confidence = 6;
-  string raw_payload = 7;
+  uint64 ordinal = 3;
+  int64 span_start_pts = 4;
+  int64 span_end_pts = 5;
+  string text = 6;
+  SubtitleCueKind kind = 7;
+  oneof data {
+    SrtData srt = 8;
+    VttData vtt = 9;
+    AssData ass = 10;
+    LrcData lrc = 11;
+  }
+}
+
+// Closed discriminator for [`SubtitleCue`]'s `data` payload. Numbering is
+// 1:1 with the domain `SubtitleCueKind` `repr(u8)` (no leading
+// `UNSPECIFIED = 0` — every value is a real format, including SRT at 0).
+enum SubtitleCueKind {
+  SUBTITLE_CUE_KIND_SRT = 0;
+  SUBTITLE_CUE_KIND_VTT = 1;
+  SUBTITLE_CUE_KIND_ASS = 2;
+  SUBTITLE_CUE_KIND_MICRO_DVD = 3;
+  SUBTITLE_CUE_KIND_SUB_VIEWER = 4;
+  SUBTITLE_CUE_KIND_SBV = 5;
+  SUBTITLE_CUE_KIND_LRC = 6;
+  SUBTITLE_CUE_KIND_TTML = 7;
+  SUBTITLE_CUE_KIND_SAMI = 8;
+  SUBTITLE_CUE_KIND_VOB_SUB = 9;
+  SUBTITLE_CUE_KIND_PGS = 10;
+  SUBTITLE_CUE_KIND_CEA_608 = 11;
+  SUBTITLE_CUE_KIND_EBU_STL = 12;
+}
+
+// SubRip unit marker — SRT has no per-format detail (text rides on the
+// base `SubtitleCue.text` field).
+message SrtData {}
+
+// WebVTT per-cue payload.
+message VttData {
+  string cue_identifier = 1;
+  optional VttVertical vertical = 2;
+  string line_value = 3;
+  optional VttLineAlign line_align = 4;
+  string position_value = 5;
+  optional VttPositionAlign position_align = 6;
+  optional float size_value = 7;
+  optional VttTextAlign text_align = 8;
+  bytes region_id = 9;
+  string voice = 10;
+  string styled_text = 11;
+}
+
+// ASS/SSA Dialogue payload.
+message AssData {
+  int32 layer = 1;
+  bytes style_id = 2;
+  string name = 3;
+  int32 margin_l = 4;
+  int32 margin_r = 5;
+  int32 margin_v = 6;
+  string effect = 7;
+  string styled_text = 8;
+}
+
+// LRC per-cue payload — `has_word_timing` flags whether companion
+// `LrcWord` rows exist for this cue.
+message LrcData {
+  bool has_word_timing = 1;
+}
+
+// One word of an LRC (Enhanced) cue (sibling rows of an LRC `SubtitleCue`).
+message LrcWord {
+  bytes subtitle_cue_id = 1;
+  uint32 ordinal = 2;
+  string text = 3;
+  int64 start_pts = 4;
+}
+
+enum VttVertical {
+  VTT_VERTICAL_LR = 0;
+  VTT_VERTICAL_RL = 1;
+}
+
+enum VttLineAlign {
+  VTT_LINE_ALIGN_START = 0;
+  VTT_LINE_ALIGN_CENTER = 1;
+  VTT_LINE_ALIGN_END = 2;
+}
+
+enum VttPositionAlign {
+  VTT_POSITION_ALIGN_START = 0;
+  VTT_POSITION_ALIGN_CENTER = 1;
+  VTT_POSITION_ALIGN_END = 2;
+  VTT_POSITION_ALIGN_LINE_LEFT = 3;
+  VTT_POSITION_ALIGN_LINE_RIGHT = 4;
+}
+
+enum VttTextAlign {
+  VTT_TEXT_ALIGN_START = 0;
+  VTT_TEXT_ALIGN_CENTER = 1;
+  VTT_TEXT_ALIGN_END = 2;
+  VTT_TEXT_ALIGN_LEFT = 3;
+  VTT_TEXT_ALIGN_RIGHT = 4;
+}
+
+// Per-track WebVTT region.
+message VttRegion {
+  bytes id = 1;
+  bytes subtitle_track_id = 2;
+  string name = 3;
+  float width = 4;
+  uint32 lines = 5;
+  float region_anchor_x = 6;
+  float region_anchor_y = 7;
+  float viewport_anchor_x = 8;
+  float viewport_anchor_y = 9;
+  bool scroll_up = 10;
+}
+
+// One WebVTT `STYLE` block of a track.
+message VttStyleBlock {
+  bytes id = 1;
+  bytes subtitle_track_id = 2;
+  uint32 ordinal = 3;
+  string css_text = 4;
+}
+
+// Per-track ASS/SSA `[V4+ Styles]` row.
+message AssStyle {
+  bytes id = 1;
+  bytes subtitle_track_id = 2;
+  string name = 3;
+  string fontname = 4;
+  float fontsize = 5;
+  uint32 primary_colour = 6;
+  uint32 secondary_colour = 7;
+  uint32 outline_colour = 8;
+  uint32 back_colour = 9;
+  bool bold = 10;
+  bool italic = 11;
+  bool underline = 12;
+  bool strikeout = 13;
+  int32 scale_x = 14;
+  int32 scale_y = 15;
+  int32 spacing = 16;
+  float angle = 17;
+  int32 border_style = 18;
+  float outline = 19;
+  float shadow = 20;
+  int32 alignment = 21;
+  int32 margin_l = 22;
+  int32 margin_r = 23;
+  int32 margin_v = 24;
+  int32 encoding = 25;
+}
+
+// Per-track LRC header metadata. 1:1 with the parent `SubtitleTrack`.
+message LrcMetadata {
+  bytes subtitle_track_id = 1;
+  string title = 2;
+  string artist = 3;
+  string album = 4;
+  string author = 5;
+  string creator = 6;
+  string length = 7;
+  int32 offset_ms = 8;
 }
 
 // ── Batch 6: Scene + VLM (§6.5 non-audio table; §6.8 #2 for SceneVlmResult) ──

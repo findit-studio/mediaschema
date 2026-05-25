@@ -71,4 +71,25 @@ pub enum BuffaError {
   /// The offending string is wrapped verbatim.
   #[error("wire Language.bcp47 is not a valid BCP-47 tag: {0:?}")]
   LanguageMalformed(smol_str::SmolStr),
+  /// Wire `SubtitleCue.kind` carried a discriminant for a format whose
+  /// payload `D` type isn't implemented in this revision (reserved for
+  /// issue #56).
+  #[error("wire SubtitleCue.kind `{0}` not yet implemented (issue #56)")]
+  UnimplementedSubtitleCueKind(i32),
+  /// Wire `SubtitleCue.data` oneof slot was unset for a `kind` that
+  /// requires a payload (the implemented kinds all carry a data arm).
+  #[error("wire SubtitleCue.data oneof is unset for kind `{0:?}`")]
+  MissingSubtitleCueData(&'static str),
+  /// Wire `SubtitleCue.kind` discriminant did not match the variant of
+  /// the `data` oneof actually present (a tampered wire frame). First
+  /// payload field is the expected `kind`, second is the actual oneof
+  /// arm name.
+  #[error("wire SubtitleCue.kind `{0}` does not match data oneof variant `{1}`")]
+  SubtitleCueKindOneofMismatch(&'static str, &'static str),
+  /// Wire `SubtitleCue` carried an integer value that didn't fit the
+  /// domain's narrower numeric type (e.g. `AssStyle.border_style` is
+  /// `i16` on the domain but `int32` on the wire). First payload is
+  /// the field name, second is the offending value.
+  #[error("wire SubtitleCue numeric field `{0}` value {1} is out of range for the domain")]
+  SubtitleNumericOutOfRange(&'static str, i32),
 }
