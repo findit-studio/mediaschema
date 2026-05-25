@@ -16,8 +16,8 @@ pub mod track;
 pub use crate::domain::vo::IndexProgress;
 pub use cue::{
   AssCue, AssData, AssStyle, CueData, LrcCue, LrcData, LrcMetadata, LrcWord, SrtCue, SrtData,
-  SubtitleCue, SubtitleCueError, SubtitleCueKind, VttCue, VttData, VttLineAlign, VttPositionAlign,
-  VttRegion, VttStyleBlock, VttTextAlign, VttVertical,
+  SubtitleCue, SubtitleCueDetails, SubtitleCueError, SubtitleCueKind, VttCue, VttData,
+  VttLineAlign, VttPositionAlign, VttRegion, VttStyleBlock, VttTextAlign, VttVertical,
 };
 pub use facet::{Subtitle, SubtitleError};
 pub use track::{SubtitleTrack, SubtitleTrackError};

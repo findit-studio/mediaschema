@@ -42,8 +42,9 @@ use mediaschema::{
   ResponseKind, RetryFailedRequest, RetryFailedResponse, SaliencyRegion, Scene, SceneMeta,
   SceneVlmResult, SearchFilter, SearchHit, SearchRequest, SearchResponse, SoundSource,
   Sp2CodegenSmoke, Sp3CodegenSmoke, SpeakerSegment, SubjectDetection, Subtitle, SubtitleCue,
-  SubtitleMeta, SubtitleTrack, SubtitleTrackFormat, SubtitleTrackMeta, SubtitleTrackOrigin,
-  SubtitleTrackOriginSource, SubtitleTrackRole, Tag, TagConfidence, TextDetection, Timecode,
+  SubtitleCueData, SubtitleCueKind, SubtitleMeta, SubtitleTrack, SubtitleTrackFormat,
+  SubtitleTrackMeta, SubtitleTrackOrigin, SubtitleTrackOriginSource, SubtitleTrackRole, Tag,
+  TagConfidence, TextDetection, Timecode, VttData,
   TimedDetection, TrackClassificationType, TrackRecord, TrackTag, TrackTime,
   UpdateAnnotationRequest, UpdateAnnotationResponse, Video, VideoFormat, VideoMeta,
   VideoStreamMeta, VideoTrack, VideoTrackMeta, Volume, VolumeMeta, VolumeStateChangedEvent,
@@ -1887,30 +1888,33 @@ fn batch5_sp2_roundtrip() {
   });
   rt(&SubtitleTrack::default());
 
-  // ── SubtitleCue: populated ───────────────────────────────────────────────
+  // ── SubtitleCue: populated (SRT shape — no data oneof needed) ────────────
   rt(&SubtitleCue {
     id: vec![0x01, 0x02].into(),
     subtitle_track_id: vec![0x03, 0x04].into(),
-    range: buffa::MessageField::some(mediatime::TimeRange::new(
-      10,
-      99,
-      mediatime::Timebase::new(30000, NonZeroU32::new(1001).unwrap()),
-    )),
+    ordinal: 7,
+    span_start_pts: 10,
+    span_end_pts: 99,
     text: "Hello world".into(),
-    language: "en".into(),
-    confidence: Some(0.9),
-    raw_payload: "raw".into(),
+    kind: buffa::EnumValue::Known(SubtitleCueKind::SUBTITLE_CUE_KIND_SRT),
+    data: None,
     ..Default::default()
   });
-  // SubtitleCue: confidence None, range none
+  // SubtitleCue: VTT shape — exercises the data oneof + per-format enum.
   rt(&SubtitleCue {
     id: vec![0x05].into(),
     subtitle_track_id: vec![0x06].into(),
-    range: buffa::MessageField::none(),
-    text: "bye".into(),
-    language: "fr".into(),
-    confidence: None,
-    raw_payload: String::new(),
+    ordinal: 1,
+    span_start_pts: 0,
+    span_end_pts: 1000,
+    text: String::new(),
+    kind: buffa::EnumValue::Known(SubtitleCueKind::SUBTITLE_CUE_KIND_VTT),
+    data: Some(SubtitleCueData::Vtt(::buffa::alloc::boxed::Box::new(
+      VttData {
+        styled_text: "<b>hi</b>".into(),
+        ..Default::default()
+      },
+    ))),
     ..Default::default()
   });
   rt(&SubtitleCue::default());

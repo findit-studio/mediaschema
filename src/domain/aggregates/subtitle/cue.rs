@@ -837,6 +837,85 @@ pub type AssCue<Id = Uuid7> = SubtitleCue<Id, AssData<Id>>;
 /// LRC cue (line- or word-level).
 pub type LrcCue<Id = Uuid7> = SubtitleCue<Id, LrcData>;
 
+// ===========================================================================
+// SubtitleCueDetails<Id> — runtime-tagged union of every implemented payload
+// ===========================================================================
+
+/// Runtime-tagged union over every implemented per-format payload.
+///
+/// `SubtitleCue<Id, D>` is open over `D` so each format keeps its own
+/// strongly-typed payload at the type level. Wire / sqlx / mongodb
+/// decoders that don't know the format at compile time decode into
+/// `SubtitleCue<Id, SubtitleCueDetails<Id>>`; callers `match` on the
+/// variant to recover the typed payload.
+///
+/// Implements [`CueData`] but the [`CueData::KIND`] constant is
+/// [`SubtitleCueKind::Srt`] — the constant is a per-type contract and
+/// is not consulted for polymorphic cues. Use [`Self::kind`] (or
+/// [`SubtitleCue::data_ref`] + [`Self::kind`]) at runtime instead.
+#[derive(Debug, Clone, PartialEq, IsVariant)]
+#[non_exhaustive]
+pub enum SubtitleCueDetails<Id = Uuid7> {
+  /// SubRip payload (unit marker).
+  Srt(SrtData),
+  /// WebVTT payload.
+  Vtt(VttData<Id>),
+  /// ASS/SSA Dialogue payload.
+  Ass(AssData<Id>),
+  /// LRC payload (line-level + word-timing flag).
+  Lrc(LrcData),
+}
+
+impl<Id> private::Sealed for SubtitleCueDetails<Id> {}
+impl<Id> CueData for SubtitleCueDetails<Id> {
+  // Placeholder — see the type-level doc; callers route through
+  // `SubtitleCueDetails::kind` at runtime.
+  const KIND: SubtitleCueKind = SubtitleCueKind::Srt;
+}
+
+impl<Id> SubtitleCueDetails<Id> {
+  /// Runtime discriminant for this payload — the one that should be
+  /// observed; the trait-level [`CueData::KIND`] is a placeholder for
+  /// the polymorphic case (see the type-level doc).
+  #[inline(always)]
+  pub const fn kind(&self) -> SubtitleCueKind {
+    match self {
+      Self::Srt(_) => SubtitleCueKind::Srt,
+      Self::Vtt(_) => SubtitleCueKind::Vtt,
+      Self::Ass(_) => SubtitleCueKind::Ass,
+      Self::Lrc(_) => SubtitleCueKind::Lrc,
+    }
+  }
+}
+
+impl<Id> From<SrtData> for SubtitleCueDetails<Id> {
+  #[inline]
+  fn from(v: SrtData) -> Self {
+    Self::Srt(v)
+  }
+}
+
+impl<Id> From<VttData<Id>> for SubtitleCueDetails<Id> {
+  #[inline]
+  fn from(v: VttData<Id>) -> Self {
+    Self::Vtt(v)
+  }
+}
+
+impl<Id> From<AssData<Id>> for SubtitleCueDetails<Id> {
+  #[inline]
+  fn from(v: AssData<Id>) -> Self {
+    Self::Ass(v)
+  }
+}
+
+impl<Id> From<LrcData> for SubtitleCueDetails<Id> {
+  #[inline]
+  fn from(v: LrcData) -> Self {
+    Self::Lrc(v)
+  }
+}
+
 impl<D> SubtitleCue<Uuid7, D> {
   /// Validating constructor for the canonical `Uuid7` identity type.
   ///

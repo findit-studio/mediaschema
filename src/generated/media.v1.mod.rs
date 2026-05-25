@@ -143,6 +143,16 @@ pub mod __buffa {
         #[cfg(feature = "json")] reg.register_json_any(super::__SUBTITLE_JSON_ANY);
         #[cfg(feature = "json")] reg.register_json_any(super::__SUBTITLE_TRACK_JSON_ANY);
         #[cfg(feature = "json")] reg.register_json_any(super::__SUBTITLE_CUE_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__SRT_DATA_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__VTT_DATA_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__ASS_DATA_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__LRC_DATA_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__LRC_WORD_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__VTT_REGION_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__VTT_STYLE_BLOCK_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__ASS_STYLE_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__LRC_METADATA_JSON_ANY);
         #[cfg(feature = "json")] reg.register_json_any(super::__SCENE_JSON_ANY);
         #[cfg(feature = "json")]
         reg.register_json_any(super::__SCENE_VLM_RESULT_JSON_ANY);
