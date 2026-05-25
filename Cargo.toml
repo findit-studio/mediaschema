@@ -138,7 +138,7 @@ serde_json = { version = "1", optional = true }
 # = false` keeps us off the `native-tls` default so no OpenSSL dep is
 # pulled. The per-driver feature (`postgres` / `mysql` / `sqlite`) is
 # selected by the `sqlx-<driver>` umbrella feature.
-sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "macros"], optional = true }
+sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "macros"], optional = true }
 # `sha2` backs the mysql-only `media_file.location_path_hash` column that
 # powers the `UNIQUE (location_volume, location_path_hash)` natural-key
 # index. mysql/InnoDB needs a fixed-width column for `UNIQUE` over
@@ -150,21 +150,21 @@ sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio",
 # direct optional dep so the `sqlx-mysql` feature owns it explicitly.
 # `default-features = false` keeps the std-only `force-soft` path off
 # (we don't need asm acceleration).
-sha2 = { version = "0.10", default-features = false, optional = true }
+sha2 = { version = "0.11", default-features = false, optional = true }
 arbitrary = { version = "1", optional = true, features = ["derive"] }
 # Optional backend: bson `Document` ↔ domain + `IndexModel` for each
-# collection. `mongodb` 3.x needs its default feature set
-# (rustls-tls + dns-resolver + the async-tokio runtime) — building
-# `default-features = false` fails to compile the crate's own client
-# module (`tokio-runtime` / `sync` are not exposed feature names in 3.x).
-# **Deviation from the original brief**: the instructions said
-# `default-features = false, features = ["tokio-runtime"]`, but
-# `tokio-runtime` is not a `mongodb` 3.x feature (the runtime is on by
-# default and not gated), so we depend on the default set instead. No
-# MSRV regression (`mongodb` 3.6.0 declares `rust-version = "1.82"`,
-# safely under our 1.95 floor).
-mongodb = { version = "3", optional = true }
-bson = { version = "2", optional = true, default-features = false, features = ["chrono-0_4"] }
+# collection. `mongodb` 3.x supports both bson 2 and bson 3 via opt-in
+# features — `default` enables `compat-3-0-0` which transitively pulls
+# bson 2. We disable defaults and explicitly enable `bson-3` (the
+# direct bson 3 dep), plus `compat-3-3-0` (mongodb's own forward-compat
+# guard — required when not on the `default` umbrella), plus `rustls-tls`
+# + `dns-resolver` (the two transport features the default would have
+# turned on, which we still need for the client surface to compile).
+# Pairs with the bson v3 direct dep below — single bson version in
+# the dependency graph. No MSRV regression (`mongodb` 3.7.0 declares
+# `rust-version = "1.82"`, safely under our 1.95 floor).
+mongodb = { version = "3", optional = true, default-features = false, features = ["compat-3-3-0", "bson-3", "rustls-tls", "dns-resolver"] }
+bson = { version = "3", optional = true, default-features = false, features = ["chrono-0_4"] }
 
 [dev-dependencies]
 serde_json = "1"
