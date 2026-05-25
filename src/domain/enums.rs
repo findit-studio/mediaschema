@@ -10,7 +10,7 @@
 //! `ScanStatus`, the coarse `*IndexStage`s, `SubtitleKind`,
 //! `AudioContentKind`) are explicitly closed per the locked spec.
 
-use derive_more::IsVariant;
+use derive_more::{Display, IsVariant};
 
 // The bitflags imports + `ErrorCode` / `ErrorInfo` are referenced only
 // by the `{Video,Audio,Subtitle}IndexStage::from_status` impl blocks
@@ -30,11 +30,34 @@ use crate::domain::{
 /// Top-level media classification. **Closed** — `kind` is set at probe and
 /// drives which facets (`Video`/`Audio`/`Subtitle`) the schema creates;
 /// pre-probe is a different lifecycle, not an `Unknown` arm here.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, IsVariant)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, IsVariant, Display)]
+#[display("{}", self.as_str())]
 pub enum MediaKind {
   #[default]
   Video,
   Audio,
+}
+
+impl MediaKind {
+  /// Stable snake_case slug — the canonical string form of every variant.
+  /// Used for `Display`, serde tags, log keys, schema-doc references.
+  #[inline(always)]
+  pub const fn as_str(&self) -> &'static str {
+    match self {
+      Self::Video => "video",
+      Self::Audio => "audio",
+    }
+  }
+  /// Inverse of [`as_str`](Self::as_str). Returns `None` for any input
+  /// that isn't an exact match of one of the slugs.
+  #[inline]
+  pub fn from_str(s: &str) -> Option<Self> {
+    Some(match s {
+      "video" => Self::Video,
+      "audio" => Self::Audio,
+      _ => return None,
+    })
+  }
 }
 
 // ===========================================================================
@@ -44,7 +67,8 @@ pub enum MediaKind {
 /// Which `scenesdetect` engine module raised a `Scene` boundary. Mirrors the
 /// 5 detection modules + a manual escape hatch. `#[non_exhaustive]` —
 /// `scenesdetect` may add detectors.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, IsVariant)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, IsVariant, Display)]
+#[display("{}", self.as_str())]
 #[non_exhaustive]
 pub enum SceneDetector {
   Histogram,
@@ -56,6 +80,35 @@ pub enum SceneDetector {
   Manual,
 }
 
+impl SceneDetector {
+  /// Stable snake_case slug — the canonical string form of every variant.
+  #[inline(always)]
+  pub const fn as_str(&self) -> &'static str {
+    match self {
+      Self::Histogram => "histogram",
+      Self::Phash => "phash",
+      Self::Threshold => "threshold",
+      Self::Content => "content",
+      Self::Adaptive => "adaptive",
+      Self::Manual => "manual",
+    }
+  }
+  /// Inverse of [`as_str`](Self::as_str). Returns `None` for any input
+  /// that isn't an exact match of one of the slugs.
+  #[inline]
+  pub fn from_str(s: &str) -> Option<Self> {
+    Some(match s {
+      "histogram" => Self::Histogram,
+      "phash" => Self::Phash,
+      "threshold" => Self::Threshold,
+      "content" => Self::Content,
+      "adaptive" => Self::Adaptive,
+      "manual" => Self::Manual,
+      _ => return None,
+    })
+  }
+}
+
 // ===========================================================================
 // KeyframeExtractor — which extractor produced a Keyframe
 // ===========================================================================
@@ -65,7 +118,8 @@ pub enum SceneDetector {
 /// the dedicated keyframe-extractor variants. `#[non_exhaustive]`.
 ///
 /// Replaces the dropped closed `KeyframeKind` (locked `enums.md` r4).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, IsVariant)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, IsVariant, Display)]
+#[display("{}", self.as_str())]
 #[non_exhaustive]
 pub enum KeyframeExtractor {
   // All SceneDetector variants — scene-boundary frames are also keyframes.
@@ -82,6 +136,46 @@ pub enum KeyframeExtractor {
   Manual,
 }
 
+impl KeyframeExtractor {
+  /// Stable snake_case slug — the canonical string form of every variant.
+  /// `IFrame` slugs to `"i_frame"` (digit-snake-case is uniform with the
+  /// rest of the codebase; `"iframe"` would be a compound-word
+  /// exception).
+  #[inline(always)]
+  pub const fn as_str(&self) -> &'static str {
+    match self {
+      Self::Histogram => "histogram",
+      Self::Phash => "phash",
+      Self::Threshold => "threshold",
+      Self::Content => "content",
+      Self::Adaptive => "adaptive",
+      Self::CompositeQuality => "composite_quality",
+      Self::Interval => "interval",
+      Self::IFrame => "i_frame",
+      Self::SceneRepresentative => "scene_representative",
+      Self::Manual => "manual",
+    }
+  }
+  /// Inverse of [`as_str`](Self::as_str). Returns `None` for any input
+  /// that isn't an exact match of one of the slugs.
+  #[inline]
+  pub fn from_str(s: &str) -> Option<Self> {
+    Some(match s {
+      "histogram" => Self::Histogram,
+      "phash" => Self::Phash,
+      "threshold" => Self::Threshold,
+      "content" => Self::Content,
+      "adaptive" => Self::Adaptive,
+      "composite_quality" => Self::CompositeQuality,
+      "interval" => Self::Interval,
+      "i_frame" => Self::IFrame,
+      "scene_representative" => Self::SceneRepresentative,
+      "manual" => Self::Manual,
+      _ => return None,
+    })
+  }
+}
+
 // ===========================================================================
 // SubtitleKind — subtitle role (a findit selection/search facet)
 // ===========================================================================
@@ -89,7 +183,8 @@ pub enum KeyframeExtractor {
 /// Subtitle role — *not* a raw stream property (those live in
 /// `::mediaframe`); a findit selection/search facet used for default-track
 /// picking and faceted UI.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, IsVariant)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, IsVariant, Display)]
+#[display("{}", self.as_str())]
 pub enum SubtitleKind {
   #[default]
   FullDialogue,
@@ -99,6 +194,29 @@ pub enum SubtitleKind {
   CommentaryText,
 }
 
+impl SubtitleKind {
+  /// Stable snake_case slug — the canonical string form of every variant.
+  #[inline(always)]
+  pub const fn as_str(&self) -> &'static str {
+    match self {
+      Self::FullDialogue => "full_dialogue",
+      Self::ForcedNarrative => "forced_narrative",
+      Self::CommentaryText => "commentary_text",
+    }
+  }
+  /// Inverse of [`as_str`](Self::as_str). Returns `None` for any input
+  /// that isn't an exact match of one of the slugs.
+  #[inline]
+  pub fn from_str(s: &str) -> Option<Self> {
+    Some(match s {
+      "full_dialogue" => Self::FullDialogue,
+      "forced_narrative" => Self::ForcedNarrative,
+      "commentary_text" => Self::CommentaryText,
+      _ => return None,
+    })
+  }
+}
+
 // ===========================================================================
 // AudioContentKind — coarse content classification (analyze stage output)
 // ===========================================================================
@@ -106,7 +224,8 @@ pub enum SubtitleKind {
 /// Coarse audio-track content classification — drives whether to
 /// transcribe/diarize this track at all. Output of the audio `CLASSIFIED`
 /// stage; **closed** vocabulary.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, IsVariant)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, IsVariant, Display)]
+#[display("{}", self.as_str())]
 pub enum AudioContentKind {
   #[default]
   Speech,
@@ -115,18 +234,67 @@ pub enum AudioContentKind {
   Silence,
 }
 
+impl AudioContentKind {
+  /// Stable snake_case slug — the canonical string form of every variant.
+  #[inline(always)]
+  pub const fn as_str(&self) -> &'static str {
+    match self {
+      Self::Speech => "speech",
+      Self::Music => "music",
+      Self::Mixed => "mixed",
+      Self::Silence => "silence",
+    }
+  }
+  /// Inverse of [`as_str`](Self::as_str). Returns `None` for any input
+  /// that isn't an exact match of one of the slugs.
+  #[inline]
+  pub fn from_str(s: &str) -> Option<Self> {
+    Some(match s {
+      "speech" => Self::Speech,
+      "music" => Self::Music,
+      "mixed" => Self::Mixed,
+      "silence" => Self::Silence,
+      _ => return None,
+    })
+  }
+}
+
 // ===========================================================================
 // ScanStatus — WatchedLocation reconcile-sweep status
 // ===========================================================================
 
 /// Status of a `WatchedLocation` reconcile sweep (bootstrap / after-downtime
 /// / volume-remount catch-up). Closed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, IsVariant)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, IsVariant, Display)]
+#[display("{}", self.as_str())]
 pub enum ScanStatus {
   #[default]
   Ok,
   Partial,
   Failed,
+}
+
+impl ScanStatus {
+  /// Stable snake_case slug — the canonical string form of every variant.
+  #[inline(always)]
+  pub const fn as_str(&self) -> &'static str {
+    match self {
+      Self::Ok => "ok",
+      Self::Partial => "partial",
+      Self::Failed => "failed",
+    }
+  }
+  /// Inverse of [`as_str`](Self::as_str). Returns `None` for any input
+  /// that isn't an exact match of one of the slugs.
+  #[inline]
+  pub fn from_str(s: &str) -> Option<Self> {
+    Some(match s {
+      "ok" => Self::Ok,
+      "partial" => Self::Partial,
+      "failed" => Self::Failed,
+      _ => return None,
+    })
+  }
 }
 
 // ===========================================================================
@@ -140,7 +308,8 @@ pub enum ScanStatus {
 /// any non-empty `index_errors` short-circuits to `Failed`; otherwise the
 /// stage advances through the locked progression matching the verified
 /// 7-bit `VideoIndexStatus`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, IsVariant)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, IsVariant, Display)]
+#[display("{}", self.as_str())]
 pub enum VideoIndexStage {
   /// No stage bits set yet.
   #[default]
@@ -159,6 +328,39 @@ pub enum VideoIndexStage {
   Done,
   /// `index_errors` non-empty (precedence over any progression).
   Failed,
+}
+
+impl VideoIndexStage {
+  /// Stable snake_case slug — the canonical string form of every variant.
+  #[inline(always)]
+  pub const fn as_str(&self) -> &'static str {
+    match self {
+      Self::Pending => "pending",
+      Self::Probed => "probed",
+      Self::SceneDetected => "scene_detected",
+      Self::KeyframeExtracted => "keyframe_extracted",
+      Self::Analyzed => "analyzed",
+      Self::Embedded => "embedded",
+      Self::Done => "done",
+      Self::Failed => "failed",
+    }
+  }
+  /// Inverse of [`as_str`](Self::as_str). Returns `None` for any input
+  /// that isn't an exact match of one of the slugs.
+  #[inline]
+  pub fn from_str(s: &str) -> Option<Self> {
+    Some(match s {
+      "pending" => Self::Pending,
+      "probed" => Self::Probed,
+      "scene_detected" => Self::SceneDetected,
+      "keyframe_extracted" => Self::KeyframeExtracted,
+      "analyzed" => Self::Analyzed,
+      "embedded" => Self::Embedded,
+      "done" => Self::Done,
+      "failed" => Self::Failed,
+      _ => return None,
+    })
+  }
 }
 
 // The stage-derivation methods take `&[ErrorInfo]`, which is itself
@@ -261,7 +463,8 @@ impl VideoIndexStage {
 ///
 /// Derived from [`AudioIndexStatus`] (the real 11-bit `ProcessingStage` from
 /// `findit-proto::database::audio`) + `index_errors`. `Failed` precedence.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, IsVariant)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, IsVariant, Display)]
+#[display("{}", self.as_str())]
 pub enum AudioIndexStage {
   #[default]
   Pending,
@@ -278,6 +481,39 @@ pub enum AudioIndexStage {
   /// All `is_fully_indexed()` bits set.
   Done,
   Failed,
+}
+
+impl AudioIndexStage {
+  /// Stable snake_case slug — the canonical string form of every variant.
+  #[inline(always)]
+  pub const fn as_str(&self) -> &'static str {
+    match self {
+      Self::Pending => "pending",
+      Self::Extracted => "extracted",
+      Self::Analyzed => "analyzed",
+      Self::Transcribed => "transcribed",
+      Self::Diarized => "diarized",
+      Self::Embedded => "embedded",
+      Self::Done => "done",
+      Self::Failed => "failed",
+    }
+  }
+  /// Inverse of [`as_str`](Self::as_str). Returns `None` for any input
+  /// that isn't an exact match of one of the slugs.
+  #[inline]
+  pub fn from_str(s: &str) -> Option<Self> {
+    Some(match s {
+      "pending" => Self::Pending,
+      "extracted" => Self::Extracted,
+      "analyzed" => Self::Analyzed,
+      "transcribed" => Self::Transcribed,
+      "diarized" => Self::Diarized,
+      "embedded" => Self::Embedded,
+      "done" => Self::Done,
+      "failed" => Self::Failed,
+      _ => return None,
+    })
+  }
 }
 
 // Alloc-gated for the same reason as `VideoIndexStage`'s impl block.
@@ -356,7 +592,8 @@ impl AudioIndexStage {
 
 /// Coarse derived stage for a `SubtitleTrack`'s indexing lifecycle. Derived
 /// from [`SubtitleIndexStatus`] + `index_errors`; `Failed` precedence.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, IsVariant)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, IsVariant, Display)]
+#[display("{}", self.as_str())]
 pub enum SubtitleIndexStage {
   #[default]
   Pending,
@@ -371,6 +608,37 @@ pub enum SubtitleIndexStage {
   /// All `is_fully_indexed()` bits set.
   Done,
   Failed,
+}
+
+impl SubtitleIndexStage {
+  /// Stable snake_case slug — the canonical string form of every variant.
+  #[inline(always)]
+  pub const fn as_str(&self) -> &'static str {
+    match self {
+      Self::Pending => "pending",
+      Self::TracksDiscovered => "tracks_discovered",
+      Self::CuesExtracted => "cues_extracted",
+      Self::Ocr => "ocr",
+      Self::SearchIndexed => "search_indexed",
+      Self::Done => "done",
+      Self::Failed => "failed",
+    }
+  }
+  /// Inverse of [`as_str`](Self::as_str). Returns `None` for any input
+  /// that isn't an exact match of one of the slugs.
+  #[inline]
+  pub fn from_str(s: &str) -> Option<Self> {
+    Some(match s {
+      "pending" => Self::Pending,
+      "tracks_discovered" => Self::TracksDiscovered,
+      "cues_extracted" => Self::CuesExtracted,
+      "ocr" => Self::Ocr,
+      "search_indexed" => Self::SearchIndexed,
+      "done" => Self::Done,
+      "failed" => Self::Failed,
+      _ => return None,
+    })
+  }
 }
 
 // Alloc-gated for the same reason as `VideoIndexStage`'s impl block.
@@ -467,6 +735,142 @@ impl SubtitleIndexStage {
 // ===========================================================================
 // Tests
 // ===========================================================================
+
+// `as_str` / `from_str` roundtrip tests — pure no-std, no heap.
+// Asserts `from_str(as_str(v)) == Some(v)` for every variant of every
+// unit-only enum in this module. The slug surface is locked here too:
+// renaming a slug is a wire/storage break, and a missing variant would
+// silently fail `Some(_)` matching.
+#[cfg(test)]
+mod slug_tests {
+  use super::*;
+
+  #[test]
+  fn media_kind_slug_roundtrip() {
+    for v in [MediaKind::Video, MediaKind::Audio] {
+      assert_eq!(MediaKind::from_str(v.as_str()), Some(v), "{v:?}");
+    }
+    assert_eq!(MediaKind::from_str("not_a_slug"), None);
+  }
+
+  #[test]
+  fn scene_detector_slug_roundtrip() {
+    for v in [
+      SceneDetector::Histogram,
+      SceneDetector::Phash,
+      SceneDetector::Threshold,
+      SceneDetector::Content,
+      SceneDetector::Adaptive,
+      SceneDetector::Manual,
+    ] {
+      assert_eq!(SceneDetector::from_str(v.as_str()), Some(v), "{v:?}");
+    }
+    assert_eq!(SceneDetector::from_str("not_a_slug"), None);
+  }
+
+  #[test]
+  fn keyframe_extractor_slug_roundtrip() {
+    for v in [
+      KeyframeExtractor::Histogram,
+      KeyframeExtractor::Phash,
+      KeyframeExtractor::Threshold,
+      KeyframeExtractor::Content,
+      KeyframeExtractor::Adaptive,
+      KeyframeExtractor::CompositeQuality,
+      KeyframeExtractor::Interval,
+      KeyframeExtractor::IFrame,
+      KeyframeExtractor::SceneRepresentative,
+      KeyframeExtractor::Manual,
+    ] {
+      assert_eq!(KeyframeExtractor::from_str(v.as_str()), Some(v), "{v:?}");
+    }
+    assert_eq!(KeyframeExtractor::from_str("iframe"), None);
+    assert_eq!(KeyframeExtractor::from_str("not_a_slug"), None);
+  }
+
+  #[test]
+  fn subtitle_kind_slug_roundtrip() {
+    for v in [
+      SubtitleKind::FullDialogue,
+      SubtitleKind::ForcedNarrative,
+      SubtitleKind::CommentaryText,
+    ] {
+      assert_eq!(SubtitleKind::from_str(v.as_str()), Some(v), "{v:?}");
+    }
+    assert_eq!(SubtitleKind::from_str("not_a_slug"), None);
+  }
+
+  #[test]
+  fn audio_content_kind_slug_roundtrip() {
+    for v in [
+      AudioContentKind::Speech,
+      AudioContentKind::Music,
+      AudioContentKind::Mixed,
+      AudioContentKind::Silence,
+    ] {
+      assert_eq!(AudioContentKind::from_str(v.as_str()), Some(v), "{v:?}");
+    }
+    assert_eq!(AudioContentKind::from_str("not_a_slug"), None);
+  }
+
+  #[test]
+  fn scan_status_slug_roundtrip() {
+    for v in [ScanStatus::Ok, ScanStatus::Partial, ScanStatus::Failed] {
+      assert_eq!(ScanStatus::from_str(v.as_str()), Some(v), "{v:?}");
+    }
+    assert_eq!(ScanStatus::from_str("not_a_slug"), None);
+  }
+
+  #[test]
+  fn video_index_stage_slug_roundtrip() {
+    for v in [
+      VideoIndexStage::Pending,
+      VideoIndexStage::Probed,
+      VideoIndexStage::SceneDetected,
+      VideoIndexStage::KeyframeExtracted,
+      VideoIndexStage::Analyzed,
+      VideoIndexStage::Embedded,
+      VideoIndexStage::Done,
+      VideoIndexStage::Failed,
+    ] {
+      assert_eq!(VideoIndexStage::from_str(v.as_str()), Some(v), "{v:?}");
+    }
+    assert_eq!(VideoIndexStage::from_str("not_a_slug"), None);
+  }
+
+  #[test]
+  fn audio_index_stage_slug_roundtrip() {
+    for v in [
+      AudioIndexStage::Pending,
+      AudioIndexStage::Extracted,
+      AudioIndexStage::Analyzed,
+      AudioIndexStage::Transcribed,
+      AudioIndexStage::Diarized,
+      AudioIndexStage::Embedded,
+      AudioIndexStage::Done,
+      AudioIndexStage::Failed,
+    ] {
+      assert_eq!(AudioIndexStage::from_str(v.as_str()), Some(v), "{v:?}");
+    }
+    assert_eq!(AudioIndexStage::from_str("not_a_slug"), None);
+  }
+
+  #[test]
+  fn subtitle_index_stage_slug_roundtrip() {
+    for v in [
+      SubtitleIndexStage::Pending,
+      SubtitleIndexStage::TracksDiscovered,
+      SubtitleIndexStage::CuesExtracted,
+      SubtitleIndexStage::Ocr,
+      SubtitleIndexStage::SearchIndexed,
+      SubtitleIndexStage::Done,
+      SubtitleIndexStage::Failed,
+    ] {
+      assert_eq!(SubtitleIndexStage::from_str(v.as_str()), Some(v), "{v:?}");
+    }
+    assert_eq!(SubtitleIndexStage::from_str("not_a_slug"), None);
+  }
+}
 
 // Tests exercise the `from_status` methods (which take `&[ErrorInfo]`)
 // and therefore need heap-tier features. Gated on `any(std, alloc)`.
