@@ -1738,7 +1738,7 @@ pub enum SubtitleCueError {
   EmptyAssStyleName,
   /// A row carried a [`SubtitleCueKind`] discriminant whose `D` payload
   /// type isn't implemented in this revision (reserved for issue #56).
-  #[error("subtitle cue kind {0:?} not yet implemented (issue #56)")]
+  #[error("subtitle cue kind `{0}` not yet implemented (issue #56)")]
   UnimplementedFormat(SubtitleCueKind),
   /// Last-resort escape hatch for descriptive text that has no
   /// structured variant.
