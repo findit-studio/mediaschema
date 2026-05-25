@@ -516,6 +516,26 @@ mod tests {
   }
 
   #[test]
+  fn nil_watched_location_id_variant_is_present_and_displays() {
+    // Defence-in-depth: `WatchedLocation::try_new` already rejects a
+    // nil `id`, so `MediaFile::try_new` cannot observe one through a
+    // sound caller. The branch (and the
+    // [`MediaFileError::NilWatchedLocationId`] variant) is kept to
+    // catch future raw constructors (`WatchedLocation::from_parts` or
+    // direct test bypass) that would skip the upstream check.
+    //
+    // We can't drive the rejecting path without a `from_parts`
+    // bypass; this test pins the variant's `Display` so a refactor
+    // that renames / removes it surfaces the breakage explicitly.
+    let e = MediaFileError::NilWatchedLocationId;
+    assert!(e.is_nil_watched_location_id());
+    assert_eq!(
+      format!("{e}"),
+      "MediaFile watched_location_id must not be the nil UUID",
+    );
+  }
+
+  #[test]
   fn try_new_rejects_cross_volume_watch() {
     // The file lives on `file_vol`; the watch monitors a *different*
     // volume — `try_new` must reject the pairing.
