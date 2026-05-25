@@ -30,10 +30,6 @@
 #[allow(unused_extern_crates)]
 extern crate alloc as std;
 
-#[cfg(feature = "buffa")]
-#[allow(unused_extern_crates)]
-extern crate std;
-
 // Wire layer (buffa-generated) is `std`-only. The codegen uses `Vec` /
 // `String` (need alloc) AND the buffa runtime utilities pull in std
 // path types — gating the whole module on `feature = "std"` is the

@@ -18,6 +18,14 @@ use crate::{
   domain::{ErrorCode, ErrorInfo, FileChecksum, Uuid7},
   generated::media::v1 as wire,
 };
+// Under `feature = "alloc"` (no std), `String` / `ToOwned` / `ToString`
+// aren't in the prelude — pull them in via the `extern crate alloc as std`
+// alias declared in `lib.rs`. Under `feature = "std"` these come from the
+// std prelude automatically; the cfg keeps the import a no-op there.
+#[cfg(all(not(feature = "std"), feature = "alloc"))]
+#[allow(unused_imports)]
+use std::{borrow::ToOwned, string::{String, ToString}};
+
 
 // ---------------------------------------------------------------------------
 // Id (wire 16-byte Bytes) ⇄ Uuid7 (domain newtype around uuid::Uuid)

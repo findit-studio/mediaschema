@@ -23,26 +23,16 @@ jobs:
       # violations under single-feature builds.
       - name: cargo hack check --each-feature
         run: cargo hack check --each-feature --no-dev-deps
-      # Representative powerset (depth 2) with two scope-reducing flags:
+      # Representative powerset (depth 2) with one scope-reducing flag:
       #
       #   --group-features sqlx-postgres,sqlx-mysql,sqlx-sqlite
       #     The three sqlx-dialect features are mutually compatible and the
       #     interesting combos are "any sqlx + buffa", "any sqlx + json",
       #     etc. Treating them as a single group keeps the matrix focused on
       #     the cross-feature surface.
-      #
-      #   --exclude-features alloc
-      #     `alloc` (no-std + alloc) is covered standalone by --each-feature
-      #     above. It's excluded from the powerset because `alloc + buffa`
-      #     is documented as an unsupported combo (per `Cargo.toml`: buffa's
-      #     wire codegen requires `std` — pair `--features buffa` with
-      #     `--features std`, not `--features alloc`). Cargo features can't
-      #     express that constraint statically, so we exclude `alloc` from
-      #     pairings instead.
       - name: cargo hack check --feature-powerset
         run: |
           cargo hack check --feature-powerset --depth 2 \
-            --exclude-features alloc \
             --group-features sqlx-postgres,sqlx-mysql,sqlx-sqlite \
             --no-dev-deps
       # Powerset tests with the same scope reduction. `--skip default`
@@ -51,6 +41,5 @@ jobs:
       - name: cargo hack test --feature-powerset
         run: |
           cargo hack test --feature-powerset --depth 2 \
-            --exclude-features alloc \
             --group-features sqlx-postgres,sqlx-mysql,sqlx-sqlite \
             --skip default

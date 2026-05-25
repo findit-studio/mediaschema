@@ -69,6 +69,14 @@ use crate::{
   domain::{aggregates::media::MediaError, ErrorInfo, FileChecksum, Media, MediaKind, Uuid7},
   generated::media::v1 as wire,
 };
+// Under `feature = "alloc"` (no std), `String` / `ToOwned` / `ToString`
+// aren't in the prelude — pull them in via the `extern crate alloc as std`
+// alias declared in `lib.rs`. Under `feature = "std"` these come from the
+// std prelude automatically; the cfg keeps the import a no-op there.
+#[cfg(all(not(feature = "std"), feature = "alloc"))]
+#[allow(unused_imports)]
+use std::{borrow::ToOwned, string::{String, ToString}};
+
 
 impl TryFrom<&wire::Media> for Media<Uuid7> {
   type Error = BuffaError;
