@@ -1,4 +1,4 @@
-# `AudioSegment<Id>` — diarization + transcript segment  *(rev 4 — LOCKED, user-approved; `speaker`→`Speaker`)*
+# `AudioSegment<Id>` — diarization + transcript segment  *(rev 5 — LOCKED, user-approved; FK renamed to `audio_track_id`, `speaker_id`)*
 
 ## Domain meaning
 
@@ -27,13 +27,14 @@ segment. Conversions deferred.
 | `audio_track_id` | `Id` | seg→track | FK → `AudioTrack.id` (**A-loc per-track**) |
 | `index` | `u32` | ordinal | 0-based segment order within the track |
 | `span` | `mediatime::TimeRange` | dia/asry | segment time span (media-time, extern) |
-| `speaker` | `Option<Id>` | `dia` | FK → `Speaker` ([speaker.md](speaker.md)); `None` = not diarized. (The raw `dia` `u32` is `Speaker.cluster_id`; voiceprint → LanceDB keyed by `Speaker.id`) |
+| `speaker_id` | `Option<Id>` | `dia` | FK → `Speaker` ([speaker.md](speaker.md)); `None` = not diarized. (The raw `dia` `u32` is `Speaker.cluster_id`; voiceprint → LanceDB keyed by `Speaker.id`) |
 | `text` | `LocalizedText` | `asry` | `{src, translated}`; `src`=`asry` transcript, `translated`=whisper-translate (**planned `asry` extension** — `""` until emitted) |
 | `language` | `Option<mediaframe::Language>` | `asry` | chunk language (`asry::Transcript.language`) |
 | `words` | `Vec<Word>` | `asry` | word-level timing+score; **may be empty** (= no word timing for this span; no `Option`) |
 | `no_speech_prob` | `Option<f32>` | `asry` | whisper silence prob (replaces the generic per-segment `confidence`) |
 | `avg_logprob` | `Option<f32>` | `asry` | whisper mean token logprob |
 | `temperature` | `Option<f32>` | `asry` | final decode temperature (retry/quality signal) |
+| `voice_fingerprint` | `Option<VoiceFingerprint<Id>>` | indexer | per-segment voice embedding extracted from this speak range — the raw extraction, *before* per-`Speaker` aggregation. Shared VO with [`Speaker`](speaker.md) / [`Person`](person.md); see [VoiceFingerprint VO](person.md#voicefingerprint-vo). `None` until the voice-embedding worker (downstream of `dia`) runs. The vector itself lives in an external **vendor-neutral** vector store (LanceDB / Qdrant / Milvus / pgvector / …) keyed by `VoiceFingerprint.vector_id` |
 
 ## Nested value-objects
 
@@ -80,12 +81,34 @@ segment. Conversions deferred.
 - **sqlx**: `audio_segment` table; `id` PK; `audio_track_id` FK → `audio_track`;
   `span`→`start_pts`/`end_pts`; `speaker_id` INTEGER; `text_src`/
   `text_translated` (derived `display_text` full-text indexed); `words` → side
-  table or JSON; quality columns. No vector column (LanceDB).
-- **mongodb**: `_id`=UUIDv7; `words` embedded array; text index on display text.
-- **graphql**: transcript (`text`/`words`/`speaker`/`span`/`language`) exposed
-  for the player; similarity = LanceDB endpoint keyed by `id` (never a field).
+  table or JSON; quality columns. No vector column (vector in external
+  store). The optional `VoiceFingerprint` is **flattened**:
+  `voice_fingerprint_vector_id` (`uuid`, **discriminator** — `NOT NULL` ⇒ the
+  rest of the `voice_fingerprint_*` columns are present),
+  `voice_fingerprint_dimensions`, `voice_fingerprint_extracted_at_ms`,
+  `voice_fingerprint_confidence`, and the four flattened
+  `voice_fingerprint_provenance_*` columns (mirrors `Speaker.voiceprint_*` and
+  `Person.voiceprint_*`).
+- **mongodb**: `_id`=UUIDv7; `words` embedded array; text index on display
+  text; `voice_fingerprint` embedded as an **optional sub-document** (same
+  shape as `Speaker.voiceprint` and `Person.voiceprint`).
+- **wire**: `voice_fingerprint` is an **additive** `optional VoiceFingerprint`
+  wire field on `AudioSegment`'s proto3 message (alongside the new shared
+  `VoiceFingerprint` and `Provenance` messages added in PR #44); the bridge
+  follows the wire-only boundary ([wire-only.md](wire-only.md)).
+- **graphql**: transcript (`text`/`words`/`speaker`/`span`/`language`)
+  exposed for the player; `voice_fingerprint` exposes the VO metadata
+  (`dimensions` / `extracted_at` / `confidence` / `provenance`) but never
+  `vector_id` (opaque) and never a raw vector — similarity is a vector-store
+  endpoint keyed by `id`, never a field.
 
-**Status: LOCKED (rev 3) — user-approved.** A-loc=per-track
+**Status: drafted (rev 4) — pending user review.** *(rev 4: added
+`voice_fingerprint: Option<VoiceFingerprint>` — the per-segment raw
+extraction that feeds per-`Speaker` and per-`Person` aggregation. Domain code
+landed across PRs #40-44; this rev catches the doc up. Mechanical `LanceDB`
+→ vendor-neutral external vector store rephrase in projection notes.)*
+
+*(rev 3)* A-loc=per-track
 (`parent→AudioTrack.id`); A-agg unified (reconciled `dia`⋈`asry`); A-name
 `segments`; **A-spk rev 3: `speaker: Option<Id>` → `Speaker`** ([speaker.md](speaker.md),
 promoted future→now — user-authorized reopen of r2); Words first-class; `text`
