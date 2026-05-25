@@ -187,11 +187,15 @@ pub use generated::media::v1::{
 /// Per-format subtitle-cue payload messages — the oneof arms of
 /// [`SubtitleCue.data`](SubtitleCue).
 #[cfg(feature = "buffa")]
-pub use generated::media::v1::{AssData, AssStyle, LrcData, LrcMetadata, LrcWord, VttData};
+pub use generated::media::v1::{
+  AssData, AssStyle, LrcData, LrcMetadata, LrcWord, MicroDvdData, SamiData, SbvData, SubViewerData,
+  TtmlData, VttData,
+};
 /// WebVTT cue-setting enums (used by [`VttData`]).
 #[cfg(feature = "buffa")]
 pub use generated::media::v1::{VttLineAlign, VttPositionAlign, VttTextAlign, VttVertical};
 /// Per-track subtitle aggregate messages — WebVTT regions / style
-/// blocks (siblings of [`VttData`]).
+/// blocks (siblings of [`VttData`]), plus the TTML / SAMI sibling
+/// aggregates.
 #[cfg(feature = "buffa")]
-pub use generated::media::v1::{VttRegion, VttStyleBlock};
+pub use generated::media::v1::{SamiStyle, TtmlRegion, TtmlStyle, VttRegion, VttStyleBlock};

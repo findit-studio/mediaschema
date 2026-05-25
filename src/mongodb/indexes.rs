@@ -36,6 +36,10 @@ pub enum CollectionName {
   SubtitleTrackAssStyles,
   SubtitleTrackLrcMetadata,
   SubtitleCueLrcWords,
+  SubtitleTrackTtmlRegions,
+  SubtitleTrackTtmlStyles,
+  SubtitleTrackSamiStyles,
+  SubtitleTrackVobSubPalettes,
 }
 
 impl CollectionName {
@@ -64,6 +68,10 @@ impl CollectionName {
       Self::SubtitleTrackAssStyles => "subtitle_track_ass_styles",
       Self::SubtitleTrackLrcMetadata => "subtitle_track_lrc_metadata",
       Self::SubtitleCueLrcWords => "subtitle_cue_lrc_words",
+      Self::SubtitleTrackTtmlRegions => "subtitle_track_ttml_regions",
+      Self::SubtitleTrackTtmlStyles => "subtitle_track_ttml_styles",
+      Self::SubtitleTrackSamiStyles => "subtitle_track_sami_styles",
+      Self::SubtitleTrackVobSubPalettes => "subtitle_track_vob_sub_palettes",
     }
   }
 }
@@ -344,6 +352,62 @@ pub fn subtitle_cue_lrc_word_indexes() -> Vec<IndexModel> {
   ]
 }
 
+/// `subtitle_track_ttml_regions` — per-track TTML `<region>` blocks.
+/// FK on `subtitle_track_id` + UNIQUE composite on `(subtitle_track_id,
+/// xml_id)` (TTML xml-ids are unique within a track).
+pub fn subtitle_track_ttml_region_indexes() -> Vec<IndexModel> {
+  vec![
+    index_on(
+      doc! { "subtitle_track_id": 1 },
+      "subtitle_track_ttml_regions_subtitle_track_id",
+    ),
+    unique_on(
+      doc! { "subtitle_track_id": 1, "xml_id": 1 },
+      "subtitle_track_ttml_regions_subtitle_track_id_xml_id_unique",
+    ),
+  ]
+}
+
+/// `subtitle_track_ttml_styles` — per-track TTML `<style>` blocks.
+/// Same shape as TTML regions.
+pub fn subtitle_track_ttml_style_indexes() -> Vec<IndexModel> {
+  vec![
+    index_on(
+      doc! { "subtitle_track_id": 1 },
+      "subtitle_track_ttml_styles_subtitle_track_id",
+    ),
+    unique_on(
+      doc! { "subtitle_track_id": 1, "xml_id": 1 },
+      "subtitle_track_ttml_styles_subtitle_track_id_xml_id_unique",
+    ),
+  ]
+}
+
+/// `subtitle_track_sami_styles` — per-track SAMI `<STYLE>` classes.
+/// FK on `subtitle_track_id` + UNIQUE on `(subtitle_track_id,
+/// class_name)`.
+pub fn subtitle_track_sami_style_indexes() -> Vec<IndexModel> {
+  vec![
+    index_on(
+      doc! { "subtitle_track_id": 1 },
+      "subtitle_track_sami_styles_subtitle_track_id",
+    ),
+    unique_on(
+      doc! { "subtitle_track_id": 1, "class_name": 1 },
+      "subtitle_track_sami_styles_subtitle_track_id_class_name_unique",
+    ),
+  ]
+}
+
+/// `subtitle_track_vob_sub_palettes` — per-track DVD VobSub palette
+/// rows. FK on `subtitle_track_id`.
+pub fn subtitle_track_vob_sub_palette_indexes() -> Vec<IndexModel> {
+  vec![index_on(
+    doc! { "subtitle_track_id": 1 },
+    "subtitle_track_vob_sub_palettes_subtitle_track_id",
+  )]
+}
+
 /// Every collection + its canonical index set, in one call. Iterate
 /// this list in the deployer to create the full schema.
 pub fn all_indexes() -> Vec<(CollectionName, Vec<IndexModel>)> {
@@ -385,6 +449,22 @@ pub fn all_indexes() -> Vec<(CollectionName, Vec<IndexModel>)> {
       CollectionName::SubtitleCueLrcWords,
       subtitle_cue_lrc_word_indexes(),
     ),
+    (
+      CollectionName::SubtitleTrackTtmlRegions,
+      subtitle_track_ttml_region_indexes(),
+    ),
+    (
+      CollectionName::SubtitleTrackTtmlStyles,
+      subtitle_track_ttml_style_indexes(),
+    ),
+    (
+      CollectionName::SubtitleTrackSamiStyles,
+      subtitle_track_sami_style_indexes(),
+    ),
+    (
+      CollectionName::SubtitleTrackVobSubPalettes,
+      subtitle_track_vob_sub_palette_indexes(),
+    ),
   ]
 }
 
@@ -399,7 +479,7 @@ mod tests {
   #[test]
   fn all_indexes_covers_every_collection() {
     let v = all_indexes();
-    assert_eq!(v.len(), 22);
+    assert_eq!(v.len(), 26);
     // No collection appears twice.
     let mut names: Vec<_> = v.iter().map(|(c, _)| c.as_str()).collect();
     names.sort();

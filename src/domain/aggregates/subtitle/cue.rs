@@ -31,6 +31,7 @@
 //! has been **lifted**: a polymorphic cue's content lives in `data`,
 //! not always in `text`.
 
+use bytes::Bytes;
 use derive_more::{Display, IsVariant};
 use mediatime::TimeRange;
 use smol_str::SmolStr;
@@ -73,18 +74,19 @@ pub enum SubtitleCueKind {
   /// Synchronized Accessible Media Interchange — reserved; implementation
   /// deferred to issue #56.
   Sami = 8,
-  /// DVD VobSub bitmap — reserved; implementation deferred to issue #56.
+  /// DVD VobSub bitmap. Per-cue palette index + bitmap blob; per-track
+  /// 16-entry RGB palette aggregate.
   VobSub = 9,
-  /// Blu-ray PGS bitmap — reserved; implementation deferred to issue #56.
+  /// Blu-ray PGS bitmap. Per-cue palette bytes + bitmap blob.
   Pgs = 10,
-  /// CEA-608 line-21 captions — reserved; implementation deferred to
-  /// issue #56. The auto-derived predicate would be `is_cea_608`
-  /// (digit-snake-case); the hand-written [`Self::is_cea608`] uses
-  /// the cleaner name (`Cea608` is the canonical industry spelling and
-  /// can't be renamed away from the digit).
+  /// CEA-608 line-21 captions. The auto-derived predicate would be
+  /// `is_cea_608` (digit-snake-case); the hand-written
+  /// [`Self::is_cea608`] uses the cleaner name (`Cea608` is the
+  /// canonical industry spelling and can't be renamed away from the
+  /// digit).
   #[is_variant(ignore)]
   Cea608 = 11,
-  /// EBU STL teletext — reserved; implementation deferred to issue #56.
+  /// EBU STL teletext.
   EbuStl = 12,
 }
 
@@ -128,12 +130,27 @@ impl SubtitleCueKind {
     })
   }
 
-  /// True when the kind has been implemented in this revision (`Srt`,
-  /// `Vtt`, `Ass`, `Lrc`). All other variants are reserved discriminants
-  /// awaiting issue #56.
+  /// True when the kind has been implemented in this revision. All 13
+  /// formats are now implemented; the predicate is kept for symmetry
+  /// with future additions.
   #[inline(always)]
   pub const fn is_implemented(self) -> bool {
-    matches!(self, Self::Srt | Self::Vtt | Self::Ass | Self::Lrc)
+    matches!(
+      self,
+      Self::Srt
+        | Self::Vtt
+        | Self::Ass
+        | Self::Lrc
+        | Self::MicroDvd
+        | Self::SubViewer
+        | Self::Sbv
+        | Self::Ttml
+        | Self::Sami
+        | Self::VobSub
+        | Self::Pgs
+        | Self::Cea608
+        | Self::EbuStl,
+    )
   }
 
   /// Stable snake_case slug — the canonical string form of every variant.
@@ -810,6 +827,687 @@ impl LrcData {
 }
 
 // ===========================================================================
+// MicroDvdData — inline `{y:i}` style codes
+// ===========================================================================
+
+/// MicroDVD per-cue payload. `styled_text` carries the inline frame-
+/// based MicroDVD codes (`{y:i}`, `{c:$00FF00}`, …) verbatim; the
+/// plain text rides on the base `SubtitleCue.text`.
+///
+/// MicroDVD has no per-track aggregate.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
+pub struct MicroDvdData {
+  styled_text: SmolStr,
+}
+
+impl private::Sealed for MicroDvdData {}
+impl CueData for MicroDvdData {
+  const KIND: SubtitleCueKind = SubtitleCueKind::MicroDvd;
+}
+
+impl MicroDvdData {
+  /// Construct a MicroDVD payload with the given styled-text body
+  /// (may be empty).
+  #[inline]
+  pub fn new(styled_text: impl Into<SmolStr>) -> Self {
+    Self {
+      styled_text: styled_text.into(),
+    }
+  }
+
+  #[inline(always)]
+  pub fn styled_text(&self) -> &str {
+    self.styled_text.as_str()
+  }
+
+  #[must_use]
+  #[inline(always)]
+  pub fn with_styled_text(mut self, v: impl Into<SmolStr>) -> Self {
+    self.styled_text = v.into();
+    self
+  }
+}
+
+// ===========================================================================
+// SubViewerData — `[br]`/`[b]`/`[i]`/`[u]` inline tags
+// ===========================================================================
+
+/// SubViewer per-cue payload. `styled_text` carries the SubViewer
+/// inline-tag body (`[br]`, `[b]`, `[i]`, `[u]`, `{y:i}` colour codes)
+/// verbatim; plain text rides on the base `SubtitleCue.text`.
+///
+/// SubViewer has no per-track aggregate.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
+pub struct SubViewerData {
+  styled_text: SmolStr,
+}
+
+impl private::Sealed for SubViewerData {}
+impl CueData for SubViewerData {
+  const KIND: SubtitleCueKind = SubtitleCueKind::SubViewer;
+}
+
+impl SubViewerData {
+  #[inline]
+  pub fn new(styled_text: impl Into<SmolStr>) -> Self {
+    Self {
+      styled_text: styled_text.into(),
+    }
+  }
+
+  #[inline(always)]
+  pub fn styled_text(&self) -> &str {
+    self.styled_text.as_str()
+  }
+
+  #[must_use]
+  #[inline(always)]
+  pub fn with_styled_text(mut self, v: impl Into<SmolStr>) -> Self {
+    self.styled_text = v.into();
+    self
+  }
+}
+
+// ===========================================================================
+// SbvData — unit marker (YouTube Sbv has no per-format detail)
+// ===========================================================================
+
+/// YouTube SBV unit marker payload. Plain text rides on the base
+/// `SubtitleCue.text`. Stored as its own row even though empty so the
+/// dispatch surface is uniform across formats (per user spec).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
+pub struct SbvData;
+
+impl SbvData {
+  /// The single empty value.
+  #[inline(always)]
+  pub const fn new() -> Self {
+    Self
+  }
+}
+
+impl private::Sealed for SbvData {}
+impl CueData for SbvData {
+  const KIND: SubtitleCueKind = SubtitleCueKind::Sbv;
+}
+
+// ===========================================================================
+// TtmlData — XML-fragment styled text + optional region / style refs
+// ===========================================================================
+
+/// TTML (Timed Text Markup Language) per-cue payload. `styled_text`
+/// carries the inline XML fragment (`<span>` runs, `<br/>`, …) verbatim;
+/// plain text rides on the base `SubtitleCue.text`.
+///
+/// `region_id` and `style_id` are optional FKs into per-track
+/// [`TtmlRegion`] / [`TtmlStyle`] aggregates. `xml_id` is the cue's
+/// `xml:id` attribute (the parser's stable cue-identifier handle); `""`
+/// = absent (no `Option` per the empty-string-is-absent rule).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TtmlData<Id = Uuid7> {
+  region_id: Option<Id>,
+  style_id: Option<Id>,
+  xml_id: SmolStr,
+  styled_text: SmolStr,
+}
+
+impl<Id> private::Sealed for TtmlData<Id> {}
+impl<Id> CueData for TtmlData<Id> {
+  const KIND: SubtitleCueKind = SubtitleCueKind::Ttml;
+}
+
+impl<Id> Default for TtmlData<Id> {
+  fn default() -> Self {
+    Self::new()
+  }
+}
+
+impl<Id> TtmlData<Id> {
+  /// All-empty / all-absent value.
+  #[inline]
+  pub fn new() -> Self {
+    Self {
+      region_id: None,
+      style_id: None,
+      xml_id: SmolStr::new_inline(""),
+      styled_text: SmolStr::new_inline(""),
+    }
+  }
+
+  #[inline(always)]
+  pub const fn region_id_ref(&self) -> Option<&Id> {
+    self.region_id.as_ref()
+  }
+
+  #[inline(always)]
+  pub const fn style_id_ref(&self) -> Option<&Id> {
+    self.style_id.as_ref()
+  }
+
+  #[inline(always)]
+  pub fn xml_id(&self) -> &str {
+    self.xml_id.as_str()
+  }
+
+  #[inline(always)]
+  pub fn styled_text(&self) -> &str {
+    self.styled_text.as_str()
+  }
+
+  #[must_use]
+  #[inline]
+  pub fn with_region_id(mut self, v: Id) -> Self {
+    self.region_id = Some(v);
+    self
+  }
+
+  #[must_use]
+  #[inline]
+  pub fn maybe_region_id(mut self, v: Option<Id>) -> Self {
+    self.region_id = v;
+    self
+  }
+
+  #[must_use]
+  #[inline]
+  pub fn with_style_id(mut self, v: Id) -> Self {
+    self.style_id = Some(v);
+    self
+  }
+
+  #[must_use]
+  #[inline]
+  pub fn maybe_style_id(mut self, v: Option<Id>) -> Self {
+    self.style_id = v;
+    self
+  }
+
+  #[must_use]
+  #[inline]
+  pub fn with_xml_id(mut self, v: impl Into<SmolStr>) -> Self {
+    self.xml_id = v.into();
+    self
+  }
+
+  #[must_use]
+  #[inline]
+  pub fn with_styled_text(mut self, v: impl Into<SmolStr>) -> Self {
+    self.styled_text = v.into();
+    self
+  }
+}
+
+// ===========================================================================
+// SamiData — HTML-like `<SYNC>`-block payload with per-class styling
+// ===========================================================================
+
+/// SAMI (Synchronized Accessible Media Interchange) per-cue payload.
+/// `class_name` selects which per-track [`SamiStyle`] applies (e.g.
+/// `ENCC` for English captions); `styled_text` carries the inline
+/// HTML-like body of the `<SYNC>` block. Plain text rides on the base
+/// `SubtitleCue.text`.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
+pub struct SamiData {
+  class_name: SmolStr,
+  styled_text: SmolStr,
+}
+
+impl private::Sealed for SamiData {}
+impl CueData for SamiData {
+  const KIND: SubtitleCueKind = SubtitleCueKind::Sami;
+}
+
+impl SamiData {
+  #[inline]
+  pub fn new() -> Self {
+    Self::default()
+  }
+
+  #[inline(always)]
+  pub fn class_name(&self) -> &str {
+    self.class_name.as_str()
+  }
+
+  #[inline(always)]
+  pub fn styled_text(&self) -> &str {
+    self.styled_text.as_str()
+  }
+
+  #[must_use]
+  #[inline]
+  pub fn with_class_name(mut self, v: impl Into<SmolStr>) -> Self {
+    self.class_name = v.into();
+    self
+  }
+
+  #[must_use]
+  #[inline]
+  pub fn with_styled_text(mut self, v: impl Into<SmolStr>) -> Self {
+    self.styled_text = v.into();
+    self
+  }
+}
+
+// ===========================================================================
+// VobSubData — DVD VobSub bitmap payload + per-cue palette/contrast indices
+// ===========================================================================
+
+/// DVD VobSub per-cue payload. Carries the rendered bitmap blob plus
+/// per-cue rendering metadata (`width`/`height`/origin offset, the
+/// 4-entry colour/contrast indices into the per-track palette). The
+/// bitmap is run-length-encoded VobSub payload (`Bytes` to keep the
+/// raw blob exact; cheap-clone refcount).
+///
+/// `palette_id` FKs into the per-track [`VobSubPalette`] aggregate
+/// (one palette is shared by many cues on the track). The base
+/// `SubtitleCue.text` stays `""` until an OCR pipeline writes plain
+/// text into it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VobSubData<Id = Uuid7> {
+  palette_id: Id,
+  bitmap: Bytes,
+  width: u32,
+  height: u32,
+  pos_x: i32,
+  pos_y: i32,
+  color_indices: [u8; 4],
+  contrast_indices: [u8; 4],
+}
+
+impl<Id> private::Sealed for VobSubData<Id> {}
+impl<Id> CueData for VobSubData<Id> {
+  const KIND: SubtitleCueKind = SubtitleCueKind::VobSub;
+}
+
+impl<Id> VobSubData<Id> {
+  /// All-empty payload with the given (required) palette FK.
+  ///
+  /// `width`/`height`/`pos_*`/colour-indices default to `0`; the
+  /// bitmap blob defaults to empty. Use the builders to fill in.
+  #[inline]
+  pub fn new(palette_id: Id) -> Self {
+    Self {
+      palette_id,
+      bitmap: Bytes::new(),
+      width: 0,
+      height: 0,
+      pos_x: 0,
+      pos_y: 0,
+      color_indices: [0; 4],
+      contrast_indices: [0; 4],
+    }
+  }
+
+  #[inline(always)]
+  pub const fn palette_id_ref(&self) -> &Id {
+    &self.palette_id
+  }
+
+  #[inline(always)]
+  pub const fn bitmap_ref(&self) -> &Bytes {
+    &self.bitmap
+  }
+
+  #[inline(always)]
+  pub const fn width(&self) -> u32 {
+    self.width
+  }
+
+  #[inline(always)]
+  pub const fn height(&self) -> u32 {
+    self.height
+  }
+
+  #[inline(always)]
+  pub const fn pos_x(&self) -> i32 {
+    self.pos_x
+  }
+
+  #[inline(always)]
+  pub const fn pos_y(&self) -> i32 {
+    self.pos_y
+  }
+
+  #[inline(always)]
+  pub const fn color_indices(&self) -> &[u8; 4] {
+    &self.color_indices
+  }
+
+  #[inline(always)]
+  pub const fn contrast_indices(&self) -> &[u8; 4] {
+    &self.contrast_indices
+  }
+
+  #[must_use]
+  #[inline]
+  pub fn with_bitmap(mut self, v: impl Into<Bytes>) -> Self {
+    self.bitmap = v.into();
+    self
+  }
+
+  #[must_use]
+  #[inline(always)]
+  pub const fn with_width(mut self, v: u32) -> Self {
+    self.width = v;
+    self
+  }
+
+  #[must_use]
+  #[inline(always)]
+  pub const fn with_height(mut self, v: u32) -> Self {
+    self.height = v;
+    self
+  }
+
+  #[must_use]
+  #[inline(always)]
+  pub const fn with_pos(mut self, x: i32, y: i32) -> Self {
+    self.pos_x = x;
+    self.pos_y = y;
+    self
+  }
+
+  #[must_use]
+  #[inline(always)]
+  pub const fn with_color_indices(mut self, v: [u8; 4]) -> Self {
+    self.color_indices = v;
+    self
+  }
+
+  #[must_use]
+  #[inline(always)]
+  pub const fn with_contrast_indices(mut self, v: [u8; 4]) -> Self {
+    self.contrast_indices = v;
+    self
+  }
+}
+
+// ===========================================================================
+// PgsData — Blu-ray PGS bitmap payload + per-cue palette bytes
+// ===========================================================================
+
+/// Blu-ray PGS per-cue payload. Unlike VobSub, PGS embeds its palette
+/// per-cue (no per-track aggregate). Carries the raw bitmap blob, the
+/// per-cue palette bytes (`Y/Cr/Cb/A` quadruples — opaque to the schema
+/// layer), the rendered dimensions / origin offset, and the PGS
+/// `composition_state` byte (`0x00`/`0x40`/`0x80`).
+///
+/// The base `SubtitleCue.text` stays `""` until an OCR pipeline writes
+/// plain text into it.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct PgsData {
+  bitmap: Bytes,
+  width: u32,
+  height: u32,
+  pos_x: i32,
+  pos_y: i32,
+  palette_bytes: Bytes,
+  composition_state: u8,
+}
+
+impl private::Sealed for PgsData {}
+impl CueData for PgsData {
+  const KIND: SubtitleCueKind = SubtitleCueKind::Pgs;
+}
+
+impl PgsData {
+  /// All-empty payload (zero geometry, empty bitmap + palette).
+  #[inline]
+  pub fn new() -> Self {
+    Self::default()
+  }
+
+  #[inline(always)]
+  pub const fn bitmap_ref(&self) -> &Bytes {
+    &self.bitmap
+  }
+
+  #[inline(always)]
+  pub const fn palette_bytes_ref(&self) -> &Bytes {
+    &self.palette_bytes
+  }
+
+  #[inline(always)]
+  pub const fn width(&self) -> u32 {
+    self.width
+  }
+
+  #[inline(always)]
+  pub const fn height(&self) -> u32 {
+    self.height
+  }
+
+  #[inline(always)]
+  pub const fn pos_x(&self) -> i32 {
+    self.pos_x
+  }
+
+  #[inline(always)]
+  pub const fn pos_y(&self) -> i32 {
+    self.pos_y
+  }
+
+  #[inline(always)]
+  pub const fn composition_state(&self) -> u8 {
+    self.composition_state
+  }
+
+  #[must_use]
+  #[inline]
+  pub fn with_bitmap(mut self, v: impl Into<Bytes>) -> Self {
+    self.bitmap = v.into();
+    self
+  }
+
+  #[must_use]
+  #[inline]
+  pub fn with_palette_bytes(mut self, v: impl Into<Bytes>) -> Self {
+    self.palette_bytes = v.into();
+    self
+  }
+
+  #[must_use]
+  #[inline(always)]
+  pub const fn with_width(mut self, v: u32) -> Self {
+    self.width = v;
+    self
+  }
+
+  #[must_use]
+  #[inline(always)]
+  pub const fn with_height(mut self, v: u32) -> Self {
+    self.height = v;
+    self
+  }
+
+  #[must_use]
+  #[inline(always)]
+  pub const fn with_pos(mut self, x: i32, y: i32) -> Self {
+    self.pos_x = x;
+    self.pos_y = y;
+    self
+  }
+
+  #[must_use]
+  #[inline(always)]
+  pub const fn with_composition_state(mut self, v: u8) -> Self {
+    self.composition_state = v;
+    self
+  }
+}
+
+// ===========================================================================
+// Cea608Data — CEA-608 line-21 caption payload
+// ===========================================================================
+
+/// CEA-608 per-cue payload. `channel` selects the captioning channel
+/// (`1..=4` = CC1, CC2, CC3, CC4); `pac_byte_pair` holds the raw
+/// Preamble Address Code byte pair (row/colour/underline encoded);
+/// `styled_text` carries the decoded line text with any inline
+/// CEA-608 style codes preserved.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Cea608Data {
+  channel: u8,
+  pac_byte_pair: u32,
+  styled_text: SmolStr,
+}
+
+impl private::Sealed for Cea608Data {}
+impl CueData for Cea608Data {
+  const KIND: SubtitleCueKind = SubtitleCueKind::Cea608;
+}
+
+impl Cea608Data {
+  /// Validating constructor. Rejects `channel` outside `1..=4`.
+  pub fn try_new(channel: u8) -> Result<Self, SubtitleCueError> {
+    if !matches!(channel, 1..=4) {
+      return Err(SubtitleCueError::Cea608ChannelOutOfRange(channel));
+    }
+    Ok(Self {
+      channel,
+      pac_byte_pair: 0,
+      styled_text: SmolStr::new_inline(""),
+    })
+  }
+
+  #[inline(always)]
+  pub const fn channel(&self) -> u8 {
+    self.channel
+  }
+
+  #[inline(always)]
+  pub const fn pac_byte_pair(&self) -> u32 {
+    self.pac_byte_pair
+  }
+
+  #[inline(always)]
+  pub fn styled_text(&self) -> &str {
+    self.styled_text.as_str()
+  }
+
+  #[must_use]
+  #[inline(always)]
+  pub const fn with_pac_byte_pair(mut self, v: u32) -> Self {
+    self.pac_byte_pair = v;
+    self
+  }
+
+  #[must_use]
+  #[inline]
+  pub fn with_styled_text(mut self, v: impl Into<SmolStr>) -> Self {
+    self.styled_text = v.into();
+    self
+  }
+}
+
+// ===========================================================================
+// EbuStlData — EBU STL teletext payload
+// ===========================================================================
+
+/// EBU STL per-cue payload. Mirrors a TTI (Text and Timing
+/// Information) block: `subtitle_number` is the SN field, `cumulative`
+/// is the Cumulative-Subtitle flag (multi-row stacked subtitles),
+/// `vertical_pos` is the VP field (line on screen), `justification`
+/// is the JC field (`1` = left, `2` = centre, `3` = right —
+/// validated), and `styled_text` carries the decoded line with any
+/// inline STL control codes preserved.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct EbuStlData {
+  subtitle_number: u32,
+  cumulative: bool,
+  vertical_pos: i32,
+  justification: u8,
+  styled_text: SmolStr,
+}
+
+impl private::Sealed for EbuStlData {}
+impl CueData for EbuStlData {
+  const KIND: SubtitleCueKind = SubtitleCueKind::EbuStl;
+}
+
+impl EbuStlData {
+  /// Validating constructor. Rejects `justification` outside `1..=3`.
+  pub fn try_new(justification: u8) -> Result<Self, SubtitleCueError> {
+    if !matches!(justification, 1..=3) {
+      return Err(SubtitleCueError::EbuStlJustificationOutOfRange(
+        justification,
+      ));
+    }
+    Ok(Self {
+      subtitle_number: 0,
+      cumulative: false,
+      vertical_pos: 0,
+      justification,
+      styled_text: SmolStr::new_inline(""),
+    })
+  }
+
+  #[inline(always)]
+  pub const fn subtitle_number(&self) -> u32 {
+    self.subtitle_number
+  }
+
+  #[inline(always)]
+  pub const fn cumulative(&self) -> bool {
+    self.cumulative
+  }
+
+  #[inline(always)]
+  pub const fn vertical_pos(&self) -> i32 {
+    self.vertical_pos
+  }
+
+  #[inline(always)]
+  pub const fn justification(&self) -> u8 {
+    self.justification
+  }
+
+  #[inline(always)]
+  pub fn styled_text(&self) -> &str {
+    self.styled_text.as_str()
+  }
+
+  #[must_use]
+  #[inline(always)]
+  pub const fn with_subtitle_number(mut self, v: u32) -> Self {
+    self.subtitle_number = v;
+    self
+  }
+
+  #[must_use]
+  #[inline(always)]
+  pub const fn with_cumulative(mut self) -> Self {
+    self.cumulative = true;
+    self
+  }
+
+  #[must_use]
+  #[inline(always)]
+  pub const fn maybe_cumulative(mut self, v: bool) -> Self {
+    self.cumulative = v;
+    self
+  }
+
+  #[must_use]
+  #[inline(always)]
+  pub const fn with_vertical_pos(mut self, v: i32) -> Self {
+    self.vertical_pos = v;
+    self
+  }
+
+  #[must_use]
+  #[inline]
+  pub fn with_styled_text(mut self, v: impl Into<SmolStr>) -> Self {
+    self.styled_text = v.into();
+    self
+  }
+}
+
+// ===========================================================================
 // SubtitleCue<Id, D> — polymorphic base
 // ===========================================================================
 
@@ -836,6 +1534,24 @@ pub type VttCue<Id = Uuid7> = SubtitleCue<Id, VttData<Id>>;
 pub type AssCue<Id = Uuid7> = SubtitleCue<Id, AssData<Id>>;
 /// LRC cue (line- or word-level).
 pub type LrcCue<Id = Uuid7> = SubtitleCue<Id, LrcData>;
+/// MicroDVD cue (frame-based inline `{y:i}` codes).
+pub type MicroDvdCue<Id = Uuid7> = SubtitleCue<Id, MicroDvdData>;
+/// SubViewer cue (inline `[br]`/`[b]`/`[i]`/`[u]` tags).
+pub type SubViewerCue<Id = Uuid7> = SubtitleCue<Id, SubViewerData>;
+/// YouTube SBV cue (unit marker, plain-text only).
+pub type SbvCue<Id = Uuid7> = SubtitleCue<Id, SbvData>;
+/// TTML cue.
+pub type TtmlCue<Id = Uuid7> = SubtitleCue<Id, TtmlData<Id>>;
+/// SAMI cue.
+pub type SamiCue<Id = Uuid7> = SubtitleCue<Id, SamiData>;
+/// DVD VobSub bitmap cue.
+pub type VobSubCue<Id = Uuid7> = SubtitleCue<Id, VobSubData<Id>>;
+/// Blu-ray PGS bitmap cue.
+pub type PgsCue<Id = Uuid7> = SubtitleCue<Id, PgsData>;
+/// CEA-608 caption cue.
+pub type Cea608Cue<Id = Uuid7> = SubtitleCue<Id, Cea608Data>;
+/// EBU STL teletext cue.
+pub type EbuStlCue<Id = Uuid7> = SubtitleCue<Id, EbuStlData>;
 
 // ===========================================================================
 // SubtitleCueDetails<Id> — runtime-tagged union of every implemented payload
@@ -864,6 +1580,24 @@ pub enum SubtitleCueDetails<Id = Uuid7> {
   Ass(AssData<Id>),
   /// LRC payload (line-level + word-timing flag).
   Lrc(LrcData),
+  /// MicroDVD payload.
+  MicroDvd(MicroDvdData),
+  /// SubViewer payload.
+  SubViewer(SubViewerData),
+  /// YouTube SBV payload (unit marker).
+  Sbv(SbvData),
+  /// TTML payload.
+  Ttml(TtmlData<Id>),
+  /// SAMI payload.
+  Sami(SamiData),
+  /// DVD VobSub bitmap payload.
+  VobSub(VobSubData<Id>),
+  /// Blu-ray PGS bitmap payload.
+  Pgs(PgsData),
+  /// CEA-608 caption payload.
+  Cea608(Cea608Data),
+  /// EBU STL teletext payload.
+  EbuStl(EbuStlData),
 }
 
 impl<Id> private::Sealed for SubtitleCueDetails<Id> {}
@@ -884,7 +1618,51 @@ impl<Id> SubtitleCueDetails<Id> {
       Self::Vtt(_) => SubtitleCueKind::Vtt,
       Self::Ass(_) => SubtitleCueKind::Ass,
       Self::Lrc(_) => SubtitleCueKind::Lrc,
+      Self::MicroDvd(_) => SubtitleCueKind::MicroDvd,
+      Self::SubViewer(_) => SubtitleCueKind::SubViewer,
+      Self::Sbv(_) => SubtitleCueKind::Sbv,
+      Self::Ttml(_) => SubtitleCueKind::Ttml,
+      Self::Sami(_) => SubtitleCueKind::Sami,
+      Self::VobSub(_) => SubtitleCueKind::VobSub,
+      Self::Pgs(_) => SubtitleCueKind::Pgs,
+      Self::Cea608(_) => SubtitleCueKind::Cea608,
+      Self::EbuStl(_) => SubtitleCueKind::EbuStl,
     }
+  }
+}
+
+impl<Id> From<MicroDvdData> for SubtitleCueDetails<Id> {
+  #[inline]
+  fn from(v: MicroDvdData) -> Self {
+    Self::MicroDvd(v)
+  }
+}
+
+impl<Id> From<SubViewerData> for SubtitleCueDetails<Id> {
+  #[inline]
+  fn from(v: SubViewerData) -> Self {
+    Self::SubViewer(v)
+  }
+}
+
+impl<Id> From<SbvData> for SubtitleCueDetails<Id> {
+  #[inline]
+  fn from(v: SbvData) -> Self {
+    Self::Sbv(v)
+  }
+}
+
+impl<Id> From<TtmlData<Id>> for SubtitleCueDetails<Id> {
+  #[inline]
+  fn from(v: TtmlData<Id>) -> Self {
+    Self::Ttml(v)
+  }
+}
+
+impl<Id> From<SamiData> for SubtitleCueDetails<Id> {
+  #[inline]
+  fn from(v: SamiData) -> Self {
+    Self::Sami(v)
   }
 }
 
@@ -913,6 +1691,34 @@ impl<Id> From<LrcData> for SubtitleCueDetails<Id> {
   #[inline]
   fn from(v: LrcData) -> Self {
     Self::Lrc(v)
+  }
+}
+
+impl<Id> From<VobSubData<Id>> for SubtitleCueDetails<Id> {
+  #[inline]
+  fn from(v: VobSubData<Id>) -> Self {
+    Self::VobSub(v)
+  }
+}
+
+impl<Id> From<PgsData> for SubtitleCueDetails<Id> {
+  #[inline]
+  fn from(v: PgsData) -> Self {
+    Self::Pgs(v)
+  }
+}
+
+impl<Id> From<Cea608Data> for SubtitleCueDetails<Id> {
+  #[inline]
+  fn from(v: Cea608Data) -> Self {
+    Self::Cea608(v)
+  }
+}
+
+impl<Id> From<EbuStlData> for SubtitleCueDetails<Id> {
+  #[inline]
+  fn from(v: EbuStlData) -> Self {
+    Self::EbuStl(v)
   }
 }
 
@@ -1680,6 +2486,251 @@ impl<Id> AssStyle<Id> {
 }
 
 // ===========================================================================
+// TtmlRegion — per-track TTML `<region>` element
+// ===========================================================================
+
+/// Per-track TTML `<region>` element. Cues reference a region by `id`
+/// via [`TtmlData::region_id`]. The free-form `xml_attrs` carries the
+/// region's serialised XML attribute list (`tts:origin`,
+/// `tts:extent`, …) verbatim — TTML's styling vocabulary is large
+/// enough that pinning each attribute as a typed column would invent
+/// a parser; storing the raw fragment keeps the round trip lossless.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TtmlRegion<Id = Uuid7> {
+  id: Id,
+  subtitle_track_id: Id,
+  xml_id: SmolStr,
+  xml_attrs: SmolStr,
+}
+
+impl TtmlRegion<Uuid7> {
+  pub fn try_new(
+    id: Uuid7,
+    subtitle_track_id: Uuid7,
+    xml_id: impl Into<SmolStr>,
+  ) -> Result<Self, SubtitleCueError> {
+    if id.is_nil() {
+      return Err(SubtitleCueError::NilId);
+    }
+    if subtitle_track_id.is_nil() {
+      return Err(SubtitleCueError::NilSubtitleTrackId);
+    }
+    Ok(Self {
+      id,
+      subtitle_track_id,
+      xml_id: xml_id.into(),
+      xml_attrs: SmolStr::new_inline(""),
+    })
+  }
+}
+
+impl<Id> TtmlRegion<Id> {
+  #[inline(always)]
+  pub const fn id_ref(&self) -> &Id {
+    &self.id
+  }
+  #[inline(always)]
+  pub const fn subtitle_track_id_ref(&self) -> &Id {
+    &self.subtitle_track_id
+  }
+  #[inline(always)]
+  pub fn xml_id(&self) -> &str {
+    self.xml_id.as_str()
+  }
+  #[inline(always)]
+  pub fn xml_attrs(&self) -> &str {
+    self.xml_attrs.as_str()
+  }
+
+  #[must_use]
+  #[inline]
+  pub fn with_xml_attrs(mut self, v: impl Into<SmolStr>) -> Self {
+    self.xml_attrs = v.into();
+    self
+  }
+}
+
+// ===========================================================================
+// TtmlStyle — per-track TTML `<style>` element
+// ===========================================================================
+
+/// Per-track TTML `<style>` element. Cues reference a style by `id`
+/// via [`TtmlData::style_id`]. Like [`TtmlRegion`], the styling
+/// vocabulary is stored verbatim in `xml_attrs`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TtmlStyle<Id = Uuid7> {
+  id: Id,
+  subtitle_track_id: Id,
+  xml_id: SmolStr,
+  xml_attrs: SmolStr,
+}
+
+impl TtmlStyle<Uuid7> {
+  pub fn try_new(
+    id: Uuid7,
+    subtitle_track_id: Uuid7,
+    xml_id: impl Into<SmolStr>,
+  ) -> Result<Self, SubtitleCueError> {
+    if id.is_nil() {
+      return Err(SubtitleCueError::NilId);
+    }
+    if subtitle_track_id.is_nil() {
+      return Err(SubtitleCueError::NilSubtitleTrackId);
+    }
+    Ok(Self {
+      id,
+      subtitle_track_id,
+      xml_id: xml_id.into(),
+      xml_attrs: SmolStr::new_inline(""),
+    })
+  }
+}
+
+impl<Id> TtmlStyle<Id> {
+  #[inline(always)]
+  pub const fn id_ref(&self) -> &Id {
+    &self.id
+  }
+  #[inline(always)]
+  pub const fn subtitle_track_id_ref(&self) -> &Id {
+    &self.subtitle_track_id
+  }
+  #[inline(always)]
+  pub fn xml_id(&self) -> &str {
+    self.xml_id.as_str()
+  }
+  #[inline(always)]
+  pub fn xml_attrs(&self) -> &str {
+    self.xml_attrs.as_str()
+  }
+
+  #[must_use]
+  #[inline]
+  pub fn with_xml_attrs(mut self, v: impl Into<SmolStr>) -> Self {
+    self.xml_attrs = v.into();
+    self
+  }
+}
+
+// ===========================================================================
+// SamiStyle — per-track SAMI `<style>` class
+// ===========================================================================
+
+/// Per-track SAMI `<STYLE>` class. Cues reference a style by
+/// `class_name` (the SAMI selector e.g. `ENCC`); the CSS body rides
+/// in `css_text`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SamiStyle<Id = Uuid7> {
+  id: Id,
+  subtitle_track_id: Id,
+  class_name: SmolStr,
+  css_text: SmolStr,
+}
+
+impl SamiStyle<Uuid7> {
+  pub fn try_new(
+    id: Uuid7,
+    subtitle_track_id: Uuid7,
+    class_name: impl Into<SmolStr>,
+  ) -> Result<Self, SubtitleCueError> {
+    if id.is_nil() {
+      return Err(SubtitleCueError::NilId);
+    }
+    if subtitle_track_id.is_nil() {
+      return Err(SubtitleCueError::NilSubtitleTrackId);
+    }
+    Ok(Self {
+      id,
+      subtitle_track_id,
+      class_name: class_name.into(),
+      css_text: SmolStr::new_inline(""),
+    })
+  }
+}
+
+impl<Id> SamiStyle<Id> {
+  #[inline(always)]
+  pub const fn id_ref(&self) -> &Id {
+    &self.id
+  }
+  #[inline(always)]
+  pub const fn subtitle_track_id_ref(&self) -> &Id {
+    &self.subtitle_track_id
+  }
+  #[inline(always)]
+  pub fn class_name(&self) -> &str {
+    self.class_name.as_str()
+  }
+  #[inline(always)]
+  pub fn css_text(&self) -> &str {
+    self.css_text.as_str()
+  }
+
+  #[must_use]
+  #[inline]
+  pub fn with_css_text(mut self, v: impl Into<SmolStr>) -> Self {
+    self.css_text = v.into();
+    self
+  }
+}
+
+// ===========================================================================
+// VobSubPalette — per-track DVD palette aggregate (16 RGB entries)
+// ===========================================================================
+
+/// Per-track DVD VobSub palette — 16 fixed-position RGB entries. The
+/// 4-entry colour/contrast indices on a `VobSubData` cue index into
+/// these. Stored as a `[u32; 16]` where each `u32` is `0x00RRGGBB`
+/// (alpha is conveyed via the cue's contrast indices).
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct VobSubPalette<Id = Uuid7> {
+  id: Id,
+  subtitle_track_id: Id,
+  entries: [u32; 16],
+}
+
+impl VobSubPalette<Uuid7> {
+  /// Validating constructor — rejects nil id / parent track id.
+  pub fn try_new(id: Uuid7, subtitle_track_id: Uuid7) -> Result<Self, SubtitleCueError> {
+    if id.is_nil() {
+      return Err(SubtitleCueError::NilId);
+    }
+    if subtitle_track_id.is_nil() {
+      return Err(SubtitleCueError::NilSubtitleTrackId);
+    }
+    Ok(Self {
+      id,
+      subtitle_track_id,
+      entries: [0u32; 16],
+    })
+  }
+}
+
+impl<Id> VobSubPalette<Id> {
+  #[inline(always)]
+  pub const fn id_ref(&self) -> &Id {
+    &self.id
+  }
+
+  #[inline(always)]
+  pub const fn subtitle_track_id_ref(&self) -> &Id {
+    &self.subtitle_track_id
+  }
+
+  #[inline(always)]
+  pub const fn entries(&self) -> &[u32; 16] {
+    &self.entries
+  }
+
+  #[must_use]
+  #[inline(always)]
+  pub const fn with_entries(mut self, v: [u32; 16]) -> Self {
+    self.entries = v;
+    self
+  }
+}
+
+// ===========================================================================
 // LrcMetadata — per-track LRC header tags (1:1 with subtitle_track)
 // ===========================================================================
 
@@ -1815,6 +2866,12 @@ pub enum SubtitleCueError {
   /// AssStyle `name` was empty (the Style name is the parser's FK key).
   #[error("AssStyle name must be non-empty")]
   EmptyAssStyleName,
+  /// `Cea608Data.channel` was outside the valid `1..=4` range.
+  #[error("Cea608Data.channel must be 1..=4, got {0}")]
+  Cea608ChannelOutOfRange(u8),
+  /// `EbuStlData.justification` was outside the valid `1..=3` range.
+  #[error("EbuStlData.justification must be 1..=3, got {0}")]
+  EbuStlJustificationOutOfRange(u8),
   /// A row carried a [`SubtitleCueKind`] discriminant whose `D` payload
   /// type isn't implemented in this revision (reserved for issue #56).
   #[error("subtitle cue kind `{0}` not yet implemented (issue #56)")]
@@ -1862,11 +2919,15 @@ mod tests {
 
   #[test]
   fn kind_implemented_flags_match_brief() {
-    assert!(SubtitleCueKind::Srt.is_implemented());
-    assert!(SubtitleCueKind::Vtt.is_implemented());
-    assert!(SubtitleCueKind::Ass.is_implemented());
-    assert!(SubtitleCueKind::Lrc.is_implemented());
+    // All 13 formats are now implemented (issue #56 closed): 4 rev-1
+    // formats (Srt/Vtt/Ass/Lrc) + 5 text formats (MicroDvd/SubViewer/
+    // Sbv/Ttml/Sami) + 2 bitmap (VobSub/Pgs) + 2 broadcast (Cea608/
+    // EbuStl).
     for k in [
+      SubtitleCueKind::Srt,
+      SubtitleCueKind::Vtt,
+      SubtitleCueKind::Ass,
+      SubtitleCueKind::Lrc,
       SubtitleCueKind::MicroDvd,
       SubtitleCueKind::SubViewer,
       SubtitleCueKind::Sbv,
@@ -1877,7 +2938,7 @@ mod tests {
       SubtitleCueKind::Cea608,
       SubtitleCueKind::EbuStl,
     ] {
-      assert!(!k.is_implemented());
+      assert!(k.is_implemented(), "{k:?} should be implemented");
     }
   }
 
@@ -2185,5 +3246,297 @@ mod tests {
     assert_eq!(m.title(), "Song");
     assert_eq!(m.artist(), "Band");
     assert_eq!(m.offset_ms(), -500);
+  }
+
+  // ---- New text-format domain types ---------------------------------------
+
+  #[test]
+  fn micro_dvd_cue_builds_and_carries_kind() {
+    let d = MicroDvdData::new("{y:i}hi").with_styled_text("{y:b}hello");
+    let c: MicroDvdCue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      span(),
+      LocalizedText::from_src("hello"),
+      d,
+    )
+    .unwrap();
+    assert_eq!(c.kind(), SubtitleCueKind::MicroDvd);
+    assert_eq!(c.data_ref().styled_text(), "{y:b}hello");
+  }
+
+  #[test]
+  fn sub_viewer_cue_builds_and_carries_kind() {
+    let d = SubViewerData::new("[b]hi[/b][br]line 2");
+    let c: SubViewerCue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      span(),
+      LocalizedText::from_src("hi"),
+      d,
+    )
+    .unwrap();
+    assert_eq!(c.kind(), SubtitleCueKind::SubViewer);
+    assert_eq!(c.data_ref().styled_text(), "[b]hi[/b][br]line 2");
+  }
+
+  #[test]
+  fn sbv_cue_builds_and_carries_kind() {
+    let c: SbvCue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      span(),
+      LocalizedText::from_src("plain"),
+      SbvData::new(),
+    )
+    .unwrap();
+    assert_eq!(c.kind(), SubtitleCueKind::Sbv);
+  }
+
+  #[test]
+  fn ttml_cue_builds_with_region_and_style_refs() {
+    let region_id = Uuid7::new();
+    let style_id = Uuid7::new();
+    let d = TtmlData::<Uuid7>::new()
+      .with_region_id(region_id)
+      .with_style_id(style_id)
+      .with_xml_id("cue-1")
+      .with_styled_text("<span tts:color=\"red\">hi</span>");
+    let c: TtmlCue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      span(),
+      LocalizedText::from_src("hi"),
+      d,
+    )
+    .unwrap();
+    assert_eq!(c.kind(), SubtitleCueKind::Ttml);
+    assert_eq!(c.data_ref().region_id_ref(), Some(&region_id));
+    assert_eq!(c.data_ref().style_id_ref(), Some(&style_id));
+    assert_eq!(c.data_ref().xml_id(), "cue-1");
+  }
+
+  #[test]
+  fn sami_cue_builds_with_class_selector() {
+    let d = SamiData::new()
+      .with_class_name("ENCC")
+      .with_styled_text("<P><B>Hello</B></P>");
+    let c: SamiCue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      span(),
+      LocalizedText::from_src("Hello"),
+      d,
+    )
+    .unwrap();
+    assert_eq!(c.kind(), SubtitleCueKind::Sami);
+    assert_eq!(c.data_ref().class_name(), "ENCC");
+  }
+
+  #[test]
+  fn ttml_region_rejects_nil_ids() {
+    assert!(TtmlRegion::try_new(Uuid7::nil(), Uuid7::new(), "r")
+      .unwrap_err()
+      .is_nil_id());
+    assert!(TtmlRegion::try_new(Uuid7::new(), Uuid7::nil(), "r")
+      .unwrap_err()
+      .is_nil_subtitle_track_id());
+  }
+
+  #[test]
+  fn ttml_region_builders_round_trip() {
+    let r = TtmlRegion::try_new(Uuid7::new(), Uuid7::new(), "r1")
+      .unwrap()
+      .with_xml_attrs("tts:origin=\"10% 80%\" tts:extent=\"80% 20%\"");
+    assert_eq!(r.xml_id(), "r1");
+    assert!(r.xml_attrs().contains("tts:origin"));
+  }
+
+  #[test]
+  fn ttml_style_rejects_nil_ids() {
+    assert!(TtmlStyle::try_new(Uuid7::nil(), Uuid7::new(), "s")
+      .unwrap_err()
+      .is_nil_id());
+    assert!(TtmlStyle::try_new(Uuid7::new(), Uuid7::nil(), "s")
+      .unwrap_err()
+      .is_nil_subtitle_track_id());
+  }
+
+  #[test]
+  fn sami_style_rejects_nil_ids() {
+    assert!(SamiStyle::try_new(Uuid7::nil(), Uuid7::new(), "ENCC")
+      .unwrap_err()
+      .is_nil_id());
+    assert!(SamiStyle::try_new(Uuid7::new(), Uuid7::nil(), "ENCC")
+      .unwrap_err()
+      .is_nil_subtitle_track_id());
+  }
+
+  // ---- New bitmap / broadcast domain types --------------------------------
+
+  #[test]
+  fn vob_sub_cue_builds_and_carries_kind() {
+    let palette_id = Uuid7::new();
+    let d = VobSubData::<Uuid7>::new(palette_id)
+      .with_bitmap(Bytes::from_static(b"\x01\x02\x03"))
+      .with_width(720)
+      .with_height(60)
+      .with_pos(20, 540)
+      .with_color_indices([1, 2, 3, 4])
+      .with_contrast_indices([0, 0xF, 0xF, 0xF]);
+    let c: VobSubCue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      span(),
+      LocalizedText::new(),
+      d,
+    )
+    .unwrap();
+    assert_eq!(c.kind(), SubtitleCueKind::VobSub);
+    assert_eq!(c.data_ref().palette_id_ref(), &palette_id);
+    assert_eq!(c.data_ref().bitmap_ref().as_ref(), b"\x01\x02\x03");
+    assert_eq!(c.data_ref().width(), 720);
+    assert_eq!(c.data_ref().pos_x(), 20);
+    assert_eq!(c.data_ref().color_indices(), &[1, 2, 3, 4]);
+  }
+
+  #[test]
+  fn pgs_cue_builds_and_carries_kind() {
+    let d = PgsData::new()
+      .with_bitmap(Bytes::from_static(b"\xAA\xBB"))
+      .with_palette_bytes(Bytes::from_static(b"\x10\x20\x30\x40"))
+      .with_width(1920)
+      .with_height(80)
+      .with_pos(0, 920)
+      .with_composition_state(0x80);
+    let c: PgsCue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      span(),
+      LocalizedText::new(),
+      d,
+    )
+    .unwrap();
+    assert_eq!(c.kind(), SubtitleCueKind::Pgs);
+    assert_eq!(c.data_ref().bitmap_ref().as_ref(), b"\xAA\xBB");
+    assert_eq!(c.data_ref().palette_bytes_ref().as_ref(), b"\x10\x20\x30\x40");
+    assert_eq!(c.data_ref().composition_state(), 0x80);
+  }
+
+  #[test]
+  fn cea608_data_accepts_valid_channels() {
+    for ch in 1u8..=4 {
+      let d = Cea608Data::try_new(ch).unwrap();
+      assert_eq!(d.channel(), ch);
+    }
+  }
+
+  #[test]
+  fn cea608_data_rejects_zero_channel() {
+    let e = Cea608Data::try_new(0).unwrap_err();
+    assert!(matches!(e, SubtitleCueError::Cea608ChannelOutOfRange(0)));
+  }
+
+  #[test]
+  fn cea608_data_rejects_channel_above_4() {
+    let e = Cea608Data::try_new(5).unwrap_err();
+    assert!(matches!(e, SubtitleCueError::Cea608ChannelOutOfRange(5)));
+  }
+
+  #[test]
+  fn cea608_cue_builds_and_carries_kind() {
+    let d = Cea608Data::try_new(2)
+      .unwrap()
+      .with_pac_byte_pair(0x1170)
+      .with_styled_text("Caption text");
+    let c: Cea608Cue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      span(),
+      LocalizedText::from_src("Caption text"),
+      d,
+    )
+    .unwrap();
+    assert_eq!(c.kind(), SubtitleCueKind::Cea608);
+    assert_eq!(c.data_ref().channel(), 2);
+    assert_eq!(c.data_ref().pac_byte_pair(), 0x1170);
+  }
+
+  #[test]
+  fn ebu_stl_data_accepts_valid_justification() {
+    for j in 1u8..=3 {
+      let d = EbuStlData::try_new(j).unwrap();
+      assert_eq!(d.justification(), j);
+    }
+  }
+
+  #[test]
+  fn ebu_stl_data_rejects_zero_justification() {
+    let e = EbuStlData::try_new(0).unwrap_err();
+    assert!(matches!(
+      e,
+      SubtitleCueError::EbuStlJustificationOutOfRange(0)
+    ));
+  }
+
+  #[test]
+  fn ebu_stl_data_rejects_justification_above_3() {
+    let e = EbuStlData::try_new(4).unwrap_err();
+    assert!(matches!(
+      e,
+      SubtitleCueError::EbuStlJustificationOutOfRange(4)
+    ));
+  }
+
+  #[test]
+  fn ebu_stl_cue_builds_and_carries_kind() {
+    let d = EbuStlData::try_new(2)
+      .unwrap()
+      .with_subtitle_number(42)
+      .with_cumulative()
+      .with_vertical_pos(20);
+    let c: EbuStlCue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      span(),
+      LocalizedText::from_src("Hi"),
+      d,
+    )
+    .unwrap();
+    assert_eq!(c.kind(), SubtitleCueKind::EbuStl);
+    assert_eq!(c.data_ref().subtitle_number(), 42);
+    assert!(c.data_ref().cumulative());
+    assert_eq!(c.data_ref().vertical_pos(), 20);
+  }
+
+  #[test]
+  fn vob_sub_palette_rejects_nil_ids() {
+    assert!(VobSubPalette::try_new(Uuid7::nil(), Uuid7::new())
+      .unwrap_err()
+      .is_nil_id());
+    assert!(VobSubPalette::try_new(Uuid7::new(), Uuid7::nil())
+      .unwrap_err()
+      .is_nil_subtitle_track_id());
+  }
+
+  #[test]
+  fn vob_sub_palette_builders_round_trip() {
+    let mut entries = [0u32; 16];
+    entries[0] = 0x00FF0000; // red
+    entries[1] = 0x0000FF00; // green
+    let p = VobSubPalette::try_new(Uuid7::new(), Uuid7::new())
+      .unwrap()
+      .with_entries(entries);
+    assert_eq!(p.entries()[0], 0x00FF0000);
+    assert_eq!(p.entries()[1], 0x0000FF00);
   }
 }

@@ -12,9 +12,12 @@ use smol_str::SmolStr;
 use crate::domain::{
   aggregates::subtitle::{
     cue::{
-      AssCue, AssData, AssStyle, LrcCue, LrcData, LrcMetadata, LrcWord, SrtCue, SrtData,
-      SubtitleCue, SubtitleCueKind, VttCue, VttData, VttLineAlign, VttPositionAlign, VttRegion,
-      VttStyleBlock, VttTextAlign, VttVertical,
+      AssCue, AssData, AssStyle, Cea608Cue, Cea608Data, EbuStlCue, EbuStlData, LrcCue, LrcData,
+      LrcMetadata, LrcWord, MicroDvdCue, MicroDvdData, PgsCue, PgsData, SamiCue, SamiData,
+      SamiStyle, SbvCue, SbvData, SrtCue, SrtData, SubtitleCue, SubtitleCueDetails,
+      SubtitleCueKind, SubViewerCue, SubViewerData, TtmlCue, TtmlData, TtmlRegion, TtmlStyle,
+      VobSubCue, VobSubData, VobSubPalette, VttCue, VttData, VttLineAlign, VttPositionAlign,
+      VttRegion, VttStyleBlock, VttTextAlign, VttVertical,
     },
     facet::Subtitle,
     track::SubtitleTrack,
@@ -24,6 +27,8 @@ use crate::domain::{
   vo::{IndexProgress, LocalizedText},
   Uuid7,
 };
+
+use ::bytes::Bytes;
 
 use super::{error::MongoError, util::*};
 
@@ -568,6 +573,562 @@ impl TryFrom<Document> for LrcCue<Uuid7> {
   }
 }
 
+// --- MicroDVD ----------------------------------------------------------------
+
+impl From<&MicroDvdCue<Uuid7>> for Document {
+  fn from(c: &MicroDvdCue<Uuid7>) -> Self {
+    let mut d = Document::new();
+    write_base(&mut d, c, SubtitleCueKind::MicroDvd);
+    d.insert("styled_text", Bson::String(c.data_ref().styled_text().to_owned()));
+    d
+  }
+}
+
+impl TryFrom<Document> for MicroDvdCue<Uuid7> {
+  type Error = MongoError;
+  fn try_from(mut d: Document) -> Result<Self, Self::Error> {
+    let (id, st_id, ordinal, span, text) = read_base(&mut d, SubtitleCueKind::MicroDvd)?;
+    let styled_text = match take_opt(&mut d, "styled_text") {
+      Some(b) => as_smol(b, "styled_text")?,
+      None => SmolStr::default(),
+    };
+    Ok(MicroDvdCue::try_new(
+      id,
+      st_id,
+      ordinal,
+      span,
+      text,
+      MicroDvdData::new(styled_text),
+    )?)
+  }
+}
+
+// --- SubViewer ---------------------------------------------------------------
+
+impl From<&SubViewerCue<Uuid7>> for Document {
+  fn from(c: &SubViewerCue<Uuid7>) -> Self {
+    let mut d = Document::new();
+    write_base(&mut d, c, SubtitleCueKind::SubViewer);
+    d.insert("styled_text", Bson::String(c.data_ref().styled_text().to_owned()));
+    d
+  }
+}
+
+impl TryFrom<Document> for SubViewerCue<Uuid7> {
+  type Error = MongoError;
+  fn try_from(mut d: Document) -> Result<Self, Self::Error> {
+    let (id, st_id, ordinal, span, text) = read_base(&mut d, SubtitleCueKind::SubViewer)?;
+    let styled_text = match take_opt(&mut d, "styled_text") {
+      Some(b) => as_smol(b, "styled_text")?,
+      None => SmolStr::default(),
+    };
+    Ok(SubViewerCue::try_new(
+      id,
+      st_id,
+      ordinal,
+      span,
+      text,
+      SubViewerData::new(styled_text),
+    )?)
+  }
+}
+
+// --- SBV ---------------------------------------------------------------------
+
+impl From<&SbvCue<Uuid7>> for Document {
+  fn from(c: &SbvCue<Uuid7>) -> Self {
+    let mut d = Document::new();
+    write_base(&mut d, c, SubtitleCueKind::Sbv);
+    d
+  }
+}
+
+impl TryFrom<Document> for SbvCue<Uuid7> {
+  type Error = MongoError;
+  fn try_from(mut d: Document) -> Result<Self, Self::Error> {
+    let (id, st_id, ordinal, span, text) = read_base(&mut d, SubtitleCueKind::Sbv)?;
+    Ok(SbvCue::try_new(id, st_id, ordinal, span, text, SbvData::new())?)
+  }
+}
+
+// --- TTML --------------------------------------------------------------------
+
+impl From<&TtmlCue<Uuid7>> for Document {
+  fn from(c: &TtmlCue<Uuid7>) -> Self {
+    let mut d = Document::new();
+    write_base(&mut d, c, SubtitleCueKind::Ttml);
+    let t = c.data_ref();
+    if let Some(id) = t.region_id_ref() {
+      d.insert("region_id", uuid7_to_bson(*id));
+    }
+    if let Some(id) = t.style_id_ref() {
+      d.insert("style_id", uuid7_to_bson(*id));
+    }
+    d.insert("xml_id", Bson::String(t.xml_id().to_owned()));
+    d.insert("styled_text", Bson::String(t.styled_text().to_owned()));
+    d
+  }
+}
+
+impl TryFrom<Document> for TtmlCue<Uuid7> {
+  type Error = MongoError;
+  fn try_from(mut d: Document) -> Result<Self, Self::Error> {
+    let (id, st_id, ordinal, span, text) = read_base(&mut d, SubtitleCueKind::Ttml)?;
+    let region_id = match take_opt(&mut d, "region_id") {
+      Some(b) => Some(uuid7_from_bson(b, "region_id")?),
+      None => None,
+    };
+    let style_id = match take_opt(&mut d, "style_id") {
+      Some(b) => Some(uuid7_from_bson(b, "style_id")?),
+      None => None,
+    };
+    let xml_id = match take_opt(&mut d, "xml_id") {
+      Some(b) => as_smol(b, "xml_id")?,
+      None => SmolStr::default(),
+    };
+    let styled_text = match take_opt(&mut d, "styled_text") {
+      Some(b) => as_smol(b, "styled_text")?,
+      None => SmolStr::default(),
+    };
+    let data = TtmlData::<Uuid7>::new()
+      .maybe_region_id(region_id)
+      .maybe_style_id(style_id)
+      .with_xml_id(xml_id)
+      .with_styled_text(styled_text);
+    Ok(TtmlCue::try_new(id, st_id, ordinal, span, text, data)?)
+  }
+}
+
+// --- SAMI --------------------------------------------------------------------
+
+impl From<&SamiCue<Uuid7>> for Document {
+  fn from(c: &SamiCue<Uuid7>) -> Self {
+    let mut d = Document::new();
+    write_base(&mut d, c, SubtitleCueKind::Sami);
+    let s = c.data_ref();
+    d.insert("class_name", Bson::String(s.class_name().to_owned()));
+    d.insert("styled_text", Bson::String(s.styled_text().to_owned()));
+    d
+  }
+}
+
+impl TryFrom<Document> for SamiCue<Uuid7> {
+  type Error = MongoError;
+  fn try_from(mut d: Document) -> Result<Self, Self::Error> {
+    let (id, st_id, ordinal, span, text) = read_base(&mut d, SubtitleCueKind::Sami)?;
+    let class_name = match take_opt(&mut d, "class_name") {
+      Some(b) => as_smol(b, "class_name")?,
+      None => SmolStr::default(),
+    };
+    let styled_text = match take_opt(&mut d, "styled_text") {
+      Some(b) => as_smol(b, "styled_text")?,
+      None => SmolStr::default(),
+    };
+    let data = SamiData::new()
+      .with_class_name(class_name)
+      .with_styled_text(styled_text);
+    Ok(SamiCue::try_new(id, st_id, ordinal, span, text, data)?)
+  }
+}
+
+// --- VobSub ------------------------------------------------------------------
+
+fn pack_indices_i64(a: &[u8; 4]) -> i64 {
+  (a[0] as i64) | ((a[1] as i64) << 8) | ((a[2] as i64) << 16) | ((a[3] as i64) << 24)
+}
+
+fn unpack_indices_i64(n: i64) -> Result<[u8; 4], MongoError> {
+  let v = u32::try_from(n).map_err(|_| MongoError::IntOutOfRange {
+    field: SmolStr::from("vob_sub_indices"),
+    value: n,
+  })?;
+  Ok([
+    v as u8,
+    (v >> 8) as u8,
+    (v >> 16) as u8,
+    (v >> 24) as u8,
+  ])
+}
+
+fn bytes_to_bson(b: &Bytes) -> Bson {
+  Bson::Binary(::bson::Binary {
+    subtype: ::bson::spec::BinarySubtype::Generic,
+    bytes: b.to_vec(),
+  })
+}
+
+impl From<&VobSubCue<Uuid7>> for Document {
+  fn from(c: &VobSubCue<Uuid7>) -> Self {
+    let mut d = Document::new();
+    write_base(&mut d, c, SubtitleCueKind::VobSub);
+    let v = c.data_ref();
+    d.insert("palette_id", uuid7_to_bson(*v.palette_id_ref()));
+    d.insert("bitmap", bytes_to_bson(v.bitmap_ref()));
+    d.insert("width", Bson::Int64(i64::from(v.width())));
+    d.insert("height", Bson::Int64(i64::from(v.height())));
+    d.insert("pos_x", Bson::Int32(v.pos_x()));
+    d.insert("pos_y", Bson::Int32(v.pos_y()));
+    d.insert("color_indices", Bson::Int64(pack_indices_i64(v.color_indices())));
+    d.insert(
+      "contrast_indices",
+      Bson::Int64(pack_indices_i64(v.contrast_indices())),
+    );
+    d
+  }
+}
+
+impl TryFrom<Document> for VobSubCue<Uuid7> {
+  type Error = MongoError;
+  fn try_from(mut d: Document) -> Result<Self, Self::Error> {
+    let (id, st_id, ordinal, span, text) = read_base(&mut d, SubtitleCueKind::VobSub)?;
+    let palette_id = uuid7_from_bson(take(&mut d, "palette_id")?, "palette_id")?;
+    let bitmap = as_binary(take(&mut d, "bitmap")?, "bitmap")?;
+    let width = as_u32(take(&mut d, "width")?, "width")?;
+    let height = as_u32(take(&mut d, "height")?, "height")?;
+    let pos_x = as_i32(take(&mut d, "pos_x")?, "pos_x")?;
+    let pos_y = as_i32(take(&mut d, "pos_y")?, "pos_y")?;
+    let color_indices = unpack_indices_i64(as_i64(take(&mut d, "color_indices")?, "color_indices")?)?;
+    let contrast_indices = unpack_indices_i64(as_i64(
+      take(&mut d, "contrast_indices")?,
+      "contrast_indices",
+    )?)?;
+    let data = VobSubData::<Uuid7>::new(palette_id)
+      .with_bitmap(Bytes::from(bitmap))
+      .with_width(width)
+      .with_height(height)
+      .with_pos(pos_x, pos_y)
+      .with_color_indices(color_indices)
+      .with_contrast_indices(contrast_indices);
+    Ok(VobSubCue::try_new(id, st_id, ordinal, span, text, data)?)
+  }
+}
+
+// --- PGS ---------------------------------------------------------------------
+
+impl From<&PgsCue<Uuid7>> for Document {
+  fn from(c: &PgsCue<Uuid7>) -> Self {
+    let mut d = Document::new();
+    write_base(&mut d, c, SubtitleCueKind::Pgs);
+    let p = c.data_ref();
+    d.insert("bitmap", bytes_to_bson(p.bitmap_ref()));
+    d.insert("width", Bson::Int64(i64::from(p.width())));
+    d.insert("height", Bson::Int64(i64::from(p.height())));
+    d.insert("pos_x", Bson::Int32(p.pos_x()));
+    d.insert("pos_y", Bson::Int32(p.pos_y()));
+    d.insert("palette_bytes", bytes_to_bson(p.palette_bytes_ref()));
+    d.insert("composition_state", Bson::Int32(i32::from(p.composition_state())));
+    d
+  }
+}
+
+impl TryFrom<Document> for PgsCue<Uuid7> {
+  type Error = MongoError;
+  fn try_from(mut d: Document) -> Result<Self, Self::Error> {
+    let (id, st_id, ordinal, span, text) = read_base(&mut d, SubtitleCueKind::Pgs)?;
+    let bitmap = as_binary(take(&mut d, "bitmap")?, "bitmap")?;
+    let width = as_u32(take(&mut d, "width")?, "width")?;
+    let height = as_u32(take(&mut d, "height")?, "height")?;
+    let pos_x = as_i32(take(&mut d, "pos_x")?, "pos_x")?;
+    let pos_y = as_i32(take(&mut d, "pos_y")?, "pos_y")?;
+    let palette_bytes = as_binary(take(&mut d, "palette_bytes")?, "palette_bytes")?;
+    let composition_state = as_u8(take(&mut d, "composition_state")?, "composition_state")?;
+    let data = PgsData::new()
+      .with_bitmap(Bytes::from(bitmap))
+      .with_palette_bytes(Bytes::from(palette_bytes))
+      .with_width(width)
+      .with_height(height)
+      .with_pos(pos_x, pos_y)
+      .with_composition_state(composition_state);
+    Ok(PgsCue::try_new(id, st_id, ordinal, span, text, data)?)
+  }
+}
+
+// --- CEA-608 -----------------------------------------------------------------
+
+impl From<&Cea608Cue<Uuid7>> for Document {
+  fn from(c: &Cea608Cue<Uuid7>) -> Self {
+    let mut d = Document::new();
+    write_base(&mut d, c, SubtitleCueKind::Cea608);
+    let v = c.data_ref();
+    d.insert("channel", Bson::Int32(i32::from(v.channel())));
+    d.insert("pac_byte_pair", Bson::Int64(i64::from(v.pac_byte_pair())));
+    d.insert("styled_text", Bson::String(v.styled_text().to_owned()));
+    d
+  }
+}
+
+impl TryFrom<Document> for Cea608Cue<Uuid7> {
+  type Error = MongoError;
+  fn try_from(mut d: Document) -> Result<Self, Self::Error> {
+    let (id, st_id, ordinal, span, text) = read_base(&mut d, SubtitleCueKind::Cea608)?;
+    let channel = as_u8(take(&mut d, "channel")?, "channel")?;
+    let pac = as_u32(take(&mut d, "pac_byte_pair")?, "pac_byte_pair")?;
+    let styled_text = match take_opt(&mut d, "styled_text") {
+      Some(b) => as_smol(b, "styled_text")?,
+      None => SmolStr::default(),
+    };
+    let data = Cea608Data::try_new(channel)?
+      .with_pac_byte_pair(pac)
+      .with_styled_text(styled_text);
+    Ok(Cea608Cue::try_new(id, st_id, ordinal, span, text, data)?)
+  }
+}
+
+// --- EBU STL -----------------------------------------------------------------
+
+impl From<&EbuStlCue<Uuid7>> for Document {
+  fn from(c: &EbuStlCue<Uuid7>) -> Self {
+    let mut d = Document::new();
+    write_base(&mut d, c, SubtitleCueKind::EbuStl);
+    let e = c.data_ref();
+    d.insert("subtitle_number", Bson::Int64(i64::from(e.subtitle_number())));
+    d.insert("cumulative", Bson::Boolean(e.cumulative()));
+    d.insert("vertical_pos", Bson::Int32(e.vertical_pos()));
+    d.insert("justification", Bson::Int32(i32::from(e.justification())));
+    d.insert("styled_text", Bson::String(e.styled_text().to_owned()));
+    d
+  }
+}
+
+impl TryFrom<Document> for EbuStlCue<Uuid7> {
+  type Error = MongoError;
+  fn try_from(mut d: Document) -> Result<Self, Self::Error> {
+    let (id, st_id, ordinal, span, text) = read_base(&mut d, SubtitleCueKind::EbuStl)?;
+    let subtitle_number = as_u32(take(&mut d, "subtitle_number")?, "subtitle_number")?;
+    let cumulative = as_bool(take(&mut d, "cumulative")?, "cumulative")?;
+    let vertical_pos = as_i32(take(&mut d, "vertical_pos")?, "vertical_pos")?;
+    let justification = as_u8(take(&mut d, "justification")?, "justification")?;
+    let styled_text = match take_opt(&mut d, "styled_text") {
+      Some(b) => as_smol(b, "styled_text")?,
+      None => SmolStr::default(),
+    };
+    let data = EbuStlData::try_new(justification)?
+      .with_subtitle_number(subtitle_number)
+      .maybe_cumulative(cumulative)
+      .with_vertical_pos(vertical_pos)
+      .with_styled_text(styled_text);
+    Ok(EbuStlCue::try_new(id, st_id, ordinal, span, text, data)?)
+  }
+}
+
+// --- Polymorphic SubtitleCueDetails codec ------------------------------------
+
+/// Encode any polymorphic subtitle cue (typed via the runtime-tagged
+/// [`SubtitleCueDetails`] union) as a single bson `Document`. This is
+/// the single-collection write path: callers don't need to know the
+/// format at compile time. The on-document `kind` discriminator
+/// matches the per-typed `From<&XxxCue>` shape, so a typed
+/// `TryFrom<Document>` can decode back into the same kind.
+impl From<&SubtitleCue<Uuid7, SubtitleCueDetails<Uuid7>>> for Document {
+  fn from(c: &SubtitleCue<Uuid7, SubtitleCueDetails<Uuid7>>) -> Self {
+    // Build a typed cue locally then encode via the existing per-kind
+    // `From` impls — keeps the wire shape identical across the
+    // typed-write + polymorphic-write paths.
+    let id = *c.id_ref();
+    let st = *c.subtitle_track_id_ref();
+    let ord = c.ordinal();
+    let span = *c.span_ref();
+    let text = c.text_ref().clone();
+    match c.data_ref().clone() {
+      SubtitleCueDetails::Srt(d) => {
+        Document::from(&SrtCue::try_new(id, st, ord, span, text, d).expect("rebuild Srt"))
+      }
+      SubtitleCueDetails::Vtt(d) => {
+        Document::from(&VttCue::try_new(id, st, ord, span, text, d).expect("rebuild Vtt"))
+      }
+      SubtitleCueDetails::Ass(d) => {
+        Document::from(&AssCue::try_new(id, st, ord, span, text, d).expect("rebuild Ass"))
+      }
+      SubtitleCueDetails::Lrc(d) => {
+        Document::from(&LrcCue::try_new(id, st, ord, span, text, d).expect("rebuild Lrc"))
+      }
+      SubtitleCueDetails::MicroDvd(d) => Document::from(
+        &MicroDvdCue::try_new(id, st, ord, span, text, d).expect("rebuild MicroDvd"),
+      ),
+      SubtitleCueDetails::SubViewer(d) => Document::from(
+        &SubViewerCue::try_new(id, st, ord, span, text, d).expect("rebuild SubViewer"),
+      ),
+      SubtitleCueDetails::Sbv(d) => {
+        Document::from(&SbvCue::try_new(id, st, ord, span, text, d).expect("rebuild Sbv"))
+      }
+      SubtitleCueDetails::Ttml(d) => {
+        Document::from(&TtmlCue::try_new(id, st, ord, span, text, d).expect("rebuild Ttml"))
+      }
+      SubtitleCueDetails::Sami(d) => {
+        Document::from(&SamiCue::try_new(id, st, ord, span, text, d).expect("rebuild Sami"))
+      }
+      SubtitleCueDetails::VobSub(d) => {
+        Document::from(&VobSubCue::try_new(id, st, ord, span, text, d).expect("rebuild VobSub"))
+      }
+      SubtitleCueDetails::Pgs(d) => {
+        Document::from(&PgsCue::try_new(id, st, ord, span, text, d).expect("rebuild Pgs"))
+      }
+      SubtitleCueDetails::Cea608(d) => {
+        Document::from(&Cea608Cue::try_new(id, st, ord, span, text, d).expect("rebuild Cea608"))
+      }
+      SubtitleCueDetails::EbuStl(d) => {
+        Document::from(&EbuStlCue::try_new(id, st, ord, span, text, d).expect("rebuild EbuStl"))
+      }
+    }
+  }
+}
+
+/// Decode a polymorphic subtitle cue document by peeking the `kind`
+/// discriminator and dispatching to the per-format `TryFrom<Document>`
+/// impl.
+impl TryFrom<Document> for SubtitleCue<Uuid7, SubtitleCueDetails<Uuid7>> {
+  type Error = MongoError;
+
+  fn try_from(d: Document) -> Result<Self, Self::Error> {
+    let kind_i = d
+      .get_i32("kind")
+      .map_err(|_| MongoError::MissingField(SmolStr::from("kind")))?;
+    let kind = u8::try_from(kind_i)
+      .ok()
+      .and_then(SubtitleCueKind::try_from_u8)
+      .ok_or_else(|| MongoError::IntOutOfRange {
+        field: SmolStr::from("kind"),
+        value: i64::from(kind_i),
+      })?;
+    match kind {
+      SubtitleCueKind::Srt => SrtCue::<Uuid7>::try_from(d).map(promote),
+      SubtitleCueKind::Vtt => VttCue::<Uuid7>::try_from(d).map(promote),
+      SubtitleCueKind::Ass => AssCue::<Uuid7>::try_from(d).map(promote),
+      SubtitleCueKind::Lrc => LrcCue::<Uuid7>::try_from(d).map(promote),
+      SubtitleCueKind::MicroDvd => MicroDvdCue::<Uuid7>::try_from(d).map(promote),
+      SubtitleCueKind::SubViewer => SubViewerCue::<Uuid7>::try_from(d).map(promote),
+      SubtitleCueKind::Sbv => SbvCue::<Uuid7>::try_from(d).map(promote),
+      SubtitleCueKind::Ttml => TtmlCue::<Uuid7>::try_from(d).map(promote),
+      SubtitleCueKind::Sami => SamiCue::<Uuid7>::try_from(d).map(promote),
+      SubtitleCueKind::VobSub => VobSubCue::<Uuid7>::try_from(d).map(promote),
+      SubtitleCueKind::Pgs => PgsCue::<Uuid7>::try_from(d).map(promote),
+      SubtitleCueKind::Cea608 => Cea608Cue::<Uuid7>::try_from(d).map(promote),
+      SubtitleCueKind::EbuStl => EbuStlCue::<Uuid7>::try_from(d).map(promote),
+    }
+  }
+}
+
+fn promote<D>(c: SubtitleCue<Uuid7, D>) -> SubtitleCue<Uuid7, SubtitleCueDetails<Uuid7>>
+where
+  D: Clone + Into<SubtitleCueDetails<Uuid7>>,
+{
+  let id = *c.id_ref();
+  let st = *c.subtitle_track_id_ref();
+  let ord = c.ordinal();
+  let span = *c.span_ref();
+  let text = c.text_ref().clone();
+  let details: SubtitleCueDetails<Uuid7> = c.data_ref().clone().into();
+  SubtitleCue::try_new(id, st, ord, span, text, details).expect("promote")
+}
+
+// --- Per-track aggregates: TtmlRegion / TtmlStyle / SamiStyle / VobSubPalette --
+
+impl From<&TtmlRegion<Uuid7>> for Document {
+  fn from(r: &TtmlRegion<Uuid7>) -> Self {
+    let mut d = Document::new();
+    d.insert("_id", uuid7_to_bson(*r.id_ref()));
+    d.insert("subtitle_track_id", uuid7_to_bson(*r.subtitle_track_id_ref()));
+    d.insert("xml_id", Bson::String(r.xml_id().to_owned()));
+    d.insert("xml_attrs", Bson::String(r.xml_attrs().to_owned()));
+    d
+  }
+}
+
+impl TryFrom<Document> for TtmlRegion<Uuid7> {
+  type Error = MongoError;
+  fn try_from(mut d: Document) -> Result<Self, Self::Error> {
+    let id = uuid7_from_bson(take(&mut d, "_id")?, "_id")?;
+    let st_id = uuid7_from_bson(take(&mut d, "subtitle_track_id")?, "subtitle_track_id")?;
+    let xml_id = as_smol(take(&mut d, "xml_id")?, "xml_id")?;
+    let xml_attrs = match take_opt(&mut d, "xml_attrs") {
+      Some(b) => as_smol(b, "xml_attrs")?,
+      None => SmolStr::default(),
+    };
+    Ok(TtmlRegion::try_new(id, st_id, xml_id)?.with_xml_attrs(xml_attrs))
+  }
+}
+
+impl From<&TtmlStyle<Uuid7>> for Document {
+  fn from(s: &TtmlStyle<Uuid7>) -> Self {
+    let mut d = Document::new();
+    d.insert("_id", uuid7_to_bson(*s.id_ref()));
+    d.insert("subtitle_track_id", uuid7_to_bson(*s.subtitle_track_id_ref()));
+    d.insert("xml_id", Bson::String(s.xml_id().to_owned()));
+    d.insert("xml_attrs", Bson::String(s.xml_attrs().to_owned()));
+    d
+  }
+}
+
+impl TryFrom<Document> for TtmlStyle<Uuid7> {
+  type Error = MongoError;
+  fn try_from(mut d: Document) -> Result<Self, Self::Error> {
+    let id = uuid7_from_bson(take(&mut d, "_id")?, "_id")?;
+    let st_id = uuid7_from_bson(take(&mut d, "subtitle_track_id")?, "subtitle_track_id")?;
+    let xml_id = as_smol(take(&mut d, "xml_id")?, "xml_id")?;
+    let xml_attrs = match take_opt(&mut d, "xml_attrs") {
+      Some(b) => as_smol(b, "xml_attrs")?,
+      None => SmolStr::default(),
+    };
+    Ok(TtmlStyle::try_new(id, st_id, xml_id)?.with_xml_attrs(xml_attrs))
+  }
+}
+
+impl From<&SamiStyle<Uuid7>> for Document {
+  fn from(s: &SamiStyle<Uuid7>) -> Self {
+    let mut d = Document::new();
+    d.insert("_id", uuid7_to_bson(*s.id_ref()));
+    d.insert("subtitle_track_id", uuid7_to_bson(*s.subtitle_track_id_ref()));
+    d.insert("class_name", Bson::String(s.class_name().to_owned()));
+    d.insert("css_text", Bson::String(s.css_text().to_owned()));
+    d
+  }
+}
+
+impl TryFrom<Document> for SamiStyle<Uuid7> {
+  type Error = MongoError;
+  fn try_from(mut d: Document) -> Result<Self, Self::Error> {
+    let id = uuid7_from_bson(take(&mut d, "_id")?, "_id")?;
+    let st_id = uuid7_from_bson(take(&mut d, "subtitle_track_id")?, "subtitle_track_id")?;
+    let class_name = as_smol(take(&mut d, "class_name")?, "class_name")?;
+    let css_text = match take_opt(&mut d, "css_text") {
+      Some(b) => as_smol(b, "css_text")?,
+      None => SmolStr::default(),
+    };
+    Ok(SamiStyle::try_new(id, st_id, class_name)?.with_css_text(css_text))
+  }
+}
+
+impl From<&VobSubPalette<Uuid7>> for Document {
+  fn from(p: &VobSubPalette<Uuid7>) -> Self {
+    let mut d = Document::new();
+    d.insert("_id", uuid7_to_bson(*p.id_ref()));
+    d.insert("subtitle_track_id", uuid7_to_bson(*p.subtitle_track_id_ref()));
+    let entries: Vec<Bson> = p.entries().iter().map(|&v| Bson::Int64(i64::from(v))).collect();
+    d.insert("entries", Bson::Array(entries));
+    d
+  }
+}
+
+impl TryFrom<Document> for VobSubPalette<Uuid7> {
+  type Error = MongoError;
+  fn try_from(mut d: Document) -> Result<Self, Self::Error> {
+    let id = uuid7_from_bson(take(&mut d, "_id")?, "_id")?;
+    let st_id = uuid7_from_bson(take(&mut d, "subtitle_track_id")?, "subtitle_track_id")?;
+    let arr = as_array(take(&mut d, "entries")?, "entries")?;
+    if arr.len() != 16 {
+      return Err(MongoError::IntOutOfRange {
+        field: SmolStr::from("entries.len"),
+        value: i64::try_from(arr.len()).unwrap_or(i64::MAX),
+      });
+    }
+    let mut entries = [0u32; 16];
+    for (i, b) in arr.into_iter().enumerate() {
+      entries[i] = as_u32(b, "entries[i]")?;
+    }
+    Ok(VobSubPalette::try_new(id, st_id)?.with_entries(entries))
+  }
+}
+
 // --- LRC word ----------------------------------------------------------------
 
 impl From<&LrcWord<Uuid7>> for Document {
@@ -1020,5 +1581,242 @@ mod tests {
     d.insert("kind", Bson::Int32(0));
     let err = SrtCue::<Uuid7>::try_from(d).unwrap_err();
     assert!(err.is_missing_field());
+  }
+
+  // ---- Long-tail formats (#56) -------------------------------------------
+
+  #[test]
+  fn micro_dvd_cue_roundtrip() {
+    let c: MicroDvdCue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      sp(0, 500),
+      LocalizedText::from_src("hi"),
+      MicroDvdData::new("{y:b}hi"),
+    )
+    .unwrap();
+    let doc: Document = (&c).into();
+    let c2: MicroDvdCue<Uuid7> = doc.try_into().unwrap();
+    assert_eq!(c, c2);
+  }
+
+  #[test]
+  fn sub_viewer_cue_roundtrip() {
+    let c: SubViewerCue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      sp(0, 500),
+      LocalizedText::from_src("hi"),
+      SubViewerData::new("[b]hi[/b]"),
+    )
+    .unwrap();
+    let doc: Document = (&c).into();
+    let c2: SubViewerCue<Uuid7> = doc.try_into().unwrap();
+    assert_eq!(c, c2);
+  }
+
+  #[test]
+  fn sbv_cue_roundtrip() {
+    let c: SbvCue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      sp(0, 500),
+      LocalizedText::from_src("plain"),
+      SbvData::new(),
+    )
+    .unwrap();
+    let doc: Document = (&c).into();
+    let c2: SbvCue<Uuid7> = doc.try_into().unwrap();
+    assert_eq!(c, c2);
+  }
+
+  #[test]
+  fn ttml_cue_roundtrip() {
+    let region_id = Uuid7::new();
+    let style_id = Uuid7::new();
+    let d = TtmlData::<Uuid7>::new()
+      .with_region_id(region_id)
+      .with_style_id(style_id)
+      .with_xml_id("c-1")
+      .with_styled_text("<span/>");
+    let c: TtmlCue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      sp(0, 500),
+      LocalizedText::from_src("hi"),
+      d,
+    )
+    .unwrap();
+    let doc: Document = (&c).into();
+    let c2: TtmlCue<Uuid7> = doc.try_into().unwrap();
+    assert_eq!(c, c2);
+  }
+
+  #[test]
+  fn sami_cue_roundtrip() {
+    let d = SamiData::new()
+      .with_class_name("ENCC")
+      .with_styled_text("<P>Hi</P>");
+    let c: SamiCue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      sp(0, 500),
+      LocalizedText::from_src("Hi"),
+      d,
+    )
+    .unwrap();
+    let doc: Document = (&c).into();
+    let c2: SamiCue<Uuid7> = doc.try_into().unwrap();
+    assert_eq!(c, c2);
+  }
+
+  #[test]
+  fn vob_sub_cue_roundtrip() {
+    let palette_id = Uuid7::new();
+    let d = VobSubData::<Uuid7>::new(palette_id)
+      .with_bitmap(Bytes::from_static(b"\x01\x02"))
+      .with_width(720)
+      .with_height(60)
+      .with_pos(20, 540)
+      .with_color_indices([1, 2, 3, 4]);
+    let c: VobSubCue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      sp(0, 500),
+      LocalizedText::new(),
+      d,
+    )
+    .unwrap();
+    let doc: Document = (&c).into();
+    let c2: VobSubCue<Uuid7> = doc.try_into().unwrap();
+    assert_eq!(c, c2);
+  }
+
+  #[test]
+  fn pgs_cue_roundtrip() {
+    let d = PgsData::new()
+      .with_bitmap(Bytes::from_static(b"\xAA"))
+      .with_palette_bytes(Bytes::from_static(b"\x10"))
+      .with_composition_state(0x80);
+    let c: PgsCue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      sp(0, 500),
+      LocalizedText::new(),
+      d,
+    )
+    .unwrap();
+    let doc: Document = (&c).into();
+    let c2: PgsCue<Uuid7> = doc.try_into().unwrap();
+    assert_eq!(c, c2);
+  }
+
+  #[test]
+  fn cea_608_cue_roundtrip() {
+    let d = Cea608Data::try_new(2)
+      .unwrap()
+      .with_pac_byte_pair(0x1170)
+      .with_styled_text("Hi");
+    let c: Cea608Cue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      sp(0, 500),
+      LocalizedText::from_src("Hi"),
+      d,
+    )
+    .unwrap();
+    let doc: Document = (&c).into();
+    let c2: Cea608Cue<Uuid7> = doc.try_into().unwrap();
+    assert_eq!(c, c2);
+  }
+
+  #[test]
+  fn ebu_stl_cue_roundtrip() {
+    let d = EbuStlData::try_new(2)
+      .unwrap()
+      .with_subtitle_number(42)
+      .with_cumulative()
+      .with_vertical_pos(20);
+    let c: EbuStlCue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      sp(0, 500),
+      LocalizedText::from_src("Hi"),
+      d,
+    )
+    .unwrap();
+    let doc: Document = (&c).into();
+    let c2: EbuStlCue<Uuid7> = doc.try_into().unwrap();
+    assert_eq!(c, c2);
+  }
+
+  #[test]
+  fn ttml_region_roundtrip() {
+    let r = TtmlRegion::try_new(Uuid7::new(), Uuid7::new(), "r1")
+      .unwrap()
+      .with_xml_attrs("tts:origin=\"10% 80%\"");
+    let doc: Document = (&r).into();
+    let r2: TtmlRegion<Uuid7> = doc.try_into().unwrap();
+    assert_eq!(r, r2);
+  }
+
+  #[test]
+  fn ttml_style_roundtrip() {
+    let s = TtmlStyle::try_new(Uuid7::new(), Uuid7::new(), "s1")
+      .unwrap()
+      .with_xml_attrs("tts:color=\"red\"");
+    let doc: Document = (&s).into();
+    let s2: TtmlStyle<Uuid7> = doc.try_into().unwrap();
+    assert_eq!(s, s2);
+  }
+
+  #[test]
+  fn sami_style_roundtrip() {
+    let s = SamiStyle::try_new(Uuid7::new(), Uuid7::new(), "ENCC")
+      .unwrap()
+      .with_css_text("{color: yellow;}");
+    let doc: Document = (&s).into();
+    let s2: SamiStyle<Uuid7> = doc.try_into().unwrap();
+    assert_eq!(s, s2);
+  }
+
+  #[test]
+  fn vob_sub_palette_roundtrip() {
+    let mut entries = [0u32; 16];
+    entries[0] = 0x00_FF_00_00;
+    entries[5] = 0x00_00_FF_00;
+    let p = VobSubPalette::try_new(Uuid7::new(), Uuid7::new())
+      .unwrap()
+      .with_entries(entries);
+    let doc: Document = (&p).into();
+    let p2: VobSubPalette<Uuid7> = doc.try_into().unwrap();
+    assert_eq!(p, p2);
+  }
+
+  #[test]
+  fn polymorphic_cue_roundtrip_dispatches_on_kind() {
+    let style_id = Uuid7::new();
+    let inner = AssData::<Uuid7>::new(style_id).with_name("X");
+    let c: SubtitleCue<Uuid7, SubtitleCueDetails<Uuid7>> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      sp(0, 500),
+      LocalizedText::new(),
+      SubtitleCueDetails::Ass(inner),
+    )
+    .unwrap();
+    let doc: Document = (&c).into();
+    let c2: SubtitleCue<Uuid7, SubtitleCueDetails<Uuid7>> = doc.try_into().unwrap();
+    assert_eq!(c2.data_ref().kind(), SubtitleCueKind::Ass);
   }
 }

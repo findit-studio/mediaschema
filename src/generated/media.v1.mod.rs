@@ -153,6 +153,21 @@ pub mod __buffa {
         reg.register_json_any(super::__VTT_STYLE_BLOCK_JSON_ANY);
         #[cfg(feature = "json")] reg.register_json_any(super::__ASS_STYLE_JSON_ANY);
         #[cfg(feature = "json")] reg.register_json_any(super::__LRC_METADATA_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__MICRO_DVD_DATA_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__SUB_VIEWER_DATA_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__SBV_DATA_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__TTML_DATA_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__SAMI_DATA_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__TTML_REGION_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__TTML_STYLE_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__SAMI_STYLE_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__VOB_SUB_DATA_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__PGS_DATA_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__CEA608DATA_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__EBU_STL_DATA_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__VOB_SUB_PALETTE_JSON_ANY);
         #[cfg(feature = "json")] reg.register_json_any(super::__SCENE_JSON_ANY);
         #[cfg(feature = "json")]
         reg.register_json_any(super::__SCENE_VLM_RESULT_JSON_ANY);
