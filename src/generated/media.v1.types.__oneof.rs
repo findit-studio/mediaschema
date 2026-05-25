@@ -163,6 +163,15 @@ pub mod subtitle_cue {
         Vtt(::buffa::alloc::boxed::Box<super::super::super::VttData>),
         Ass(::buffa::alloc::boxed::Box<super::super::super::AssData>),
         Lrc(::buffa::alloc::boxed::Box<super::super::super::LrcData>),
+        MicroDvd(::buffa::alloc::boxed::Box<super::super::super::MicroDvdData>),
+        SubViewer(::buffa::alloc::boxed::Box<super::super::super::SubViewerData>),
+        Sbv(::buffa::alloc::boxed::Box<super::super::super::SbvData>),
+        Ttml(::buffa::alloc::boxed::Box<super::super::super::TtmlData>),
+        Sami(::buffa::alloc::boxed::Box<super::super::super::SamiData>),
+        VobSub(::buffa::alloc::boxed::Box<super::super::super::VobSubData>),
+        Pgs(::buffa::alloc::boxed::Box<super::super::super::PgsData>),
+        Cea608(::buffa::alloc::boxed::Box<super::super::super::Cea608Data>),
+        EbuStl(::buffa::alloc::boxed::Box<super::super::super::EbuStlData>),
     }
     impl ::buffa::Oneof for Data {}
     impl From<super::super::super::SrtData> for Data {
@@ -205,6 +214,96 @@ pub mod subtitle_cue {
             Self::Some(Data::from(v))
         }
     }
+    impl From<super::super::super::MicroDvdData> for Data {
+        fn from(v: super::super::super::MicroDvdData) -> Self {
+            Self::MicroDvd(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::MicroDvdData> for ::core::option::Option<Data> {
+        fn from(v: super::super::super::MicroDvdData) -> Self {
+            Self::Some(Data::from(v))
+        }
+    }
+    impl From<super::super::super::SubViewerData> for Data {
+        fn from(v: super::super::super::SubViewerData) -> Self {
+            Self::SubViewer(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::SubViewerData> for ::core::option::Option<Data> {
+        fn from(v: super::super::super::SubViewerData) -> Self {
+            Self::Some(Data::from(v))
+        }
+    }
+    impl From<super::super::super::SbvData> for Data {
+        fn from(v: super::super::super::SbvData) -> Self {
+            Self::Sbv(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::SbvData> for ::core::option::Option<Data> {
+        fn from(v: super::super::super::SbvData) -> Self {
+            Self::Some(Data::from(v))
+        }
+    }
+    impl From<super::super::super::TtmlData> for Data {
+        fn from(v: super::super::super::TtmlData) -> Self {
+            Self::Ttml(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::TtmlData> for ::core::option::Option<Data> {
+        fn from(v: super::super::super::TtmlData) -> Self {
+            Self::Some(Data::from(v))
+        }
+    }
+    impl From<super::super::super::SamiData> for Data {
+        fn from(v: super::super::super::SamiData) -> Self {
+            Self::Sami(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::SamiData> for ::core::option::Option<Data> {
+        fn from(v: super::super::super::SamiData) -> Self {
+            Self::Some(Data::from(v))
+        }
+    }
+    impl From<super::super::super::VobSubData> for Data {
+        fn from(v: super::super::super::VobSubData) -> Self {
+            Self::VobSub(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::VobSubData> for ::core::option::Option<Data> {
+        fn from(v: super::super::super::VobSubData) -> Self {
+            Self::Some(Data::from(v))
+        }
+    }
+    impl From<super::super::super::PgsData> for Data {
+        fn from(v: super::super::super::PgsData) -> Self {
+            Self::Pgs(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::PgsData> for ::core::option::Option<Data> {
+        fn from(v: super::super::super::PgsData) -> Self {
+            Self::Some(Data::from(v))
+        }
+    }
+    impl From<super::super::super::Cea608Data> for Data {
+        fn from(v: super::super::super::Cea608Data) -> Self {
+            Self::Cea608(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::Cea608Data> for ::core::option::Option<Data> {
+        fn from(v: super::super::super::Cea608Data) -> Self {
+            Self::Some(Data::from(v))
+        }
+    }
+    impl From<super::super::super::EbuStlData> for Data {
+        fn from(v: super::super::super::EbuStlData) -> Self {
+            Self::EbuStl(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::EbuStlData> for ::core::option::Option<Data> {
+        fn from(v: super::super::super::EbuStlData) -> Self {
+            Self::Some(Data::from(v))
+        }
+    }
     #[cfg(feature = "json")]
     impl serde::Serialize for Data {
         fn serialize<S: serde::Serializer>(
@@ -225,6 +324,33 @@ pub mod subtitle_cue {
                 }
                 Self::Lrc(v) => {
                     map.serialize_entry("lrc", v)?;
+                }
+                Self::MicroDvd(v) => {
+                    map.serialize_entry("microDvd", v)?;
+                }
+                Self::SubViewer(v) => {
+                    map.serialize_entry("subViewer", v)?;
+                }
+                Self::Sbv(v) => {
+                    map.serialize_entry("sbv", v)?;
+                }
+                Self::Ttml(v) => {
+                    map.serialize_entry("ttml", v)?;
+                }
+                Self::Sami(v) => {
+                    map.serialize_entry("sami", v)?;
+                }
+                Self::VobSub(v) => {
+                    map.serialize_entry("vobSub", v)?;
+                }
+                Self::Pgs(v) => {
+                    map.serialize_entry("pgs", v)?;
+                }
+                Self::Cea608(v) => {
+                    map.serialize_entry("cea608", v)?;
+                }
+                Self::EbuStl(v) => {
+                    map.serialize_entry("ebuStl", v)?;
                 }
             }
             map.end()

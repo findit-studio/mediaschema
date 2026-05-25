@@ -797,3 +797,128 @@ CREATE TABLE IF NOT EXISTS subtitle_track_lrc_metadata (
     length              TEXT    NOT NULL,
     offset_ms           INTEGER NOT NULL DEFAULT 0
 );
+
+-- ── Long-tail text-format detail tables (issue #56) ──────────────────────
+
+CREATE TABLE IF NOT EXISTS subtitle_cue_micro_dvd (
+    id            BLOB    NOT NULL PRIMARY KEY,
+    styled_text   TEXT    NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS subtitle_cue_sub_viewer (
+    id            BLOB    NOT NULL PRIMARY KEY,
+    styled_text   TEXT    NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS subtitle_cue_sbv (
+    id            BLOB    NOT NULL PRIMARY KEY
+);
+
+CREATE TABLE IF NOT EXISTS subtitle_cue_ttml (
+    id            BLOB    NOT NULL PRIMARY KEY,
+    region_id     BLOB,
+    style_id      BLOB,
+    xml_id        TEXT    NOT NULL,
+    styled_text   TEXT    NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_subtitle_cue_ttml_region_id ON subtitle_cue_ttml(region_id);
+CREATE INDEX IF NOT EXISTS idx_subtitle_cue_ttml_style_id  ON subtitle_cue_ttml(style_id);
+
+CREATE TABLE IF NOT EXISTS subtitle_cue_sami (
+    id            BLOB    NOT NULL PRIMARY KEY,
+    class_name    TEXT    NOT NULL,
+    styled_text   TEXT    NOT NULL
+);
+
+-- ── Long-tail bitmap / broadcast detail tables (issue #56) ────────────────
+
+CREATE TABLE IF NOT EXISTS subtitle_cue_vob_sub (
+    id                BLOB     NOT NULL PRIMARY KEY,
+    palette_id        BLOB     NOT NULL,
+    bitmap            BLOB     NOT NULL,
+    width             INTEGER  NOT NULL,
+    height            INTEGER  NOT NULL,
+    pos_x             INTEGER  NOT NULL,
+    pos_y             INTEGER  NOT NULL,
+    color_indices     INTEGER  NOT NULL,
+    contrast_indices  INTEGER  NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_subtitle_cue_vob_sub_palette_id ON subtitle_cue_vob_sub(palette_id);
+
+CREATE TABLE IF NOT EXISTS subtitle_cue_pgs (
+    id                 BLOB     NOT NULL PRIMARY KEY,
+    bitmap             BLOB     NOT NULL,
+    width              INTEGER  NOT NULL,
+    height             INTEGER  NOT NULL,
+    pos_x              INTEGER  NOT NULL,
+    pos_y              INTEGER  NOT NULL,
+    palette_bytes      BLOB     NOT NULL,
+    composition_state  INTEGER  NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS subtitle_cue_cea_608 (
+    id              BLOB    NOT NULL PRIMARY KEY,
+    channel         INTEGER NOT NULL,
+    pac_byte_pair   INTEGER NOT NULL,
+    styled_text     TEXT    NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS subtitle_cue_ebu_stl (
+    id               BLOB    NOT NULL PRIMARY KEY,
+    subtitle_number  INTEGER NOT NULL,
+    cumulative       INTEGER NOT NULL DEFAULT 0,
+    vertical_pos     INTEGER NOT NULL,
+    justification    INTEGER NOT NULL,
+    styled_text      TEXT    NOT NULL
+);
+
+-- ── Per-track long-tail aggregates (issue #56) ───────────────────────────
+
+CREATE TABLE IF NOT EXISTS subtitle_track_ttml_region (
+    id                  BLOB    NOT NULL PRIMARY KEY,
+    subtitle_track_id   BLOB    NOT NULL,
+    xml_id              TEXT    NOT NULL,
+    xml_attrs           TEXT    NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_subtitle_track_ttml_region_track_id ON subtitle_track_ttml_region(subtitle_track_id);
+
+CREATE TABLE IF NOT EXISTS subtitle_track_ttml_style (
+    id                  BLOB    NOT NULL PRIMARY KEY,
+    subtitle_track_id   BLOB    NOT NULL,
+    xml_id              TEXT    NOT NULL,
+    xml_attrs           TEXT    NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_subtitle_track_ttml_style_track_id ON subtitle_track_ttml_style(subtitle_track_id);
+
+CREATE TABLE IF NOT EXISTS subtitle_track_sami_style (
+    id                  BLOB    NOT NULL PRIMARY KEY,
+    subtitle_track_id   BLOB    NOT NULL,
+    class_name          TEXT    NOT NULL,
+    css_text            TEXT    NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_subtitle_track_sami_style_track_id ON subtitle_track_sami_style(subtitle_track_id);
+
+-- DVD VobSub palette: 16 fixed-position RGB entries; SQLite has no
+-- native array, so each `0x00RRGGBB` u32 lives on its own INTEGER
+-- column (`entry00 … entry15`).
+CREATE TABLE IF NOT EXISTS subtitle_track_vob_sub_palette (
+    id                  BLOB     NOT NULL PRIMARY KEY,
+    subtitle_track_id   BLOB     NOT NULL,
+    entry00             INTEGER  NOT NULL,
+    entry01             INTEGER  NOT NULL,
+    entry02             INTEGER  NOT NULL,
+    entry03             INTEGER  NOT NULL,
+    entry04             INTEGER  NOT NULL,
+    entry05             INTEGER  NOT NULL,
+    entry06             INTEGER  NOT NULL,
+    entry07             INTEGER  NOT NULL,
+    entry08             INTEGER  NOT NULL,
+    entry09             INTEGER  NOT NULL,
+    entry10             INTEGER  NOT NULL,
+    entry11             INTEGER  NOT NULL,
+    entry12             INTEGER  NOT NULL,
+    entry13             INTEGER  NOT NULL,
+    entry14             INTEGER  NOT NULL,
+    entry15             INTEGER  NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_subtitle_track_vob_sub_palette_track_id ON subtitle_track_vob_sub_palette(subtitle_track_id);

@@ -823,3 +823,127 @@ CREATE TABLE IF NOT EXISTS subtitle_track_lrc_metadata (
     length              text     NOT NULL,
     offset_ms           integer  NOT NULL DEFAULT 0
 );
+
+-- ── Long-tail text-format detail tables (issue #56) ──────────────────────
+
+-- MicroDVD: inline `{y:i}` style codes on the cue.
+CREATE TABLE IF NOT EXISTS subtitle_cue_micro_dvd (
+    id            uuid     NOT NULL PRIMARY KEY,
+    styled_text   text     NOT NULL
+);
+
+-- SubViewer: `[br]`/`[b]`/`[i]`/`[u]` inline tags.
+CREATE TABLE IF NOT EXISTS subtitle_cue_sub_viewer (
+    id            uuid     NOT NULL PRIMARY KEY,
+    styled_text   text     NOT NULL
+);
+
+-- SBV: unit marker (no payload columns); FK PK only.
+CREATE TABLE IF NOT EXISTS subtitle_cue_sbv (
+    id            uuid     NOT NULL PRIMARY KEY
+);
+
+-- TTML: optional region/style FKs + XML id + raw XML fragment.
+CREATE TABLE IF NOT EXISTS subtitle_cue_ttml (
+    id            uuid     NOT NULL PRIMARY KEY,
+    region_id     uuid,
+    style_id      uuid,
+    xml_id        text     NOT NULL,
+    styled_text   text     NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_subtitle_cue_ttml_region_id ON subtitle_cue_ttml(region_id);
+CREATE INDEX IF NOT EXISTS idx_subtitle_cue_ttml_style_id  ON subtitle_cue_ttml(style_id);
+
+-- SAMI: class selector + raw HTML-like fragment.
+CREATE TABLE IF NOT EXISTS subtitle_cue_sami (
+    id            uuid     NOT NULL PRIMARY KEY,
+    class_name    text     NOT NULL,
+    styled_text   text     NOT NULL
+);
+
+-- ── Long-tail bitmap / broadcast detail tables (issue #56) ────────────────
+
+-- VobSub: bitmap blob + per-cue geometry + colour/contrast indices into
+-- the per-track palette. Indices ride as packed LE u32 to keep the row
+-- fixed-arity; bitmap is `bytea`.
+CREATE TABLE IF NOT EXISTS subtitle_cue_vob_sub (
+    id                uuid     NOT NULL PRIMARY KEY,
+    palette_id        uuid     NOT NULL,
+    bitmap            bytea    NOT NULL,
+    width             bigint   NOT NULL,
+    height            bigint   NOT NULL,
+    pos_x             integer  NOT NULL,
+    pos_y             integer  NOT NULL,
+    color_indices     bigint   NOT NULL,
+    contrast_indices  bigint   NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_subtitle_cue_vob_sub_palette_id ON subtitle_cue_vob_sub(palette_id);
+
+-- PGS: bitmap + per-cue palette bytes + geometry + composition state.
+CREATE TABLE IF NOT EXISTS subtitle_cue_pgs (
+    id                 uuid      NOT NULL PRIMARY KEY,
+    bitmap             bytea     NOT NULL,
+    width              bigint    NOT NULL,
+    height             bigint    NOT NULL,
+    pos_x              integer   NOT NULL,
+    pos_y              integer   NOT NULL,
+    palette_bytes      bytea     NOT NULL,
+    composition_state  smallint  NOT NULL
+);
+
+-- CEA-608: channel + PAC byte pair + decoded line text.
+CREATE TABLE IF NOT EXISTS subtitle_cue_cea_608 (
+    id              uuid      NOT NULL PRIMARY KEY,
+    channel         smallint  NOT NULL,
+    pac_byte_pair   bigint    NOT NULL,
+    styled_text     text      NOT NULL
+);
+
+-- EBU STL: TTI block fields + decoded line text.
+CREATE TABLE IF NOT EXISTS subtitle_cue_ebu_stl (
+    id               uuid      NOT NULL PRIMARY KEY,
+    subtitle_number  bigint    NOT NULL,
+    cumulative       boolean   NOT NULL DEFAULT false,
+    vertical_pos     integer   NOT NULL,
+    justification    smallint  NOT NULL,
+    styled_text      text      NOT NULL
+);
+
+-- ── Per-track long-tail aggregates (issue #56) ───────────────────────────
+
+-- TTML `<region>` rows referenced by `subtitle_cue_ttml.region_id`.
+CREATE TABLE IF NOT EXISTS subtitle_track_ttml_region (
+    id                  uuid    NOT NULL PRIMARY KEY,
+    subtitle_track_id   uuid    NOT NULL,
+    xml_id              text    NOT NULL,
+    xml_attrs           text    NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_subtitle_track_ttml_region_track_id ON subtitle_track_ttml_region(subtitle_track_id);
+
+-- TTML `<style>` rows referenced by `subtitle_cue_ttml.style_id`.
+CREATE TABLE IF NOT EXISTS subtitle_track_ttml_style (
+    id                  uuid    NOT NULL PRIMARY KEY,
+    subtitle_track_id   uuid    NOT NULL,
+    xml_id              text    NOT NULL,
+    xml_attrs           text    NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_subtitle_track_ttml_style_track_id ON subtitle_track_ttml_style(subtitle_track_id);
+
+-- SAMI `<STYLE>` class rows referenced by `subtitle_cue_sami.class_name`.
+CREATE TABLE IF NOT EXISTS subtitle_track_sami_style (
+    id                  uuid    NOT NULL PRIMARY KEY,
+    subtitle_track_id   uuid    NOT NULL,
+    class_name          text    NOT NULL,
+    css_text            text    NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_subtitle_track_sami_style_track_id ON subtitle_track_sami_style(subtitle_track_id);
+
+-- DVD VobSub palette: 16-entry RGB lookup table. The array column rides
+-- as `BIGINT[]` (one `BIGINT` per `0x00RRGGBB` u32). Each row is
+-- referenced by `subtitle_cue_vob_sub.palette_id`.
+CREATE TABLE IF NOT EXISTS subtitle_track_vob_sub_palette (
+    id                  uuid     NOT NULL PRIMARY KEY,
+    subtitle_track_id   uuid     NOT NULL,
+    entries             bigint[] NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_subtitle_track_vob_sub_palette_track_id ON subtitle_track_vob_sub_palette(subtitle_track_id);

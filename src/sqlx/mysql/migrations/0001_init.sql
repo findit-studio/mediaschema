@@ -827,3 +827,141 @@ CREATE TABLE IF NOT EXISTS subtitle_track_lrc_metadata (
     offset_ms           INT        NOT NULL DEFAULT 0,
     PRIMARY KEY (subtitle_track_id)
 );
+
+-- ── Long-tail text-format detail tables (issue #56) ──────────────────────
+
+CREATE TABLE IF NOT EXISTS subtitle_cue_micro_dvd (
+    id            BINARY(16) NOT NULL,
+    styled_text   TEXT       NOT NULL,
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS subtitle_cue_sub_viewer (
+    id            BINARY(16) NOT NULL,
+    styled_text   TEXT       NOT NULL,
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS subtitle_cue_sbv (
+    id            BINARY(16) NOT NULL,
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS subtitle_cue_ttml (
+    id            BINARY(16) NOT NULL,
+    region_id     BINARY(16),
+    style_id      BINARY(16),
+    xml_id        TEXT       NOT NULL,
+    styled_text   TEXT       NOT NULL,
+    PRIMARY KEY (id),
+    KEY idx_subtitle_cue_ttml_region_id (region_id),
+    KEY idx_subtitle_cue_ttml_style_id  (style_id)
+);
+
+CREATE TABLE IF NOT EXISTS subtitle_cue_sami (
+    id            BINARY(16) NOT NULL,
+    class_name    TEXT       NOT NULL,
+    styled_text   TEXT       NOT NULL,
+    PRIMARY KEY (id)
+);
+
+-- ── Long-tail bitmap / broadcast detail tables (issue #56) ────────────────
+
+CREATE TABLE IF NOT EXISTS subtitle_cue_vob_sub (
+    id                BINARY(16) NOT NULL,
+    palette_id        BINARY(16) NOT NULL,
+    bitmap            MEDIUMBLOB NOT NULL,
+    width             BIGINT     NOT NULL,
+    height            BIGINT     NOT NULL,
+    pos_x             INT        NOT NULL,
+    pos_y             INT        NOT NULL,
+    color_indices     BIGINT     NOT NULL,
+    contrast_indices  BIGINT     NOT NULL,
+    PRIMARY KEY (id),
+    KEY idx_subtitle_cue_vob_sub_palette_id (palette_id)
+);
+
+CREATE TABLE IF NOT EXISTS subtitle_cue_pgs (
+    id                 BINARY(16) NOT NULL,
+    bitmap             MEDIUMBLOB NOT NULL,
+    width              BIGINT     NOT NULL,
+    height             BIGINT     NOT NULL,
+    pos_x              INT        NOT NULL,
+    pos_y              INT        NOT NULL,
+    palette_bytes      BLOB       NOT NULL,
+    composition_state  SMALLINT   NOT NULL,
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS subtitle_cue_cea_608 (
+    id              BINARY(16) NOT NULL,
+    channel         SMALLINT   NOT NULL,
+    pac_byte_pair   BIGINT     NOT NULL,
+    styled_text     TEXT       NOT NULL,
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS subtitle_cue_ebu_stl (
+    id               BINARY(16) NOT NULL,
+    subtitle_number  BIGINT     NOT NULL,
+    cumulative       BOOLEAN    NOT NULL DEFAULT FALSE,
+    vertical_pos     INT        NOT NULL,
+    justification    SMALLINT   NOT NULL,
+    styled_text      TEXT       NOT NULL,
+    PRIMARY KEY (id)
+);
+
+-- ── Per-track long-tail aggregates (issue #56) ───────────────────────────
+
+CREATE TABLE IF NOT EXISTS subtitle_track_ttml_region (
+    id                  BINARY(16) NOT NULL,
+    subtitle_track_id   BINARY(16) NOT NULL,
+    xml_id              TEXT       NOT NULL,
+    xml_attrs           TEXT       NOT NULL,
+    PRIMARY KEY (id),
+    KEY idx_subtitle_track_ttml_region_track_id (subtitle_track_id)
+);
+
+CREATE TABLE IF NOT EXISTS subtitle_track_ttml_style (
+    id                  BINARY(16) NOT NULL,
+    subtitle_track_id   BINARY(16) NOT NULL,
+    xml_id              TEXT       NOT NULL,
+    xml_attrs           TEXT       NOT NULL,
+    PRIMARY KEY (id),
+    KEY idx_subtitle_track_ttml_style_track_id (subtitle_track_id)
+);
+
+CREATE TABLE IF NOT EXISTS subtitle_track_sami_style (
+    id                  BINARY(16) NOT NULL,
+    subtitle_track_id   BINARY(16) NOT NULL,
+    class_name          TEXT       NOT NULL,
+    css_text            TEXT       NOT NULL,
+    PRIMARY KEY (id),
+    KEY idx_subtitle_track_sami_style_track_id (subtitle_track_id)
+);
+
+-- DVD VobSub palette: 16 fixed-position RGB entries. MySQL has no
+-- native array, so each `0x00RRGGBB` u32 lives on its own `BIGINT`
+-- column (`entry00 … entry15`).
+CREATE TABLE IF NOT EXISTS subtitle_track_vob_sub_palette (
+    id                  BINARY(16) NOT NULL,
+    subtitle_track_id   BINARY(16) NOT NULL,
+    entry00             BIGINT     NOT NULL,
+    entry01             BIGINT     NOT NULL,
+    entry02             BIGINT     NOT NULL,
+    entry03             BIGINT     NOT NULL,
+    entry04             BIGINT     NOT NULL,
+    entry05             BIGINT     NOT NULL,
+    entry06             BIGINT     NOT NULL,
+    entry07             BIGINT     NOT NULL,
+    entry08             BIGINT     NOT NULL,
+    entry09             BIGINT     NOT NULL,
+    entry10             BIGINT     NOT NULL,
+    entry11             BIGINT     NOT NULL,
+    entry12             BIGINT     NOT NULL,
+    entry13             BIGINT     NOT NULL,
+    entry14             BIGINT     NOT NULL,
+    entry15             BIGINT     NOT NULL,
+    PRIMARY KEY (id),
+    KEY idx_subtitle_track_vob_sub_palette_track_id (subtitle_track_id)
+);

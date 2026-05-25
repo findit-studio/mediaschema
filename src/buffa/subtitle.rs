@@ -41,9 +41,12 @@ use crate::{
   buffa::error::BuffaError,
   domain::{
     aggregates::subtitle::{
-      AssCue, AssData, AssStyle, LrcCue, LrcData, LrcMetadata, LrcWord, SrtCue, SrtData,
-      SubtitleCueDetails, SubtitleCueError, SubtitleCueKind, VttCue, VttData, VttLineAlign,
-      VttPositionAlign, VttRegion, VttStyleBlock, VttTextAlign, VttVertical,
+      AssCue, AssData, AssStyle, Cea608Cue, Cea608Data, EbuStlCue, EbuStlData, LrcCue, LrcData,
+      LrcMetadata, LrcWord, MicroDvdCue, MicroDvdData, PgsCue, PgsData, SamiCue, SamiData,
+      SamiStyle, SbvCue, SbvData, SrtCue, SrtData, SubViewerCue, SubViewerData, SubtitleCueDetails,
+      SubtitleCueError, SubtitleCueKind, TtmlCue, TtmlData, TtmlRegion, TtmlStyle, VobSubCue,
+      VobSubData, VobSubPalette, VttCue, VttData, VttLineAlign, VttPositionAlign, VttRegion,
+      VttStyleBlock, VttTextAlign, VttVertical,
     },
     vo::LocalizedText,
     SubtitleCue, Uuid7,
@@ -118,6 +121,12 @@ fn subtitle_cue_error_as_buffa(e: SubtitleCueError) -> BuffaError {
       BuffaError::MissingRequiredField("LrcWord.subtitle_cue_id")
     }
     SubtitleCueError::EmptyAssStyleName => BuffaError::MissingRequiredField("AssStyle.name"),
+    SubtitleCueError::Cea608ChannelOutOfRange(v) => {
+      BuffaError::SubtitleNumericOutOfRange("Cea608Data.channel", i32::from(v))
+    }
+    SubtitleCueError::EbuStlJustificationOutOfRange(v) => {
+      BuffaError::SubtitleNumericOutOfRange("EbuStlData.justification", i32::from(v))
+    }
     SubtitleCueError::UnimplementedFormat(k) => {
       BuffaError::UnimplementedSubtitleCueKind(i32::from(k.to_u8()))
     }
@@ -445,6 +454,316 @@ impl From<&wire::LrcData> for LrcData {
 }
 
 // ---------------------------------------------------------------------------
+// MicroDvdData ⇄ wire::MicroDvdData
+// ---------------------------------------------------------------------------
+
+impl From<&MicroDvdData> for wire::MicroDvdData {
+  fn from(d: &MicroDvdData) -> Self {
+    wire::MicroDvdData {
+      styled_text: d.styled_text().to_owned(),
+      __buffa_unknown_fields: Default::default(),
+    }
+  }
+}
+
+impl From<&wire::MicroDvdData> for MicroDvdData {
+  fn from(w: &wire::MicroDvdData) -> Self {
+    MicroDvdData::new(w.styled_text.as_str())
+  }
+}
+
+// ---------------------------------------------------------------------------
+// SubViewerData ⇄ wire::SubViewerData
+// ---------------------------------------------------------------------------
+
+impl From<&SubViewerData> for wire::SubViewerData {
+  fn from(d: &SubViewerData) -> Self {
+    wire::SubViewerData {
+      styled_text: d.styled_text().to_owned(),
+      __buffa_unknown_fields: Default::default(),
+    }
+  }
+}
+
+impl From<&wire::SubViewerData> for SubViewerData {
+  fn from(w: &wire::SubViewerData) -> Self {
+    SubViewerData::new(w.styled_text.as_str())
+  }
+}
+
+// ---------------------------------------------------------------------------
+// SbvData ⇄ wire::SbvData
+// ---------------------------------------------------------------------------
+
+impl From<&SbvData> for wire::SbvData {
+  fn from(_: &SbvData) -> Self {
+    wire::SbvData {
+      __buffa_unknown_fields: Default::default(),
+    }
+  }
+}
+
+impl From<&wire::SbvData> for SbvData {
+  fn from(_: &wire::SbvData) -> Self {
+    SbvData
+  }
+}
+
+// ---------------------------------------------------------------------------
+// TtmlData ⇄ wire::TtmlData
+// ---------------------------------------------------------------------------
+
+impl From<&TtmlData<Uuid7>> for wire::TtmlData {
+  fn from(d: &TtmlData<Uuid7>) -> Self {
+    wire::TtmlData {
+      region_id: opt_id_to_bytes(d.region_id_ref()),
+      style_id: opt_id_to_bytes(d.style_id_ref()),
+      xml_id: d.xml_id().to_owned(),
+      styled_text: d.styled_text().to_owned(),
+      __buffa_unknown_fields: Default::default(),
+    }
+  }
+}
+
+impl TryFrom<&wire::TtmlData> for TtmlData<Uuid7> {
+  type Error = BuffaError;
+
+  fn try_from(w: &wire::TtmlData) -> Result<Self, Self::Error> {
+    let region_id = opt_id_from_bytes(&w.region_id)?;
+    let style_id = opt_id_from_bytes(&w.style_id)?;
+    Ok(
+      TtmlData::<Uuid7>::new()
+        .maybe_region_id(region_id)
+        .maybe_style_id(style_id)
+        .with_xml_id(w.xml_id.as_str())
+        .with_styled_text(w.styled_text.as_str()),
+    )
+  }
+}
+
+// ---------------------------------------------------------------------------
+// SamiData ⇄ wire::SamiData
+// ---------------------------------------------------------------------------
+
+impl From<&SamiData> for wire::SamiData {
+  fn from(d: &SamiData) -> Self {
+    wire::SamiData {
+      class_name: d.class_name().to_owned(),
+      styled_text: d.styled_text().to_owned(),
+      __buffa_unknown_fields: Default::default(),
+    }
+  }
+}
+
+impl From<&wire::SamiData> for SamiData {
+  fn from(w: &wire::SamiData) -> Self {
+    SamiData::new()
+      .with_class_name(w.class_name.as_str())
+      .with_styled_text(w.styled_text.as_str())
+  }
+}
+
+// ---------------------------------------------------------------------------
+// VobSubData ⇄ wire::VobSubData
+//
+// The 4-byte palette index arrays ride as a single packed u32 on the wire
+// to keep VobSubData fixed-arity and avoid `repeated uint32` for tiny LUTs.
+// ---------------------------------------------------------------------------
+
+fn pack_indices(a: &[u8; 4]) -> u32 {
+  u32::from(a[0]) | (u32::from(a[1]) << 8) | (u32::from(a[2]) << 16) | (u32::from(a[3]) << 24)
+}
+
+fn unpack_indices(n: u32) -> [u8; 4] {
+  [
+    n as u8,
+    (n >> 8) as u8,
+    (n >> 16) as u8,
+    (n >> 24) as u8,
+  ]
+}
+
+impl From<&VobSubData<Uuid7>> for wire::VobSubData {
+  fn from(d: &VobSubData<Uuid7>) -> Self {
+    wire::VobSubData {
+      palette_id: id_to_bytes(d.palette_id_ref()),
+      bitmap: d.bitmap_ref().clone(),
+      width: d.width(),
+      height: d.height(),
+      pos_x: d.pos_x(),
+      pos_y: d.pos_y(),
+      color_indices: pack_indices(d.color_indices()),
+      contrast_indices: pack_indices(d.contrast_indices()),
+      __buffa_unknown_fields: Default::default(),
+    }
+  }
+}
+
+impl TryFrom<&wire::VobSubData> for VobSubData<Uuid7> {
+  type Error = BuffaError;
+
+  fn try_from(w: &wire::VobSubData) -> Result<Self, Self::Error> {
+    let palette_id = id_from_bytes(&w.palette_id)?;
+    Ok(
+      VobSubData::<Uuid7>::new(palette_id)
+        .with_bitmap(w.bitmap.clone())
+        .with_width(w.width)
+        .with_height(w.height)
+        .with_pos(w.pos_x, w.pos_y)
+        .with_color_indices(unpack_indices(w.color_indices))
+        .with_contrast_indices(unpack_indices(w.contrast_indices)),
+    )
+  }
+}
+
+// ---------------------------------------------------------------------------
+// PgsData ⇄ wire::PgsData
+// ---------------------------------------------------------------------------
+
+impl From<&PgsData> for wire::PgsData {
+  fn from(d: &PgsData) -> Self {
+    wire::PgsData {
+      bitmap: d.bitmap_ref().clone(),
+      width: d.width(),
+      height: d.height(),
+      pos_x: d.pos_x(),
+      pos_y: d.pos_y(),
+      palette_bytes: d.palette_bytes_ref().clone(),
+      composition_state: u32::from(d.composition_state()),
+      __buffa_unknown_fields: Default::default(),
+    }
+  }
+}
+
+impl TryFrom<&wire::PgsData> for PgsData {
+  type Error = BuffaError;
+
+  fn try_from(w: &wire::PgsData) -> Result<Self, Self::Error> {
+    let composition_state = u8::try_from(w.composition_state).map_err(|_| {
+      BuffaError::SubtitleNumericOutOfRange(
+        "PgsData.composition_state",
+        i32::try_from(w.composition_state).unwrap_or(i32::MAX),
+      )
+    })?;
+    Ok(
+      PgsData::new()
+        .with_bitmap(w.bitmap.clone())
+        .with_palette_bytes(w.palette_bytes.clone())
+        .with_width(w.width)
+        .with_height(w.height)
+        .with_pos(w.pos_x, w.pos_y)
+        .with_composition_state(composition_state),
+    )
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Cea608Data ⇄ wire::Cea608Data
+// ---------------------------------------------------------------------------
+
+impl From<&Cea608Data> for wire::Cea608Data {
+  fn from(d: &Cea608Data) -> Self {
+    wire::Cea608Data {
+      channel: u32::from(d.channel()),
+      pac_byte_pair: d.pac_byte_pair(),
+      styled_text: d.styled_text().to_owned(),
+      __buffa_unknown_fields: Default::default(),
+    }
+  }
+}
+
+impl TryFrom<&wire::Cea608Data> for Cea608Data {
+  type Error = BuffaError;
+
+  fn try_from(w: &wire::Cea608Data) -> Result<Self, Self::Error> {
+    let channel = u8::try_from(w.channel).map_err(|_| {
+      BuffaError::SubtitleNumericOutOfRange(
+        "Cea608Data.channel",
+        i32::try_from(w.channel).unwrap_or(i32::MAX),
+      )
+    })?;
+    let d = Cea608Data::try_new(channel).map_err(subtitle_cue_error_as_buffa)?;
+    Ok(
+      d.with_pac_byte_pair(w.pac_byte_pair)
+        .with_styled_text(w.styled_text.as_str()),
+    )
+  }
+}
+
+// ---------------------------------------------------------------------------
+// EbuStlData ⇄ wire::EbuStlData
+// ---------------------------------------------------------------------------
+
+impl From<&EbuStlData> for wire::EbuStlData {
+  fn from(d: &EbuStlData) -> Self {
+    wire::EbuStlData {
+      subtitle_number: d.subtitle_number(),
+      cumulative: d.cumulative(),
+      vertical_pos: d.vertical_pos(),
+      justification: u32::from(d.justification()),
+      styled_text: d.styled_text().to_owned(),
+      __buffa_unknown_fields: Default::default(),
+    }
+  }
+}
+
+impl TryFrom<&wire::EbuStlData> for EbuStlData {
+  type Error = BuffaError;
+
+  fn try_from(w: &wire::EbuStlData) -> Result<Self, Self::Error> {
+    let justification = u8::try_from(w.justification).map_err(|_| {
+      BuffaError::SubtitleNumericOutOfRange(
+        "EbuStlData.justification",
+        i32::try_from(w.justification).unwrap_or(i32::MAX),
+      )
+    })?;
+    let d = EbuStlData::try_new(justification).map_err(subtitle_cue_error_as_buffa)?;
+    Ok(
+      d.with_subtitle_number(w.subtitle_number)
+        .maybe_cumulative(w.cumulative)
+        .with_vertical_pos(w.vertical_pos),
+    )
+  }
+}
+
+// ---------------------------------------------------------------------------
+// VobSubPalette ⇄ wire::VobSubPalette (per-track aggregate)
+// ---------------------------------------------------------------------------
+
+impl From<&VobSubPalette<Uuid7>> for wire::VobSubPalette {
+  fn from(p: &VobSubPalette<Uuid7>) -> Self {
+    wire::VobSubPalette {
+      id: id_to_bytes(p.id_ref()),
+      subtitle_track_id: id_to_bytes(p.subtitle_track_id_ref()),
+      entries: p.entries().to_vec(),
+      __buffa_unknown_fields: Default::default(),
+    }
+  }
+}
+
+impl TryFrom<&wire::VobSubPalette> for VobSubPalette<Uuid7> {
+  type Error = BuffaError;
+
+  fn try_from(w: &wire::VobSubPalette) -> Result<Self, Self::Error> {
+    let id = id_from_bytes(&w.id)?;
+    let subtitle_track_id = id_from_bytes(&w.subtitle_track_id)?;
+    if w.entries.len() != 16 {
+      return Err(BuffaError::SubtitleNumericOutOfRange(
+        "VobSubPalette.entries.len",
+        i32::try_from(w.entries.len()).unwrap_or(i32::MAX),
+      ));
+    }
+    let mut entries = [0u32; 16];
+    entries.copy_from_slice(&w.entries);
+    Ok(
+      VobSubPalette::try_new(id, subtitle_track_id)
+        .map_err(subtitle_cue_error_as_buffa)?
+        .with_entries(entries),
+    )
+  }
+}
+
+// ---------------------------------------------------------------------------
 // SubtitleCue<Uuid7, D> -> wire::SubtitleCue (D-typed encode)
 // ---------------------------------------------------------------------------
 
@@ -503,6 +822,96 @@ impl From<&LrcCue<Uuid7>> for wire::SubtitleCue {
   }
 }
 
+impl From<&MicroDvdCue<Uuid7>> for wire::SubtitleCue {
+  fn from(c: &MicroDvdCue<Uuid7>) -> Self {
+    let mut w = base_to_wire(c, SubtitleCueKind::MicroDvd);
+    w.data = Some(wire::__buffa::oneof::subtitle_cue::Data::MicroDvd(
+      ::buffa::alloc::boxed::Box::new(wire::MicroDvdData::from(c.data_ref())),
+    ));
+    w
+  }
+}
+
+impl From<&SubViewerCue<Uuid7>> for wire::SubtitleCue {
+  fn from(c: &SubViewerCue<Uuid7>) -> Self {
+    let mut w = base_to_wire(c, SubtitleCueKind::SubViewer);
+    w.data = Some(wire::__buffa::oneof::subtitle_cue::Data::SubViewer(
+      ::buffa::alloc::boxed::Box::new(wire::SubViewerData::from(c.data_ref())),
+    ));
+    w
+  }
+}
+
+impl From<&SbvCue<Uuid7>> for wire::SubtitleCue {
+  fn from(c: &SbvCue<Uuid7>) -> Self {
+    let mut w = base_to_wire(c, SubtitleCueKind::Sbv);
+    w.data = Some(wire::__buffa::oneof::subtitle_cue::Data::Sbv(
+      ::buffa::alloc::boxed::Box::new(wire::SbvData::from(c.data_ref())),
+    ));
+    w
+  }
+}
+
+impl From<&TtmlCue<Uuid7>> for wire::SubtitleCue {
+  fn from(c: &TtmlCue<Uuid7>) -> Self {
+    let mut w = base_to_wire(c, SubtitleCueKind::Ttml);
+    w.data = Some(wire::__buffa::oneof::subtitle_cue::Data::Ttml(
+      ::buffa::alloc::boxed::Box::new(wire::TtmlData::from(c.data_ref())),
+    ));
+    w
+  }
+}
+
+impl From<&SamiCue<Uuid7>> for wire::SubtitleCue {
+  fn from(c: &SamiCue<Uuid7>) -> Self {
+    let mut w = base_to_wire(c, SubtitleCueKind::Sami);
+    w.data = Some(wire::__buffa::oneof::subtitle_cue::Data::Sami(
+      ::buffa::alloc::boxed::Box::new(wire::SamiData::from(c.data_ref())),
+    ));
+    w
+  }
+}
+
+impl From<&VobSubCue<Uuid7>> for wire::SubtitleCue {
+  fn from(c: &VobSubCue<Uuid7>) -> Self {
+    let mut w = base_to_wire(c, SubtitleCueKind::VobSub);
+    w.data = Some(wire::__buffa::oneof::subtitle_cue::Data::VobSub(
+      ::buffa::alloc::boxed::Box::new(wire::VobSubData::from(c.data_ref())),
+    ));
+    w
+  }
+}
+
+impl From<&PgsCue<Uuid7>> for wire::SubtitleCue {
+  fn from(c: &PgsCue<Uuid7>) -> Self {
+    let mut w = base_to_wire(c, SubtitleCueKind::Pgs);
+    w.data = Some(wire::__buffa::oneof::subtitle_cue::Data::Pgs(
+      ::buffa::alloc::boxed::Box::new(wire::PgsData::from(c.data_ref())),
+    ));
+    w
+  }
+}
+
+impl From<&Cea608Cue<Uuid7>> for wire::SubtitleCue {
+  fn from(c: &Cea608Cue<Uuid7>) -> Self {
+    let mut w = base_to_wire(c, SubtitleCueKind::Cea608);
+    w.data = Some(wire::__buffa::oneof::subtitle_cue::Data::Cea608(
+      ::buffa::alloc::boxed::Box::new(wire::Cea608Data::from(c.data_ref())),
+    ));
+    w
+  }
+}
+
+impl From<&EbuStlCue<Uuid7>> for wire::SubtitleCue {
+  fn from(c: &EbuStlCue<Uuid7>) -> Self {
+    let mut w = base_to_wire(c, SubtitleCueKind::EbuStl);
+    w.data = Some(wire::__buffa::oneof::subtitle_cue::Data::EbuStl(
+      ::buffa::alloc::boxed::Box::new(wire::EbuStlData::from(c.data_ref())),
+    ));
+    w
+  }
+}
+
 impl From<&SubtitleCue<Uuid7, SubtitleCueDetails<Uuid7>>> for wire::SubtitleCue {
   fn from(c: &SubtitleCue<Uuid7, SubtitleCueDetails<Uuid7>>) -> Self {
     let kind = c.data_ref().kind();
@@ -519,6 +928,33 @@ impl From<&SubtitleCue<Uuid7, SubtitleCueDetails<Uuid7>>> for wire::SubtitleCue 
       ),
       SubtitleCueDetails::Lrc(d) => wire::__buffa::oneof::subtitle_cue::Data::Lrc(
         ::buffa::alloc::boxed::Box::new(wire::LrcData::from(d)),
+      ),
+      SubtitleCueDetails::MicroDvd(d) => wire::__buffa::oneof::subtitle_cue::Data::MicroDvd(
+        ::buffa::alloc::boxed::Box::new(wire::MicroDvdData::from(d)),
+      ),
+      SubtitleCueDetails::SubViewer(d) => wire::__buffa::oneof::subtitle_cue::Data::SubViewer(
+        ::buffa::alloc::boxed::Box::new(wire::SubViewerData::from(d)),
+      ),
+      SubtitleCueDetails::Sbv(d) => wire::__buffa::oneof::subtitle_cue::Data::Sbv(
+        ::buffa::alloc::boxed::Box::new(wire::SbvData::from(d)),
+      ),
+      SubtitleCueDetails::Ttml(d) => wire::__buffa::oneof::subtitle_cue::Data::Ttml(
+        ::buffa::alloc::boxed::Box::new(wire::TtmlData::from(d)),
+      ),
+      SubtitleCueDetails::Sami(d) => wire::__buffa::oneof::subtitle_cue::Data::Sami(
+        ::buffa::alloc::boxed::Box::new(wire::SamiData::from(d)),
+      ),
+      SubtitleCueDetails::VobSub(d) => wire::__buffa::oneof::subtitle_cue::Data::VobSub(
+        ::buffa::alloc::boxed::Box::new(wire::VobSubData::from(d)),
+      ),
+      SubtitleCueDetails::Pgs(d) => wire::__buffa::oneof::subtitle_cue::Data::Pgs(
+        ::buffa::alloc::boxed::Box::new(wire::PgsData::from(d)),
+      ),
+      SubtitleCueDetails::Cea608(d) => wire::__buffa::oneof::subtitle_cue::Data::Cea608(
+        ::buffa::alloc::boxed::Box::new(wire::Cea608Data::from(d)),
+      ),
+      SubtitleCueDetails::EbuStl(d) => wire::__buffa::oneof::subtitle_cue::Data::EbuStl(
+        ::buffa::alloc::boxed::Box::new(wire::EbuStlData::from(d)),
       ),
     });
     w
@@ -566,21 +1002,45 @@ pub fn subtitle_cue_from_wire(
     (SubtitleCueKind::Lrc, Some(wire::__buffa::oneof::subtitle_cue::Data::Lrc(d))) => {
       SubtitleCueDetails::Lrc(LrcData::from(d.as_ref()))
     }
-    // Implemented kind, but wrong oneof variant present.
     (
-      SubtitleCueKind::Srt | SubtitleCueKind::Vtt | SubtitleCueKind::Ass | SubtitleCueKind::Lrc,
-      Some(other),
-    ) => {
+      SubtitleCueKind::MicroDvd,
+      Some(wire::__buffa::oneof::subtitle_cue::Data::MicroDvd(d)),
+    ) => SubtitleCueDetails::MicroDvd(MicroDvdData::from(d.as_ref())),
+    (
+      SubtitleCueKind::SubViewer,
+      Some(wire::__buffa::oneof::subtitle_cue::Data::SubViewer(d)),
+    ) => SubtitleCueDetails::SubViewer(SubViewerData::from(d.as_ref())),
+    (SubtitleCueKind::Sbv, Some(wire::__buffa::oneof::subtitle_cue::Data::Sbv(d))) => {
+      SubtitleCueDetails::Sbv(SbvData::from(d.as_ref()))
+    }
+    (SubtitleCueKind::Ttml, Some(wire::__buffa::oneof::subtitle_cue::Data::Ttml(d))) => {
+      SubtitleCueDetails::Ttml(TtmlData::<Uuid7>::try_from(d.as_ref())?)
+    }
+    (SubtitleCueKind::Sami, Some(wire::__buffa::oneof::subtitle_cue::Data::Sami(d))) => {
+      SubtitleCueDetails::Sami(SamiData::from(d.as_ref()))
+    }
+    (
+      SubtitleCueKind::VobSub,
+      Some(wire::__buffa::oneof::subtitle_cue::Data::VobSub(d)),
+    ) => SubtitleCueDetails::VobSub(VobSubData::<Uuid7>::try_from(d.as_ref())?),
+    (SubtitleCueKind::Pgs, Some(wire::__buffa::oneof::subtitle_cue::Data::Pgs(d))) => {
+      SubtitleCueDetails::Pgs(PgsData::try_from(d.as_ref())?)
+    }
+    (SubtitleCueKind::Cea608, Some(wire::__buffa::oneof::subtitle_cue::Data::Cea608(d))) => {
+      SubtitleCueDetails::Cea608(Cea608Data::try_from(d.as_ref())?)
+    }
+    (SubtitleCueKind::EbuStl, Some(wire::__buffa::oneof::subtitle_cue::Data::EbuStl(d))) => {
+      SubtitleCueDetails::EbuStl(EbuStlData::try_from(d.as_ref())?)
+    }
+    // Implemented kind, but wrong oneof variant present.
+    (k, Some(other)) if k.is_implemented() => {
       return Err(BuffaError::SubtitleCueKindOneofMismatch(
         kind_name,
         oneof_arm_name(other),
       ));
     }
     // Implemented kind, but no oneof set.
-    (
-      SubtitleCueKind::Srt | SubtitleCueKind::Vtt | SubtitleCueKind::Ass | SubtitleCueKind::Lrc,
-      None,
-    ) => {
+    (k, None) if k.is_implemented() => {
       return Err(BuffaError::MissingSubtitleCueData(kind_name));
     }
     // Reserved discriminant (no domain payload type exists yet).
@@ -629,6 +1089,15 @@ fn oneof_arm_name(d: &wire::__buffa::oneof::subtitle_cue::Data) -> &'static str 
     wire::__buffa::oneof::subtitle_cue::Data::Vtt(_) => "vtt",
     wire::__buffa::oneof::subtitle_cue::Data::Ass(_) => "ass",
     wire::__buffa::oneof::subtitle_cue::Data::Lrc(_) => "lrc",
+    wire::__buffa::oneof::subtitle_cue::Data::MicroDvd(_) => "micro_dvd",
+    wire::__buffa::oneof::subtitle_cue::Data::SubViewer(_) => "sub_viewer",
+    wire::__buffa::oneof::subtitle_cue::Data::Sbv(_) => "sbv",
+    wire::__buffa::oneof::subtitle_cue::Data::Ttml(_) => "ttml",
+    wire::__buffa::oneof::subtitle_cue::Data::Sami(_) => "sami",
+    wire::__buffa::oneof::subtitle_cue::Data::VobSub(_) => "vob_sub",
+    wire::__buffa::oneof::subtitle_cue::Data::Pgs(_) => "pgs",
+    wire::__buffa::oneof::subtitle_cue::Data::Cea608(_) => "cea_608",
+    wire::__buffa::oneof::subtitle_cue::Data::EbuStl(_) => "ebu_stl",
   }
 }
 
@@ -812,6 +1281,96 @@ impl TryFrom<&wire::LrcMetadata> for LrcMetadata<Uuid7> {
         .with_creator(w.creator.as_str())
         .with_length(w.length.as_str())
         .with_offset_ms(w.offset_ms),
+    )
+  }
+}
+
+// ---------------------------------------------------------------------------
+// TtmlRegion ⇄ wire::TtmlRegion
+// ---------------------------------------------------------------------------
+
+impl From<&TtmlRegion<Uuid7>> for wire::TtmlRegion {
+  fn from(r: &TtmlRegion<Uuid7>) -> Self {
+    wire::TtmlRegion {
+      id: id_to_bytes(r.id_ref()),
+      subtitle_track_id: id_to_bytes(r.subtitle_track_id_ref()),
+      xml_id: r.xml_id().to_owned(),
+      xml_attrs: r.xml_attrs().to_owned(),
+      __buffa_unknown_fields: Default::default(),
+    }
+  }
+}
+
+impl TryFrom<&wire::TtmlRegion> for TtmlRegion<Uuid7> {
+  type Error = BuffaError;
+
+  fn try_from(w: &wire::TtmlRegion) -> Result<Self, Self::Error> {
+    let id = id_from_bytes(&w.id)?;
+    let subtitle_track_id = id_from_bytes(&w.subtitle_track_id)?;
+    Ok(
+      TtmlRegion::try_new(id, subtitle_track_id, w.xml_id.as_str())
+        .map_err(subtitle_cue_error_as_buffa)?
+        .with_xml_attrs(w.xml_attrs.as_str()),
+    )
+  }
+}
+
+// ---------------------------------------------------------------------------
+// TtmlStyle ⇄ wire::TtmlStyle
+// ---------------------------------------------------------------------------
+
+impl From<&TtmlStyle<Uuid7>> for wire::TtmlStyle {
+  fn from(s: &TtmlStyle<Uuid7>) -> Self {
+    wire::TtmlStyle {
+      id: id_to_bytes(s.id_ref()),
+      subtitle_track_id: id_to_bytes(s.subtitle_track_id_ref()),
+      xml_id: s.xml_id().to_owned(),
+      xml_attrs: s.xml_attrs().to_owned(),
+      __buffa_unknown_fields: Default::default(),
+    }
+  }
+}
+
+impl TryFrom<&wire::TtmlStyle> for TtmlStyle<Uuid7> {
+  type Error = BuffaError;
+
+  fn try_from(w: &wire::TtmlStyle) -> Result<Self, Self::Error> {
+    let id = id_from_bytes(&w.id)?;
+    let subtitle_track_id = id_from_bytes(&w.subtitle_track_id)?;
+    Ok(
+      TtmlStyle::try_new(id, subtitle_track_id, w.xml_id.as_str())
+        .map_err(subtitle_cue_error_as_buffa)?
+        .with_xml_attrs(w.xml_attrs.as_str()),
+    )
+  }
+}
+
+// ---------------------------------------------------------------------------
+// SamiStyle ⇄ wire::SamiStyle
+// ---------------------------------------------------------------------------
+
+impl From<&SamiStyle<Uuid7>> for wire::SamiStyle {
+  fn from(s: &SamiStyle<Uuid7>) -> Self {
+    wire::SamiStyle {
+      id: id_to_bytes(s.id_ref()),
+      subtitle_track_id: id_to_bytes(s.subtitle_track_id_ref()),
+      class_name: s.class_name().to_owned(),
+      css_text: s.css_text().to_owned(),
+      __buffa_unknown_fields: Default::default(),
+    }
+  }
+}
+
+impl TryFrom<&wire::SamiStyle> for SamiStyle<Uuid7> {
+  type Error = BuffaError;
+
+  fn try_from(w: &wire::SamiStyle) -> Result<Self, Self::Error> {
+    let id = id_from_bytes(&w.id)?;
+    let subtitle_track_id = id_from_bytes(&w.subtitle_track_id)?;
+    Ok(
+      SamiStyle::try_new(id, subtitle_track_id, w.class_name.as_str())
+        .map_err(subtitle_cue_error_as_buffa)?
+        .with_css_text(w.css_text.as_str()),
     )
   }
 }
@@ -1161,11 +1720,11 @@ mod tests {
   }
 
   #[test]
-  fn reserved_kind_is_unimplemented() {
-    // Construct a synthetic wire frame whose kind is one of the
-    // reserved discriminants. The decoder must surface the
-    // `UnimplementedSubtitleCueKind` variant rather than try to
-    // dispatch on a missing data type.
+  fn implemented_kind_missing_oneof_for_pgs_errors() {
+    // PGS is now implemented (issue #56 closed). A wire frame with
+    // kind = PGS but no data oneof must surface
+    // `MissingSubtitleCueData`, not the legacy
+    // `UnimplementedSubtitleCueKind` variant.
     let c = SrtCue::try_new_srt(
       Uuid7::new(),
       Uuid7::new(),
@@ -1175,13 +1734,10 @@ mod tests {
     )
     .unwrap();
     let mut w: wire::SubtitleCue = (&c).into();
-    w.kind = ::buffa::EnumValue::Known(wire::SubtitleCueKind::SUBTITLE_CUE_KIND_TTML);
+    w.kind = ::buffa::EnumValue::Known(wire::SubtitleCueKind::SUBTITLE_CUE_KIND_PGS);
     w.data = None;
     let e = subtitle_cue_from_wire(&w, tb()).unwrap_err();
-    assert!(matches!(
-      e,
-      BuffaError::UnimplementedSubtitleCueKind(7)
-    ));
+    assert!(matches!(e, BuffaError::MissingSubtitleCueData("Pgs")));
   }
 
   #[test]
@@ -1225,5 +1781,340 @@ mod tests {
     assert!(c2.data_ref().is_srt());
     assert_eq!(c2.span_ref().start_pts(), 0);
     assert_eq!(c2.span_ref().end_pts(), 200);
+  }
+
+  // ---- Text-format extensions (#56) ----------------------------------------
+
+  #[test]
+  fn micro_dvd_cue_roundtrip() {
+    let d = MicroDvdData::new("{y:b}hi");
+    let c: MicroDvdCue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      1,
+      span(0, 500),
+      LocalizedText::from_src("hi"),
+      d,
+    )
+    .unwrap();
+    let w: wire::SubtitleCue = (&c).into();
+    let c2 = subtitle_cue_from_wire(&w, tb()).unwrap();
+    assert!(c2.data_ref().is_micro_dvd());
+    if let SubtitleCueDetails::MicroDvd(dd) = c2.data_ref() {
+      assert_eq!(dd.styled_text(), "{y:b}hi");
+    }
+  }
+
+  #[test]
+  fn sub_viewer_cue_roundtrip() {
+    let d = SubViewerData::new("[b]hi[/b]");
+    let c: SubViewerCue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      2,
+      span(0, 500),
+      LocalizedText::from_src("hi"),
+      d,
+    )
+    .unwrap();
+    let w: wire::SubtitleCue = (&c).into();
+    let c2 = subtitle_cue_from_wire(&w, tb()).unwrap();
+    assert!(c2.data_ref().is_sub_viewer());
+  }
+
+  #[test]
+  fn sbv_cue_roundtrip() {
+    let c: SbvCue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      3,
+      span(0, 500),
+      LocalizedText::from_src("plain"),
+      SbvData::new(),
+    )
+    .unwrap();
+    let w: wire::SubtitleCue = (&c).into();
+    let c2 = subtitle_cue_from_wire(&w, tb()).unwrap();
+    assert!(c2.data_ref().is_sbv());
+  }
+
+  #[test]
+  fn ttml_cue_roundtrip_with_region_and_style() {
+    let region_id = Uuid7::new();
+    let style_id = Uuid7::new();
+    let d = TtmlData::<Uuid7>::new()
+      .with_region_id(region_id)
+      .with_style_id(style_id)
+      .with_xml_id("c-1")
+      .with_styled_text("<span tts:color=\"red\">hi</span>");
+    let c: TtmlCue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      4,
+      span(0, 500),
+      LocalizedText::from_src("hi"),
+      d,
+    )
+    .unwrap();
+    let w: wire::SubtitleCue = (&c).into();
+    let c2 = subtitle_cue_from_wire(&w, tb()).unwrap();
+    if let SubtitleCueDetails::Ttml(dd) = c2.data_ref() {
+      assert_eq!(dd.region_id_ref(), Some(&region_id));
+      assert_eq!(dd.style_id_ref(), Some(&style_id));
+      assert_eq!(dd.xml_id(), "c-1");
+    } else {
+      panic!("expected Ttml data");
+    }
+  }
+
+  #[test]
+  fn sami_cue_roundtrip() {
+    let d = SamiData::new()
+      .with_class_name("ENCC")
+      .with_styled_text("<P><B>Hello</B></P>");
+    let c: SamiCue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      5,
+      span(0, 500),
+      LocalizedText::from_src("Hello"),
+      d,
+    )
+    .unwrap();
+    let w: wire::SubtitleCue = (&c).into();
+    let c2 = subtitle_cue_from_wire(&w, tb()).unwrap();
+    if let SubtitleCueDetails::Sami(dd) = c2.data_ref() {
+      assert_eq!(dd.class_name(), "ENCC");
+    } else {
+      panic!("expected Sami data");
+    }
+  }
+
+  #[test]
+  fn ttml_region_roundtrip() {
+    let r = TtmlRegion::try_new(Uuid7::new(), Uuid7::new(), "r1")
+      .unwrap()
+      .with_xml_attrs("tts:origin=\"10% 80%\"");
+    let w: wire::TtmlRegion = (&r).into();
+    let r2 = TtmlRegion::try_from(&w).unwrap();
+    assert_eq!(r, r2);
+  }
+
+  #[test]
+  fn ttml_style_roundtrip() {
+    let s = TtmlStyle::try_new(Uuid7::new(), Uuid7::new(), "s1")
+      .unwrap()
+      .with_xml_attrs("tts:color=\"red\"");
+    let w: wire::TtmlStyle = (&s).into();
+    let s2 = TtmlStyle::try_from(&w).unwrap();
+    assert_eq!(s, s2);
+  }
+
+  #[test]
+  fn sami_style_roundtrip() {
+    let s = SamiStyle::try_new(Uuid7::new(), Uuid7::new(), "ENCC")
+      .unwrap()
+      .with_css_text("{color: yellow;}");
+    let w: wire::SamiStyle = (&s).into();
+    let s2 = SamiStyle::try_from(&w).unwrap();
+    assert_eq!(s, s2);
+  }
+
+  // ---- Bitmap / broadcast extensions (#56) --------------------------------
+
+  #[test]
+  fn vob_sub_cue_roundtrip() {
+    let palette_id = Uuid7::new();
+    let d = VobSubData::<Uuid7>::new(palette_id)
+      .with_bitmap(Bytes::from_static(b"\x10\x20\x30"))
+      .with_width(720)
+      .with_height(60)
+      .with_pos(20, 540)
+      .with_color_indices([1, 2, 3, 4])
+      .with_contrast_indices([0, 0xF, 0xF, 0xF]);
+    let c: VobSubCue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      span(0, 1_000),
+      LocalizedText::new(),
+      d,
+    )
+    .unwrap();
+    let w: wire::SubtitleCue = (&c).into();
+    let c2 = subtitle_cue_from_wire(&w, tb()).unwrap();
+    if let SubtitleCueDetails::VobSub(dd) = c2.data_ref() {
+      assert_eq!(dd.palette_id_ref(), &palette_id);
+      assert_eq!(dd.bitmap_ref().as_ref(), b"\x10\x20\x30");
+      assert_eq!(dd.width(), 720);
+      assert_eq!(dd.color_indices(), &[1, 2, 3, 4]);
+      assert_eq!(dd.contrast_indices(), &[0, 0xF, 0xF, 0xF]);
+    } else {
+      panic!("expected VobSub data");
+    }
+  }
+
+  #[test]
+  fn pgs_cue_roundtrip() {
+    let d = PgsData::new()
+      .with_bitmap(Bytes::from_static(b"\xAA\xBB"))
+      .with_palette_bytes(Bytes::from_static(b"\x10\x20\x30\x40"))
+      .with_width(1920)
+      .with_height(80)
+      .with_pos(0, 920)
+      .with_composition_state(0x80);
+    let c: PgsCue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      span(0, 1_000),
+      LocalizedText::new(),
+      d,
+    )
+    .unwrap();
+    let w: wire::SubtitleCue = (&c).into();
+    let c2 = subtitle_cue_from_wire(&w, tb()).unwrap();
+    if let SubtitleCueDetails::Pgs(dd) = c2.data_ref() {
+      assert_eq!(dd.bitmap_ref().as_ref(), b"\xAA\xBB");
+      assert_eq!(dd.palette_bytes_ref().as_ref(), b"\x10\x20\x30\x40");
+      assert_eq!(dd.composition_state(), 0x80);
+    } else {
+      panic!("expected Pgs data");
+    }
+  }
+
+  #[test]
+  fn pgs_composition_state_out_of_range_errors() {
+    let c = SrtCue::try_new_srt(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      span(0, 1_000),
+      LocalizedText::new(),
+    )
+    .unwrap();
+    let mut w: wire::SubtitleCue = (&c).into();
+    let mut pgs = wire::PgsData::default();
+    pgs.composition_state = 0xFFFF;
+    w.kind = ::buffa::EnumValue::Known(wire::SubtitleCueKind::SUBTITLE_CUE_KIND_PGS);
+    w.data = Some(wire::__buffa::oneof::subtitle_cue::Data::Pgs(
+      ::buffa::alloc::boxed::Box::new(pgs),
+    ));
+    let e = subtitle_cue_from_wire(&w, tb()).unwrap_err();
+    assert!(matches!(
+      e,
+      BuffaError::SubtitleNumericOutOfRange("PgsData.composition_state", _)
+    ));
+  }
+
+  #[test]
+  fn cea608_cue_roundtrip() {
+    let d = Cea608Data::try_new(2)
+      .unwrap()
+      .with_pac_byte_pair(0x1170)
+      .with_styled_text("Hi");
+    let c: Cea608Cue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      span(0, 1_000),
+      LocalizedText::from_src("Hi"),
+      d,
+    )
+    .unwrap();
+    let w: wire::SubtitleCue = (&c).into();
+    let c2 = subtitle_cue_from_wire(&w, tb()).unwrap();
+    if let SubtitleCueDetails::Cea608(dd) = c2.data_ref() {
+      assert_eq!(dd.channel(), 2);
+      assert_eq!(dd.pac_byte_pair(), 0x1170);
+      assert_eq!(dd.styled_text(), "Hi");
+    } else {
+      panic!("expected Cea608 data");
+    }
+  }
+
+  #[test]
+  fn cea608_invalid_channel_errors() {
+    let c = SrtCue::try_new_srt(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      span(0, 1_000),
+      LocalizedText::new(),
+    )
+    .unwrap();
+    let mut w: wire::SubtitleCue = (&c).into();
+    let mut cea = wire::Cea608Data::default();
+    cea.channel = 9; // out of valid 1..=4
+    w.kind = ::buffa::EnumValue::Known(wire::SubtitleCueKind::SUBTITLE_CUE_KIND_CEA_608);
+    w.data = Some(wire::__buffa::oneof::subtitle_cue::Data::Cea608(
+      ::buffa::alloc::boxed::Box::new(cea),
+    ));
+    let e = subtitle_cue_from_wire(&w, tb()).unwrap_err();
+    assert!(matches!(
+      e,
+      BuffaError::SubtitleNumericOutOfRange("Cea608Data.channel", _)
+    ));
+  }
+
+  #[test]
+  fn ebu_stl_cue_roundtrip() {
+    let d = EbuStlData::try_new(2)
+      .unwrap()
+      .with_subtitle_number(42)
+      .with_cumulative()
+      .with_vertical_pos(20)
+      .with_styled_text("Hi");
+    let c: EbuStlCue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      span(0, 1_000),
+      LocalizedText::from_src("Hi"),
+      d,
+    )
+    .unwrap();
+    let w: wire::SubtitleCue = (&c).into();
+    let c2 = subtitle_cue_from_wire(&w, tb()).unwrap();
+    if let SubtitleCueDetails::EbuStl(dd) = c2.data_ref() {
+      assert_eq!(dd.subtitle_number(), 42);
+      assert!(dd.cumulative());
+      assert_eq!(dd.vertical_pos(), 20);
+      assert_eq!(dd.justification(), 2);
+    } else {
+      panic!("expected EbuStl data");
+    }
+  }
+
+  #[test]
+  fn vob_sub_palette_roundtrip() {
+    let mut entries = [0u32; 16];
+    for (i, e) in entries.iter_mut().enumerate() {
+      *e = 0x00_11_22_33u32.wrapping_add(i as u32);
+    }
+    let p = VobSubPalette::try_new(Uuid7::new(), Uuid7::new())
+      .unwrap()
+      .with_entries(entries);
+    let w: wire::VobSubPalette = (&p).into();
+    let p2 = VobSubPalette::try_from(&w).unwrap();
+    assert_eq!(p, p2);
+  }
+
+  #[test]
+  fn vob_sub_palette_wrong_entry_count_errors() {
+    let mut w = wire::VobSubPalette {
+      id: ::buffa::bytes::Bytes::copy_from_slice(Uuid7::new().as_bytes()),
+      subtitle_track_id: ::buffa::bytes::Bytes::copy_from_slice(Uuid7::new().as_bytes()),
+      entries: std::vec![0u32; 8],
+      __buffa_unknown_fields: Default::default(),
+    };
+    let e = VobSubPalette::try_from(&w).unwrap_err();
+    assert!(matches!(
+      e,
+      BuffaError::SubtitleNumericOutOfRange("VobSubPalette.entries.len", _)
+    ));
+    // Sanity: a 16-entry list passes.
+    w.entries = std::vec![0u32; 16];
+    assert!(VobSubPalette::try_from(&w).is_ok());
   }
 }

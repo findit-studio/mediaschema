@@ -29,9 +29,12 @@ use uuid::Uuid;
 use crate::{
   domain::{
     aggregates::subtitle::{
-      AssCue, AssData, AssStyle, LrcCue, LrcData, LrcMetadata, LrcWord, SrtCue, SrtData,
-      SubtitleCueError, SubtitleCueKind, SubtitleError, SubtitleTrackError, VttCue, VttData,
-      VttLineAlign, VttPositionAlign, VttRegion, VttStyleBlock, VttTextAlign, VttVertical,
+      AssCue, AssData, AssStyle, Cea608Cue, Cea608Data, EbuStlCue, EbuStlData, LrcCue, LrcData,
+      LrcMetadata, LrcWord, MicroDvdCue, MicroDvdData, PgsCue, PgsData, SamiCue, SamiData,
+      SamiStyle, SbvCue, SbvData, SrtCue, SrtData, SubViewerCue, SubViewerData, SubtitleCueError,
+      SubtitleCueKind, SubtitleError, SubtitleTrackError, TtmlCue, TtmlData, TtmlRegion, TtmlStyle,
+      VobSubCue, VobSubData, VobSubPalette, VttCue, VttData, VttLineAlign, VttPositionAlign,
+      VttRegion, VttStyleBlock, VttTextAlign, VttVertical,
     },
     primitives::ErrorInfo,
     vo::{IndexProgress, LocalizedText, Provenance},
@@ -42,6 +45,8 @@ use crate::{
     SqlxError,
   },
 };
+
+use bytes::Bytes;
 
 // ---------------------------------------------------------------------------
 // SubtitleKind — closed enum, rides as a small integer
@@ -683,6 +688,467 @@ pub fn lrc_word_from_row(r: PgSubtitleCueLrcWordRow) -> Result<LrcWord<Uuid7>, S
     .map_err(|e: SubtitleCueError| SqlxError::DomainConstructorRejected(e.to_string()))
 }
 
+// --- MicroDVD ----------------------------------------------------------------
+
+/// PostgreSQL detail row for a MicroDVD cue (joined on `id`).
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct PgSubtitleCueMicroDvdRow {
+  pub id: Uuid,
+  pub styled_text: String,
+}
+
+impl From<&MicroDvdCue<Uuid7>> for (PgSubtitleCueBaseRow, PgSubtitleCueMicroDvdRow) {
+  fn from(c: &MicroDvdCue<Uuid7>) -> Self {
+    let base = base_row_from_cue(c, SubtitleCueKind::MicroDvd);
+    let detail = PgSubtitleCueMicroDvdRow {
+      id: base.id,
+      styled_text: c.data_ref().styled_text().to_owned(),
+    };
+    (base, detail)
+  }
+}
+
+/// Rebuild a MicroDVD cue from its (base, detail) rows.
+pub fn micro_dvd_cue_from_rows(
+  base: PgSubtitleCueBaseRow,
+  detail: PgSubtitleCueMicroDvdRow,
+  parent_timebase: mediatime::Timebase,
+) -> Result<MicroDvdCue<Uuid7>, SqlxError> {
+  let (id, subtitle_track_id, ordinal, span, text, kind) =
+    base_row_to_parts(&base, parent_timebase)?;
+  if kind != SubtitleCueKind::MicroDvd {
+    return Err(SqlxError::DomainConstructorRejected(format!(
+      "expected MicroDvd cue kind, got {kind:?}"
+    )));
+  }
+  let d = MicroDvdData::new(detail.styled_text);
+  MicroDvdCue::try_new(id, subtitle_track_id, ordinal, span, text, d)
+    .map_err(|e: SubtitleCueError| SqlxError::DomainConstructorRejected(e.to_string()))
+}
+
+// --- SubViewer ---------------------------------------------------------------
+
+/// PostgreSQL detail row for a SubViewer cue (joined on `id`).
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct PgSubtitleCueSubViewerRow {
+  pub id: Uuid,
+  pub styled_text: String,
+}
+
+impl From<&SubViewerCue<Uuid7>> for (PgSubtitleCueBaseRow, PgSubtitleCueSubViewerRow) {
+  fn from(c: &SubViewerCue<Uuid7>) -> Self {
+    let base = base_row_from_cue(c, SubtitleCueKind::SubViewer);
+    let detail = PgSubtitleCueSubViewerRow {
+      id: base.id,
+      styled_text: c.data_ref().styled_text().to_owned(),
+    };
+    (base, detail)
+  }
+}
+
+/// Rebuild a SubViewer cue from its (base, detail) rows.
+pub fn sub_viewer_cue_from_rows(
+  base: PgSubtitleCueBaseRow,
+  detail: PgSubtitleCueSubViewerRow,
+  parent_timebase: mediatime::Timebase,
+) -> Result<SubViewerCue<Uuid7>, SqlxError> {
+  let (id, subtitle_track_id, ordinal, span, text, kind) =
+    base_row_to_parts(&base, parent_timebase)?;
+  if kind != SubtitleCueKind::SubViewer {
+    return Err(SqlxError::DomainConstructorRejected(format!(
+      "expected SubViewer cue kind, got {kind:?}"
+    )));
+  }
+  let d = SubViewerData::new(detail.styled_text);
+  SubViewerCue::try_new(id, subtitle_track_id, ordinal, span, text, d)
+    .map_err(|e: SubtitleCueError| SqlxError::DomainConstructorRejected(e.to_string()))
+}
+
+// --- SBV ---------------------------------------------------------------------
+//
+// SBV has no per-format detail; the row is just the FK PK. Owning a
+// detail table keeps the dispatch surface uniform across formats.
+
+/// PostgreSQL detail row for a YouTube SBV cue. Carries only the FK
+/// (no payload columns); written to keep the per-format dispatch
+/// uniform.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, sqlx::FromRow)]
+pub struct PgSubtitleCueSbvRow {
+  pub id: Uuid,
+}
+
+impl From<&SbvCue<Uuid7>> for (PgSubtitleCueBaseRow, PgSubtitleCueSbvRow) {
+  fn from(c: &SbvCue<Uuid7>) -> Self {
+    let base = base_row_from_cue(c, SubtitleCueKind::Sbv);
+    let detail = PgSubtitleCueSbvRow { id: base.id };
+    (base, detail)
+  }
+}
+
+/// Rebuild a SBV cue from its (base, detail) rows.
+pub fn sbv_cue_from_rows(
+  base: PgSubtitleCueBaseRow,
+  _detail: PgSubtitleCueSbvRow,
+  parent_timebase: mediatime::Timebase,
+) -> Result<SbvCue<Uuid7>, SqlxError> {
+  let (id, subtitle_track_id, ordinal, span, text, kind) =
+    base_row_to_parts(&base, parent_timebase)?;
+  if kind != SubtitleCueKind::Sbv {
+    return Err(SqlxError::DomainConstructorRejected(format!(
+      "expected Sbv cue kind, got {kind:?}"
+    )));
+  }
+  SbvCue::try_new(id, subtitle_track_id, ordinal, span, text, SbvData::new())
+    .map_err(|e: SubtitleCueError| SqlxError::DomainConstructorRejected(e.to_string()))
+}
+
+// --- TTML --------------------------------------------------------------------
+
+/// PostgreSQL detail row for a TTML cue (joined on `id`).
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct PgSubtitleCueTtmlRow {
+  pub id: Uuid,
+  pub region_id: Option<Uuid>,
+  pub style_id: Option<Uuid>,
+  pub xml_id: String,
+  pub styled_text: String,
+}
+
+impl From<&TtmlCue<Uuid7>> for (PgSubtitleCueBaseRow, PgSubtitleCueTtmlRow) {
+  fn from(c: &TtmlCue<Uuid7>) -> Self {
+    let base = base_row_from_cue(c, SubtitleCueKind::Ttml);
+    let d = c.data_ref();
+    let detail = PgSubtitleCueTtmlRow {
+      id: base.id,
+      region_id: d.region_id_ref().map(|id| uuid7_to_uuid(*id)),
+      style_id: d.style_id_ref().map(|id| uuid7_to_uuid(*id)),
+      xml_id: d.xml_id().to_owned(),
+      styled_text: d.styled_text().to_owned(),
+    };
+    (base, detail)
+  }
+}
+
+/// Rebuild a TTML cue from its (base, detail) rows.
+pub fn ttml_cue_from_rows(
+  base: PgSubtitleCueBaseRow,
+  detail: PgSubtitleCueTtmlRow,
+  parent_timebase: mediatime::Timebase,
+) -> Result<TtmlCue<Uuid7>, SqlxError> {
+  let (id, subtitle_track_id, ordinal, span, text, kind) =
+    base_row_to_parts(&base, parent_timebase)?;
+  if kind != SubtitleCueKind::Ttml {
+    return Err(SqlxError::DomainConstructorRejected(format!(
+      "expected Ttml cue kind, got {kind:?}"
+    )));
+  }
+  let region_id = match detail.region_id {
+    None => None,
+    Some(u) => Some(uuid_to_uuid7(u)?),
+  };
+  let style_id = match detail.style_id {
+    None => None,
+    Some(u) => Some(uuid_to_uuid7(u)?),
+  };
+  let d = TtmlData::<Uuid7>::new()
+    .maybe_region_id(region_id)
+    .maybe_style_id(style_id)
+    .with_xml_id(detail.xml_id)
+    .with_styled_text(detail.styled_text);
+  TtmlCue::try_new(id, subtitle_track_id, ordinal, span, text, d)
+    .map_err(|e: SubtitleCueError| SqlxError::DomainConstructorRejected(e.to_string()))
+}
+
+// --- SAMI --------------------------------------------------------------------
+
+/// PostgreSQL detail row for a SAMI cue (joined on `id`).
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct PgSubtitleCueSamiRow {
+  pub id: Uuid,
+  pub class_name: String,
+  pub styled_text: String,
+}
+
+impl From<&SamiCue<Uuid7>> for (PgSubtitleCueBaseRow, PgSubtitleCueSamiRow) {
+  fn from(c: &SamiCue<Uuid7>) -> Self {
+    let base = base_row_from_cue(c, SubtitleCueKind::Sami);
+    let d = c.data_ref();
+    let detail = PgSubtitleCueSamiRow {
+      id: base.id,
+      class_name: d.class_name().to_owned(),
+      styled_text: d.styled_text().to_owned(),
+    };
+    (base, detail)
+  }
+}
+
+/// Rebuild a SAMI cue from its (base, detail) rows.
+pub fn sami_cue_from_rows(
+  base: PgSubtitleCueBaseRow,
+  detail: PgSubtitleCueSamiRow,
+  parent_timebase: mediatime::Timebase,
+) -> Result<SamiCue<Uuid7>, SqlxError> {
+  let (id, subtitle_track_id, ordinal, span, text, kind) =
+    base_row_to_parts(&base, parent_timebase)?;
+  if kind != SubtitleCueKind::Sami {
+    return Err(SqlxError::DomainConstructorRejected(format!(
+      "expected Sami cue kind, got {kind:?}"
+    )));
+  }
+  let d = SamiData::new()
+    .with_class_name(detail.class_name)
+    .with_styled_text(detail.styled_text);
+  SamiCue::try_new(id, subtitle_track_id, ordinal, span, text, d)
+    .map_err(|e: SubtitleCueError| SqlxError::DomainConstructorRejected(e.to_string()))
+}
+
+// --- VobSub ------------------------------------------------------------------
+
+/// PostgreSQL detail row for a DVD VobSub cue. Bitmap blob rides as
+/// `BYTEA`; 4-byte colour/contrast index arrays ride as packed i32 (LE
+/// pack of the 4 u8 entries — matches the wire packing).
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct PgSubtitleCueVobSubRow {
+  pub id: Uuid,
+  pub palette_id: Uuid,
+  pub bitmap: Vec<u8>,
+  pub width: i64,
+  pub height: i64,
+  pub pos_x: i32,
+  pub pos_y: i32,
+  pub color_indices: i64,
+  pub contrast_indices: i64,
+}
+
+fn pack_indices_i64(a: &[u8; 4]) -> i64 {
+  (a[0] as i64) | ((a[1] as i64) << 8) | ((a[2] as i64) << 16) | ((a[3] as i64) << 24)
+}
+
+fn unpack_indices_i64(n: i64) -> Result<[u8; 4], SqlxError> {
+  // Stored value must fit in 32 bits (4 × u8).
+  let v = u32::try_from(n)
+    .map_err(|e| SqlxError::UnknownDiscriminant(format!("VobSub indices packing: {e}")))?;
+  Ok([
+    v as u8,
+    (v >> 8) as u8,
+    (v >> 16) as u8,
+    (v >> 24) as u8,
+  ])
+}
+
+impl From<&VobSubCue<Uuid7>> for (PgSubtitleCueBaseRow, PgSubtitleCueVobSubRow) {
+  fn from(c: &VobSubCue<Uuid7>) -> Self {
+    let base = base_row_from_cue(c, SubtitleCueKind::VobSub);
+    let d = c.data_ref();
+    let detail = PgSubtitleCueVobSubRow {
+      id: base.id,
+      palette_id: uuid7_to_uuid(*d.palette_id_ref()),
+      bitmap: d.bitmap_ref().to_vec(),
+      width: i64::from(d.width()),
+      height: i64::from(d.height()),
+      pos_x: d.pos_x(),
+      pos_y: d.pos_y(),
+      color_indices: pack_indices_i64(d.color_indices()),
+      contrast_indices: pack_indices_i64(d.contrast_indices()),
+    };
+    (base, detail)
+  }
+}
+
+/// Rebuild a VobSub cue from its (base, detail) rows.
+pub fn vob_sub_cue_from_rows(
+  base: PgSubtitleCueBaseRow,
+  detail: PgSubtitleCueVobSubRow,
+  parent_timebase: mediatime::Timebase,
+) -> Result<VobSubCue<Uuid7>, SqlxError> {
+  let (id, subtitle_track_id, ordinal, span, text, kind) =
+    base_row_to_parts(&base, parent_timebase)?;
+  if kind != SubtitleCueKind::VobSub {
+    return Err(SqlxError::DomainConstructorRejected(format!(
+      "expected VobSub cue kind, got {kind:?}"
+    )));
+  }
+  let palette_id = uuid_to_uuid7(detail.palette_id)?;
+  let d = VobSubData::<Uuid7>::new(palette_id)
+    .with_bitmap(Bytes::from(detail.bitmap))
+    .with_width(u32_from_i64(detail.width, "VobSubData.width")?)
+    .with_height(u32_from_i64(detail.height, "VobSubData.height")?)
+    .with_pos(detail.pos_x, detail.pos_y)
+    .with_color_indices(unpack_indices_i64(detail.color_indices)?)
+    .with_contrast_indices(unpack_indices_i64(detail.contrast_indices)?);
+  VobSubCue::try_new(id, subtitle_track_id, ordinal, span, text, d)
+    .map_err(|e: SubtitleCueError| SqlxError::DomainConstructorRejected(e.to_string()))
+}
+
+// --- PGS ---------------------------------------------------------------------
+
+/// PostgreSQL detail row for a Blu-ray PGS cue. Bitmap + palette ride
+/// as `BYTEA` blobs.
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct PgSubtitleCuePgsRow {
+  pub id: Uuid,
+  pub bitmap: Vec<u8>,
+  pub width: i64,
+  pub height: i64,
+  pub pos_x: i32,
+  pub pos_y: i32,
+  pub palette_bytes: Vec<u8>,
+  pub composition_state: i16,
+}
+
+impl From<&PgsCue<Uuid7>> for (PgSubtitleCueBaseRow, PgSubtitleCuePgsRow) {
+  fn from(c: &PgsCue<Uuid7>) -> Self {
+    let base = base_row_from_cue(c, SubtitleCueKind::Pgs);
+    let d = c.data_ref();
+    let detail = PgSubtitleCuePgsRow {
+      id: base.id,
+      bitmap: d.bitmap_ref().to_vec(),
+      width: i64::from(d.width()),
+      height: i64::from(d.height()),
+      pos_x: d.pos_x(),
+      pos_y: d.pos_y(),
+      palette_bytes: d.palette_bytes_ref().to_vec(),
+      composition_state: i16::from(d.composition_state()),
+    };
+    (base, detail)
+  }
+}
+
+/// Rebuild a PGS cue from its (base, detail) rows.
+pub fn pgs_cue_from_rows(
+  base: PgSubtitleCueBaseRow,
+  detail: PgSubtitleCuePgsRow,
+  parent_timebase: mediatime::Timebase,
+) -> Result<PgsCue<Uuid7>, SqlxError> {
+  let (id, subtitle_track_id, ordinal, span, text, kind) =
+    base_row_to_parts(&base, parent_timebase)?;
+  if kind != SubtitleCueKind::Pgs {
+    return Err(SqlxError::DomainConstructorRejected(format!(
+      "expected Pgs cue kind, got {kind:?}"
+    )));
+  }
+  let composition_state = u8::try_from(detail.composition_state).map_err(|e| {
+    SqlxError::UnknownDiscriminant(format!("PgsData.composition_state: {e}"))
+  })?;
+  let d = PgsData::new()
+    .with_bitmap(Bytes::from(detail.bitmap))
+    .with_palette_bytes(Bytes::from(detail.palette_bytes))
+    .with_width(u32_from_i64(detail.width, "PgsData.width")?)
+    .with_height(u32_from_i64(detail.height, "PgsData.height")?)
+    .with_pos(detail.pos_x, detail.pos_y)
+    .with_composition_state(composition_state);
+  PgsCue::try_new(id, subtitle_track_id, ordinal, span, text, d)
+    .map_err(|e: SubtitleCueError| SqlxError::DomainConstructorRejected(e.to_string()))
+}
+
+// --- CEA-608 -----------------------------------------------------------------
+
+/// PostgreSQL detail row for a CEA-608 caption cue. `channel` is
+/// validated `1..=4` by [`Cea608Data::try_new`].
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct PgSubtitleCueCea608Row {
+  pub id: Uuid,
+  pub channel: i16,
+  pub pac_byte_pair: i64,
+  pub styled_text: String,
+}
+
+impl From<&Cea608Cue<Uuid7>> for (PgSubtitleCueBaseRow, PgSubtitleCueCea608Row) {
+  fn from(c: &Cea608Cue<Uuid7>) -> Self {
+    let base = base_row_from_cue(c, SubtitleCueKind::Cea608);
+    let d = c.data_ref();
+    let detail = PgSubtitleCueCea608Row {
+      id: base.id,
+      channel: i16::from(d.channel()),
+      pac_byte_pair: i64::from(d.pac_byte_pair()),
+      styled_text: d.styled_text().to_owned(),
+    };
+    (base, detail)
+  }
+}
+
+/// Rebuild a CEA-608 cue from its (base, detail) rows.
+pub fn cea_608_cue_from_rows(
+  base: PgSubtitleCueBaseRow,
+  detail: PgSubtitleCueCea608Row,
+  parent_timebase: mediatime::Timebase,
+) -> Result<Cea608Cue<Uuid7>, SqlxError> {
+  let (id, subtitle_track_id, ordinal, span, text, kind) =
+    base_row_to_parts(&base, parent_timebase)?;
+  if kind != SubtitleCueKind::Cea608 {
+    return Err(SqlxError::DomainConstructorRejected(format!(
+      "expected Cea608 cue kind, got {kind:?}"
+    )));
+  }
+  let channel = u8::try_from(detail.channel)
+    .map_err(|e| SqlxError::UnknownDiscriminant(format!("Cea608Data.channel: {e}")))?;
+  let pac = u32::try_from(detail.pac_byte_pair).map_err(|e| {
+    SqlxError::UnknownDiscriminant(format!("Cea608Data.pac_byte_pair: {e}"))
+  })?;
+  let d = Cea608Data::try_new(channel)
+    .map_err(|e: SubtitleCueError| SqlxError::DomainConstructorRejected(e.to_string()))?
+    .with_pac_byte_pair(pac)
+    .with_styled_text(detail.styled_text);
+  Cea608Cue::try_new(id, subtitle_track_id, ordinal, span, text, d)
+    .map_err(|e: SubtitleCueError| SqlxError::DomainConstructorRejected(e.to_string()))
+}
+
+// --- EBU STL -----------------------------------------------------------------
+
+/// PostgreSQL detail row for an EBU STL teletext cue.
+/// `justification` is validated `1..=3` by [`EbuStlData::try_new`].
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct PgSubtitleCueEbuStlRow {
+  pub id: Uuid,
+  pub subtitle_number: i64,
+  pub cumulative: bool,
+  pub vertical_pos: i32,
+  pub justification: i16,
+  pub styled_text: String,
+}
+
+impl From<&EbuStlCue<Uuid7>> for (PgSubtitleCueBaseRow, PgSubtitleCueEbuStlRow) {
+  fn from(c: &EbuStlCue<Uuid7>) -> Self {
+    let base = base_row_from_cue(c, SubtitleCueKind::EbuStl);
+    let d = c.data_ref();
+    let detail = PgSubtitleCueEbuStlRow {
+      id: base.id,
+      subtitle_number: i64::from(d.subtitle_number()),
+      cumulative: d.cumulative(),
+      vertical_pos: d.vertical_pos(),
+      justification: i16::from(d.justification()),
+      styled_text: d.styled_text().to_owned(),
+    };
+    (base, detail)
+  }
+}
+
+/// Rebuild an EBU STL cue from its (base, detail) rows.
+pub fn ebu_stl_cue_from_rows(
+  base: PgSubtitleCueBaseRow,
+  detail: PgSubtitleCueEbuStlRow,
+  parent_timebase: mediatime::Timebase,
+) -> Result<EbuStlCue<Uuid7>, SqlxError> {
+  let (id, subtitle_track_id, ordinal, span, text, kind) =
+    base_row_to_parts(&base, parent_timebase)?;
+  if kind != SubtitleCueKind::EbuStl {
+    return Err(SqlxError::DomainConstructorRejected(format!(
+      "expected EbuStl cue kind, got {kind:?}"
+    )));
+  }
+  let justification = u8::try_from(detail.justification)
+    .map_err(|e| SqlxError::UnknownDiscriminant(format!("EbuStlData.justification: {e}")))?;
+  let subtitle_number = u32_from_i64(detail.subtitle_number, "EbuStlData.subtitle_number")?;
+  let d = EbuStlData::try_new(justification)
+    .map_err(|e: SubtitleCueError| SqlxError::DomainConstructorRejected(e.to_string()))?
+    .with_subtitle_number(subtitle_number)
+    .maybe_cumulative(detail.cumulative)
+    .with_vertical_pos(detail.vertical_pos)
+    .with_styled_text(detail.styled_text);
+  EbuStlCue::try_new(id, subtitle_track_id, ordinal, span, text, d)
+    .map_err(|e: SubtitleCueError| SqlxError::DomainConstructorRejected(e.to_string()))
+}
+
 // ===========================================================================
 // Per-track aggregates
 // ===========================================================================
@@ -903,6 +1369,140 @@ pub fn lrc_metadata_from_row(
   Ok(m)
 }
 
+/// PostgreSQL row for a [`TtmlRegion`].
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct PgSubtitleTrackTtmlRegionRow {
+  pub id: Uuid,
+  pub subtitle_track_id: Uuid,
+  pub xml_id: String,
+  pub xml_attrs: String,
+}
+
+impl From<&TtmlRegion<Uuid7>> for PgSubtitleTrackTtmlRegionRow {
+  fn from(r: &TtmlRegion<Uuid7>) -> Self {
+    Self {
+      id: uuid7_to_uuid(*r.id_ref()),
+      subtitle_track_id: uuid7_to_uuid(*r.subtitle_track_id_ref()),
+      xml_id: r.xml_id().to_owned(),
+      xml_attrs: r.xml_attrs().to_owned(),
+    }
+  }
+}
+
+/// Rebuild a [`TtmlRegion`] from its row.
+pub fn ttml_region_from_row(r: PgSubtitleTrackTtmlRegionRow) -> Result<TtmlRegion<Uuid7>, SqlxError> {
+  let id = uuid_to_uuid7(r.id)?;
+  let subtitle_track_id = uuid_to_uuid7(r.subtitle_track_id)?;
+  let region = TtmlRegion::try_new(id, subtitle_track_id, r.xml_id)
+    .map_err(|e: SubtitleCueError| SqlxError::DomainConstructorRejected(e.to_string()))?
+    .with_xml_attrs(r.xml_attrs);
+  Ok(region)
+}
+
+/// PostgreSQL row for a [`TtmlStyle`].
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct PgSubtitleTrackTtmlStyleRow {
+  pub id: Uuid,
+  pub subtitle_track_id: Uuid,
+  pub xml_id: String,
+  pub xml_attrs: String,
+}
+
+impl From<&TtmlStyle<Uuid7>> for PgSubtitleTrackTtmlStyleRow {
+  fn from(s: &TtmlStyle<Uuid7>) -> Self {
+    Self {
+      id: uuid7_to_uuid(*s.id_ref()),
+      subtitle_track_id: uuid7_to_uuid(*s.subtitle_track_id_ref()),
+      xml_id: s.xml_id().to_owned(),
+      xml_attrs: s.xml_attrs().to_owned(),
+    }
+  }
+}
+
+/// Rebuild a [`TtmlStyle`] from its row.
+pub fn ttml_style_from_row(r: PgSubtitleTrackTtmlStyleRow) -> Result<TtmlStyle<Uuid7>, SqlxError> {
+  let id = uuid_to_uuid7(r.id)?;
+  let subtitle_track_id = uuid_to_uuid7(r.subtitle_track_id)?;
+  let style = TtmlStyle::try_new(id, subtitle_track_id, r.xml_id)
+    .map_err(|e: SubtitleCueError| SqlxError::DomainConstructorRejected(e.to_string()))?
+    .with_xml_attrs(r.xml_attrs);
+  Ok(style)
+}
+
+/// PostgreSQL row for a [`SamiStyle`].
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct PgSubtitleTrackSamiStyleRow {
+  pub id: Uuid,
+  pub subtitle_track_id: Uuid,
+  pub class_name: String,
+  pub css_text: String,
+}
+
+impl From<&SamiStyle<Uuid7>> for PgSubtitleTrackSamiStyleRow {
+  fn from(s: &SamiStyle<Uuid7>) -> Self {
+    Self {
+      id: uuid7_to_uuid(*s.id_ref()),
+      subtitle_track_id: uuid7_to_uuid(*s.subtitle_track_id_ref()),
+      class_name: s.class_name().to_owned(),
+      css_text: s.css_text().to_owned(),
+    }
+  }
+}
+
+/// Rebuild a [`SamiStyle`] from its row.
+pub fn sami_style_from_row(r: PgSubtitleTrackSamiStyleRow) -> Result<SamiStyle<Uuid7>, SqlxError> {
+  let id = uuid_to_uuid7(r.id)?;
+  let subtitle_track_id = uuid_to_uuid7(r.subtitle_track_id)?;
+  let s = SamiStyle::try_new(id, subtitle_track_id, r.class_name)
+    .map_err(|e: SubtitleCueError| SqlxError::DomainConstructorRejected(e.to_string()))?
+    .with_css_text(r.css_text);
+  Ok(s)
+}
+
+/// PostgreSQL row for a [`VobSubPalette`]. The 16-entry palette LUT
+/// rides as a `BIGINT[]` array column (each `BIGINT` holds one
+/// `0x00RRGGBB` u32).
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct PgSubtitleTrackVobSubPaletteRow {
+  pub id: Uuid,
+  pub subtitle_track_id: Uuid,
+  pub entries: Vec<i64>,
+}
+
+impl From<&VobSubPalette<Uuid7>> for PgSubtitleTrackVobSubPaletteRow {
+  fn from(p: &VobSubPalette<Uuid7>) -> Self {
+    Self {
+      id: uuid7_to_uuid(*p.id_ref()),
+      subtitle_track_id: uuid7_to_uuid(*p.subtitle_track_id_ref()),
+      entries: p.entries().iter().map(|&v| i64::from(v)).collect(),
+    }
+  }
+}
+
+/// Rebuild a [`VobSubPalette`] from its row. Rejects rows whose
+/// `entries.len() != 16`.
+pub fn vob_sub_palette_from_row(
+  r: PgSubtitleTrackVobSubPaletteRow,
+) -> Result<VobSubPalette<Uuid7>, SqlxError> {
+  let id = uuid_to_uuid7(r.id)?;
+  let subtitle_track_id = uuid_to_uuid7(r.subtitle_track_id)?;
+  if r.entries.len() != 16 {
+    return Err(SqlxError::DomainConstructorRejected(format!(
+      "VobSubPalette.entries.len must be 16, got {}",
+      r.entries.len()
+    )));
+  }
+  let mut entries = [0u32; 16];
+  for (i, v) in r.entries.iter().enumerate() {
+    entries[i] = u32::try_from(*v)
+      .map_err(|e| SqlxError::UnknownDiscriminant(format!("VobSubPalette.entries[{i}]: {e}")))?;
+  }
+  let p = VobSubPalette::try_new(id, subtitle_track_id)
+    .map_err(|e: SubtitleCueError| SqlxError::DomainConstructorRejected(e.to_string()))?
+    .with_entries(entries);
+  Ok(p)
+}
+
 // ===========================================================================
 // Borrowed-view siblings (`*RowRef<'r>`) — zero-copy decode from `&'r Row`.
 //
@@ -1109,6 +1709,131 @@ pub struct PgSubtitleTrackLrcMetadataRowRef<'r> {
   pub offset_ms: i32,
 }
 
+/// Borrowed view of [`PgSubtitleCueMicroDvdRow`].
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct PgSubtitleCueMicroDvdRowRef<'r> {
+  pub id: Uuid,
+  pub styled_text: &'r str,
+}
+
+/// Borrowed view of [`PgSubtitleCueSubViewerRow`].
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct PgSubtitleCueSubViewerRowRef<'r> {
+  pub id: Uuid,
+  pub styled_text: &'r str,
+}
+
+/// Borrowed view of [`PgSubtitleCueSbvRow`].
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct PgSubtitleCueSbvRowRef<'r> {
+  pub id: Uuid,
+  #[sqlx(skip)]
+  pub _lt: core::marker::PhantomData<&'r ()>,
+}
+
+/// Borrowed view of [`PgSubtitleCueTtmlRow`].
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct PgSubtitleCueTtmlRowRef<'r> {
+  pub id: Uuid,
+  pub region_id: Option<Uuid>,
+  pub style_id: Option<Uuid>,
+  pub xml_id: &'r str,
+  pub styled_text: &'r str,
+}
+
+/// Borrowed view of [`PgSubtitleCueSamiRow`].
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct PgSubtitleCueSamiRowRef<'r> {
+  pub id: Uuid,
+  pub class_name: &'r str,
+  pub styled_text: &'r str,
+}
+
+/// Borrowed view of [`PgSubtitleCueVobSubRow`]. Bitmap rides as
+/// `&'r [u8]`; the 16-byte index arrays stay packed in `i64`.
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct PgSubtitleCueVobSubRowRef<'r> {
+  pub id: Uuid,
+  pub palette_id: Uuid,
+  pub bitmap: &'r [u8],
+  pub width: i64,
+  pub height: i64,
+  pub pos_x: i32,
+  pub pos_y: i32,
+  pub color_indices: i64,
+  pub contrast_indices: i64,
+}
+
+/// Borrowed view of [`PgSubtitleCuePgsRow`]. Bitmap + palette ride as
+/// `&'r [u8]`.
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct PgSubtitleCuePgsRowRef<'r> {
+  pub id: Uuid,
+  pub bitmap: &'r [u8],
+  pub width: i64,
+  pub height: i64,
+  pub pos_x: i32,
+  pub pos_y: i32,
+  pub palette_bytes: &'r [u8],
+  pub composition_state: i16,
+}
+
+/// Borrowed view of [`PgSubtitleCueCea608Row`].
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct PgSubtitleCueCea608RowRef<'r> {
+  pub id: Uuid,
+  pub channel: i16,
+  pub pac_byte_pair: i64,
+  pub styled_text: &'r str,
+}
+
+/// Borrowed view of [`PgSubtitleCueEbuStlRow`].
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct PgSubtitleCueEbuStlRowRef<'r> {
+  pub id: Uuid,
+  pub subtitle_number: i64,
+  pub cumulative: bool,
+  pub vertical_pos: i32,
+  pub justification: i16,
+  pub styled_text: &'r str,
+}
+
+/// Borrowed view of [`PgSubtitleTrackTtmlRegionRow`].
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct PgSubtitleTrackTtmlRegionRowRef<'r> {
+  pub id: Uuid,
+  pub subtitle_track_id: Uuid,
+  pub xml_id: &'r str,
+  pub xml_attrs: &'r str,
+}
+
+/// Borrowed view of [`PgSubtitleTrackTtmlStyleRow`].
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct PgSubtitleTrackTtmlStyleRowRef<'r> {
+  pub id: Uuid,
+  pub subtitle_track_id: Uuid,
+  pub xml_id: &'r str,
+  pub xml_attrs: &'r str,
+}
+
+/// Borrowed view of [`PgSubtitleTrackSamiStyleRow`].
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct PgSubtitleTrackSamiStyleRowRef<'r> {
+  pub id: Uuid,
+  pub subtitle_track_id: Uuid,
+  pub class_name: &'r str,
+  pub css_text: &'r str,
+}
+
+/// Borrowed view of [`PgSubtitleTrackVobSubPaletteRow`]. The `BIGINT[]`
+/// array column rides as a borrowed slice.
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct PgSubtitleTrackVobSubPaletteRowRef<'r> {
+  pub id: Uuid,
+  pub subtitle_track_id: Uuid,
+  pub entries: &'r [i64],
+}
+
 impl PgSubtitleCueBaseRow {
   /// Cheap borrow — produces a [`PgSubtitleCueBaseRowRef`] referencing `self`.
   pub fn as_ref(&self) -> PgSubtitleCueBaseRowRef<'_> {
@@ -1260,6 +1985,153 @@ impl PgSubtitleTrackLrcMetadataRow {
       creator: &self.creator,
       length: &self.length,
       offset_ms: self.offset_ms,
+    }
+  }
+}
+
+impl PgSubtitleCueMicroDvdRow {
+  pub fn as_ref(&self) -> PgSubtitleCueMicroDvdRowRef<'_> {
+    PgSubtitleCueMicroDvdRowRef {
+      id: self.id,
+      styled_text: &self.styled_text,
+    }
+  }
+}
+
+impl PgSubtitleCueSubViewerRow {
+  pub fn as_ref(&self) -> PgSubtitleCueSubViewerRowRef<'_> {
+    PgSubtitleCueSubViewerRowRef {
+      id: self.id,
+      styled_text: &self.styled_text,
+    }
+  }
+}
+
+impl PgSubtitleCueSbvRow {
+  pub fn as_ref(&self) -> PgSubtitleCueSbvRowRef<'_> {
+    PgSubtitleCueSbvRowRef {
+      id: self.id,
+      _lt: core::marker::PhantomData,
+    }
+  }
+}
+
+impl PgSubtitleCueTtmlRow {
+  pub fn as_ref(&self) -> PgSubtitleCueTtmlRowRef<'_> {
+    PgSubtitleCueTtmlRowRef {
+      id: self.id,
+      region_id: self.region_id,
+      style_id: self.style_id,
+      xml_id: &self.xml_id,
+      styled_text: &self.styled_text,
+    }
+  }
+}
+
+impl PgSubtitleCueSamiRow {
+  pub fn as_ref(&self) -> PgSubtitleCueSamiRowRef<'_> {
+    PgSubtitleCueSamiRowRef {
+      id: self.id,
+      class_name: &self.class_name,
+      styled_text: &self.styled_text,
+    }
+  }
+}
+
+impl PgSubtitleCueVobSubRow {
+  pub fn as_ref(&self) -> PgSubtitleCueVobSubRowRef<'_> {
+    PgSubtitleCueVobSubRowRef {
+      id: self.id,
+      palette_id: self.palette_id,
+      bitmap: &self.bitmap,
+      width: self.width,
+      height: self.height,
+      pos_x: self.pos_x,
+      pos_y: self.pos_y,
+      color_indices: self.color_indices,
+      contrast_indices: self.contrast_indices,
+    }
+  }
+}
+
+impl PgSubtitleCuePgsRow {
+  pub fn as_ref(&self) -> PgSubtitleCuePgsRowRef<'_> {
+    PgSubtitleCuePgsRowRef {
+      id: self.id,
+      bitmap: &self.bitmap,
+      width: self.width,
+      height: self.height,
+      pos_x: self.pos_x,
+      pos_y: self.pos_y,
+      palette_bytes: &self.palette_bytes,
+      composition_state: self.composition_state,
+    }
+  }
+}
+
+impl PgSubtitleCueCea608Row {
+  pub fn as_ref(&self) -> PgSubtitleCueCea608RowRef<'_> {
+    PgSubtitleCueCea608RowRef {
+      id: self.id,
+      channel: self.channel,
+      pac_byte_pair: self.pac_byte_pair,
+      styled_text: &self.styled_text,
+    }
+  }
+}
+
+impl PgSubtitleCueEbuStlRow {
+  pub fn as_ref(&self) -> PgSubtitleCueEbuStlRowRef<'_> {
+    PgSubtitleCueEbuStlRowRef {
+      id: self.id,
+      subtitle_number: self.subtitle_number,
+      cumulative: self.cumulative,
+      vertical_pos: self.vertical_pos,
+      justification: self.justification,
+      styled_text: &self.styled_text,
+    }
+  }
+}
+
+impl PgSubtitleTrackTtmlRegionRow {
+  pub fn as_ref(&self) -> PgSubtitleTrackTtmlRegionRowRef<'_> {
+    PgSubtitleTrackTtmlRegionRowRef {
+      id: self.id,
+      subtitle_track_id: self.subtitle_track_id,
+      xml_id: &self.xml_id,
+      xml_attrs: &self.xml_attrs,
+    }
+  }
+}
+
+impl PgSubtitleTrackTtmlStyleRow {
+  pub fn as_ref(&self) -> PgSubtitleTrackTtmlStyleRowRef<'_> {
+    PgSubtitleTrackTtmlStyleRowRef {
+      id: self.id,
+      subtitle_track_id: self.subtitle_track_id,
+      xml_id: &self.xml_id,
+      xml_attrs: &self.xml_attrs,
+    }
+  }
+}
+
+impl PgSubtitleTrackSamiStyleRow {
+  pub fn as_ref(&self) -> PgSubtitleTrackSamiStyleRowRef<'_> {
+    PgSubtitleTrackSamiStyleRowRef {
+      id: self.id,
+      subtitle_track_id: self.subtitle_track_id,
+      class_name: &self.class_name,
+      css_text: &self.css_text,
+    }
+  }
+}
+
+impl PgSubtitleTrackVobSubPaletteRow {
+  pub fn as_ref(&self) -> PgSubtitleTrackVobSubPaletteRowRef<'_> {
+    PgSubtitleTrackVobSubPaletteRowRef {
+      id: self.id,
+      subtitle_track_id: self.subtitle_track_id,
+      entries: &self.entries,
     }
   }
 }
@@ -1493,6 +2365,272 @@ pub fn lrc_metadata_from_row_ref<'r>(
     .with_length(r.length)
     .with_offset_ms(r.offset_ms);
   Ok(m)
+}
+
+/// Rebuild a MicroDVD cue from its borrowed (base, detail) rows.
+pub fn micro_dvd_cue_from_row_refs<'r>(
+  base: PgSubtitleCueBaseRowRef<'r>,
+  detail: PgSubtitleCueMicroDvdRowRef<'r>,
+  parent_timebase: mediatime::Timebase,
+) -> Result<MicroDvdCue<Uuid7>, SqlxError> {
+  let (id, subtitle_track_id, ordinal, span, text, kind) =
+    base_row_ref_to_parts(&base, parent_timebase)?;
+  if kind != SubtitleCueKind::MicroDvd {
+    return Err(SqlxError::DomainConstructorRejected(format!(
+      "expected MicroDvd cue kind, got {kind:?}"
+    )));
+  }
+  let d = MicroDvdData::new(detail.styled_text);
+  MicroDvdCue::try_new(id, subtitle_track_id, ordinal, span, text, d)
+    .map_err(|e: SubtitleCueError| SqlxError::DomainConstructorRejected(e.to_string()))
+}
+
+/// Rebuild a SubViewer cue from its borrowed (base, detail) rows.
+pub fn sub_viewer_cue_from_row_refs<'r>(
+  base: PgSubtitleCueBaseRowRef<'r>,
+  detail: PgSubtitleCueSubViewerRowRef<'r>,
+  parent_timebase: mediatime::Timebase,
+) -> Result<SubViewerCue<Uuid7>, SqlxError> {
+  let (id, subtitle_track_id, ordinal, span, text, kind) =
+    base_row_ref_to_parts(&base, parent_timebase)?;
+  if kind != SubtitleCueKind::SubViewer {
+    return Err(SqlxError::DomainConstructorRejected(format!(
+      "expected SubViewer cue kind, got {kind:?}"
+    )));
+  }
+  let d = SubViewerData::new(detail.styled_text);
+  SubViewerCue::try_new(id, subtitle_track_id, ordinal, span, text, d)
+    .map_err(|e: SubtitleCueError| SqlxError::DomainConstructorRejected(e.to_string()))
+}
+
+/// Rebuild a SBV cue from its borrowed (base, detail) rows.
+pub fn sbv_cue_from_row_refs<'r>(
+  base: PgSubtitleCueBaseRowRef<'r>,
+  _detail: PgSubtitleCueSbvRowRef<'r>,
+  parent_timebase: mediatime::Timebase,
+) -> Result<SbvCue<Uuid7>, SqlxError> {
+  let (id, subtitle_track_id, ordinal, span, text, kind) =
+    base_row_ref_to_parts(&base, parent_timebase)?;
+  if kind != SubtitleCueKind::Sbv {
+    return Err(SqlxError::DomainConstructorRejected(format!(
+      "expected Sbv cue kind, got {kind:?}"
+    )));
+  }
+  SbvCue::try_new(id, subtitle_track_id, ordinal, span, text, SbvData::new())
+    .map_err(|e: SubtitleCueError| SqlxError::DomainConstructorRejected(e.to_string()))
+}
+
+/// Rebuild a TTML cue from its borrowed (base, detail) rows.
+pub fn ttml_cue_from_row_refs<'r>(
+  base: PgSubtitleCueBaseRowRef<'r>,
+  detail: PgSubtitleCueTtmlRowRef<'r>,
+  parent_timebase: mediatime::Timebase,
+) -> Result<TtmlCue<Uuid7>, SqlxError> {
+  let (id, subtitle_track_id, ordinal, span, text, kind) =
+    base_row_ref_to_parts(&base, parent_timebase)?;
+  if kind != SubtitleCueKind::Ttml {
+    return Err(SqlxError::DomainConstructorRejected(format!(
+      "expected Ttml cue kind, got {kind:?}"
+    )));
+  }
+  let region_id = match detail.region_id {
+    None => None,
+    Some(u) => Some(uuid_to_uuid7(u)?),
+  };
+  let style_id = match detail.style_id {
+    None => None,
+    Some(u) => Some(uuid_to_uuid7(u)?),
+  };
+  let d = TtmlData::<Uuid7>::new()
+    .maybe_region_id(region_id)
+    .maybe_style_id(style_id)
+    .with_xml_id(detail.xml_id)
+    .with_styled_text(detail.styled_text);
+  TtmlCue::try_new(id, subtitle_track_id, ordinal, span, text, d)
+    .map_err(|e: SubtitleCueError| SqlxError::DomainConstructorRejected(e.to_string()))
+}
+
+/// Rebuild a SAMI cue from its borrowed (base, detail) rows.
+pub fn sami_cue_from_row_refs<'r>(
+  base: PgSubtitleCueBaseRowRef<'r>,
+  detail: PgSubtitleCueSamiRowRef<'r>,
+  parent_timebase: mediatime::Timebase,
+) -> Result<SamiCue<Uuid7>, SqlxError> {
+  let (id, subtitle_track_id, ordinal, span, text, kind) =
+    base_row_ref_to_parts(&base, parent_timebase)?;
+  if kind != SubtitleCueKind::Sami {
+    return Err(SqlxError::DomainConstructorRejected(format!(
+      "expected Sami cue kind, got {kind:?}"
+    )));
+  }
+  let d = SamiData::new()
+    .with_class_name(detail.class_name)
+    .with_styled_text(detail.styled_text);
+  SamiCue::try_new(id, subtitle_track_id, ordinal, span, text, d)
+    .map_err(|e: SubtitleCueError| SqlxError::DomainConstructorRejected(e.to_string()))
+}
+
+/// Rebuild a VobSub cue from its borrowed (base, detail) rows.
+pub fn vob_sub_cue_from_row_refs<'r>(
+  base: PgSubtitleCueBaseRowRef<'r>,
+  detail: PgSubtitleCueVobSubRowRef<'r>,
+  parent_timebase: mediatime::Timebase,
+) -> Result<VobSubCue<Uuid7>, SqlxError> {
+  let (id, subtitle_track_id, ordinal, span, text, kind) =
+    base_row_ref_to_parts(&base, parent_timebase)?;
+  if kind != SubtitleCueKind::VobSub {
+    return Err(SqlxError::DomainConstructorRejected(format!(
+      "expected VobSub cue kind, got {kind:?}"
+    )));
+  }
+  let palette_id = uuid_to_uuid7(detail.palette_id)?;
+  let d = VobSubData::<Uuid7>::new(palette_id)
+    .with_bitmap(Bytes::copy_from_slice(detail.bitmap))
+    .with_width(u32_from_i64(detail.width, "VobSubData.width")?)
+    .with_height(u32_from_i64(detail.height, "VobSubData.height")?)
+    .with_pos(detail.pos_x, detail.pos_y)
+    .with_color_indices(unpack_indices_i64(detail.color_indices)?)
+    .with_contrast_indices(unpack_indices_i64(detail.contrast_indices)?);
+  VobSubCue::try_new(id, subtitle_track_id, ordinal, span, text, d)
+    .map_err(|e: SubtitleCueError| SqlxError::DomainConstructorRejected(e.to_string()))
+}
+
+/// Rebuild a PGS cue from its borrowed (base, detail) rows.
+pub fn pgs_cue_from_row_refs<'r>(
+  base: PgSubtitleCueBaseRowRef<'r>,
+  detail: PgSubtitleCuePgsRowRef<'r>,
+  parent_timebase: mediatime::Timebase,
+) -> Result<PgsCue<Uuid7>, SqlxError> {
+  let (id, subtitle_track_id, ordinal, span, text, kind) =
+    base_row_ref_to_parts(&base, parent_timebase)?;
+  if kind != SubtitleCueKind::Pgs {
+    return Err(SqlxError::DomainConstructorRejected(format!(
+      "expected Pgs cue kind, got {kind:?}"
+    )));
+  }
+  let composition_state = u8::try_from(detail.composition_state).map_err(|e| {
+    SqlxError::UnknownDiscriminant(format!("PgsData.composition_state: {e}"))
+  })?;
+  let d = PgsData::new()
+    .with_bitmap(Bytes::copy_from_slice(detail.bitmap))
+    .with_palette_bytes(Bytes::copy_from_slice(detail.palette_bytes))
+    .with_width(u32_from_i64(detail.width, "PgsData.width")?)
+    .with_height(u32_from_i64(detail.height, "PgsData.height")?)
+    .with_pos(detail.pos_x, detail.pos_y)
+    .with_composition_state(composition_state);
+  PgsCue::try_new(id, subtitle_track_id, ordinal, span, text, d)
+    .map_err(|e: SubtitleCueError| SqlxError::DomainConstructorRejected(e.to_string()))
+}
+
+/// Rebuild a CEA-608 cue from its borrowed (base, detail) rows.
+pub fn cea_608_cue_from_row_refs<'r>(
+  base: PgSubtitleCueBaseRowRef<'r>,
+  detail: PgSubtitleCueCea608RowRef<'r>,
+  parent_timebase: mediatime::Timebase,
+) -> Result<Cea608Cue<Uuid7>, SqlxError> {
+  let (id, subtitle_track_id, ordinal, span, text, kind) =
+    base_row_ref_to_parts(&base, parent_timebase)?;
+  if kind != SubtitleCueKind::Cea608 {
+    return Err(SqlxError::DomainConstructorRejected(format!(
+      "expected Cea608 cue kind, got {kind:?}"
+    )));
+  }
+  let channel = u8::try_from(detail.channel)
+    .map_err(|e| SqlxError::UnknownDiscriminant(format!("Cea608Data.channel: {e}")))?;
+  let pac = u32::try_from(detail.pac_byte_pair).map_err(|e| {
+    SqlxError::UnknownDiscriminant(format!("Cea608Data.pac_byte_pair: {e}"))
+  })?;
+  let d = Cea608Data::try_new(channel)
+    .map_err(|e: SubtitleCueError| SqlxError::DomainConstructorRejected(e.to_string()))?
+    .with_pac_byte_pair(pac)
+    .with_styled_text(detail.styled_text);
+  Cea608Cue::try_new(id, subtitle_track_id, ordinal, span, text, d)
+    .map_err(|e: SubtitleCueError| SqlxError::DomainConstructorRejected(e.to_string()))
+}
+
+/// Rebuild an EBU STL cue from its borrowed (base, detail) rows.
+pub fn ebu_stl_cue_from_row_refs<'r>(
+  base: PgSubtitleCueBaseRowRef<'r>,
+  detail: PgSubtitleCueEbuStlRowRef<'r>,
+  parent_timebase: mediatime::Timebase,
+) -> Result<EbuStlCue<Uuid7>, SqlxError> {
+  let (id, subtitle_track_id, ordinal, span, text, kind) =
+    base_row_ref_to_parts(&base, parent_timebase)?;
+  if kind != SubtitleCueKind::EbuStl {
+    return Err(SqlxError::DomainConstructorRejected(format!(
+      "expected EbuStl cue kind, got {kind:?}"
+    )));
+  }
+  let justification = u8::try_from(detail.justification)
+    .map_err(|e| SqlxError::UnknownDiscriminant(format!("EbuStlData.justification: {e}")))?;
+  let subtitle_number = u32_from_i64(detail.subtitle_number, "EbuStlData.subtitle_number")?;
+  let d = EbuStlData::try_new(justification)
+    .map_err(|e: SubtitleCueError| SqlxError::DomainConstructorRejected(e.to_string()))?
+    .with_subtitle_number(subtitle_number)
+    .maybe_cumulative(detail.cumulative)
+    .with_vertical_pos(detail.vertical_pos)
+    .with_styled_text(detail.styled_text);
+  EbuStlCue::try_new(id, subtitle_track_id, ordinal, span, text, d)
+    .map_err(|e: SubtitleCueError| SqlxError::DomainConstructorRejected(e.to_string()))
+}
+
+/// Rebuild a [`TtmlRegion`] from its borrowed row.
+pub fn ttml_region_from_row_ref<'r>(
+  r: PgSubtitleTrackTtmlRegionRowRef<'r>,
+) -> Result<TtmlRegion<Uuid7>, SqlxError> {
+  let id = uuid_to_uuid7(r.id)?;
+  let subtitle_track_id = uuid_to_uuid7(r.subtitle_track_id)?;
+  let region = TtmlRegion::try_new(id, subtitle_track_id, r.xml_id)
+    .map_err(|e: SubtitleCueError| SqlxError::DomainConstructorRejected(e.to_string()))?
+    .with_xml_attrs(r.xml_attrs);
+  Ok(region)
+}
+
+/// Rebuild a [`TtmlStyle`] from its borrowed row.
+pub fn ttml_style_from_row_ref<'r>(
+  r: PgSubtitleTrackTtmlStyleRowRef<'r>,
+) -> Result<TtmlStyle<Uuid7>, SqlxError> {
+  let id = uuid_to_uuid7(r.id)?;
+  let subtitle_track_id = uuid_to_uuid7(r.subtitle_track_id)?;
+  let style = TtmlStyle::try_new(id, subtitle_track_id, r.xml_id)
+    .map_err(|e: SubtitleCueError| SqlxError::DomainConstructorRejected(e.to_string()))?
+    .with_xml_attrs(r.xml_attrs);
+  Ok(style)
+}
+
+/// Rebuild a [`SamiStyle`] from its borrowed row.
+pub fn sami_style_from_row_ref<'r>(
+  r: PgSubtitleTrackSamiStyleRowRef<'r>,
+) -> Result<SamiStyle<Uuid7>, SqlxError> {
+  let id = uuid_to_uuid7(r.id)?;
+  let subtitle_track_id = uuid_to_uuid7(r.subtitle_track_id)?;
+  let s = SamiStyle::try_new(id, subtitle_track_id, r.class_name)
+    .map_err(|e: SubtitleCueError| SqlxError::DomainConstructorRejected(e.to_string()))?
+    .with_css_text(r.css_text);
+  Ok(s)
+}
+
+/// Rebuild a [`VobSubPalette`] from its borrowed row.
+pub fn vob_sub_palette_from_row_ref<'r>(
+  r: PgSubtitleTrackVobSubPaletteRowRef<'r>,
+) -> Result<VobSubPalette<Uuid7>, SqlxError> {
+  let id = uuid_to_uuid7(r.id)?;
+  let subtitle_track_id = uuid_to_uuid7(r.subtitle_track_id)?;
+  if r.entries.len() != 16 {
+    return Err(SqlxError::DomainConstructorRejected(format!(
+      "VobSubPalette.entries.len must be 16, got {}",
+      r.entries.len()
+    )));
+  }
+  let mut entries = [0u32; 16];
+  for (i, v) in r.entries.iter().enumerate() {
+    entries[i] = u32::try_from(*v)
+      .map_err(|e| SqlxError::UnknownDiscriminant(format!("VobSubPalette.entries[{i}]: {e}")))?;
+  }
+  let p = VobSubPalette::try_new(id, subtitle_track_id)
+    .map_err(|e: SubtitleCueError| SqlxError::DomainConstructorRejected(e.to_string()))?
+    .with_entries(entries);
+  Ok(p)
 }
 
 impl PgSubtitleTrackRow {
@@ -2198,5 +3336,440 @@ mod tests {
     let row: PgSubtitleTrackLrcMetadataRow = (&m).into();
     let m2 = lrc_metadata_from_row_ref(row.as_ref()).unwrap();
     assert_eq!(m, m2);
+  }
+
+  // ---- Long-tail formats (#56) -------------------------------------------
+
+  #[test]
+  fn micro_dvd_cue_round_trip() {
+    let d = MicroDvdData::new("{y:b}hi");
+    let c: MicroDvdCue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      TimeRange::new(0, 1_000, tb()),
+      LocalizedText::from_src("hi"),
+      d,
+    )
+    .unwrap();
+    let (base, detail): (PgSubtitleCueBaseRow, PgSubtitleCueMicroDvdRow) = (&c).into();
+    let c2 = micro_dvd_cue_from_rows(base, detail, tb()).unwrap();
+    assert_eq!(c, c2);
+  }
+
+  #[test]
+  fn micro_dvd_cue_ref_roundtrip() {
+    let c: MicroDvdCue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      TimeRange::new(0, 1_000, tb()),
+      LocalizedText::from_src("hi"),
+      MicroDvdData::new("{y:b}hi"),
+    )
+    .unwrap();
+    let (base, detail): (PgSubtitleCueBaseRow, PgSubtitleCueMicroDvdRow) = (&c).into();
+    let c2 = micro_dvd_cue_from_row_refs(base.as_ref(), detail.as_ref(), tb()).unwrap();
+    assert_eq!(c, c2);
+  }
+
+  #[test]
+  fn sub_viewer_cue_round_trip() {
+    let d = SubViewerData::new("[b]hi[/b]");
+    let c: SubViewerCue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      TimeRange::new(0, 1_000, tb()),
+      LocalizedText::from_src("hi"),
+      d,
+    )
+    .unwrap();
+    let (base, detail): (PgSubtitleCueBaseRow, PgSubtitleCueSubViewerRow) = (&c).into();
+    let c2 = sub_viewer_cue_from_rows(base, detail, tb()).unwrap();
+    assert_eq!(c, c2);
+  }
+
+  #[test]
+  fn sub_viewer_cue_ref_roundtrip() {
+    let c: SubViewerCue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      TimeRange::new(0, 1_000, tb()),
+      LocalizedText::from_src("hi"),
+      SubViewerData::new("[b]hi[/b]"),
+    )
+    .unwrap();
+    let (base, detail): (PgSubtitleCueBaseRow, PgSubtitleCueSubViewerRow) = (&c).into();
+    let c2 = sub_viewer_cue_from_row_refs(base.as_ref(), detail.as_ref(), tb()).unwrap();
+    assert_eq!(c, c2);
+  }
+
+  #[test]
+  fn sbv_cue_round_trip() {
+    let c: SbvCue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      TimeRange::new(0, 1_000, tb()),
+      LocalizedText::from_src("plain"),
+      SbvData::new(),
+    )
+    .unwrap();
+    let (base, detail): (PgSubtitleCueBaseRow, PgSubtitleCueSbvRow) = (&c).into();
+    let c2 = sbv_cue_from_rows(base, detail, tb()).unwrap();
+    assert_eq!(c, c2);
+  }
+
+  #[test]
+  fn sbv_cue_ref_roundtrip() {
+    let c: SbvCue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      TimeRange::new(0, 1_000, tb()),
+      LocalizedText::from_src("plain"),
+      SbvData::new(),
+    )
+    .unwrap();
+    let (base, detail): (PgSubtitleCueBaseRow, PgSubtitleCueSbvRow) = (&c).into();
+    let c2 = sbv_cue_from_row_refs(base.as_ref(), detail.as_ref(), tb()).unwrap();
+    assert_eq!(c, c2);
+  }
+
+  #[test]
+  fn ttml_cue_round_trip() {
+    let region_id = Uuid7::new();
+    let style_id = Uuid7::new();
+    let d = TtmlData::<Uuid7>::new()
+      .with_region_id(region_id)
+      .with_style_id(style_id)
+      .with_xml_id("c-1")
+      .with_styled_text("<span tts:color=\"red\">hi</span>");
+    let c: TtmlCue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      TimeRange::new(0, 1_000, tb()),
+      LocalizedText::from_src("hi"),
+      d,
+    )
+    .unwrap();
+    let (base, detail): (PgSubtitleCueBaseRow, PgSubtitleCueTtmlRow) = (&c).into();
+    let c2 = ttml_cue_from_rows(base, detail, tb()).unwrap();
+    assert_eq!(c, c2);
+  }
+
+  #[test]
+  fn ttml_cue_ref_roundtrip() {
+    let d = TtmlData::<Uuid7>::new()
+      .with_xml_id("c-1")
+      .with_styled_text("<span/>");
+    let c: TtmlCue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      TimeRange::new(0, 1_000, tb()),
+      LocalizedText::from_src("hi"),
+      d,
+    )
+    .unwrap();
+    let (base, detail): (PgSubtitleCueBaseRow, PgSubtitleCueTtmlRow) = (&c).into();
+    let c2 = ttml_cue_from_row_refs(base.as_ref(), detail.as_ref(), tb()).unwrap();
+    assert_eq!(c, c2);
+  }
+
+  #[test]
+  fn sami_cue_round_trip() {
+    let d = SamiData::new()
+      .with_class_name("ENCC")
+      .with_styled_text("<P><B>Hi</B></P>");
+    let c: SamiCue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      TimeRange::new(0, 1_000, tb()),
+      LocalizedText::from_src("Hi"),
+      d,
+    )
+    .unwrap();
+    let (base, detail): (PgSubtitleCueBaseRow, PgSubtitleCueSamiRow) = (&c).into();
+    let c2 = sami_cue_from_rows(base, detail, tb()).unwrap();
+    assert_eq!(c, c2);
+  }
+
+  #[test]
+  fn sami_cue_ref_roundtrip() {
+    let d = SamiData::new()
+      .with_class_name("ENCC")
+      .with_styled_text("<P><B>Hi</B></P>");
+    let c: SamiCue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      TimeRange::new(0, 1_000, tb()),
+      LocalizedText::from_src("Hi"),
+      d,
+    )
+    .unwrap();
+    let (base, detail): (PgSubtitleCueBaseRow, PgSubtitleCueSamiRow) = (&c).into();
+    let c2 = sami_cue_from_row_refs(base.as_ref(), detail.as_ref(), tb()).unwrap();
+    assert_eq!(c, c2);
+  }
+
+  #[test]
+  fn vob_sub_cue_round_trip() {
+    let palette_id = Uuid7::new();
+    let d = VobSubData::<Uuid7>::new(palette_id)
+      .with_bitmap(Bytes::from_static(b"\x01\x02"))
+      .with_width(720)
+      .with_height(60)
+      .with_pos(20, 540)
+      .with_color_indices([1, 2, 3, 4])
+      .with_contrast_indices([0, 0xF, 0xF, 0xF]);
+    let c: VobSubCue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      TimeRange::new(0, 1_000, tb()),
+      LocalizedText::new(),
+      d,
+    )
+    .unwrap();
+    let (base, detail): (PgSubtitleCueBaseRow, PgSubtitleCueVobSubRow) = (&c).into();
+    let c2 = vob_sub_cue_from_rows(base, detail, tb()).unwrap();
+    assert_eq!(c, c2);
+  }
+
+  #[test]
+  fn vob_sub_cue_ref_roundtrip() {
+    let d = VobSubData::<Uuid7>::new(Uuid7::new())
+      .with_bitmap(Bytes::from_static(b"\x01\x02"))
+      .with_width(720)
+      .with_height(60)
+      .with_pos(20, 540)
+      .with_color_indices([1, 2, 3, 4]);
+    let c: VobSubCue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      TimeRange::new(0, 1_000, tb()),
+      LocalizedText::new(),
+      d,
+    )
+    .unwrap();
+    let (base, detail): (PgSubtitleCueBaseRow, PgSubtitleCueVobSubRow) = (&c).into();
+    let c2 = vob_sub_cue_from_row_refs(base.as_ref(), detail.as_ref(), tb()).unwrap();
+    assert_eq!(c, c2);
+  }
+
+  #[test]
+  fn pgs_cue_round_trip() {
+    let d = PgsData::new()
+      .with_bitmap(Bytes::from_static(b"\xAA\xBB"))
+      .with_palette_bytes(Bytes::from_static(b"\x10\x20"))
+      .with_width(1920)
+      .with_height(80)
+      .with_pos(0, 920)
+      .with_composition_state(0x80);
+    let c: PgsCue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      TimeRange::new(0, 1_000, tb()),
+      LocalizedText::new(),
+      d,
+    )
+    .unwrap();
+    let (base, detail): (PgSubtitleCueBaseRow, PgSubtitleCuePgsRow) = (&c).into();
+    let c2 = pgs_cue_from_rows(base, detail, tb()).unwrap();
+    assert_eq!(c, c2);
+  }
+
+  #[test]
+  fn pgs_cue_ref_roundtrip() {
+    let d = PgsData::new()
+      .with_bitmap(Bytes::from_static(b"\xAA"))
+      .with_palette_bytes(Bytes::from_static(b"\x10"))
+      .with_composition_state(0x40);
+    let c: PgsCue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      TimeRange::new(0, 1_000, tb()),
+      LocalizedText::new(),
+      d,
+    )
+    .unwrap();
+    let (base, detail): (PgSubtitleCueBaseRow, PgSubtitleCuePgsRow) = (&c).into();
+    let c2 = pgs_cue_from_row_refs(base.as_ref(), detail.as_ref(), tb()).unwrap();
+    assert_eq!(c, c2);
+  }
+
+  #[test]
+  fn cea_608_cue_round_trip() {
+    let d = Cea608Data::try_new(2)
+      .unwrap()
+      .with_pac_byte_pair(0x1170)
+      .with_styled_text("Hi");
+    let c: Cea608Cue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      TimeRange::new(0, 1_000, tb()),
+      LocalizedText::from_src("Hi"),
+      d,
+    )
+    .unwrap();
+    let (base, detail): (PgSubtitleCueBaseRow, PgSubtitleCueCea608Row) = (&c).into();
+    let c2 = cea_608_cue_from_rows(base, detail, tb()).unwrap();
+    assert_eq!(c, c2);
+  }
+
+  #[test]
+  fn cea_608_cue_ref_roundtrip() {
+    let d = Cea608Data::try_new(3)
+      .unwrap()
+      .with_pac_byte_pair(0x1170);
+    let c: Cea608Cue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      TimeRange::new(0, 1_000, tb()),
+      LocalizedText::from_src("Hi"),
+      d,
+    )
+    .unwrap();
+    let (base, detail): (PgSubtitleCueBaseRow, PgSubtitleCueCea608Row) = (&c).into();
+    let c2 = cea_608_cue_from_row_refs(base.as_ref(), detail.as_ref(), tb()).unwrap();
+    assert_eq!(c, c2);
+  }
+
+  #[test]
+  fn ebu_stl_cue_round_trip() {
+    let d = EbuStlData::try_new(2)
+      .unwrap()
+      .with_subtitle_number(42)
+      .with_cumulative()
+      .with_vertical_pos(20)
+      .with_styled_text("Hi");
+    let c: EbuStlCue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      TimeRange::new(0, 1_000, tb()),
+      LocalizedText::from_src("Hi"),
+      d,
+    )
+    .unwrap();
+    let (base, detail): (PgSubtitleCueBaseRow, PgSubtitleCueEbuStlRow) = (&c).into();
+    let c2 = ebu_stl_cue_from_rows(base, detail, tb()).unwrap();
+    assert_eq!(c, c2);
+  }
+
+  #[test]
+  fn ebu_stl_cue_ref_roundtrip() {
+    let d = EbuStlData::try_new(2)
+      .unwrap()
+      .with_subtitle_number(42)
+      .with_vertical_pos(20);
+    let c: EbuStlCue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      TimeRange::new(0, 1_000, tb()),
+      LocalizedText::from_src("Hi"),
+      d,
+    )
+    .unwrap();
+    let (base, detail): (PgSubtitleCueBaseRow, PgSubtitleCueEbuStlRow) = (&c).into();
+    let c2 = ebu_stl_cue_from_row_refs(base.as_ref(), detail.as_ref(), tb()).unwrap();
+    assert_eq!(c, c2);
+  }
+
+  #[test]
+  fn ttml_region_round_trip() {
+    let r = TtmlRegion::try_new(Uuid7::new(), Uuid7::new(), "r1")
+      .unwrap()
+      .with_xml_attrs("tts:origin=\"10% 80%\"");
+    let row: PgSubtitleTrackTtmlRegionRow = (&r).into();
+    let r2 = ttml_region_from_row(row).unwrap();
+    assert_eq!(r, r2);
+  }
+
+  #[test]
+  fn ttml_region_ref_roundtrip() {
+    let r = TtmlRegion::try_new(Uuid7::new(), Uuid7::new(), "r1")
+      .unwrap()
+      .with_xml_attrs("tts:origin=\"10% 80%\"");
+    let row: PgSubtitleTrackTtmlRegionRow = (&r).into();
+    let r2 = ttml_region_from_row_ref(row.as_ref()).unwrap();
+    assert_eq!(r, r2);
+  }
+
+  #[test]
+  fn ttml_style_round_trip() {
+    let s = TtmlStyle::try_new(Uuid7::new(), Uuid7::new(), "s1")
+      .unwrap()
+      .with_xml_attrs("tts:color=\"red\"");
+    let row: PgSubtitleTrackTtmlStyleRow = (&s).into();
+    let s2 = ttml_style_from_row(row).unwrap();
+    assert_eq!(s, s2);
+  }
+
+  #[test]
+  fn ttml_style_ref_roundtrip() {
+    let s = TtmlStyle::try_new(Uuid7::new(), Uuid7::new(), "s1")
+      .unwrap()
+      .with_xml_attrs("tts:color=\"red\"");
+    let row: PgSubtitleTrackTtmlStyleRow = (&s).into();
+    let s2 = ttml_style_from_row_ref(row.as_ref()).unwrap();
+    assert_eq!(s, s2);
+  }
+
+  #[test]
+  fn sami_style_round_trip() {
+    let s = SamiStyle::try_new(Uuid7::new(), Uuid7::new(), "ENCC")
+      .unwrap()
+      .with_css_text("{color: yellow;}");
+    let row: PgSubtitleTrackSamiStyleRow = (&s).into();
+    let s2 = sami_style_from_row(row).unwrap();
+    assert_eq!(s, s2);
+  }
+
+  #[test]
+  fn sami_style_ref_roundtrip() {
+    let s = SamiStyle::try_new(Uuid7::new(), Uuid7::new(), "ENCC")
+      .unwrap()
+      .with_css_text("{color: yellow;}");
+    let row: PgSubtitleTrackSamiStyleRow = (&s).into();
+    let s2 = sami_style_from_row_ref(row.as_ref()).unwrap();
+    assert_eq!(s, s2);
+  }
+
+  #[test]
+  fn vob_sub_palette_round_trip() {
+    let mut entries = [0u32; 16];
+    entries[0] = 0x00_FF_00_00;
+    entries[5] = 0x00_00_FF_00;
+    let p = VobSubPalette::try_new(Uuid7::new(), Uuid7::new())
+      .unwrap()
+      .with_entries(entries);
+    let row: PgSubtitleTrackVobSubPaletteRow = (&p).into();
+    let p2 = vob_sub_palette_from_row(row).unwrap();
+    assert_eq!(p, p2);
+  }
+
+  #[test]
+  fn vob_sub_palette_ref_roundtrip() {
+    let mut entries = [0u32; 16];
+    entries[0] = 0x00_FF_00_00;
+    let p = VobSubPalette::try_new(Uuid7::new(), Uuid7::new())
+      .unwrap()
+      .with_entries(entries);
+    let row: PgSubtitleTrackVobSubPaletteRow = (&p).into();
+    let p2 = vob_sub_palette_from_row_ref(row.as_ref()).unwrap();
+    assert_eq!(p, p2);
   }
 }

@@ -1,4 +1,4 @@
-# `SubtitleCue<Id, D>` — a polymorphic subtitle cue  *(rev 5 — polymorphic foundation)*
+# `SubtitleCue<Id, D>` — a polymorphic subtitle cue  *(rev 6 — all 13 formats)*
 
 ## Domain meaning
 
@@ -35,29 +35,29 @@ text-non-empty invariant is **lifted**: polymorphic cues' content lives in
 ## Format implementation status
 
 The closed `SubtitleCueKind` enum reserves a stable numeric discriminant
-for **every** format on day one. Variants flagged 🕒 are **reserved**;
-their `D` types and detail tables land in a follow-up tracked by issue #56.
+for **every** format on day one. **All 13 formats are now implemented**
+(rev 6, closes #56).
 
 | discriminant | variant | format | status | detail doc |
 |---|---|---|---|---|
 | 0 | `Srt` | SubRip | ✓ rev 5 | (no detail table — `SrtData` is a unit) |
 | 1 | `Vtt` | WebVTT | ✓ rev 5 | [subtitle_cue_vtt.md](subtitle_cue_vtt.md) |
 | 2 | `Ass` | ASS / SSA | ✓ rev 5 | [subtitle_cue_ass.md](subtitle_cue_ass.md) |
-| 3 | `MicroDvd` | MicroDVD | 🕒 #56 | — |
-| 4 | `SubViewer` | SubViewer | 🕒 #56 | — |
-| 5 | `Sbv` | YouTube SBV | 🕒 #56 | — |
+| 3 | `MicroDvd` | MicroDVD | ✓ rev 6 | [subtitle_cue_micro_dvd.md](subtitle_cue_micro_dvd.md) |
+| 4 | `SubViewer` | SubViewer | ✓ rev 6 | [subtitle_cue_sub_viewer.md](subtitle_cue_sub_viewer.md) |
+| 5 | `Sbv` | YouTube SBV | ✓ rev 6 | [subtitle_cue_sbv.md](subtitle_cue_sbv.md) |
 | 6 | `Lrc` | LRC / Enhanced LRC | ✓ rev 5 | [subtitle_cue_lrc.md](subtitle_cue_lrc.md) |
-| 7 | `Ttml` | TTML | 🕒 #56 | — |
-| 8 | `Sami` | SAMI | 🕒 #56 | — |
-| 9 | `VobSub` | DVD VobSub bitmap | 🕒 #56 | — |
-| 10 | `Pgs` | Blu-ray PGS bitmap | 🕒 #56 | — |
-| 11 | `Cea608` | CEA-608 captions | 🕒 #56 | — |
-| 12 | `EbuStl` | EBU STL teletext | 🕒 #56 | — |
+| 7 | `Ttml` | TTML | ✓ rev 6 | [subtitle_cue_ttml.md](subtitle_cue_ttml.md) |
+| 8 | `Sami` | SAMI | ✓ rev 6 | [subtitle_cue_sami.md](subtitle_cue_sami.md) |
+| 9 | `VobSub` | DVD VobSub bitmap | ✓ rev 6 | [subtitle_cue_vob_sub.md](subtitle_cue_vob_sub.md) |
+| 10 | `Pgs` | Blu-ray PGS bitmap | ✓ rev 6 | [subtitle_cue_pgs.md](subtitle_cue_pgs.md) |
+| 11 | `Cea608` | CEA-608 captions | ✓ rev 6 | [subtitle_cue_cea_608.md](subtitle_cue_cea_608.md) |
+| 12 | `EbuStl` | EBU STL teletext | ✓ rev 6 | [subtitle_cue_ebu_stl.md](subtitle_cue_ebu_stl.md) |
 
-The rev-4 `image: Bytes` + `ocr_text: LocalizedText` fields are gone from
-the base; bitmap formats will own their inline image bytes on their `D`
-type when they land per #56 (the OCR pipeline integration is also tracked
-separately in #57).
+Bitmap formats (`VobSub`, `Pgs`) own their inline image bytes on the `D`
+type (`bytes::Bytes`); the base `SubtitleCue.text` stays `""` until an
+OCR pipeline writes plain text into it (the OCR pipeline integration
+is tracked separately in #57).
 
 ## Per-track aggregates
 
@@ -69,6 +69,10 @@ A `SubtitleTrack` may carry per-format aggregate rows that cues reference:
 | `VttStyleBlock<Id>` | WebVTT | [subtitle_track_vtt_style.md](subtitle_track_vtt_style.md) |
 | `AssStyle<Id>` | ASS/SSA | [subtitle_track_ass_style.md](subtitle_track_ass_style.md) |
 | `LrcMetadata<Id>` | LRC | [subtitle_track_lrc_metadata.md](subtitle_track_lrc_metadata.md) |
+| `TtmlRegion<Id>` | TTML | [subtitle_track_ttml_region.md](subtitle_track_ttml_region.md) |
+| `TtmlStyle<Id>` | TTML | [subtitle_track_ttml_style.md](subtitle_track_ttml_style.md) |
+| `SamiStyle<Id>` | SAMI | [subtitle_track_sami_style.md](subtitle_track_sami_style.md) |
+| `VobSubPalette<Id>` | VobSub | [subtitle_track_vob_sub_palette.md](subtitle_track_vob_sub_palette.md) |
 
 ## Invariants
 
@@ -96,11 +100,10 @@ A `SubtitleTrack` may carry per-format aggregate rows that cues reference:
 
 ## Reserved → implementable later
 
-The 9 deferred variants exist on `SubtitleCueKind` from rev 5 onward so
-the discriminator is stable across releases. Adding any of them is a
-purely additive change: ship the `D` type + detail table + row-mapper
-helpers, no wire-format break.
+All 13 day-1 discriminants are now implemented. The closed
+`SubtitleCueKind` enum still reserves the discriminator space —
+future additions (e.g. CEA-708, WebVTT-NG) would extend the enum
+additively without breaking the existing wire / storage contract.
 
-**Status: rev 5 — polymorphic foundation + SRT / WebVTT / ASS / LRC
-implemented.** Long-tail formats deferred to GitHub issue #56; bitmap OCR
-pipeline tracked separately in #57.
+**Status: rev 6 — all 13 formats implemented (closes #56).** Bitmap
+OCR pipeline tracked separately in #57.
