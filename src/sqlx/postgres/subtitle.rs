@@ -992,9 +992,535 @@ pub struct PgSubtitleTrackIndexErrorRowRef<'r> {
   pub message: &'r str,
 }
 
-// (no PgSubtitleCueRowRef — borrowed views for the polymorphic base /
-// detail rows are a follow-up; promote `PgSubtitleCueBaseRow` / the
-// detail rows directly for now.)
+// --- Polymorphic subtitle_cue tables ----------------------------------------
+//
+// Each owned row from the base / per-format detail / per-track aggregate
+// tables now has a borrowed-view `*RowRef<'r>` sibling. `Uuid` is `Copy`
+// in postgres-land so id columns stay by-value; only the variable-length
+// text + BLOB-bytea columns flip to `&'r str` / `&'r [u8]`.
+
+/// Borrowed view of [`PgSubtitleCueBaseRow`].
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct PgSubtitleCueBaseRowRef<'r> {
+  pub id: Uuid,
+  pub subtitle_track_id: Uuid,
+  pub ordinal: i64,
+  pub span_start_pts: i64,
+  pub span_end_pts: i64,
+  pub text_src: &'r str,
+  pub text_translated: &'r str,
+  pub kind: i16,
+}
+
+/// Borrowed view of [`PgSubtitleCueVttRow`].
+#[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
+pub struct PgSubtitleCueVttRowRef<'r> {
+  pub id: Uuid,
+  pub cue_identifier: &'r str,
+  pub vertical: Option<i16>,
+  pub line_value: &'r str,
+  pub line_align: Option<i16>,
+  pub position_value: &'r str,
+  pub position_align: Option<i16>,
+  pub size_value: Option<f32>,
+  pub text_align: Option<i16>,
+  pub region_id: Option<Uuid>,
+  pub voice: &'r str,
+  pub styled_text: &'r str,
+}
+
+/// Borrowed view of [`PgSubtitleCueAssRow`].
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct PgSubtitleCueAssRowRef<'r> {
+  pub id: Uuid,
+  pub layer: i32,
+  pub style_id: Uuid,
+  pub name: &'r str,
+  pub margin_l: i32,
+  pub margin_r: i32,
+  pub margin_v: i32,
+  pub effect: &'r str,
+  pub styled_text: &'r str,
+}
+
+/// Borrowed view of [`PgSubtitleCueLrcRow`].
+///
+/// The owned row has only `Copy` fields (Uuid + bool); the `Ref` sibling
+/// is structurally identical and exists for symmetry with the rest of
+/// the cluster + so a `sqlx::query_as::<_, PgSubtitleCueLrcRowRef<'_>>`
+/// over a borrowed `&'r Row` works without an intermediate
+/// owned-row allocation. The `'r` lifetime is preserved on the type
+/// signature (consistent with the other `*RowRef<'r>` siblings) via a
+/// `PhantomData` field that `sqlx::FromRow` skips.
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct PgSubtitleCueLrcRowRef<'r> {
+  pub id: Uuid,
+  pub has_word_timing: bool,
+  #[sqlx(skip)]
+  _lt: core::marker::PhantomData<&'r ()>,
+}
+
+/// Borrowed view of [`PgSubtitleCueLrcWordRow`].
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct PgSubtitleCueLrcWordRowRef<'r> {
+  pub subtitle_cue_id: Uuid,
+  pub ordinal: i32,
+  pub text: &'r str,
+  pub start_pts: i64,
+}
+
+/// Borrowed view of [`PgSubtitleTrackVttRegionRow`].
+#[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
+pub struct PgSubtitleTrackVttRegionRowRef<'r> {
+  pub id: Uuid,
+  pub subtitle_track_id: Uuid,
+  pub name: &'r str,
+  pub width: f32,
+  pub lines: i64,
+  pub region_anchor_x: f32,
+  pub region_anchor_y: f32,
+  pub viewport_anchor_x: f32,
+  pub viewport_anchor_y: f32,
+  pub scroll_up: bool,
+}
+
+/// Borrowed view of [`PgSubtitleTrackVttStyleRow`].
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct PgSubtitleTrackVttStyleRowRef<'r> {
+  pub id: Uuid,
+  pub subtitle_track_id: Uuid,
+  pub ordinal: i32,
+  pub css_text: &'r str,
+}
+
+/// Borrowed view of [`PgSubtitleTrackAssStyleRow`].
+#[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
+pub struct PgSubtitleTrackAssStyleRowRef<'r> {
+  pub id: Uuid,
+  pub subtitle_track_id: Uuid,
+  pub name: &'r str,
+  pub fontname: &'r str,
+  pub fontsize: f32,
+  pub primary_colour: i64,
+  pub secondary_colour: i64,
+  pub outline_colour: i64,
+  pub back_colour: i64,
+  pub bold: bool,
+  pub italic: bool,
+  pub underline: bool,
+  pub strikeout: bool,
+  pub scale_x: i32,
+  pub scale_y: i32,
+  pub spacing: i32,
+  pub angle: f32,
+  pub border_style: i16,
+  pub outline: f32,
+  pub shadow: f32,
+  pub alignment: i16,
+  pub margin_l: i32,
+  pub margin_r: i32,
+  pub margin_v: i32,
+  pub encoding: i32,
+}
+
+/// Borrowed view of [`PgSubtitleTrackLrcMetadataRow`].
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct PgSubtitleTrackLrcMetadataRowRef<'r> {
+  pub subtitle_track_id: Uuid,
+  pub title: &'r str,
+  pub artist: &'r str,
+  pub album: &'r str,
+  pub author: &'r str,
+  pub creator: &'r str,
+  pub length: &'r str,
+  pub offset_ms: i32,
+}
+
+impl PgSubtitleCueBaseRow {
+  /// Cheap borrow — produces a [`PgSubtitleCueBaseRowRef`] referencing `self`.
+  pub fn as_ref(&self) -> PgSubtitleCueBaseRowRef<'_> {
+    PgSubtitleCueBaseRowRef {
+      id: self.id,
+      subtitle_track_id: self.subtitle_track_id,
+      ordinal: self.ordinal,
+      span_start_pts: self.span_start_pts,
+      span_end_pts: self.span_end_pts,
+      text_src: &self.text_src,
+      text_translated: &self.text_translated,
+      kind: self.kind,
+    }
+  }
+}
+
+impl PgSubtitleCueVttRow {
+  /// Cheap borrow — produces a [`PgSubtitleCueVttRowRef`] referencing `self`.
+  pub fn as_ref(&self) -> PgSubtitleCueVttRowRef<'_> {
+    PgSubtitleCueVttRowRef {
+      id: self.id,
+      cue_identifier: &self.cue_identifier,
+      vertical: self.vertical,
+      line_value: &self.line_value,
+      line_align: self.line_align,
+      position_value: &self.position_value,
+      position_align: self.position_align,
+      size_value: self.size_value,
+      text_align: self.text_align,
+      region_id: self.region_id,
+      voice: &self.voice,
+      styled_text: &self.styled_text,
+    }
+  }
+}
+
+impl PgSubtitleCueAssRow {
+  /// Cheap borrow — produces a [`PgSubtitleCueAssRowRef`] referencing `self`.
+  pub fn as_ref(&self) -> PgSubtitleCueAssRowRef<'_> {
+    PgSubtitleCueAssRowRef {
+      id: self.id,
+      layer: self.layer,
+      style_id: self.style_id,
+      name: &self.name,
+      margin_l: self.margin_l,
+      margin_r: self.margin_r,
+      margin_v: self.margin_v,
+      effect: &self.effect,
+      styled_text: &self.styled_text,
+    }
+  }
+}
+
+impl PgSubtitleCueLrcRow {
+  /// Cheap borrow — produces a [`PgSubtitleCueLrcRowRef`] referencing `self`.
+  pub fn as_ref(&self) -> PgSubtitleCueLrcRowRef<'_> {
+    PgSubtitleCueLrcRowRef {
+      id: self.id,
+      has_word_timing: self.has_word_timing,
+      _lt: core::marker::PhantomData,
+    }
+  }
+}
+
+impl PgSubtitleCueLrcWordRow {
+  /// Cheap borrow — produces a [`PgSubtitleCueLrcWordRowRef`] referencing `self`.
+  pub fn as_ref(&self) -> PgSubtitleCueLrcWordRowRef<'_> {
+    PgSubtitleCueLrcWordRowRef {
+      subtitle_cue_id: self.subtitle_cue_id,
+      ordinal: self.ordinal,
+      text: &self.text,
+      start_pts: self.start_pts,
+    }
+  }
+}
+
+impl PgSubtitleTrackVttRegionRow {
+  /// Cheap borrow — produces a [`PgSubtitleTrackVttRegionRowRef`] referencing `self`.
+  pub fn as_ref(&self) -> PgSubtitleTrackVttRegionRowRef<'_> {
+    PgSubtitleTrackVttRegionRowRef {
+      id: self.id,
+      subtitle_track_id: self.subtitle_track_id,
+      name: &self.name,
+      width: self.width,
+      lines: self.lines,
+      region_anchor_x: self.region_anchor_x,
+      region_anchor_y: self.region_anchor_y,
+      viewport_anchor_x: self.viewport_anchor_x,
+      viewport_anchor_y: self.viewport_anchor_y,
+      scroll_up: self.scroll_up,
+    }
+  }
+}
+
+impl PgSubtitleTrackVttStyleRow {
+  /// Cheap borrow — produces a [`PgSubtitleTrackVttStyleRowRef`] referencing `self`.
+  pub fn as_ref(&self) -> PgSubtitleTrackVttStyleRowRef<'_> {
+    PgSubtitleTrackVttStyleRowRef {
+      id: self.id,
+      subtitle_track_id: self.subtitle_track_id,
+      ordinal: self.ordinal,
+      css_text: &self.css_text,
+    }
+  }
+}
+
+impl PgSubtitleTrackAssStyleRow {
+  /// Cheap borrow — produces a [`PgSubtitleTrackAssStyleRowRef`] referencing `self`.
+  pub fn as_ref(&self) -> PgSubtitleTrackAssStyleRowRef<'_> {
+    PgSubtitleTrackAssStyleRowRef {
+      id: self.id,
+      subtitle_track_id: self.subtitle_track_id,
+      name: &self.name,
+      fontname: &self.fontname,
+      fontsize: self.fontsize,
+      primary_colour: self.primary_colour,
+      secondary_colour: self.secondary_colour,
+      outline_colour: self.outline_colour,
+      back_colour: self.back_colour,
+      bold: self.bold,
+      italic: self.italic,
+      underline: self.underline,
+      strikeout: self.strikeout,
+      scale_x: self.scale_x,
+      scale_y: self.scale_y,
+      spacing: self.spacing,
+      angle: self.angle,
+      border_style: self.border_style,
+      outline: self.outline,
+      shadow: self.shadow,
+      alignment: self.alignment,
+      margin_l: self.margin_l,
+      margin_r: self.margin_r,
+      margin_v: self.margin_v,
+      encoding: self.encoding,
+    }
+  }
+}
+
+impl PgSubtitleTrackLrcMetadataRow {
+  /// Cheap borrow — produces a [`PgSubtitleTrackLrcMetadataRowRef`] referencing `self`.
+  pub fn as_ref(&self) -> PgSubtitleTrackLrcMetadataRowRef<'_> {
+    PgSubtitleTrackLrcMetadataRowRef {
+      subtitle_track_id: self.subtitle_track_id,
+      title: &self.title,
+      artist: &self.artist,
+      album: &self.album,
+      author: &self.author,
+      creator: &self.creator,
+      length: &self.length,
+      offset_ms: self.offset_ms,
+    }
+  }
+}
+
+// --- Borrowed-view promotion fns ---------------------------------------------
+//
+// Mirrors the owned-row `*_from_row(...)` / `*_from_rows(...)` shape. The
+// base-row helper `base_row_ref_to_parts` factors out the shared
+// id/track-id/span/text/kind decoding, matching `base_row_to_parts` for
+// the owned path. Per-format functions take the same `parent_timebase`
+// argument where applicable.
+
+fn base_row_ref_to_parts<'r>(
+  r: &PgSubtitleCueBaseRowRef<'r>,
+  parent_timebase: mediatime::Timebase,
+) -> Result<
+  (
+    Uuid7,
+    Uuid7,
+    u32,
+    mediatime::TimeRange,
+    LocalizedText,
+    SubtitleCueKind,
+  ),
+  SqlxError,
+> {
+  let id = uuid_to_uuid7(r.id)?;
+  let subtitle_track_id = uuid_to_uuid7(r.subtitle_track_id)?;
+  let ordinal = u32_from_i64(r.ordinal, "SubtitleCue.ordinal")?;
+  let span =
+    mediatime::TimeRange::try_new(r.span_start_pts, r.span_end_pts, parent_timebase).ok_or_else(
+      || {
+        SqlxError::DomainConstructorRejected(format!(
+          "TimeRange start_pts ({}) must be <= end_pts ({})",
+          r.span_start_pts, r.span_end_pts
+        ))
+      },
+    )?;
+  let text = LocalizedText::from_src_translated(r.text_src.to_owned(), r.text_translated.to_owned());
+  let kind = cue_kind_from_i16(r.kind)?;
+  Ok((id, subtitle_track_id, ordinal, span, text, kind))
+}
+
+/// Rebuild a SubRip cue from its borrowed base row.
+pub fn srt_cue_from_row_ref<'r>(
+  base: PgSubtitleCueBaseRowRef<'r>,
+  parent_timebase: mediatime::Timebase,
+) -> Result<SrtCue<Uuid7>, SqlxError> {
+  let (id, subtitle_track_id, ordinal, span, text, kind) =
+    base_row_ref_to_parts(&base, parent_timebase)?;
+  if kind != SubtitleCueKind::Srt {
+    return Err(SqlxError::DomainConstructorRejected(format!(
+      "expected Srt cue kind, got {kind:?}"
+    )));
+  }
+  SrtCue::try_new(id, subtitle_track_id, ordinal, span, text, SrtData)
+    .map_err(|e: SubtitleCueError| SqlxError::DomainConstructorRejected(e.to_string()))
+}
+
+/// Rebuild a WebVTT cue from its borrowed (base, detail) rows.
+pub fn vtt_cue_from_row_refs<'r>(
+  base: PgSubtitleCueBaseRowRef<'r>,
+  detail: PgSubtitleCueVttRowRef<'r>,
+  parent_timebase: mediatime::Timebase,
+) -> Result<VttCue<Uuid7>, SqlxError> {
+  let (id, subtitle_track_id, ordinal, span, text, kind) =
+    base_row_ref_to_parts(&base, parent_timebase)?;
+  if kind != SubtitleCueKind::Vtt {
+    return Err(SqlxError::DomainConstructorRejected(format!(
+      "expected Vtt cue kind, got {kind:?}"
+    )));
+  }
+  let vertical = map_small(detail.vertical, VttVertical::try_from_u8, "VttVertical")?;
+  let line_align = map_small(detail.line_align, VttLineAlign::try_from_u8, "VttLineAlign")?;
+  let position_align = map_small(
+    detail.position_align,
+    VttPositionAlign::try_from_u8,
+    "VttPositionAlign",
+  )?;
+  let text_align = map_small(detail.text_align, VttTextAlign::try_from_u8, "VttTextAlign")?;
+  let region_id = match detail.region_id {
+    None => None,
+    Some(u) => Some(uuid_to_uuid7(u)?),
+  };
+  let d = VttData::<Uuid7>::new()
+    .with_cue_identifier(detail.cue_identifier)
+    .maybe_vertical(vertical)
+    .with_line_value(detail.line_value)
+    .maybe_line_align(line_align)
+    .with_position_value(detail.position_value)
+    .maybe_position_align(position_align)
+    .maybe_size_value(detail.size_value)
+    .maybe_text_align(text_align)
+    .maybe_region_id(region_id)
+    .with_voice(detail.voice)
+    .with_styled_text(detail.styled_text);
+  VttCue::try_new(id, subtitle_track_id, ordinal, span, text, d)
+    .map_err(|e: SubtitleCueError| SqlxError::DomainConstructorRejected(e.to_string()))
+}
+
+/// Rebuild an ASS cue from its borrowed (base, detail) rows.
+pub fn ass_cue_from_row_refs<'r>(
+  base: PgSubtitleCueBaseRowRef<'r>,
+  detail: PgSubtitleCueAssRowRef<'r>,
+  parent_timebase: mediatime::Timebase,
+) -> Result<AssCue<Uuid7>, SqlxError> {
+  let (id, subtitle_track_id, ordinal, span, text, kind) =
+    base_row_ref_to_parts(&base, parent_timebase)?;
+  if kind != SubtitleCueKind::Ass {
+    return Err(SqlxError::DomainConstructorRejected(format!(
+      "expected Ass cue kind, got {kind:?}"
+    )));
+  }
+  let style_id = uuid_to_uuid7(detail.style_id)?;
+  let d = AssData::<Uuid7>::new(style_id)
+    .with_layer(detail.layer)
+    .with_name(detail.name)
+    .with_margin_l(detail.margin_l)
+    .with_margin_r(detail.margin_r)
+    .with_margin_v(detail.margin_v)
+    .with_effect(detail.effect)
+    .with_styled_text(detail.styled_text);
+  AssCue::try_new(id, subtitle_track_id, ordinal, span, text, d)
+    .map_err(|e: SubtitleCueError| SqlxError::DomainConstructorRejected(e.to_string()))
+}
+
+/// Rebuild an LRC cue from its borrowed (base, detail) rows.
+pub fn lrc_cue_from_row_refs<'r>(
+  base: PgSubtitleCueBaseRowRef<'r>,
+  detail: PgSubtitleCueLrcRowRef<'r>,
+  parent_timebase: mediatime::Timebase,
+) -> Result<LrcCue<Uuid7>, SqlxError> {
+  let (id, subtitle_track_id, ordinal, span, text, kind) =
+    base_row_ref_to_parts(&base, parent_timebase)?;
+  if kind != SubtitleCueKind::Lrc {
+    return Err(SqlxError::DomainConstructorRejected(format!(
+      "expected Lrc cue kind, got {kind:?}"
+    )));
+  }
+  let d = LrcData::new().maybe_word_timing(detail.has_word_timing);
+  LrcCue::try_new(id, subtitle_track_id, ordinal, span, text, d)
+    .map_err(|e: SubtitleCueError| SqlxError::DomainConstructorRejected(e.to_string()))
+}
+
+/// Rebuild an LRC word from its borrowed row. Mirrors
+/// [`lrc_word_from_row`] for the owned-row path; `parent_timebase` isn't
+/// needed (an `LrcWord` carries a raw `start_pts` only).
+pub fn lrc_word_from_row_ref<'r>(
+  r: PgSubtitleCueLrcWordRowRef<'r>,
+) -> Result<LrcWord<Uuid7>, SqlxError> {
+  let subtitle_cue_id = uuid_to_uuid7(r.subtitle_cue_id)?;
+  LrcWord::try_new(subtitle_cue_id, r.ordinal as u32, r.text, r.start_pts)
+    .map_err(|e: SubtitleCueError| SqlxError::DomainConstructorRejected(e.to_string()))
+}
+
+/// Rebuild a [`VttRegion`] from its borrowed row.
+pub fn vtt_region_from_row_ref<'r>(
+  r: PgSubtitleTrackVttRegionRowRef<'r>,
+) -> Result<VttRegion<Uuid7>, SqlxError> {
+  let id = uuid_to_uuid7(r.id)?;
+  let subtitle_track_id = uuid_to_uuid7(r.subtitle_track_id)?;
+  let lines = u32_from_i64(r.lines, "VttRegion.lines")?;
+  let region = VttRegion::try_new(id, subtitle_track_id, r.name)
+    .map_err(|e: SubtitleCueError| SqlxError::DomainConstructorRejected(e.to_string()))?
+    .with_width(r.width)
+    .with_lines(lines)
+    .with_region_anchor(r.region_anchor_x, r.region_anchor_y)
+    .with_viewport_anchor(r.viewport_anchor_x, r.viewport_anchor_y)
+    .maybe_scroll_up(r.scroll_up);
+  Ok(region)
+}
+
+/// Rebuild a [`VttStyleBlock`] from its borrowed row.
+pub fn vtt_style_from_row_ref<'r>(
+  r: PgSubtitleTrackVttStyleRowRef<'r>,
+) -> Result<VttStyleBlock<Uuid7>, SqlxError> {
+  let id = uuid_to_uuid7(r.id)?;
+  let subtitle_track_id = uuid_to_uuid7(r.subtitle_track_id)?;
+  VttStyleBlock::try_new(id, subtitle_track_id, r.ordinal as u32, r.css_text)
+    .map_err(|e: SubtitleCueError| SqlxError::DomainConstructorRejected(e.to_string()))
+}
+
+/// Rebuild an [`AssStyle`] from its borrowed row.
+pub fn ass_style_from_row_ref<'r>(
+  r: PgSubtitleTrackAssStyleRowRef<'r>,
+) -> Result<AssStyle<Uuid7>, SqlxError> {
+  let id = uuid_to_uuid7(r.id)?;
+  let subtitle_track_id = uuid_to_uuid7(r.subtitle_track_id)?;
+  let to_u32 = |v: i64, what: &str| {
+    u32::try_from(v).map_err(|e| SqlxError::UnknownDiscriminant(format!("{what}: {e}")))
+  };
+  let s = AssStyle::try_new(id, subtitle_track_id, r.name)
+    .map_err(|e: SubtitleCueError| SqlxError::DomainConstructorRejected(e.to_string()))?
+    .with_fontname(r.fontname)
+    .with_fontsize(r.fontsize)
+    .with_primary_colour(to_u32(r.primary_colour, "AssStyle.primary_colour")?)
+    .with_secondary_colour(to_u32(r.secondary_colour, "AssStyle.secondary_colour")?)
+    .with_outline_colour(to_u32(r.outline_colour, "AssStyle.outline_colour")?)
+    .with_back_colour(to_u32(r.back_colour, "AssStyle.back_colour")?)
+    .maybe_bold(r.bold)
+    .maybe_italic(r.italic)
+    .maybe_underline(r.underline)
+    .maybe_strikeout(r.strikeout)
+    .with_scale_x(r.scale_x)
+    .with_scale_y(r.scale_y)
+    .with_spacing(r.spacing)
+    .with_angle(r.angle)
+    .with_border_style(r.border_style)
+    .with_outline(r.outline)
+    .with_shadow(r.shadow)
+    .with_alignment(r.alignment)
+    .with_margin_l(r.margin_l)
+    .with_margin_r(r.margin_r)
+    .with_margin_v(r.margin_v)
+    .with_encoding(r.encoding);
+  Ok(s)
+}
+
+/// Rebuild an [`LrcMetadata`] from its borrowed row.
+pub fn lrc_metadata_from_row_ref<'r>(
+  r: PgSubtitleTrackLrcMetadataRowRef<'r>,
+) -> Result<LrcMetadata<Uuid7>, SqlxError> {
+  let subtitle_track_id = uuid_to_uuid7(r.subtitle_track_id)?;
+  let m = LrcMetadata::try_new(subtitle_track_id)
+    .map_err(|e: SubtitleCueError| SqlxError::DomainConstructorRejected(e.to_string()))?
+    .with_title(r.title)
+    .with_artist(r.artist)
+    .with_album(r.album)
+    .with_author(r.author)
+    .with_creator(r.creator)
+    .with_length(r.length)
+    .with_offset_ms(r.offset_ms);
+  Ok(m)
+}
 
 impl PgSubtitleTrackRow {
   /// Cheap borrow — produces a [`PgSubtitleTrackRowRef`] referencing `self`.
@@ -1569,4 +2095,151 @@ mod tests {
     assert_eq!(t, t2);
   }
 
+  // ---------------------------------------------------------------------------
+  // Polymorphic subtitle_cue *_ref_roundtrip tests
+  //
+  // For each new `*RowRef<'r>` sibling: build the owned row from a domain
+  // value, borrow it via `.as_ref()`, hand the borrow to the per-format
+  // `*_from_row_ref(...)` helper, and assert the domain reconstruction
+  // matches. Per the fold-row-ref-into-owner convention this locks the
+  // owned + Ref pair to the same round-trip semantics.
+  // ---------------------------------------------------------------------------
+
+  #[test]
+  fn srt_cue_ref_roundtrip() {
+    let c = SrtCue::try_new_srt(
+      Uuid7::new(),
+      Uuid7::new(),
+      3,
+      TimeRange::new(1_000, 2_000, tb()),
+      LocalizedText::from_src_translated("Hola", "Hello"),
+    )
+    .unwrap();
+    let base: PgSubtitleCueBaseRow = (&c).into();
+    let c2 = srt_cue_from_row_ref(base.as_ref(), tb()).unwrap();
+    assert_eq!(c, c2);
+  }
+
+  #[test]
+  fn vtt_cue_ref_roundtrip() {
+    let d = VttData::<Uuid7>::new()
+      .with_cue_identifier("c1")
+      .with_vertical(VttVertical::Rl)
+      .with_line_value("50%")
+      .with_line_align(VttLineAlign::Center)
+      .with_position_value("50%")
+      .with_position_align(VttPositionAlign::Center)
+      .with_size_value(80.0)
+      .with_text_align(VttTextAlign::Start)
+      .with_region_id(Uuid7::new())
+      .with_voice("Speaker A")
+      .with_styled_text("<b>hi</b>");
+    let c: VttCue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      1,
+      TimeRange::new(0, 1_000, tb()),
+      LocalizedText::from_src("hi"),
+      d,
+    )
+    .unwrap();
+    let (base, detail): (PgSubtitleCueBaseRow, PgSubtitleCueVttRow) = (&c).into();
+    let c2 = vtt_cue_from_row_refs(base.as_ref(), detail.as_ref(), tb()).unwrap();
+    assert_eq!(c, c2);
+  }
+
+  #[test]
+  fn ass_cue_ref_roundtrip() {
+    let d = AssData::<Uuid7>::new(Uuid7::new())
+      .with_layer(2)
+      .with_name("Alice")
+      .with_margin_l(10)
+      .with_margin_r(20)
+      .with_margin_v(30)
+      .with_effect("karaoke")
+      .with_styled_text("{\\b1}hi{\\b0}");
+    let c: AssCue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      TimeRange::new(0, 1_000, tb()),
+      LocalizedText::new(),
+      d,
+    )
+    .unwrap();
+    let (base, detail): (PgSubtitleCueBaseRow, PgSubtitleCueAssRow) = (&c).into();
+    let c2 = ass_cue_from_row_refs(base.as_ref(), detail.as_ref(), tb()).unwrap();
+    assert_eq!(c, c2);
+  }
+
+  #[test]
+  fn lrc_cue_ref_roundtrip() {
+    let c: LrcCue<Uuid7> = SubtitleCue::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      TimeRange::new(0, 1_000, tb()),
+      LocalizedText::from_src("la la"),
+      LrcData::new().with_word_timing(),
+    )
+    .unwrap();
+    let (base, detail): (PgSubtitleCueBaseRow, PgSubtitleCueLrcRow) = (&c).into();
+    let c2 = lrc_cue_from_row_refs(base.as_ref(), detail.as_ref(), tb()).unwrap();
+    assert_eq!(c, c2);
+  }
+
+  #[test]
+  fn lrc_word_ref_roundtrip() {
+    let w = LrcWord::try_new(Uuid7::new(), 3, "ma", 1234).unwrap();
+    let row: PgSubtitleCueLrcWordRow = (&w).into();
+    let w2 = lrc_word_from_row_ref(row.as_ref()).unwrap();
+    assert_eq!(w, w2);
+  }
+
+  #[test]
+  fn vtt_region_ref_roundtrip() {
+    let r = VttRegion::try_new(Uuid7::new(), Uuid7::new(), "footer")
+      .unwrap()
+      .with_width(80.0)
+      .with_lines(2)
+      .with_region_anchor(50.0, 100.0)
+      .with_viewport_anchor(50.0, 90.0)
+      .with_scroll_up();
+    let row: PgSubtitleTrackVttRegionRow = (&r).into();
+    let r2 = vtt_region_from_row_ref(row.as_ref()).unwrap();
+    assert_eq!(r, r2);
+  }
+
+  #[test]
+  fn vtt_style_ref_roundtrip() {
+    let s = VttStyleBlock::try_new(Uuid7::new(), Uuid7::new(), 0, "::cue { color: red }").unwrap();
+    let row: PgSubtitleTrackVttStyleRow = (&s).into();
+    let s2 = vtt_style_from_row_ref(row.as_ref()).unwrap();
+    assert_eq!(s, s2);
+  }
+
+  #[test]
+  fn ass_style_ref_roundtrip() {
+    let s = AssStyle::try_new(Uuid7::new(), Uuid7::new(), "Default")
+      .unwrap()
+      .with_fontname("Arial")
+      .with_fontsize(48.0)
+      .with_bold()
+      .with_outline(2.5);
+    let row: PgSubtitleTrackAssStyleRow = (&s).into();
+    let s2 = ass_style_from_row_ref(row.as_ref()).unwrap();
+    assert_eq!(s, s2);
+  }
+
+  #[test]
+  fn lrc_metadata_ref_roundtrip() {
+    let m = LrcMetadata::try_new(Uuid7::new())
+      .unwrap()
+      .with_title("Song")
+      .with_artist("Band")
+      .with_offset_ms(-500);
+    let row: PgSubtitleTrackLrcMetadataRow = (&m).into();
+    let m2 = lrc_metadata_from_row_ref(row.as_ref()).unwrap();
+    assert_eq!(m, m2);
+  }
 }
