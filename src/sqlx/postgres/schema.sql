@@ -664,8 +664,6 @@ CREATE TABLE IF NOT EXISTS subtitle_track (
     provenance_model_version   text    NOT NULL,
     provenance_prompt_version  text    NOT NULL,
     provenance_indexer_version text    NOT NULL,
-    source_path_volume         uuid,
-    source_path                text,
     source_checksum            bytea,
     character_encoding         text    NOT NULL,
     bom_present                boolean NOT NULL DEFAULT false,

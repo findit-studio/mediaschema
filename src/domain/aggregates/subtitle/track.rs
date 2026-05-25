@@ -26,7 +26,7 @@ use smol_str::SmolStr;
 #[cfg(any(feature = "std", feature = "alloc"))]
 use crate::domain::SubtitleIndexStage;
 use crate::domain::{
-  primitives::{ErrorInfo, FileChecksum, Location},
+  primitives::{ErrorInfo, FileChecksum},
   vo::Provenance,
   SubtitleIndexStatus, SubtitleKind, Uuid7,
 };
@@ -75,7 +75,12 @@ pub struct SubtitleTrack<Id = Uuid7> {
   provenance: Provenance,
 
   // Adopted rev 2 (ffmpeg-probe / parse / ingest obtainable).
-  source_path: Option<Location<Id>>,
+  //
+  // `source_path` was removed in rev 4 (closes #67): with the
+  // polymorphic-cue redesign every cue is parsed and stored as a
+  // `subtitle_cue` row, so the storage layer no longer needs the
+  // source file path. `source_checksum` is retained for change-
+  // detection on FS rescan.
   source_checksum: Option<FileChecksum>,
   character_encoding: SmolStr,
   bom_present: bool,
@@ -127,7 +132,6 @@ impl SubtitleTrack<Uuid7> {
       cue_count: 0,
       cues: std::vec::Vec::new(),
       provenance: Provenance::new(),
-      source_path: None,
       source_checksum: None,
       character_encoding: SmolStr::default(),
       bom_present: false,
@@ -312,12 +316,6 @@ impl<Id> SubtitleTrack<Id> {
   #[inline(always)]
   pub const fn provenance_ref(&self) -> &Provenance {
     &self.provenance
-  }
-
-  /// External `.srt`/`.vtt` location (`None` for embedded).
-  #[inline(always)]
-  pub const fn source_path_ref(&self) -> Option<&Location<Id>> {
-    self.source_path.as_ref()
   }
 
   /// Checksum of the external file (`None` for embedded).
@@ -513,14 +511,6 @@ impl<Id> SubtitleTrack<Id> {
   #[inline(always)]
   pub fn with_provenance(mut self, v: Provenance) -> Self {
     self.provenance = v;
-    self
-  }
-
-  /// Builder: replace `source_path`.
-  #[must_use]
-  #[inline(always)]
-  pub fn with_source_path(mut self, v: Option<Location<Id>>) -> Self {
-    self.source_path = v;
     self
   }
 
@@ -730,13 +720,6 @@ impl<Id> SubtitleTrack<Id> {
     self
   }
 
-  /// In-place mutator for `source_path`.
-  #[inline(always)]
-  pub fn set_source_path(&mut self, v: Option<Location<Id>>) -> &mut Self {
-    self.source_path = v;
-    self
-  }
-
   /// In-place mutator for `source_checksum`.
   #[inline(always)]
   pub fn set_source_checksum(&mut self, v: Option<FileChecksum>) -> &mut Self {
@@ -875,7 +858,6 @@ mod tests {
     assert_eq!(t.cue_count(), 0);
     assert!(t.cues_slice().is_empty());
     assert_eq!(t.provenance_ref(), &Provenance::new());
-    assert!(t.source_path_ref().is_none());
     assert!(t.source_checksum_ref().is_none());
     assert!(t.character_encoding().is_empty());
     assert_eq!(t.index_status(), SubtitleIndexStatus::new());

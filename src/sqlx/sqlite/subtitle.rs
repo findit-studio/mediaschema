@@ -29,7 +29,7 @@ use crate::{
       SubtitleCueError, SubtitleCueKind, SubtitleError, SubtitleTrackError, VttCue, VttData,
       VttLineAlign, VttPositionAlign, VttRegion, VttStyleBlock, VttTextAlign, VttVertical,
     },
-    primitives::{ErrorInfo, Location},
+    primitives::ErrorInfo,
     vo::{IndexProgress, LocalizedText, Provenance},
     ErrorCode, Subtitle, SubtitleCue, SubtitleIndexStatus, SubtitleKind, SubtitleTrack, Uuid7,
   },
@@ -133,8 +133,6 @@ pub struct SqliteSubtitleTrackRow {
   pub provenance_model_version: String,
   pub provenance_prompt_version: String,
   pub provenance_indexer_version: String,
-  pub source_path_volume: Option<std::vec::Vec<u8>>,
-  pub source_path: Option<String>,
   pub source_checksum: Option<std::vec::Vec<u8>>,
   pub character_encoding: String,
   pub bom_present: i64,
@@ -174,18 +172,6 @@ impl From<&SubtitleTrack<Uuid7>>
     let duration = t.duration_ref();
     let first_cue = t.first_cue_ref();
     let last_cue = t.last_cue_ref();
-    let (source_path_volume, source_path) = match t.source_path_ref() {
-      None => (None, None),
-      Some(Location::Local(local)) => {
-        let path = local
-          .components_slice()
-          .iter()
-          .map(AsRef::as_ref)
-          .collect::<std::vec::Vec<&str>>()
-          .join("/");
-        (Some(local.volume_ref().as_bytes().to_vec()), Some(path))
-      }
-    };
     let row = SqliteSubtitleTrackRow {
       id: id.clone(),
       subtitle_id: t.subtitle_id_ref().as_bytes().to_vec(),
@@ -207,8 +193,6 @@ impl From<&SubtitleTrack<Uuid7>>
       provenance_model_version: prov.model_version().to_owned(),
       provenance_prompt_version: prov.prompt_version().to_owned(),
       provenance_indexer_version: prov.indexer_version().to_owned(),
-      source_path_volume,
-      source_path,
       source_checksum: t.source_checksum_ref().map(|c| c.as_bytes().to_vec()),
       character_encoding: t.character_encoding().to_owned(),
       bom_present: i64::from(t.bom_present()),
@@ -315,14 +299,6 @@ impl
       t = t.with_last_cue(Some(timestamp_from_parts(pts, num, den)?));
     }
 
-    if let Some(vol) = r.source_path_volume {
-      let path = r.source_path.unwrap_or_default();
-      let volume = bytes_to_uuid7(&vol)?;
-      let location = Location::try_local_uuid7(volume, path.split('/')).map_err(|e| {
-        SqlxError::DomainConstructorRejected(format!("SubtitleTrack.source_path: {e}"))
-      })?;
-      t = t.with_source_path(Some(location));
-    }
     if let Some(bytes) = r.source_checksum {
       t = t.with_source_checksum(Some(bytes_to_checksum(&bytes)?));
     }
@@ -938,8 +914,6 @@ pub struct SqliteSubtitleTrackRowRef<'r> {
   pub provenance_model_version: &'r str,
   pub provenance_prompt_version: &'r str,
   pub provenance_indexer_version: &'r str,
-  pub source_path_volume: Option<&'r [u8]>,
-  pub source_path: Option<&'r str>,
   pub source_checksum: Option<&'r [u8]>,
   pub character_encoding: &'r str,
   pub bom_present: i64,
@@ -1526,8 +1500,6 @@ impl SqliteSubtitleTrackRow {
       provenance_model_version: &self.provenance_model_version,
       provenance_prompt_version: &self.provenance_prompt_version,
       provenance_indexer_version: &self.provenance_indexer_version,
-      source_path_volume: self.source_path_volume.as_deref(),
-      source_path: self.source_path.as_deref(),
       source_checksum: self.source_checksum.as_deref(),
       character_encoding: &self.character_encoding,
       bom_present: self.bom_present,
@@ -1651,14 +1623,6 @@ impl<'r>
       t = t.with_last_cue(Some(timestamp_from_parts(pts, num, den)?));
     }
 
-    if let Some(vol) = r.source_path_volume {
-      let path = r.source_path.unwrap_or_default();
-      let volume = bytes_to_uuid7(vol)?;
-      let location = Location::try_local_uuid7(volume, path.split('/')).map_err(|e| {
-        SqlxError::DomainConstructorRejected(format!("SubtitleTrack.source_path: {e}"))
-      })?;
-      t = t.with_source_path(Some(location));
-    }
     if let Some(bytes) = r.source_checksum {
       t = t.with_source_checksum(Some(bytes_to_checksum(bytes)?));
     }
@@ -1782,8 +1746,6 @@ mod tests {
   #[test]
   fn subtitle_track_roundtrip_full() {
     let de = Language::from_bcp47("de").unwrap();
-    let vol = Uuid7::new();
-    let location = Location::try_local_uuid7(vol, ["clip.de.srt"]).unwrap();
     let mut bytes = [0u8; 32];
     bytes[31] = 9;
     let cs = FileChecksum::from_bytes(bytes);
@@ -1798,7 +1760,6 @@ mod tests {
       .with_duration(Some(Timestamp::new(60_000, tb())))
       .with_cue_count(120)
       .with_provenance(Provenance::from_parts("tesseract", "5.3", "p", "idx"))
-      .with_source_path(Some(location))
       .with_source_checksum(Some(cs))
       .with_character_encoding("UTF-8")
       .with_bom_present(false)
@@ -1980,8 +1941,6 @@ mod tests {
   #[test]
   fn subtitle_track_ref_roundtrip() {
     let de = Language::from_bcp47("de").unwrap();
-    let vol = Uuid7::new();
-    let location = Location::try_local_uuid7(vol, ["clip.de.srt"]).unwrap();
     let mut bytes = [0u8; 32];
     bytes[31] = 9;
     let cs = FileChecksum::from_bytes(bytes);
@@ -1996,7 +1955,6 @@ mod tests {
       .with_duration(Some(Timestamp::new(60_000, tb())))
       .with_cue_count(120)
       .with_provenance(Provenance::from_parts("tesseract", "5.3", "p", "idx"))
-      .with_source_path(Some(location))
       .with_source_checksum(Some(cs))
       .with_character_encoding("UTF-8")
       .with_bom_present(false)
