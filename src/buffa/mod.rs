@@ -98,6 +98,8 @@
 
 #![cfg_attr(docsrs, doc(cfg(feature = "buffa")))]
 
+#[cfg(feature = "audio")]
+#[cfg_attr(docsrs, doc(cfg(feature = "audio")))]
 pub mod audio_segment;
 pub mod enums;
 pub mod error;
@@ -107,6 +109,8 @@ pub mod media_file;
 pub mod person;
 pub mod primitives;
 pub mod speaker;
+#[cfg(feature = "subtitle")]
+#[cfg_attr(docsrs, doc(cfg(feature = "subtitle")))]
 pub mod subtitle;
 pub mod voice_fingerprint;
 pub mod watched_location;

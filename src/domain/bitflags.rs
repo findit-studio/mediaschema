@@ -232,7 +232,13 @@ impl SubtitleIndexStatus {
   /// "complete" without OCR. The only public completion path is
   /// [`SubtitleTrack::is_fully_indexed`], which binds `requires_ocr`
   /// from the track's codec/format internally.
+  ///
+  /// Compiled into every heap-tier build so the bitflag's surface is
+  /// stable across feature combos; `#[allow(dead_code)]` because the
+  /// only consumer (`SubtitleTrack`) is behind the `subtitle` feature
+  /// gate.
   #[inline]
+  #[allow(dead_code)]
   pub(crate) const fn fully_indexed_mask(requires_ocr: bool) -> Self {
     let base =
       Self::TRACKS_DISCOVERED.bits() | Self::CUES_EXTRACTED.bits() | Self::SEARCH_INDEXED.bits();
@@ -254,6 +260,7 @@ impl SubtitleIndexStatus {
   /// is [`SubtitleTrack::is_fully_indexed`], which binds `requires_ocr`
   /// from the track's codec/format internally.
   #[inline]
+  #[allow(dead_code)]
   pub(crate) fn is_fully_indexed(&self, requires_ocr: bool) -> bool {
     self.contains(Self::fully_indexed_mask(requires_ocr))
   }

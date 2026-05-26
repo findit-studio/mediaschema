@@ -10,14 +10,21 @@
 //! See the module-level [`super`] doc for the cross-backend mapping
 //! conventions and current coverage scope.
 
+#[cfg(feature = "audio")]
+#[cfg_attr(docsrs, doc(cfg(feature = "audio")))]
 pub mod audio;
 pub mod leaves;
 pub mod media;
 pub mod media_file;
 pub mod person;
+#[cfg(feature = "subtitle")]
+#[cfg_attr(docsrs, doc(cfg(feature = "subtitle")))]
 pub mod subtitle;
+#[cfg(feature = "video")]
+#[cfg_attr(docsrs, doc(cfg(feature = "video")))]
 pub mod video;
 
+#[cfg(feature = "audio")]
 pub use audio::{
   PgAudioRow, PgAudioSegmentRow, PgAudioSegmentWordRow, PgAudioTrackIndexErrorRow, PgAudioTrackRow,
 };
@@ -25,12 +32,14 @@ pub use leaves::{PgSceneAnnotationRow, PgSpeakerRow, PgUserTagRow, PgWatchedLoca
 pub use media::PgMediaRow;
 pub use media_file::PgMediaFileRow;
 pub use person::PgPersonRow;
+#[cfg(feature = "subtitle")]
 pub use subtitle::{
   PgSubtitleCueAssRow, PgSubtitleCueBaseRow, PgSubtitleCueLrcRow, PgSubtitleCueLrcWordRow,
   PgSubtitleCueVttRow, PgSubtitleRow, PgSubtitleTrackAssStyleRow, PgSubtitleTrackIndexErrorRow,
   PgSubtitleTrackLrcMetadataRow, PgSubtitleTrackRow, PgSubtitleTrackVttRegionRow,
   PgSubtitleTrackVttStyleRow,
 };
+#[cfg(feature = "video")]
 pub use video::{
   PgKeyframeActionRow, PgKeyframeBarcodeRow, PgKeyframeBodyPose3DJointRow, PgKeyframeBodyPose3DRow,
   PgKeyframeBodyPoseJointRow, PgKeyframeBodyPoseRow, PgKeyframeClassificationRow,

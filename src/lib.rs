@@ -31,18 +31,32 @@
 //! ## Feature flags
 //!
 //! Three independent **capability tiers** (`alloc` / `std`, both
-//! additive) plus optional **backend** features. Default is `std`.
+//! additive), three **medium-aggregate gates** (`video` / `audio` /
+//! `subtitle`), plus optional **backend** features. Defaults are
+//! `std + video + audio + subtitle`.
 //!
 //! | flag | role | depends on |
 //! |---|---|---|
 //! | _none_ | no-std + no-alloc; stack-only types only | — |
 //! | `alloc` | no-std + alloc; adds heap-using domain types | — |
 //! | `std` (default) | adds `jiff`-using aggregates + `Uuid::now_v7` | — |
+//! | `video` (default) | compiles the `Video` / `VideoTrack` / `Scene` / `Keyframe` aggregate tree + its backends | a heap tier |
+//! | `audio` (default) | compiles the `Audio` / `AudioTrack` / `AudioSegment` aggregate tree + its backends | a heap tier |
+//! | `subtitle` (default) | compiles the `Subtitle` / `SubtitleTrack` / `SubtitleCue` aggregate tree + its backends | a heap tier |
 //! | `buffa` | proto3 wire layer (under [`buffa`]) | `std` or `alloc` |
 //! | `json` | wire JSON via serde | `std + buffa` |
 //! | `arbitrary` | `Arbitrary` derives for property tests | `std + buffa` |
 //! | `mongodb` | bson backend (under [`mongodb`]) | `std + json` |
 //! | `sqlx-postgres` / `sqlx-mysql` / `sqlx-sqlite` | sql backends (under [`sqlx`]) | `std` |
+//!
+//! The three medium gates are independent on/off flags: a consumer that
+//! only needs the video aggregate tree can opt out of the audio /
+//! subtitle trees (and all their backend bridges) with
+//! `default-features = false` + `features = ["std", "video"]`. The
+//! cross-cutting aggregates (`Media`, `MediaFile`, `Person`, `Speaker`,
+//! `WatchedLocation`, `UserTag`, `SceneAnnotation`) plus the
+//! [`Identified<Id, D>`](crate::Identified) transport envelope are
+//! always available when a heap tier is on.
 //!
 //! ## Regenerating wire code
 //!
@@ -80,6 +94,12 @@ mod generated {
 /// domain` round-trip property tests). See `schema/*.md` for the locked
 /// specifications.
 pub mod domain;
+
+/// Transport-level envelope pairing an identifier with an unpersisted
+/// payload. Re-exported at the crate root for downstream ergonomics
+/// (`use mediaschema::Identified;`); the canonical home is
+/// [`domain::Identified`].
+pub use crate::domain::Identified;
 
 // Wire ⇄ domain conversion bridge. Requires `feature = "buffa"` (for
 // the wire types themselves) AND a heap tier (`std` or `alloc`) because

@@ -23,8 +23,10 @@
 //! exported path.
 //!
 //! `SubtitleTrack` and its friends are heap-tier domain types, so the
-//! whole file is gated on a heap capability feature.
-#![cfg(any(feature = "std", feature = "alloc"))]
+//! whole file is gated on a heap capability feature **and** the
+//! `subtitle` aggregate gate (the subtitle aggregate tree is
+//! feature-gated alongside `video` / `audio`).
+#![cfg(all(any(feature = "std", feature = "alloc"), feature = "subtitle"))]
 
 use mediaframe::{codec::SubtitleCodec, subtitle::Format};
 use mediaschema::domain::{SubtitleIndexStage, SubtitleIndexStatus, SubtitleTrack, Uuid7};

@@ -23,6 +23,19 @@ jobs:
       # violations under single-feature builds.
       - name: cargo hack check --each-feature
         run: cargo hack check --each-feature --no-dev-deps
+      # Spot-check the medium-aggregate gates (`video` / `audio` /
+      # `subtitle`) so a regression that needs a sibling medium to
+      # compile surfaces on its own — `cargo hack`'s powerset below
+      # also covers these, but these explicit lanes give a clearer
+      # signal on which medium broke.
+      - name: build std + video only
+        run: cargo check --no-default-features --features std,video
+      - name: build std + audio only
+        run: cargo check --no-default-features --features std,audio
+      - name: build std + subtitle only
+        run: cargo check --no-default-features --features std,subtitle
+      - name: build std alone (no medium aggregates)
+        run: cargo check --no-default-features --features std
       # Representative powerset (depth 2) with one scope-reducing flag:
       #
       #   --group-features sqlx-postgres,sqlx-mysql,sqlx-sqlite
@@ -38,8 +51,18 @@ jobs:
       # Powerset tests with the same scope reduction. `--skip default`
       # avoids re-running the default-features test case (already covered
       # by `codegen.yml`'s `test-matrix` job).
+      #
+      # `--features std` forces `std` on for every powerset combo: tests
+      # require std unconditionally (libtest is std-only, and our fixture
+      # helpers use `Uuid7::new()` / `jiff::Timestamp::now()` which are
+      # `cfg(feature = "std")`-gated). The `check --feature-powerset`
+      # step above still exercises the no-std combos against the library
+      # surface — the test step here only covers combos where running
+      # tests is actually possible. `--skip alloc` drops the dedicated
+      # `alloc`-only combo (std-implied-alloc still gives heap coverage).
       - name: cargo hack test --feature-powerset
         run: |
           cargo hack test --feature-powerset --depth 2 \
             --group-features sqlx-postgres,sqlx-mysql,sqlx-sqlite \
-            --skip default
+            --features std \
+            --skip default,alloc

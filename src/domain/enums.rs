@@ -645,6 +645,12 @@ impl SubtitleIndexStage {
 #[cfg(any(feature = "std", feature = "alloc"))]
 #[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
 impl SubtitleIndexStage {
+  // `error_stage_bit` / `is_live` / `from_status` are the building
+  // blocks of `SubtitleTrack::index_stage`, which lives behind the
+  // `subtitle` feature gate. Keep the helpers compiled into every heap
+  // tier so the enum's public surface and test suite remain stable
+  // across feature combos; allow dead-code under a no-subtitle build.
+  #[allow(dead_code)]
   /// Map a subtitle-pipeline `ErrorCode` to its stage success bit. Same
   /// stale-error filtering rationale as the video / audio mappings.
   /// OCR-related errors map to `OCR_DONE` only when the caller asserts
@@ -665,6 +671,7 @@ impl SubtitleIndexStage {
     }
   }
 
+  #[allow(dead_code)]
   fn is_live(status: SubtitleIndexStatus, requires_ocr: bool, e: &ErrorInfo) -> bool {
     match Self::error_stage_bit(e.code(), requires_ocr) {
       Some(bit) => !status.intersects(bit),
@@ -691,6 +698,7 @@ impl SubtitleIndexStage {
   /// an unknown/image track without `OCR_DONE`. The only public stage
   /// path is [`SubtitleTrack::index_stage`], which binds `requires_ocr`
   /// from the track's codec/format internally.
+  #[allow(dead_code)]
   pub(crate) fn from_status(
     status: SubtitleIndexStatus,
     requires_ocr: bool,
