@@ -1186,8 +1186,8 @@ mod tests {
     let tags = t.tags_ref().expect("tags attached");
     assert_eq!(tags.title(), "Track 1");
     assert_eq!(tags.artist(), "Artist A");
-    assert_eq!(tags.track_number(), Some(1));
-    assert_eq!(tags.track_total(), Some(12));
+    assert_eq!(tags.track_number(), 1);
+    assert_eq!(tags.track_total(), 12);
     let cover = t.cover_art_ref().expect("cover attached");
     assert_eq!(cover.mime(), "image/jpeg");
     assert_eq!(cover.data(), &[0xFFu8, 0xD8, 0xFF]);
