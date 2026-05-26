@@ -10,18 +10,25 @@ use smol_str::SmolStr;
 
 use crate::domain::{
   aggregates::{
-    audio::{segment::WordError, AudioError, AudioSegmentError, AudioTrackError},
     curation::{NilIdError, SceneAnnotationError},
     media::MediaError,
     speaker::SpeakerError,
-    subtitle::{cue::SubtitleCueError, facet::SubtitleError, track::SubtitleTrackError},
-    video::{
-      detections::DetectionError, facet::VideoError, keyframe::KeyframeError, scene::SceneError,
-      track::VideoTrackError,
-    },
     watched_location::WatchedLocationError,
   },
   primitives::{LocationError, Uuid7Error},
+};
+// Medium-specific error imports — gated per feature so a build with
+// only one medium on does not drag in the others' error trees.
+#[cfg(feature = "audio")]
+use crate::domain::aggregates::audio::{segment::WordError, AudioError, AudioSegmentError, AudioTrackError};
+#[cfg(feature = "subtitle")]
+use crate::domain::aggregates::subtitle::{
+  cue::SubtitleCueError, facet::SubtitleError, track::SubtitleTrackError,
+};
+#[cfg(feature = "video")]
+use crate::domain::aggregates::video::{
+  detections::DetectionError, facet::VideoError, keyframe::KeyframeError, scene::SceneError,
+  track::VideoTrackError,
 };
 
 /// Backend-specific error returned when a `bson::Document` cannot be
@@ -97,28 +104,40 @@ pub enum MongoError {
   NilId(#[from] NilIdError),
   #[error("SceneAnnotation try_new rejected: {0}")]
   SceneAnnotation(#[from] SceneAnnotationError),
+  #[cfg(feature = "audio")]
   #[error("Audio try_new rejected: {0}")]
   Audio(#[from] AudioError),
+  #[cfg(feature = "audio")]
   #[error("AudioTrack try_new rejected: {0}")]
   AudioTrack(#[from] AudioTrackError),
+  #[cfg(feature = "audio")]
   #[error("AudioSegment try_new rejected: {0}")]
   AudioSegment(#[from] AudioSegmentError),
+  #[cfg(feature = "audio")]
   #[error("Word try_from_parts rejected: {0}")]
   Word(#[from] WordError),
+  #[cfg(feature = "video")]
   #[error("Video try_new rejected: {0}")]
   Video(#[from] VideoError),
+  #[cfg(feature = "video")]
   #[error("VideoTrack try_new rejected: {0}")]
   VideoTrack(#[from] VideoTrackError),
+  #[cfg(feature = "video")]
   #[error("Scene try_new rejected: {0}")]
   Scene(#[from] SceneError),
+  #[cfg(feature = "video")]
   #[error("Keyframe try_new rejected: {0}")]
   Keyframe(#[from] KeyframeError),
+  #[cfg(feature = "video")]
   #[error("keyframe detection VO try_new rejected: {0}")]
   Detection(#[from] DetectionError),
+  #[cfg(feature = "subtitle")]
   #[error("Subtitle try_new rejected: {0}")]
   Subtitle(#[from] SubtitleError),
+  #[cfg(feature = "subtitle")]
   #[error("SubtitleTrack try_new rejected: {0}")]
   SubtitleTrack(#[from] SubtitleTrackError),
+  #[cfg(feature = "subtitle")]
   #[error("SubtitleCue try_new rejected: {0}")]
   SubtitleCue(#[from] SubtitleCueError),
 }

@@ -477,6 +477,10 @@ pub fn subtitle_track_vob_sub_palette_indexes() -> Vec<IndexModel> {
 /// has enabled — a build with `--no-default-features --features
 /// mongodb,video` excludes the audio / subtitle collections.
 pub fn all_indexes() -> Vec<(CollectionName, Vec<IndexModel>)> {
+  // `mut` only when at least one medium feature contributes an
+  // `extend` call below; suppress otherwise so a no-medium build stays
+  // warning-clean.
+  #[allow(unused_mut)]
   let mut v: Vec<(CollectionName, Vec<IndexModel>)> = vec![
     (CollectionName::Media, media_indexes()),
     (CollectionName::MediaFiles, media_file_indexes()),

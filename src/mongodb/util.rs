@@ -3,6 +3,16 @@
 //!
 //! Every helper here is `pub(super)` — these are implementation glue,
 //! not part of the public surface.
+//!
+//! Some helpers (`time_range_*`, `language_*`, `dimensions_*`,
+//! `loc_text_*`, `error_info_vec_*`, `bytes_to_bson`, `as_u16`) are
+//! only called from medium-aggregate bson bridges (`audio.rs` /
+//! `video.rs` / `subtitle.rs`). Under a build that disables those
+//! mediums but keeps `mongodb` on (e.g. `--features mongodb,video`
+//! drops audio + subtitle), those helpers become unused. A
+//! module-level `#[allow(dead_code)]` keeps the surface stable
+//! without scattering individual `#[allow]`s across the file.
+#![allow(dead_code)]
 
 use ::bson::{spec::BinarySubtype, Binary, Bson, DateTime as BsonDateTime, Document};
 use core::num::NonZeroU32;
