@@ -70,6 +70,8 @@ use ::bson;
 #[allow(unused_imports)]
 use ::mongodb as mongodb_crate;
 
+#[cfg(feature = "audio")]
+#[cfg_attr(docsrs, doc(cfg(feature = "audio")))]
 pub mod audio;
 pub mod error;
 pub mod indexes;
@@ -77,8 +79,12 @@ pub mod leaves;
 pub mod media;
 pub mod media_file;
 pub mod person;
+#[cfg(feature = "subtitle")]
+#[cfg_attr(docsrs, doc(cfg(feature = "subtitle")))]
 pub mod subtitle;
 pub mod util;
+#[cfg(feature = "video")]
+#[cfg_attr(docsrs, doc(cfg(feature = "video")))]
 pub mod video;
 
 pub use error::MongoError;

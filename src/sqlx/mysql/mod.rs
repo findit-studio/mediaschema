@@ -7,14 +7,21 @@
 //! See the module-level [`super`] doc for the cross-backend mapping
 //! conventions and current coverage scope.
 
+#[cfg(feature = "audio")]
+#[cfg_attr(docsrs, doc(cfg(feature = "audio")))]
 pub mod audio;
 pub mod leaves;
 pub mod media;
 pub mod media_file;
 pub mod person;
+#[cfg(feature = "subtitle")]
+#[cfg_attr(docsrs, doc(cfg(feature = "subtitle")))]
 pub mod subtitle;
+#[cfg(feature = "video")]
+#[cfg_attr(docsrs, doc(cfg(feature = "video")))]
 pub mod video;
 
+#[cfg(feature = "audio")]
 pub use audio::{
   MySqlAudioRow, MySqlAudioSegmentRow, MySqlAudioSegmentWordRow, MySqlAudioTrackIndexErrorRow,
   MySqlAudioTrackRow,
@@ -25,6 +32,7 @@ pub use leaves::{
 pub use media::MySqlMediaRow;
 pub use media_file::MySqlMediaFileRow;
 pub use person::MySqlPersonRow;
+#[cfg(feature = "subtitle")]
 pub use subtitle::{
   MySqlSubtitleCueAssRow, MySqlSubtitleCueBaseRow, MySqlSubtitleCueLrcRow,
   MySqlSubtitleCueLrcWordRow, MySqlSubtitleCueVttRow, MySqlSubtitleRow,
@@ -32,6 +40,7 @@ pub use subtitle::{
   MySqlSubtitleTrackLrcMetadataRow, MySqlSubtitleTrackRow, MySqlSubtitleTrackVttRegionRow,
   MySqlSubtitleTrackVttStyleRow,
 };
+#[cfg(feature = "video")]
 pub use video::{
   MySqlKeyframeActionRow, MySqlKeyframeBarcodeRow, MySqlKeyframeBodyPose3DJointRow,
   MySqlKeyframeBodyPose3DRow, MySqlKeyframeBodyPoseJointRow, MySqlKeyframeBodyPoseRow,

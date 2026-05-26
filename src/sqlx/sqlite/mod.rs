@@ -5,14 +5,21 @@
 //! See the module-level [`super`] doc for the cross-backend mapping
 //! conventions and current coverage scope.
 
+#[cfg(feature = "audio")]
+#[cfg_attr(docsrs, doc(cfg(feature = "audio")))]
 pub mod audio;
 pub mod leaves;
 pub mod media;
 pub mod media_file;
 pub mod person;
+#[cfg(feature = "subtitle")]
+#[cfg_attr(docsrs, doc(cfg(feature = "subtitle")))]
 pub mod subtitle;
+#[cfg(feature = "video")]
+#[cfg_attr(docsrs, doc(cfg(feature = "video")))]
 pub mod video;
 
+#[cfg(feature = "audio")]
 pub use audio::{
   SqliteAudioRow, SqliteAudioSegmentRow, SqliteAudioSegmentWordRow, SqliteAudioTrackIndexErrorRow,
   SqliteAudioTrackRow,
@@ -23,6 +30,7 @@ pub use leaves::{
 pub use media::SqliteMediaRow;
 pub use media_file::SqliteMediaFileRow;
 pub use person::SqlitePersonRow;
+#[cfg(feature = "subtitle")]
 pub use subtitle::{
   SqliteSubtitleCueAssRow, SqliteSubtitleCueBaseRow, SqliteSubtitleCueLrcRow,
   SqliteSubtitleCueLrcWordRow, SqliteSubtitleCueVttRow, SqliteSubtitleRow,
@@ -30,6 +38,7 @@ pub use subtitle::{
   SqliteSubtitleTrackLrcMetadataRow, SqliteSubtitleTrackRow, SqliteSubtitleTrackVttRegionRow,
   SqliteSubtitleTrackVttStyleRow,
 };
+#[cfg(feature = "video")]
 pub use video::{
   SqliteKeyframeActionRow, SqliteKeyframeBarcodeRow, SqliteKeyframeBodyPose3DJointRow,
   SqliteKeyframeBodyPose3DRow, SqliteKeyframeBodyPoseJointRow, SqliteKeyframeBodyPoseRow,

@@ -11,6 +11,11 @@ use ::mongodb::{options::IndexOptions, IndexModel};
 use derive_more::Display;
 
 /// Canonical collection names. These match `schema.md`.
+///
+/// Medium-specific variants (`AudioFacets`/`VideoFacets`/…) are
+/// feature-gated on the corresponding `audio` / `video` / `subtitle`
+/// feature; consumers building with a subset of media features see only
+/// the variants they activated.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display)]
 #[display("{}", self.as_str())]
 pub enum CollectionName {
@@ -21,24 +26,43 @@ pub enum CollectionName {
   Persons,
   UserTags,
   SceneAnnotations,
+  #[cfg(feature = "audio")]
   AudioFacets,
+  #[cfg(feature = "audio")]
   AudioTracks,
+  #[cfg(feature = "audio")]
   AudioSegments,
+  #[cfg(feature = "video")]
   VideoFacets,
+  #[cfg(feature = "video")]
   VideoTracks,
+  #[cfg(feature = "video")]
   Scenes,
+  #[cfg(feature = "video")]
   Keyframes,
+  #[cfg(feature = "subtitle")]
   SubtitleFacets,
+  #[cfg(feature = "subtitle")]
   SubtitleTracks,
+  #[cfg(feature = "subtitle")]
   SubtitleCues,
+  #[cfg(feature = "subtitle")]
   SubtitleTrackVttRegions,
+  #[cfg(feature = "subtitle")]
   SubtitleTrackVttStyles,
+  #[cfg(feature = "subtitle")]
   SubtitleTrackAssStyles,
+  #[cfg(feature = "subtitle")]
   SubtitleTrackLrcMetadata,
+  #[cfg(feature = "subtitle")]
   SubtitleCueLrcWords,
+  #[cfg(feature = "subtitle")]
   SubtitleTrackTtmlRegions,
+  #[cfg(feature = "subtitle")]
   SubtitleTrackTtmlStyles,
+  #[cfg(feature = "subtitle")]
   SubtitleTrackSamiStyles,
+  #[cfg(feature = "subtitle")]
   SubtitleTrackVobSubPalettes,
 }
 
@@ -53,24 +77,43 @@ impl CollectionName {
       Self::Persons => "persons",
       Self::UserTags => "user_tags",
       Self::SceneAnnotations => "scene_annotations",
+      #[cfg(feature = "audio")]
       Self::AudioFacets => "audio_facets",
+      #[cfg(feature = "audio")]
       Self::AudioTracks => "audio_tracks",
+      #[cfg(feature = "audio")]
       Self::AudioSegments => "audio_segments",
+      #[cfg(feature = "video")]
       Self::VideoFacets => "video_facets",
+      #[cfg(feature = "video")]
       Self::VideoTracks => "video_tracks",
+      #[cfg(feature = "video")]
       Self::Scenes => "scenes",
+      #[cfg(feature = "video")]
       Self::Keyframes => "keyframes",
+      #[cfg(feature = "subtitle")]
       Self::SubtitleFacets => "subtitle_facets",
+      #[cfg(feature = "subtitle")]
       Self::SubtitleTracks => "subtitle_tracks",
+      #[cfg(feature = "subtitle")]
       Self::SubtitleCues => "subtitle_cues",
+      #[cfg(feature = "subtitle")]
       Self::SubtitleTrackVttRegions => "subtitle_track_vtt_regions",
+      #[cfg(feature = "subtitle")]
       Self::SubtitleTrackVttStyles => "subtitle_track_vtt_styles",
+      #[cfg(feature = "subtitle")]
       Self::SubtitleTrackAssStyles => "subtitle_track_ass_styles",
+      #[cfg(feature = "subtitle")]
       Self::SubtitleTrackLrcMetadata => "subtitle_track_lrc_metadata",
+      #[cfg(feature = "subtitle")]
       Self::SubtitleCueLrcWords => "subtitle_cue_lrc_words",
+      #[cfg(feature = "subtitle")]
       Self::SubtitleTrackTtmlRegions => "subtitle_track_ttml_regions",
+      #[cfg(feature = "subtitle")]
       Self::SubtitleTrackTtmlStyles => "subtitle_track_ttml_styles",
+      #[cfg(feature = "subtitle")]
       Self::SubtitleTrackSamiStyles => "subtitle_track_sami_styles",
+      #[cfg(feature = "subtitle")]
       Self::SubtitleTrackVobSubPalettes => "subtitle_track_vob_sub_palettes",
     }
   }
@@ -183,6 +226,7 @@ pub fn scene_annotation_indexes() -> Vec<IndexModel> {
 
 /// `audio_facets` — 1:1 with `Media`. The `media_id` FK is unique
 /// (locked schema: one Audio facet per Media).
+#[cfg(feature = "audio")]
 pub fn audio_facet_indexes() -> Vec<IndexModel> {
   vec![unique_on(
     doc! { "media_id": 1 },
@@ -192,6 +236,7 @@ pub fn audio_facet_indexes() -> Vec<IndexModel> {
 
 /// `audio_tracks` — FK on `audio_id`, plus `is_primary` / `content` for
 /// track-selection queries.
+#[cfg(feature = "audio")]
 pub fn audio_track_indexes() -> Vec<IndexModel> {
   vec![
     index_on(doc! { "audio_id": 1 }, "audio_tracks_audio_id"),
@@ -203,6 +248,7 @@ pub fn audio_track_indexes() -> Vec<IndexModel> {
 
 /// `audio_segments` — FK on `audio_track_id` + composite
 /// `(audio_track_id, index)` for ordered enumeration.
+#[cfg(feature = "audio")]
 pub fn audio_segment_indexes() -> Vec<IndexModel> {
   vec![
     index_on(doc! { "audio_track_id": 1 }, "audio_segments_audio_track_id"),
@@ -216,6 +262,7 @@ pub fn audio_segment_indexes() -> Vec<IndexModel> {
 
 /// `video_facets` — 1:1 with `Media`. The `media_id` FK is unique
 /// (locked schema: one Video facet per Media).
+#[cfg(feature = "video")]
 pub fn video_facet_indexes() -> Vec<IndexModel> {
   vec![unique_on(
     doc! { "media_id": 1 },
@@ -224,6 +271,7 @@ pub fn video_facet_indexes() -> Vec<IndexModel> {
 }
 
 /// `video_tracks` — FK on `video_id` + selection signals.
+#[cfg(feature = "video")]
 pub fn video_track_indexes() -> Vec<IndexModel> {
   vec![
     index_on(doc! { "video_id": 1 }, "video_tracks_video_id"),
@@ -233,6 +281,7 @@ pub fn video_track_indexes() -> Vec<IndexModel> {
 
 /// `scenes` — FK on `video_track_id` (`VideoTrack.id`); composite
 /// `(video_track_id, index)` for ordered enumeration.
+#[cfg(feature = "video")]
 pub fn scene_indexes() -> Vec<IndexModel> {
   vec![
     index_on(doc! { "video_track_id": 1 }, "scenes_video_track_id"),
@@ -244,12 +293,14 @@ pub fn scene_indexes() -> Vec<IndexModel> {
 }
 
 /// `keyframes` — FK on `scene_id` (`Scene.id`).
+#[cfg(feature = "video")]
 pub fn keyframe_indexes() -> Vec<IndexModel> {
   vec![index_on(doc! { "scene_id": 1 }, "keyframes_scene_id")]
 }
 
 /// `subtitle_facets` — 1:1 with `Media`. The `media_id` FK is unique
 /// (locked schema: one Subtitle facet per Media).
+#[cfg(feature = "subtitle")]
 pub fn subtitle_facet_indexes() -> Vec<IndexModel> {
   vec![unique_on(
     doc! { "media_id": 1 },
@@ -258,6 +309,7 @@ pub fn subtitle_facet_indexes() -> Vec<IndexModel> {
 }
 
 /// `subtitle_tracks` — FK on `subtitle_id` + selection signals.
+#[cfg(feature = "subtitle")]
 pub fn subtitle_track_indexes() -> Vec<IndexModel> {
   vec![
     index_on(doc! { "subtitle_id": 1 }, "subtitle_tracks_subtitle_id"),
@@ -269,6 +321,7 @@ pub fn subtitle_track_indexes() -> Vec<IndexModel> {
 /// `subtitle_cues` — FK on `subtitle_track_id` + composite UNIQUE on
 /// `(subtitle_track_id, ordinal)` (the bson writer in `subtitle.rs`
 /// emits `ordinal`, not `index`).
+#[cfg(feature = "subtitle")]
 pub fn subtitle_cue_indexes() -> Vec<IndexModel> {
   vec![
     index_on(doc! { "subtitle_track_id": 1 }, "subtitle_cues_subtitle_track_id"),
@@ -282,6 +335,7 @@ pub fn subtitle_cue_indexes() -> Vec<IndexModel> {
 /// `subtitle_track_vtt_regions` — per-track WebVTT `REGION` blocks.
 /// FK on `subtitle_track_id` + UNIQUE composite on
 /// `(subtitle_track_id, name)` (region names are unique within a track).
+#[cfg(feature = "subtitle")]
 pub fn subtitle_track_vtt_region_indexes() -> Vec<IndexModel> {
   vec![
     index_on(
@@ -298,6 +352,7 @@ pub fn subtitle_track_vtt_region_indexes() -> Vec<IndexModel> {
 /// `subtitle_track_vtt_styles` — per-track WebVTT `STYLE` blocks
 /// (ordered CSS chunks). FK on `subtitle_track_id` + UNIQUE composite
 /// on `(subtitle_track_id, ordinal)` (one block per ordinal slot).
+#[cfg(feature = "subtitle")]
 pub fn subtitle_track_vtt_style_indexes() -> Vec<IndexModel> {
   vec![
     index_on(
@@ -314,6 +369,7 @@ pub fn subtitle_track_vtt_style_indexes() -> Vec<IndexModel> {
 /// `subtitle_track_ass_styles` — per-track ASS `[V4+ Styles]` rows. FK
 /// on `subtitle_track_id` + UNIQUE composite on
 /// `(subtitle_track_id, name)` (style names are unique within a track).
+#[cfg(feature = "subtitle")]
 pub fn subtitle_track_ass_style_indexes() -> Vec<IndexModel> {
   vec![
     index_on(
@@ -332,6 +388,7 @@ pub fn subtitle_track_ass_style_indexes() -> Vec<IndexModel> {
 /// track (1:1 with `SubtitleTrack`), so the bson writer stores
 /// `subtitle_track_id` as `_id`; an explicit UNIQUE on `_id` is
 /// implicit. No extra indexes needed.
+#[cfg(feature = "subtitle")]
 pub fn subtitle_track_lrc_metadata_indexes() -> Vec<IndexModel> {
   vec![]
 }
@@ -339,6 +396,7 @@ pub fn subtitle_track_lrc_metadata_indexes() -> Vec<IndexModel> {
 /// `subtitle_cue_lrc_words` — per-cue word-timing rows for Enhanced
 /// LRC. FK on `subtitle_cue_id` + UNIQUE composite on
 /// `(subtitle_cue_id, ordinal)` (one word per ordinal slot).
+#[cfg(feature = "subtitle")]
 pub fn subtitle_cue_lrc_word_indexes() -> Vec<IndexModel> {
   vec![
     index_on(
@@ -355,6 +413,7 @@ pub fn subtitle_cue_lrc_word_indexes() -> Vec<IndexModel> {
 /// `subtitle_track_ttml_regions` — per-track TTML `<region>` blocks.
 /// FK on `subtitle_track_id` + UNIQUE composite on `(subtitle_track_id,
 /// xml_id)` (TTML xml-ids are unique within a track).
+#[cfg(feature = "subtitle")]
 pub fn subtitle_track_ttml_region_indexes() -> Vec<IndexModel> {
   vec![
     index_on(
@@ -370,6 +429,7 @@ pub fn subtitle_track_ttml_region_indexes() -> Vec<IndexModel> {
 
 /// `subtitle_track_ttml_styles` — per-track TTML `<style>` blocks.
 /// Same shape as TTML regions.
+#[cfg(feature = "subtitle")]
 pub fn subtitle_track_ttml_style_indexes() -> Vec<IndexModel> {
   vec![
     index_on(
@@ -386,6 +446,7 @@ pub fn subtitle_track_ttml_style_indexes() -> Vec<IndexModel> {
 /// `subtitle_track_sami_styles` — per-track SAMI `<STYLE>` classes.
 /// FK on `subtitle_track_id` + UNIQUE on `(subtitle_track_id,
 /// class_name)`.
+#[cfg(feature = "subtitle")]
 pub fn subtitle_track_sami_style_indexes() -> Vec<IndexModel> {
   vec![
     index_on(
@@ -401,6 +462,7 @@ pub fn subtitle_track_sami_style_indexes() -> Vec<IndexModel> {
 
 /// `subtitle_track_vob_sub_palettes` — per-track DVD VobSub palette
 /// rows. FK on `subtitle_track_id`.
+#[cfg(feature = "subtitle")]
 pub fn subtitle_track_vob_sub_palette_indexes() -> Vec<IndexModel> {
   vec![index_on(
     doc! { "subtitle_track_id": 1 },
@@ -410,8 +472,12 @@ pub fn subtitle_track_vob_sub_palette_indexes() -> Vec<IndexModel> {
 
 /// Every collection + its canonical index set, in one call. Iterate
 /// this list in the deployer to create the full schema.
+///
+/// The result only contains entries for media features the consumer
+/// has enabled — a build with `--no-default-features --features
+/// mongodb,video` excludes the audio / subtitle collections.
 pub fn all_indexes() -> Vec<(CollectionName, Vec<IndexModel>)> {
-  vec![
+  let mut v: Vec<(CollectionName, Vec<IndexModel>)> = vec![
     (CollectionName::Media, media_indexes()),
     (CollectionName::MediaFiles, media_file_indexes()),
     (CollectionName::WatchedLocations, watched_location_indexes()),
@@ -419,13 +485,22 @@ pub fn all_indexes() -> Vec<(CollectionName, Vec<IndexModel>)> {
     (CollectionName::Persons, person_indexes()),
     (CollectionName::UserTags, user_tag_indexes()),
     (CollectionName::SceneAnnotations, scene_annotation_indexes()),
+  ];
+  #[cfg(feature = "audio")]
+  v.extend([
     (CollectionName::AudioFacets, audio_facet_indexes()),
     (CollectionName::AudioTracks, audio_track_indexes()),
     (CollectionName::AudioSegments, audio_segment_indexes()),
+  ]);
+  #[cfg(feature = "video")]
+  v.extend([
     (CollectionName::VideoFacets, video_facet_indexes()),
     (CollectionName::VideoTracks, video_track_indexes()),
     (CollectionName::Scenes, scene_indexes()),
     (CollectionName::Keyframes, keyframe_indexes()),
+  ]);
+  #[cfg(feature = "subtitle")]
+  v.extend([
     (CollectionName::SubtitleFacets, subtitle_facet_indexes()),
     (CollectionName::SubtitleTracks, subtitle_track_indexes()),
     (CollectionName::SubtitleCues, subtitle_cue_indexes()),
@@ -465,7 +540,8 @@ pub fn all_indexes() -> Vec<(CollectionName, Vec<IndexModel>)> {
       CollectionName::SubtitleTrackVobSubPalettes,
       subtitle_track_vob_sub_palette_indexes(),
     ),
-  ]
+  ]);
+  v
 }
 
 // ===========================================================================
@@ -479,7 +555,20 @@ mod tests {
   #[test]
   fn all_indexes_covers_every_collection() {
     let v = all_indexes();
-    assert_eq!(v.len(), 26);
+    // 7 always-on (Media + MediaFiles + WatchedLocations + Speakers
+    // + Persons + UserTags + SceneAnnotations), plus 3 audio,
+    // 4 video, 12 subtitle when those features are on.
+    let mut expected = 7usize;
+    if cfg!(feature = "audio") {
+      expected += 3;
+    }
+    if cfg!(feature = "video") {
+      expected += 4;
+    }
+    if cfg!(feature = "subtitle") {
+      expected += 12;
+    }
+    assert_eq!(v.len(), expected);
     // No collection appears twice.
     let mut names: Vec<_> = v.iter().map(|(c, _)| c.as_str()).collect();
     names.sort();

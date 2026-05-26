@@ -7,13 +7,32 @@
 //! ```bash
 //! cargo run --example end_to_end_mongodb --features mongodb
 //! ```
+//!
+//! Requires both the `mongodb` backend and the `audio` aggregate gate.
+//! Both are present in the default feature set so the canonical
+//! invocation above just works; an explicit `--no-default-features`
+//! invocation must also list `--features audio`. A build without that
+//! pair compiles into a no-op `main` so `cargo build --examples`
+//! still succeeds.
 
+#[cfg(not(all(feature = "mongodb", feature = "audio")))]
+fn main() {
+    eprintln!(
+        "end_to_end_mongodb example requires the `mongodb` and `audio` features; \
+         rebuild with e.g. `cargo run --example end_to_end_mongodb --features mongodb`."
+    );
+}
+
+#[cfg(all(feature = "mongodb", feature = "audio"))]
 use bson::Document;
+#[cfg(all(feature = "mongodb", feature = "audio"))]
 use mediaframe::{codec::AudioCodec, container::Format, lang::Language};
+#[cfg(all(feature = "mongodb", feature = "audio"))]
 use mediaschema::domain::{
     primitives::FileChecksum, Audio, AudioTrack, Media, MediaKind, Uuid7,
 };
 
+#[cfg(all(feature = "mongodb", feature = "audio"))]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // ────────────────────────────────────────────────────────────────────
     // 1. Build a `Media` — content-identified by its `FileChecksum`.

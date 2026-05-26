@@ -12,7 +12,13 @@ publish = false
 rust-version = "1.95"
 
 [features]
-default = ["std"]
+# `video` / `audio` / `subtitle` slot into `default` so the out-of-the-box
+# consumer surface is unchanged: by default every medium aggregate tree
+# compiles, exactly as before this PR. Downstream crates that only need
+# one or two media (e.g. an engine that emits video detections but does
+# not touch audio / subtitle tracks) opt out with
+# `default-features = false` + a hand-picked subset.
+default = ["std", "video", "audio", "subtitle"]
 # Three independent capability features plus an optional wire-layer.
 #
 # ## Capability tiers
@@ -70,6 +76,24 @@ arbitrary = ["std", "buffa", "dep:arbitrary", "buffa?/arbitrary", "buffa-types?/
 # UUID/binary round-tripping). Deployer wires the returned `IndexModel`s
 # into an actual `::mongodb::Client`.
 mongodb = ["std", "json", "dep:mongodb", "dep:bson"]
+
+# ---------------------------------------------------------------------------
+# Medium-aggregate gates. Each feature toggles the corresponding
+# medium-specific domain subtree (`domain::Audio` / `Video` / `Subtitle`
+# clusters) **plus** every backend bridge that targets it (`buffa`,
+# `sqlx::{postgres,mysql,sqlite}`, `mongodb`). Pure on/off gates — no
+# additional crate deps, no implicit `std`/`alloc` pull-in. Each medium
+# aggregate already reaches `Vec` / `SmolStr` internally, so consumers
+# must pair the medium feature with a heap-tier capability (`std` or
+# `alloc`), mirroring how `buffa` is paired today.
+#
+# All three are in the default set so out-of-the-box behaviour is
+# unchanged; downstream crates that only need a subset (e.g. an engine
+# that emits `FaceDetection`s) can opt out via `default-features = false`
+# and pick which trees to compile.
+video = []
+audio = []
+subtitle = []
 
 # ---------------------------------------------------------------------------
 # Downstream backend: `sqlx` row-mapping (Postgres / MySQL / SQLite). Each

@@ -51,15 +51,19 @@ specification the implementation tracks.
 
 ## Feature flags
 
-Three independent **capability tiers** plus a set of optional **backend**
-features. Capability tiers are additive: pick exactly one (`std` is the
-default).
+Three independent **capability tiers** plus medium-aggregate gates and a
+set of optional **backend** features. Capability tiers are additive
+(`std` is the default); medium-aggregate gates are independent on/off
+flags layered on top.
 
 | flag | tier / role | enables |
 |---|---|---|
-| _none_ (`--no-default-features`) | no-std + no-alloc | stack-only types (`Uuid7`, `FileChecksum`, `Rgba`, `ErrorCode`, every unit-variant enum + `bitflags!` companion). Wire layer **not** compiled. |
-| `alloc` (no default) | no-std + alloc | heap-using domain types (`Location`, `ErrorInfo`, `Provenance`, `LocalizedText`, every aggregate). |
+| _none_ (`--no-default-features`) | no-std + no-alloc | stack-only types (`Uuid7`, `FileChecksum`, `Rgba`, `ErrorCode`, every unit-variant enum + `bitflags!` companion, [`Identified`](crate::Identified) transport envelope). Wire layer **not** compiled. |
+| `alloc` (no default) | no-std + alloc | cross-cutting heap-using domain types (`Location`, `ErrorInfo`, `Provenance`, `LocalizedText`, `Media`, `MediaFile`, `Person`, `Speaker`, `WatchedLocation`, `UserTag`, `SceneAnnotation`). |
 | `std` (**default**) | std | adds `jiff`-using aggregates (`Speaker`, `WatchedLocation`, …) and `Uuid::now_v7`. |
+| `video` (**default**) | medium gate | compiles the `Video` / `VideoTrack` / `Scene` / `Keyframe` aggregate tree + all its sqlx / mongodb backends. Pair with a heap tier (`std` or `alloc`). |
+| `audio` (**default**) | medium gate | compiles the `Audio` / `AudioTrack` / `AudioSegment` / `Word` aggregate tree + all its sqlx / mongodb / buffa backends. Pair with a heap tier. |
+| `subtitle` (**default**) | medium gate | compiles the `Subtitle` / `SubtitleTrack` / `SubtitleCue` aggregate tree + all its sqlx / mongodb / buffa backends. Pair with a heap tier. |
 | `buffa` | wire layer | the buffa-generated `media.v1` messages + the `buffa` ⇄ domain bridge under `mediaschema::buffa::*`. Pair with `std` or `alloc`. |
 | `json` | wire JSON | `serde` derives on the wire types (via buffa). Implies `std + buffa`. |
 | `arbitrary` | property tests | `arbitrary::Arbitrary` on the wire types. Implies `std + buffa`. |
@@ -67,6 +71,22 @@ default).
 | `sqlx-postgres` | sql backend | postgres `Pg*Row` types + `sqlx::FromRow` derives. Implies `std`. |
 | `sqlx-mysql` | sql backend | mysql `MySql*Row` types + `sqlx::FromRow`. Implies `std`. |
 | `sqlx-sqlite` | sql backend | sqlite `Sqlite*Row` types + `sqlx::FromRow`. Implies `std`. |
+
+The three medium-aggregate gates (`video` / `audio` / `subtitle`) are
+**all enabled in `default`** so out-of-the-box behaviour is unchanged.
+Consumers that only need a subset of media — e.g. an analysis engine
+that emits `FaceDetection`s but never touches audio or subtitle tracks
+— can opt out via `default-features = false` plus a hand-picked subset:
+
+```toml
+mediaschema = { version = "0.1", default-features = false, features = ["std", "video"] }
+```
+
+Cross-cutting aggregates (`Media`, `MediaFile`, `Person`, `Speaker`,
+`WatchedLocation`, `UserTag`, `SceneAnnotation`) plus the
+[`Identified<Id, D>`](crate::Identified) transport envelope are
+**always available** when a heap tier is on, regardless of which
+medium features are selected.
 
 ## Quick start
 

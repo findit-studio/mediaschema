@@ -215,6 +215,10 @@ mod tests {
   /// A `Speaker` linked to a `Person.id` plus multiple `AudioSegment`s
   /// referencing that `Speaker.id` round-trip identically — the FK bytes
   /// survive the wire trip unchanged.
+  ///
+  /// Gated on `feature = "audio"` because the cross-check pulls
+  /// `AudioSegment` (the audio aggregate is now feature-gated).
+  #[cfg(feature = "audio")]
   #[test]
   fn speaker_and_audio_segments_share_fks_after_roundtrip() {
     // The `buffa::audio_segment` module brings the
