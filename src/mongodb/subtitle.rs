@@ -14,10 +14,10 @@ use crate::domain::{
     cue::{
       AssCue, AssData, AssStyle, Cea608Cue, Cea608Data, EbuStlCue, EbuStlData, LrcCue, LrcData,
       LrcMetadata, LrcWord, MicroDvdCue, MicroDvdData, PgsCue, PgsData, SamiCue, SamiData,
-      SamiStyle, SbvCue, SbvData, SrtCue, SrtData, SubtitleCue, SubtitleCueDetails,
-      SubtitleCueKind, SubViewerCue, SubViewerData, TtmlCue, TtmlData, TtmlRegion, TtmlStyle,
-      VobSubCue, VobSubData, VobSubPalette, VttCue, VttData, VttLineAlign, VttPositionAlign,
-      VttRegion, VttStyleBlock, VttTextAlign, VttVertical,
+      SamiStyle, SbvCue, SbvData, SrtCue, SrtData, SubViewerCue, SubViewerData, SubtitleCue,
+      SubtitleCueDetails, SubtitleCueKind, TtmlCue, TtmlData, TtmlRegion, TtmlStyle, VobSubCue,
+      VobSubData, VobSubPalette, VttCue, VttData, VttLineAlign, VttPositionAlign, VttRegion,
+      VttStyleBlock, VttTextAlign, VttVertical,
     },
     facet::Subtitle,
     track::SubtitleTrack,
@@ -318,7 +318,10 @@ impl TryFrom<Document> for SubtitleTrack<Uuid7> {
 
 fn write_base<D>(d: &mut Document, c: &SubtitleCue<Uuid7, D>, kind: SubtitleCueKind) {
   d.insert("_id", uuid7_to_bson(*c.id_ref()));
-  d.insert("subtitle_track_id", uuid7_to_bson(*c.subtitle_track_id_ref()));
+  d.insert(
+    "subtitle_track_id",
+    uuid7_to_bson(*c.subtitle_track_id_ref()),
+  );
   d.insert("ordinal", Bson::Int64(c.ordinal() as i64));
   d.insert("span", time_range_to_bson(c.span_ref()));
   d.insert("text", loc_text_to_bson(c.text_ref()));
@@ -328,16 +331,7 @@ fn write_base<D>(d: &mut Document, c: &SubtitleCue<Uuid7, D>, kind: SubtitleCueK
 fn read_base(
   d: &mut Document,
   expected: SubtitleCueKind,
-) -> Result<
-  (
-    Uuid7,
-    Uuid7,
-    u32,
-    mediatime::TimeRange,
-    LocalizedText,
-  ),
-  MongoError,
-> {
+) -> Result<(Uuid7, Uuid7, u32, mediatime::TimeRange, LocalizedText), MongoError> {
   let id = uuid7_from_bson(take(d, "_id")?, "_id")?;
   let subtitle_track_id = uuid7_from_bson(take(d, "subtitle_track_id")?, "subtitle_track_id")?;
   let ordinal = as_u32(take(d, "ordinal")?, "ordinal")?;
@@ -388,7 +382,10 @@ impl From<&VttCue<Uuid7>> for Document {
     let mut d = Document::new();
     write_base(&mut d, c, SubtitleCueKind::Vtt);
     let v = c.data_ref();
-    d.insert("cue_identifier", Bson::String(v.cue_identifier().to_owned()));
+    d.insert(
+      "cue_identifier",
+      Bson::String(v.cue_identifier().to_owned()),
+    );
     if let Some(x) = v.vertical() {
       d.insert("vertical", Bson::Int32(i32::from(x.to_u8())));
     }
@@ -396,7 +393,10 @@ impl From<&VttCue<Uuid7>> for Document {
     if let Some(x) = v.line_align() {
       d.insert("line_align", Bson::Int32(i32::from(x.to_u8())));
     }
-    d.insert("position_value", Bson::String(v.position_value().to_owned()));
+    d.insert(
+      "position_value",
+      Bson::String(v.position_value().to_owned()),
+    );
     if let Some(x) = v.position_align() {
       d.insert("position_align", Bson::Int32(i32::from(x.to_u8())));
     }
@@ -454,8 +454,7 @@ impl TryFrom<Document> for VttCue<Uuid7> {
       Some(b) => as_smol(b, "position_value")?,
       None => SmolStr::default(),
     };
-    let position_align =
-      decode_small_vtt(&mut d, "position_align", VttPositionAlign::try_from_u8)?;
+    let position_align = decode_small_vtt(&mut d, "position_align", VttPositionAlign::try_from_u8)?;
     let size_value = match take_opt(&mut d, "size_value") {
       Some(b) => Some(as_f32(b, "size_value")?),
       None => None,
@@ -555,7 +554,10 @@ impl From<&LrcCue<Uuid7>> for Document {
   fn from(c: &LrcCue<Uuid7>) -> Self {
     let mut d = Document::new();
     write_base(&mut d, c, SubtitleCueKind::Lrc);
-    d.insert("has_word_timing", Bson::Boolean(c.data_ref().has_word_timing()));
+    d.insert(
+      "has_word_timing",
+      Bson::Boolean(c.data_ref().has_word_timing()),
+    );
     d
   }
 }
@@ -579,7 +581,10 @@ impl From<&MicroDvdCue<Uuid7>> for Document {
   fn from(c: &MicroDvdCue<Uuid7>) -> Self {
     let mut d = Document::new();
     write_base(&mut d, c, SubtitleCueKind::MicroDvd);
-    d.insert("styled_text", Bson::String(c.data_ref().styled_text().to_owned()));
+    d.insert(
+      "styled_text",
+      Bson::String(c.data_ref().styled_text().to_owned()),
+    );
     d
   }
 }
@@ -609,7 +614,10 @@ impl From<&SubViewerCue<Uuid7>> for Document {
   fn from(c: &SubViewerCue<Uuid7>) -> Self {
     let mut d = Document::new();
     write_base(&mut d, c, SubtitleCueKind::SubViewer);
-    d.insert("styled_text", Bson::String(c.data_ref().styled_text().to_owned()));
+    d.insert(
+      "styled_text",
+      Bson::String(c.data_ref().styled_text().to_owned()),
+    );
     d
   }
 }
@@ -647,7 +655,14 @@ impl TryFrom<Document> for SbvCue<Uuid7> {
   type Error = MongoError;
   fn try_from(mut d: Document) -> Result<Self, Self::Error> {
     let (id, st_id, ordinal, span, text) = read_base(&mut d, SubtitleCueKind::Sbv)?;
-    Ok(SbvCue::try_new(id, st_id, ordinal, span, text, SbvData::new())?)
+    Ok(SbvCue::try_new(
+      id,
+      st_id,
+      ordinal,
+      span,
+      text,
+      SbvData::new(),
+    )?)
   }
 }
 
@@ -742,12 +757,7 @@ fn unpack_indices_i64(n: i64) -> Result<[u8; 4], MongoError> {
     field: SmolStr::from("vob_sub_indices"),
     value: n,
   })?;
-  Ok([
-    v as u8,
-    (v >> 8) as u8,
-    (v >> 16) as u8,
-    (v >> 24) as u8,
-  ])
+  Ok([v as u8, (v >> 8) as u8, (v >> 16) as u8, (v >> 24) as u8])
 }
 
 fn bytes_to_bson(b: &Bytes) -> Bson {
@@ -768,7 +778,10 @@ impl From<&VobSubCue<Uuid7>> for Document {
     d.insert("height", Bson::Int64(i64::from(v.height())));
     d.insert("pos_x", Bson::Int32(v.pos_x()));
     d.insert("pos_y", Bson::Int32(v.pos_y()));
-    d.insert("color_indices", Bson::Int64(pack_indices_i64(v.color_indices())));
+    d.insert(
+      "color_indices",
+      Bson::Int64(pack_indices_i64(v.color_indices())),
+    );
     d.insert(
       "contrast_indices",
       Bson::Int64(pack_indices_i64(v.contrast_indices())),
@@ -787,7 +800,8 @@ impl TryFrom<Document> for VobSubCue<Uuid7> {
     let height = as_u32(take(&mut d, "height")?, "height")?;
     let pos_x = as_i32(take(&mut d, "pos_x")?, "pos_x")?;
     let pos_y = as_i32(take(&mut d, "pos_y")?, "pos_y")?;
-    let color_indices = unpack_indices_i64(as_i64(take(&mut d, "color_indices")?, "color_indices")?)?;
+    let color_indices =
+      unpack_indices_i64(as_i64(take(&mut d, "color_indices")?, "color_indices")?)?;
     let contrast_indices = unpack_indices_i64(as_i64(
       take(&mut d, "contrast_indices")?,
       "contrast_indices",
@@ -816,7 +830,10 @@ impl From<&PgsCue<Uuid7>> for Document {
     d.insert("pos_x", Bson::Int32(p.pos_x()));
     d.insert("pos_y", Bson::Int32(p.pos_y()));
     d.insert("palette_bytes", bytes_to_bson(p.palette_bytes_ref()));
-    d.insert("composition_state", Bson::Int32(i32::from(p.composition_state())));
+    d.insert(
+      "composition_state",
+      Bson::Int32(i32::from(p.composition_state())),
+    );
     d
   }
 }
@@ -881,7 +898,10 @@ impl From<&EbuStlCue<Uuid7>> for Document {
     let mut d = Document::new();
     write_base(&mut d, c, SubtitleCueKind::EbuStl);
     let e = c.data_ref();
-    d.insert("subtitle_number", Bson::Int64(i64::from(e.subtitle_number())));
+    d.insert(
+      "subtitle_number",
+      Bson::Int64(i64::from(e.subtitle_number())),
+    );
     d.insert("cumulative", Bson::Boolean(e.cumulative()));
     d.insert("vertical_pos", Bson::Int32(e.vertical_pos()));
     d.insert("justification", Bson::Int32(i32::from(e.justification())));
@@ -942,9 +962,9 @@ impl From<&SubtitleCue<Uuid7, SubtitleCueDetails<Uuid7>>> for Document {
       SubtitleCueDetails::Lrc(d) => {
         Document::from(&LrcCue::try_new(id, st, ord, span, text, d).expect("rebuild Lrc"))
       }
-      SubtitleCueDetails::MicroDvd(d) => Document::from(
-        &MicroDvdCue::try_new(id, st, ord, span, text, d).expect("rebuild MicroDvd"),
-      ),
+      SubtitleCueDetails::MicroDvd(d) => {
+        Document::from(&MicroDvdCue::try_new(id, st, ord, span, text, d).expect("rebuild MicroDvd"))
+      }
       SubtitleCueDetails::SubViewer(d) => Document::from(
         &SubViewerCue::try_new(id, st, ord, span, text, d).expect("rebuild SubViewer"),
       ),
@@ -1027,7 +1047,10 @@ impl From<&TtmlRegion<Uuid7>> for Document {
   fn from(r: &TtmlRegion<Uuid7>) -> Self {
     let mut d = Document::new();
     d.insert("_id", uuid7_to_bson(*r.id_ref()));
-    d.insert("subtitle_track_id", uuid7_to_bson(*r.subtitle_track_id_ref()));
+    d.insert(
+      "subtitle_track_id",
+      uuid7_to_bson(*r.subtitle_track_id_ref()),
+    );
     d.insert("xml_id", Bson::String(r.xml_id().to_owned()));
     d.insert("xml_attrs", Bson::String(r.xml_attrs().to_owned()));
     d
@@ -1052,7 +1075,10 @@ impl From<&TtmlStyle<Uuid7>> for Document {
   fn from(s: &TtmlStyle<Uuid7>) -> Self {
     let mut d = Document::new();
     d.insert("_id", uuid7_to_bson(*s.id_ref()));
-    d.insert("subtitle_track_id", uuid7_to_bson(*s.subtitle_track_id_ref()));
+    d.insert(
+      "subtitle_track_id",
+      uuid7_to_bson(*s.subtitle_track_id_ref()),
+    );
     d.insert("xml_id", Bson::String(s.xml_id().to_owned()));
     d.insert("xml_attrs", Bson::String(s.xml_attrs().to_owned()));
     d
@@ -1077,7 +1103,10 @@ impl From<&SamiStyle<Uuid7>> for Document {
   fn from(s: &SamiStyle<Uuid7>) -> Self {
     let mut d = Document::new();
     d.insert("_id", uuid7_to_bson(*s.id_ref()));
-    d.insert("subtitle_track_id", uuid7_to_bson(*s.subtitle_track_id_ref()));
+    d.insert(
+      "subtitle_track_id",
+      uuid7_to_bson(*s.subtitle_track_id_ref()),
+    );
     d.insert("class_name", Bson::String(s.class_name().to_owned()));
     d.insert("css_text", Bson::String(s.css_text().to_owned()));
     d
@@ -1102,8 +1131,15 @@ impl From<&VobSubPalette<Uuid7>> for Document {
   fn from(p: &VobSubPalette<Uuid7>) -> Self {
     let mut d = Document::new();
     d.insert("_id", uuid7_to_bson(*p.id_ref()));
-    d.insert("subtitle_track_id", uuid7_to_bson(*p.subtitle_track_id_ref()));
-    let entries: Vec<Bson> = p.entries().iter().map(|&v| Bson::Int64(i64::from(v))).collect();
+    d.insert(
+      "subtitle_track_id",
+      uuid7_to_bson(*p.subtitle_track_id_ref()),
+    );
+    let entries: Vec<Bson> = p
+      .entries()
+      .iter()
+      .map(|&v| Bson::Int64(i64::from(v)))
+      .collect();
     d.insert("entries", Bson::Array(entries));
     d
   }
@@ -1145,8 +1181,7 @@ impl From<&LrcWord<Uuid7>> for Document {
 impl TryFrom<Document> for LrcWord<Uuid7> {
   type Error = MongoError;
   fn try_from(mut d: Document) -> Result<Self, Self::Error> {
-    let subtitle_cue_id =
-      uuid7_from_bson(take(&mut d, "subtitle_cue_id")?, "subtitle_cue_id")?;
+    let subtitle_cue_id = uuid7_from_bson(take(&mut d, "subtitle_cue_id")?, "subtitle_cue_id")?;
     let ordinal = as_u32(take(&mut d, "ordinal")?, "ordinal")?;
     let text = match take_opt(&mut d, "text") {
       Some(b) => as_smol(b, "text")?,
@@ -1163,14 +1198,23 @@ impl From<&VttRegion<Uuid7>> for Document {
   fn from(r: &VttRegion<Uuid7>) -> Self {
     let mut d = Document::new();
     d.insert("_id", uuid7_to_bson(*r.id_ref()));
-    d.insert("subtitle_track_id", uuid7_to_bson(*r.subtitle_track_id_ref()));
+    d.insert(
+      "subtitle_track_id",
+      uuid7_to_bson(*r.subtitle_track_id_ref()),
+    );
     d.insert("name", Bson::String(r.name().to_owned()));
     d.insert("width", Bson::Double(r.width() as f64));
     d.insert("lines", Bson::Int64(r.lines() as i64));
     d.insert("region_anchor_x", Bson::Double(r.region_anchor_x() as f64));
     d.insert("region_anchor_y", Bson::Double(r.region_anchor_y() as f64));
-    d.insert("viewport_anchor_x", Bson::Double(r.viewport_anchor_x() as f64));
-    d.insert("viewport_anchor_y", Bson::Double(r.viewport_anchor_y() as f64));
+    d.insert(
+      "viewport_anchor_x",
+      Bson::Double(r.viewport_anchor_x() as f64),
+    );
+    d.insert(
+      "viewport_anchor_y",
+      Bson::Double(r.viewport_anchor_y() as f64),
+    );
     d.insert("scroll_up", Bson::Boolean(r.scroll_up()));
     d
   }
@@ -1180,8 +1224,7 @@ impl TryFrom<Document> for VttRegion<Uuid7> {
   type Error = MongoError;
   fn try_from(mut d: Document) -> Result<Self, Self::Error> {
     let id = uuid7_from_bson(take(&mut d, "_id")?, "_id")?;
-    let st_id =
-      uuid7_from_bson(take(&mut d, "subtitle_track_id")?, "subtitle_track_id")?;
+    let st_id = uuid7_from_bson(take(&mut d, "subtitle_track_id")?, "subtitle_track_id")?;
     let name = match take_opt(&mut d, "name") {
       Some(b) => as_smol(b, "name")?,
       None => SmolStr::default(),
@@ -1208,7 +1251,10 @@ impl From<&VttStyleBlock<Uuid7>> for Document {
   fn from(s: &VttStyleBlock<Uuid7>) -> Self {
     let mut d = Document::new();
     d.insert("_id", uuid7_to_bson(*s.id_ref()));
-    d.insert("subtitle_track_id", uuid7_to_bson(*s.subtitle_track_id_ref()));
+    d.insert(
+      "subtitle_track_id",
+      uuid7_to_bson(*s.subtitle_track_id_ref()),
+    );
     d.insert("ordinal", Bson::Int64(s.ordinal() as i64));
     d.insert("css_text", Bson::String(s.css_text().to_owned()));
     d
@@ -1219,8 +1265,7 @@ impl TryFrom<Document> for VttStyleBlock<Uuid7> {
   type Error = MongoError;
   fn try_from(mut d: Document) -> Result<Self, Self::Error> {
     let id = uuid7_from_bson(take(&mut d, "_id")?, "_id")?;
-    let st_id =
-      uuid7_from_bson(take(&mut d, "subtitle_track_id")?, "subtitle_track_id")?;
+    let st_id = uuid7_from_bson(take(&mut d, "subtitle_track_id")?, "subtitle_track_id")?;
     let ordinal = as_u32(take(&mut d, "ordinal")?, "ordinal")?;
     let css_text = match take_opt(&mut d, "css_text") {
       Some(b) => as_smol(b, "css_text")?,
@@ -1236,7 +1281,10 @@ impl From<&AssStyle<Uuid7>> for Document {
   fn from(s: &AssStyle<Uuid7>) -> Self {
     let mut d = Document::new();
     d.insert("_id", uuid7_to_bson(*s.id_ref()));
-    d.insert("subtitle_track_id", uuid7_to_bson(*s.subtitle_track_id_ref()));
+    d.insert(
+      "subtitle_track_id",
+      uuid7_to_bson(*s.subtitle_track_id_ref()),
+    );
     d.insert("name", Bson::String(s.name().to_owned()));
     d.insert("fontname", Bson::String(s.fontname().to_owned()));
     d.insert("fontsize", Bson::Double(s.fontsize() as f64));
@@ -1271,8 +1319,7 @@ impl TryFrom<Document> for AssStyle<Uuid7> {
   type Error = MongoError;
   fn try_from(mut d: Document) -> Result<Self, Self::Error> {
     let id = uuid7_from_bson(take(&mut d, "_id")?, "_id")?;
-    let st_id =
-      uuid7_from_bson(take(&mut d, "subtitle_track_id")?, "subtitle_track_id")?;
+    let st_id = uuid7_from_bson(take(&mut d, "subtitle_track_id")?, "subtitle_track_id")?;
     let name = as_smol(take(&mut d, "name")?, "name")?;
     let i16_of = |b: Bson, f: &'static str| -> Result<i16, MongoError> {
       let v = as_i64(b, f)?;
@@ -1292,7 +1339,10 @@ impl TryFrom<Document> for AssStyle<Uuid7> {
       .with_fontname(as_smol(take(&mut d, "fontname")?, "fontname")?)
       .with_fontsize(as_f32(take(&mut d, "fontsize")?, "fontsize")?)
       .with_primary_colour(u32_of(take(&mut d, "primary_colour")?, "primary_colour")?)
-      .with_secondary_colour(u32_of(take(&mut d, "secondary_colour")?, "secondary_colour")?)
+      .with_secondary_colour(u32_of(
+        take(&mut d, "secondary_colour")?,
+        "secondary_colour",
+      )?)
       .with_outline_colour(u32_of(take(&mut d, "outline_colour")?, "outline_colour")?)
       .with_back_colour(u32_of(take(&mut d, "back_colour")?, "back_colour")?)
       .maybe_bold(as_bool(take(&mut d, "bold")?, "bold")?)

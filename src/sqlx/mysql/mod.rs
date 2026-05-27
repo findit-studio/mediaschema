@@ -36,9 +36,8 @@ pub use person::MySqlPersonRow;
 pub use subtitle::{
   MySqlSubtitleCueAssRow, MySqlSubtitleCueBaseRow, MySqlSubtitleCueLrcRow,
   MySqlSubtitleCueLrcWordRow, MySqlSubtitleCueVttRow, MySqlSubtitleRow,
-  MySqlSubtitleTrackAssStyleRow, MySqlSubtitleTrackIndexErrorRow,
-  MySqlSubtitleTrackLrcMetadataRow, MySqlSubtitleTrackRow, MySqlSubtitleTrackVttRegionRow,
-  MySqlSubtitleTrackVttStyleRow,
+  MySqlSubtitleTrackAssStyleRow, MySqlSubtitleTrackIndexErrorRow, MySqlSubtitleTrackLrcMetadataRow,
+  MySqlSubtitleTrackRow, MySqlSubtitleTrackVttRegionRow, MySqlSubtitleTrackVttStyleRow,
 };
 #[cfg(feature = "video")]
 pub use video::{

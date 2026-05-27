@@ -321,8 +321,8 @@ mod tests {
   #[test]
   fn try_new_happy_path() {
     let audio_track_id = Uuid7::new();
-    let s =
-      Speaker::try_new(Uuid7::new(), audio_track_id, 2, "Jane").expect("valid construction must succeed");
+    let s = Speaker::try_new(Uuid7::new(), audio_track_id, 2, "Jane")
+      .expect("valid construction must succeed");
     assert_eq!(s.audio_track_id_ref(), &audio_track_id);
     assert_eq!(s.cluster_id(), 2);
     assert_eq!(s.name(), "Jane");

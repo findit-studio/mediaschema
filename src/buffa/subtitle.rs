@@ -575,12 +575,7 @@ fn pack_indices(a: &[u8; 4]) -> u32 {
 }
 
 fn unpack_indices(n: u32) -> [u8; 4] {
-  [
-    n as u8,
-    (n >> 8) as u8,
-    (n >> 16) as u8,
-    (n >> 24) as u8,
-  ]
+  [n as u8, (n >> 8) as u8, (n >> 16) as u8, (n >> 24) as u8]
 }
 
 impl From<&VobSubData<Uuid7>> for wire::VobSubData {
@@ -1002,14 +997,12 @@ pub fn subtitle_cue_from_wire(
     (SubtitleCueKind::Lrc, Some(wire::__buffa::oneof::subtitle_cue::Data::Lrc(d))) => {
       SubtitleCueDetails::Lrc(LrcData::from(d.as_ref()))
     }
-    (
-      SubtitleCueKind::MicroDvd,
-      Some(wire::__buffa::oneof::subtitle_cue::Data::MicroDvd(d)),
-    ) => SubtitleCueDetails::MicroDvd(MicroDvdData::from(d.as_ref())),
-    (
-      SubtitleCueKind::SubViewer,
-      Some(wire::__buffa::oneof::subtitle_cue::Data::SubViewer(d)),
-    ) => SubtitleCueDetails::SubViewer(SubViewerData::from(d.as_ref())),
+    (SubtitleCueKind::MicroDvd, Some(wire::__buffa::oneof::subtitle_cue::Data::MicroDvd(d))) => {
+      SubtitleCueDetails::MicroDvd(MicroDvdData::from(d.as_ref()))
+    }
+    (SubtitleCueKind::SubViewer, Some(wire::__buffa::oneof::subtitle_cue::Data::SubViewer(d))) => {
+      SubtitleCueDetails::SubViewer(SubViewerData::from(d.as_ref()))
+    }
     (SubtitleCueKind::Sbv, Some(wire::__buffa::oneof::subtitle_cue::Data::Sbv(d))) => {
       SubtitleCueDetails::Sbv(SbvData::from(d.as_ref()))
     }
@@ -1019,10 +1012,9 @@ pub fn subtitle_cue_from_wire(
     (SubtitleCueKind::Sami, Some(wire::__buffa::oneof::subtitle_cue::Data::Sami(d))) => {
       SubtitleCueDetails::Sami(SamiData::from(d.as_ref()))
     }
-    (
-      SubtitleCueKind::VobSub,
-      Some(wire::__buffa::oneof::subtitle_cue::Data::VobSub(d)),
-    ) => SubtitleCueDetails::VobSub(VobSubData::<Uuid7>::try_from(d.as_ref())?),
+    (SubtitleCueKind::VobSub, Some(wire::__buffa::oneof::subtitle_cue::Data::VobSub(d))) => {
+      SubtitleCueDetails::VobSub(VobSubData::<Uuid7>::try_from(d.as_ref())?)
+    }
     (SubtitleCueKind::Pgs, Some(wire::__buffa::oneof::subtitle_cue::Data::Pgs(d))) => {
       SubtitleCueDetails::Pgs(PgsData::try_from(d.as_ref())?)
     }
@@ -1596,13 +1588,7 @@ mod tests {
 
   #[test]
   fn vtt_style_block_roundtrip() {
-    let b = VttStyleBlock::try_new(
-      Uuid7::new(),
-      Uuid7::new(),
-      0,
-      "::cue { color: red; }",
-    )
-    .unwrap();
+    let b = VttStyleBlock::try_new(Uuid7::new(), Uuid7::new(), 0, "::cue { color: red; }").unwrap();
     let w: wire::VttStyleBlock = (&b).into();
     let b2 = VttStyleBlock::try_from(&w).unwrap();
     assert_eq!(b, b2);
@@ -1713,10 +1699,7 @@ mod tests {
     let mut w: wire::SubtitleCue = (&c).into();
     w.data = None;
     let e = subtitle_cue_from_wire(&w, tb()).unwrap_err();
-    assert!(matches!(
-      e,
-      BuffaError::MissingSubtitleCueData("Srt")
-    ));
+    assert!(matches!(e, BuffaError::MissingSubtitleCueData("Srt")));
   }
 
   #[test]

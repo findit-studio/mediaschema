@@ -44,11 +44,10 @@ use mediaschema::{
   Sp2CodegenSmoke, Sp3CodegenSmoke, SpeakerSegment, SubjectDetection, Subtitle, SubtitleCue,
   SubtitleCueData, SubtitleCueKind, SubtitleMeta, SubtitleTrack, SubtitleTrackFormat,
   SubtitleTrackMeta, SubtitleTrackOrigin, SubtitleTrackOriginSource, SubtitleTrackRole, Tag,
-  TagConfidence, TextDetection, Timecode, VttData,
-  TimedDetection, TrackClassificationType, TrackRecord, TrackTag, TrackTime,
-  UpdateAnnotationRequest, UpdateAnnotationResponse, Video, VideoFormat, VideoMeta,
-  VideoStreamMeta, VideoTrack, VideoTrackMeta, Volume, VolumeMeta, VolumeStateChangedEvent,
-  WatchedLocation,
+  TagConfidence, TextDetection, Timecode, TimedDetection, TrackClassificationType, TrackRecord,
+  TrackTag, TrackTime, UpdateAnnotationRequest, UpdateAnnotationResponse, Video, VideoFormat,
+  VideoMeta, VideoStreamMeta, VideoTrack, VideoTrackMeta, Volume, VolumeMeta,
+  VolumeStateChangedEvent, VttData, WatchedLocation,
 };
 use mediatime::{TimeRange, Timebase};
 

@@ -413,7 +413,12 @@ u8_codec!(
 // including the hyphenated `line-left` / `line-right` for
 // `VttPositionAlign` per the WebVTT spec.
 slug_codec!(VttVertical, Lr = "lr", Rl = "rl");
-slug_codec!(VttLineAlign, Start = "start", Center = "center", End = "end");
+slug_codec!(
+  VttLineAlign,
+  Start = "start",
+  Center = "center",
+  End = "end"
+);
 slug_codec!(
   VttPositionAlign,
   Start = "start",
@@ -3079,27 +3084,15 @@ mod tests {
 
   #[test]
   fn srt_cue_rejects_nil_id() {
-    let e = SrtCue::try_new_srt(
-      Uuid7::nil(),
-      Uuid7::new(),
-      0,
-      span(),
-      LocalizedText::new(),
-    )
-    .unwrap_err();
+    let e =
+      SrtCue::try_new_srt(Uuid7::nil(), Uuid7::new(), 0, span(), LocalizedText::new()).unwrap_err();
     assert!(e.is_nil_id());
   }
 
   #[test]
   fn srt_cue_rejects_nil_subtitle_track_id() {
-    let e = SrtCue::try_new_srt(
-      Uuid7::new(),
-      Uuid7::nil(),
-      0,
-      span(),
-      LocalizedText::new(),
-    )
-    .unwrap_err();
+    let e =
+      SrtCue::try_new_srt(Uuid7::new(), Uuid7::nil(), 0, span(), LocalizedText::new()).unwrap_err();
     assert!(e.is_nil_subtitle_track_id());
   }
 
@@ -3426,7 +3419,10 @@ mod tests {
     .unwrap();
     assert_eq!(c.kind(), SubtitleCueKind::Pgs);
     assert_eq!(c.data_ref().bitmap_ref().as_ref(), b"\xAA\xBB");
-    assert_eq!(c.data_ref().palette_bytes_ref().as_ref(), b"\x10\x20\x30\x40");
+    assert_eq!(
+      c.data_ref().palette_bytes_ref().as_ref(),
+      b"\x10\x20\x30\x40"
+    );
     assert_eq!(c.data_ref().composition_state(), 0x80);
   }
 

@@ -838,7 +838,8 @@ mod tests {
   #[test]
   fn try_new_happy_path() {
     let subtitle_id = Uuid7::new();
-    let t = SubtitleTrack::try_new(Uuid7::new(), subtitle_id).expect("valid construction must succeed");
+    let t =
+      SubtitleTrack::try_new(Uuid7::new(), subtitle_id).expect("valid construction must succeed");
     assert_eq!(t.subtitle_id_ref(), &subtitle_id);
     assert_eq!(t.codec_ref(), &SubtitleCodec::Other(SmolStr::default()));
     assert_eq!(t.format_ref(), &Format::default());

@@ -433,15 +433,13 @@ fn base_row_to_parts(
   let id = uuid_to_uuid7(r.id)?;
   let subtitle_track_id = uuid_to_uuid7(r.subtitle_track_id)?;
   let ordinal = u32_from_i64(r.ordinal, "SubtitleCue.ordinal")?;
-  let span =
-    mediatime::TimeRange::try_new(r.span_start_pts, r.span_end_pts, parent_timebase).ok_or_else(
-      || {
-        SqlxError::DomainConstructorRejected(format!(
-          "TimeRange start_pts ({}) must be <= end_pts ({})",
-          r.span_start_pts, r.span_end_pts
-        ))
-      },
-    )?;
+  let span = mediatime::TimeRange::try_new(r.span_start_pts, r.span_end_pts, parent_timebase)
+    .ok_or_else(|| {
+      SqlxError::DomainConstructorRejected(format!(
+        "TimeRange start_pts ({}) must be <= end_pts ({})",
+        r.span_start_pts, r.span_end_pts
+      ))
+    })?;
   let text = LocalizedText::from_src_translated(r.text_src.clone(), r.text_translated.clone());
   let kind = cue_kind_from_i16(r.kind)?;
   Ok((id, subtitle_track_id, ordinal, span, text, kind))
@@ -460,7 +458,8 @@ pub fn srt_cue_from_row(
   base: PgSubtitleCueBaseRow,
   parent_timebase: mediatime::Timebase,
 ) -> Result<SrtCue<Uuid7>, SqlxError> {
-  let (id, subtitle_track_id, ordinal, span, text, kind) = base_row_to_parts(&base, parent_timebase)?;
+  let (id, subtitle_track_id, ordinal, span, text, kind) =
+    base_row_to_parts(&base, parent_timebase)?;
   if kind != SubtitleCueKind::Srt {
     return Err(SqlxError::DomainConstructorRejected(format!(
       "expected Srt cue kind, got {kind:?}"
@@ -511,13 +510,18 @@ impl From<&VttCue<Uuid7>> for (PgSubtitleCueBaseRow, PgSubtitleCueVttRow) {
   }
 }
 
-fn map_small<T>(v: Option<i16>, decode: impl Fn(u8) -> Option<T>, what: &str) -> Result<Option<T>, SqlxError> {
+fn map_small<T>(
+  v: Option<i16>,
+  decode: impl Fn(u8) -> Option<T>,
+  what: &str,
+) -> Result<Option<T>, SqlxError> {
   match v {
     None => Ok(None),
     Some(x) => {
       let u = u8::try_from(x).ok();
       let t = u.and_then(&decode);
-      t.map(Some).ok_or_else(|| SqlxError::UnknownDiscriminant(format!("{what}: {x}")))
+      t.map(Some)
+        .ok_or_else(|| SqlxError::UnknownDiscriminant(format!("{what}: {x}")))
     }
   }
 }
@@ -528,7 +532,8 @@ pub fn vtt_cue_from_rows(
   detail: PgSubtitleCueVttRow,
   parent_timebase: mediatime::Timebase,
 ) -> Result<VttCue<Uuid7>, SqlxError> {
-  let (id, subtitle_track_id, ordinal, span, text, kind) = base_row_to_parts(&base, parent_timebase)?;
+  let (id, subtitle_track_id, ordinal, span, text, kind) =
+    base_row_to_parts(&base, parent_timebase)?;
   if kind != SubtitleCueKind::Vtt {
     return Err(SqlxError::DomainConstructorRejected(format!(
       "expected Vtt cue kind, got {kind:?}"
@@ -603,7 +608,8 @@ pub fn ass_cue_from_rows(
   detail: PgSubtitleCueAssRow,
   parent_timebase: mediatime::Timebase,
 ) -> Result<AssCue<Uuid7>, SqlxError> {
-  let (id, subtitle_track_id, ordinal, span, text, kind) = base_row_to_parts(&base, parent_timebase)?;
+  let (id, subtitle_track_id, ordinal, span, text, kind) =
+    base_row_to_parts(&base, parent_timebase)?;
   if kind != SubtitleCueKind::Ass {
     return Err(SqlxError::DomainConstructorRejected(format!(
       "expected Ass cue kind, got {kind:?}"
@@ -648,7 +654,8 @@ pub fn lrc_cue_from_rows(
   detail: PgSubtitleCueLrcRow,
   parent_timebase: mediatime::Timebase,
 ) -> Result<LrcCue<Uuid7>, SqlxError> {
-  let (id, subtitle_track_id, ordinal, span, text, kind) = base_row_to_parts(&base, parent_timebase)?;
+  let (id, subtitle_track_id, ordinal, span, text, kind) =
+    base_row_to_parts(&base, parent_timebase)?;
   if kind != SubtitleCueKind::Lrc {
     return Err(SqlxError::DomainConstructorRejected(format!(
       "expected Lrc cue kind, got {kind:?}"
@@ -928,12 +935,7 @@ fn unpack_indices_i64(n: i64) -> Result<[u8; 4], SqlxError> {
   // Stored value must fit in 32 bits (4 × u8).
   let v = u32::try_from(n)
     .map_err(|e| SqlxError::UnknownDiscriminant(format!("VobSub indices packing: {e}")))?;
-  Ok([
-    v as u8,
-    (v >> 8) as u8,
-    (v >> 16) as u8,
-    (v >> 24) as u8,
-  ])
+  Ok([v as u8, (v >> 8) as u8, (v >> 16) as u8, (v >> 24) as u8])
 }
 
 impl From<&VobSubCue<Uuid7>> for (PgSubtitleCueBaseRow, PgSubtitleCueVobSubRow) {
@@ -1027,9 +1029,8 @@ pub fn pgs_cue_from_rows(
       "expected Pgs cue kind, got {kind:?}"
     )));
   }
-  let composition_state = u8::try_from(detail.composition_state).map_err(|e| {
-    SqlxError::UnknownDiscriminant(format!("PgsData.composition_state: {e}"))
-  })?;
+  let composition_state = u8::try_from(detail.composition_state)
+    .map_err(|e| SqlxError::UnknownDiscriminant(format!("PgsData.composition_state: {e}")))?;
   let d = PgsData::new()
     .with_bitmap(Bytes::from(detail.bitmap))
     .with_palette_bytes(Bytes::from(detail.palette_bytes))
@@ -1082,9 +1083,8 @@ pub fn cea_608_cue_from_rows(
   }
   let channel = u8::try_from(detail.channel)
     .map_err(|e| SqlxError::UnknownDiscriminant(format!("Cea608Data.channel: {e}")))?;
-  let pac = u32::try_from(detail.pac_byte_pair).map_err(|e| {
-    SqlxError::UnknownDiscriminant(format!("Cea608Data.pac_byte_pair: {e}"))
-  })?;
+  let pac = u32::try_from(detail.pac_byte_pair)
+    .map_err(|e| SqlxError::UnknownDiscriminant(format!("Cea608Data.pac_byte_pair: {e}")))?;
   let d = Cea608Data::try_new(channel)
     .map_err(|e: SubtitleCueError| SqlxError::DomainConstructorRejected(e.to_string()))?
     .with_pac_byte_pair(pac)
@@ -1221,7 +1221,9 @@ impl From<&VttStyleBlock<Uuid7>> for PgSubtitleTrackVttStyleRow {
 }
 
 /// Rebuild a [`VttStyleBlock`] from its row.
-pub fn vtt_style_from_row(r: PgSubtitleTrackVttStyleRow) -> Result<VttStyleBlock<Uuid7>, SqlxError> {
+pub fn vtt_style_from_row(
+  r: PgSubtitleTrackVttStyleRow,
+) -> Result<VttStyleBlock<Uuid7>, SqlxError> {
   let id = uuid_to_uuid7(r.id)?;
   let subtitle_track_id = uuid_to_uuid7(r.subtitle_track_id)?;
   VttStyleBlock::try_new(id, subtitle_track_id, r.ordinal as u32, r.css_text)
@@ -1390,7 +1392,9 @@ impl From<&TtmlRegion<Uuid7>> for PgSubtitleTrackTtmlRegionRow {
 }
 
 /// Rebuild a [`TtmlRegion`] from its row.
-pub fn ttml_region_from_row(r: PgSubtitleTrackTtmlRegionRow) -> Result<TtmlRegion<Uuid7>, SqlxError> {
+pub fn ttml_region_from_row(
+  r: PgSubtitleTrackTtmlRegionRow,
+) -> Result<TtmlRegion<Uuid7>, SqlxError> {
   let id = uuid_to_uuid7(r.id)?;
   let subtitle_track_id = uuid_to_uuid7(r.subtitle_track_id)?;
   let region = TtmlRegion::try_new(id, subtitle_track_id, r.xml_id)
@@ -2161,16 +2165,15 @@ fn base_row_ref_to_parts<'r>(
   let id = uuid_to_uuid7(r.id)?;
   let subtitle_track_id = uuid_to_uuid7(r.subtitle_track_id)?;
   let ordinal = u32_from_i64(r.ordinal, "SubtitleCue.ordinal")?;
-  let span =
-    mediatime::TimeRange::try_new(r.span_start_pts, r.span_end_pts, parent_timebase).ok_or_else(
-      || {
-        SqlxError::DomainConstructorRejected(format!(
-          "TimeRange start_pts ({}) must be <= end_pts ({})",
-          r.span_start_pts, r.span_end_pts
-        ))
-      },
-    )?;
-  let text = LocalizedText::from_src_translated(r.text_src.to_owned(), r.text_translated.to_owned());
+  let span = mediatime::TimeRange::try_new(r.span_start_pts, r.span_end_pts, parent_timebase)
+    .ok_or_else(|| {
+      SqlxError::DomainConstructorRejected(format!(
+        "TimeRange start_pts ({}) must be <= end_pts ({})",
+        r.span_start_pts, r.span_end_pts
+      ))
+    })?;
+  let text =
+    LocalizedText::from_src_translated(r.text_src.to_owned(), r.text_translated.to_owned());
   let kind = cue_kind_from_i16(r.kind)?;
   Ok((id, subtitle_track_id, ordinal, span, text, kind))
 }
@@ -2508,9 +2511,8 @@ pub fn pgs_cue_from_row_refs<'r>(
       "expected Pgs cue kind, got {kind:?}"
     )));
   }
-  let composition_state = u8::try_from(detail.composition_state).map_err(|e| {
-    SqlxError::UnknownDiscriminant(format!("PgsData.composition_state: {e}"))
-  })?;
+  let composition_state = u8::try_from(detail.composition_state)
+    .map_err(|e| SqlxError::UnknownDiscriminant(format!("PgsData.composition_state: {e}")))?;
   let d = PgsData::new()
     .with_bitmap(Bytes::copy_from_slice(detail.bitmap))
     .with_palette_bytes(Bytes::copy_from_slice(detail.palette_bytes))
@@ -2537,9 +2539,8 @@ pub fn cea_608_cue_from_row_refs<'r>(
   }
   let channel = u8::try_from(detail.channel)
     .map_err(|e| SqlxError::UnknownDiscriminant(format!("Cea608Data.channel: {e}")))?;
-  let pac = u32::try_from(detail.pac_byte_pair).map_err(|e| {
-    SqlxError::UnknownDiscriminant(format!("Cea608Data.pac_byte_pair: {e}"))
-  })?;
+  let pac = u32::try_from(detail.pac_byte_pair)
+    .map_err(|e| SqlxError::UnknownDiscriminant(format!("Cea608Data.pac_byte_pair: {e}")))?;
   let d = Cea608Data::try_new(channel)
     .map_err(|e: SubtitleCueError| SqlxError::DomainConstructorRejected(e.to_string()))?
     .with_pac_byte_pair(pac)
@@ -2689,7 +2690,6 @@ impl PgSubtitleTrackIndexErrorRow {
   }
 }
 
-
 impl<'r>
   TryFrom<(
     PgSubtitleTrackRowRef<'r>,
@@ -2792,7 +2792,6 @@ impl<'r>
     Ok(t)
   }
 }
-
 
 // ---------------------------------------------------------------------------
 // Conversion helpers
@@ -3629,9 +3628,7 @@ mod tests {
 
   #[test]
   fn cea_608_cue_ref_roundtrip() {
-    let d = Cea608Data::try_new(3)
-      .unwrap()
-      .with_pac_byte_pair(0x1170);
+    let d = Cea608Data::try_new(3).unwrap().with_pac_byte_pair(0x1170);
     let c: Cea608Cue<Uuid7> = SubtitleCue::try_new(
       Uuid7::new(),
       Uuid7::new(),

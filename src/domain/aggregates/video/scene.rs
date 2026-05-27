@@ -245,7 +245,14 @@ mod tests {
   fn try_new_happy_path() {
     let video_track_id = Uuid7::new();
     let span = TimeRange::new(5_000, 10_000, tb());
-    let s = Scene::try_new(Uuid7::new(), video_track_id, 0, span, SceneDetector::Adaptive).unwrap();
+    let s = Scene::try_new(
+      Uuid7::new(),
+      video_track_id,
+      0,
+      span,
+      SceneDetector::Adaptive,
+    )
+    .unwrap();
     assert_eq!(s.video_track_id_ref(), &video_track_id);
     assert_eq!(s.index(), 0);
     assert_eq!(s.span_ref(), &span);

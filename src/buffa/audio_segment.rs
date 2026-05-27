@@ -62,8 +62,10 @@ use crate::{
 // std prelude automatically; the cfg keeps the import a no-op there.
 #[cfg(all(not(feature = "std"), feature = "alloc"))]
 #[allow(unused_imports)]
-use std::{borrow::ToOwned, string::{String, ToString}};
-
+use std::{
+  borrow::ToOwned,
+  string::{String, ToString},
+};
 
 // ---------------------------------------------------------------------------
 // LocalizedText ⇄ wire::LocalizedText — shared helpers

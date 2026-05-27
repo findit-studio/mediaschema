@@ -41,10 +41,10 @@ pub use aggregates::{
 // corresponding medium feature is on (in addition to the heap tier).
 #[cfg(all(any(feature = "std", feature = "alloc"), feature = "audio"))]
 pub use aggregates::{Audio, AudioSegment, AudioTrack, Word};
-#[cfg(all(any(feature = "std", feature = "alloc"), feature = "subtitle"))]
-pub use aggregates::{Subtitle, SubtitleCue, SubtitleTrack};
 #[cfg(all(any(feature = "std", feature = "alloc"), feature = "video"))]
 pub use aggregates::{Keyframe, Scene, Video, VideoTrack};
+#[cfg(all(any(feature = "std", feature = "alloc"), feature = "subtitle"))]
+pub use aggregates::{Subtitle, SubtitleCue, SubtitleTrack};
 #[cfg(any(feature = "std", feature = "alloc"))]
 pub use primitives::{ErrorInfo, Location};
 #[cfg(any(feature = "std", feature = "alloc"))]

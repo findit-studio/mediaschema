@@ -20,7 +20,9 @@ use crate::domain::{
 // Medium-specific error imports — gated per feature so a build with
 // only one medium on does not drag in the others' error trees.
 #[cfg(feature = "audio")]
-use crate::domain::aggregates::audio::{segment::WordError, AudioError, AudioSegmentError, AudioTrackError};
+use crate::domain::aggregates::audio::{
+  segment::WordError, AudioError, AudioSegmentError, AudioTrackError,
+};
 #[cfg(feature = "subtitle")]
 use crate::domain::aggregates::subtitle::{
   cue::SubtitleCueError, facet::SubtitleError, track::SubtitleTrackError,

@@ -251,7 +251,10 @@ pub fn audio_track_indexes() -> Vec<IndexModel> {
 #[cfg(feature = "audio")]
 pub fn audio_segment_indexes() -> Vec<IndexModel> {
   vec![
-    index_on(doc! { "audio_track_id": 1 }, "audio_segments_audio_track_id"),
+    index_on(
+      doc! { "audio_track_id": 1 },
+      "audio_segments_audio_track_id",
+    ),
     unique_on(
       doc! { "audio_track_id": 1, "index": 1 },
       "audio_segments_audio_track_id_index_unique",
@@ -324,7 +327,10 @@ pub fn subtitle_track_indexes() -> Vec<IndexModel> {
 #[cfg(feature = "subtitle")]
 pub fn subtitle_cue_indexes() -> Vec<IndexModel> {
   vec![
-    index_on(doc! { "subtitle_track_id": 1 }, "subtitle_cues_subtitle_track_id"),
+    index_on(
+      doc! { "subtitle_track_id": 1 },
+      "subtitle_cues_subtitle_track_id",
+    ),
     unique_on(
       doc! { "subtitle_track_id": 1, "ordinal": 1 },
       "subtitle_cues_subtitle_track_id_ordinal_unique",
