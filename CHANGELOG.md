@@ -6,7 +6,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning policy: see the [Versioning section in `README.md`](README.md#versioning)
 and the resolution comment on [#59](https://github.com/Findit-AI/mediaschema/issues/59).
 
-## Unreleased — preparing 0.1.0
+## Unreleased
+
+Additive changes accumulated after 0.1.0's publish accumulate here;
+once enough land for a patch release the header is renamed to
+`## 0.1.1 — YYYY-MM-DD`.
+
+## 0.1.0 — Unreleased
+
+Initial public release. Replace `Unreleased` in this header with the
+actual publish date (e.g. `2026-06-15`) at `cargo publish` time.
 
 Pre-1.0 contract: any breaking change on any surface (Rust API, proto wire,
 sqlx DDL, mongodb document shape) bumps the `x` in `0.x.y`; purely-additive
