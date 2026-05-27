@@ -126,6 +126,34 @@ cargo run -p xtask -- gen
 This is required after editing any `proto/**/*.proto` file. Do **not**
 hand-edit the generated files.
 
+## Versioning
+
+mediaschema is currently **pre-1.0**. A single Cargo SemVer covers
+every surface — Rust API, proto wire, sqlx DDL, mongodb document
+shape — and the bump rule depends only on whether the change is
+breaking on **any** of them:
+
+- `0.x.y` **patch** — purely additive across **all** surfaces (new
+  fields, new proto numbers, new sqlx columns / migrations, new
+  mongodb keys, new public Rust items, new `#[non_exhaustive]`
+  variants).
+- `0.x.0` **minor** — any breaking change on any surface; bumps `x`.
+- `1.0.0` — every surface stabilises. From then on, removing or
+  renaming any field on any surface requires `2.0`, and proto
+  reservation rules switch on (every removed proto field gets
+  `reserved N;`, old sqlx migration files become immutable,
+  mongodb keys are permanent with a one-major-version grace).
+
+Pre-1.0 — the current state — the [`no-proto-reservations`][noproto]
+policy allows free renumbering of proto fields between `0.x` bumps;
+this is the trade-off for rapid iteration before any consumer pins
+a stable version. See [issue #59][v59] for the full policy + the
+three open decisions (cutover timing, mongodb grace period, and
+schema-doc-rev formality).
+
+[noproto]: docs/internal/conventions.md
+[v59]: https://github.com/Findit-AI/mediaschema/issues/59
+
 ## Licence
 
 MIT OR Apache-2.0.
