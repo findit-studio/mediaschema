@@ -12,10 +12,9 @@ Additive changes accumulated after 0.1.0's publish accumulate here;
 once enough land for a patch release the header is renamed to
 `## 0.1.1 — YYYY-MM-DD`.
 
-## 0.1.0 — Unreleased
+## 0.1.0 — 2026-05-27
 
-Initial public release. Replace `Unreleased` in this header with the
-actual publish date (e.g. `2026-06-15`) at `cargo publish` time.
+Initial public release.
 
 Pre-1.0 contract: any breaking change on any surface (Rust API, proto wire,
 sqlx DDL, mongodb document shape) bumps the `x` in `0.x.y`; purely-additive
