@@ -114,7 +114,7 @@ sqlx-sqlite   = ["std", "dep:sqlx", "sqlx/sqlite", "sqlx/uuid"]
 # default; consumers who want the wire layer add `--features buffa`
 # (typically paired with `--features std` or `--features alloc` since
 # the codegen uses heap types).
-buffa = { version = "0.6", default-features = false, optional = true }
+buffa = { version = "0.7", default-features = false, optional = true }
 buffa-types = { version = "0.6", default-features = false, optional = true }
 mediatime = { version = "0.1.6", default-features = false, features = ["buffa"] }
 # Shared media-stream descriptor vocabulary (codec / pixel-format / colour /
@@ -191,7 +191,7 @@ bson = { version = "3", optional = true, default-features = false, features = ["
 
 [dev-dependencies]
 serde_json = "1"
-buffa = { version = "0.6", default-features = false, features = ["std"] }
+buffa = { version = "0.7", default-features = false, features = ["std"] }
 mediatime = { version = "0.1.6", default-features = false, features = ["buffa"] }
 # `mediaframe` / `smol_str` as dev-deps so the integration tests in
 # `tests/` can construct domain aggregates (`SubtitleTrack`) through the
