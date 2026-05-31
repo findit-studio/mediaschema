@@ -5,4 +5,4 @@ edition = "2021"
 publish = false
 
 [dependencies]
-buffa-build = "0.6"
+buffa-build = "0.7"
