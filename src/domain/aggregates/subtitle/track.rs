@@ -239,7 +239,7 @@ impl<Id> SubtitleTrack<Id> {
   /// `true`: OCR is *required*. Under-requiring OCR would let a
   /// `SEARCH_INDEXED` completion check pass without `OCR_DONE`,
   /// silently skipping OCR for what may be image subtitles. Pass this
-  /// into [`SubtitleIndexStatus::is_fully_indexed`] /
+  /// into `SubtitleIndexStatus::is_fully_indexed` /
   /// `SubtitleIndexStage::from_status` so unknown never under-requires
   /// OCR.
   #[inline]

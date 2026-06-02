@@ -197,14 +197,14 @@ impl From<&Media<Uuid7>> for wire::Media {
     };
 
     let (device_make, device_model) = match d.device_ref() {
-      Some(dev) => (dev.make().to_owned(), dev.model().to_owned()),
-      None => (String::new(), String::new()),
+      Some(dev) => (dev.make().to_owned().into(), dev.model().to_owned().into()),
+      None => (SmolStr::default(), SmolStr::default()),
     };
 
     // GPS → ISO 6709 string (empty when absent).
     let gps_location = match d.gps_ref() {
-      Some(g) => g.to_iso6709(),
-      None => String::new(),
+      Some(g) => g.to_iso6709().into(),
+      None => SmolStr::default(),
     };
 
     wire::Media {
@@ -308,7 +308,7 @@ mod tests {
   fn malformed_gps_location_errors() {
     let d = build_domain();
     let mut w = wire::Media::from(&d);
-    w.gps_location = "not a location".to_string();
+    w.gps_location = "not a location".into();
     let err = Media::try_from(&w).unwrap_err();
     assert!(err.is_gps_location_malformed());
   }

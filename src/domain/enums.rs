@@ -420,7 +420,7 @@ impl VideoIndexStage {
   /// Derive the coarse stage from the verified-bit status + the
   /// structured `index_errors` history. **Failed** precedence applies
   /// only to *live* errors (errors whose stage success bit isn't set —
-  /// see [`VideoIndexStage::is_live`]); a successful retry clears a
+  /// see `VideoIndexStage::is_live`); a successful retry clears a
   /// stale error without requiring the caller to mutate the history.
   ///
   /// The non-failed walk is **contiguous**: each next stage requires

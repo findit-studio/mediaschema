@@ -60,7 +60,7 @@ impl From<&Speaker<Uuid7>> for PgSpeakerRow {
       audio_track_id: uuid7_to_uuid(*s.audio_track_id_ref()),
       cluster_id: s.cluster_id() as i32,
       name: s.name().to_owned(),
-      speech_duration_ms: s.speech_duration_ref().and_then(|_| None::<i64>),
+      speech_duration_ms: None,
       voiceprint_vector_id: vfp.map(|v| uuid7_to_uuid(*v.vector_id_ref())),
       voiceprint_dimensions: vfp.map(|v| v.dimensions() as i32),
       voiceprint_extracted_at_ms: vfp.map(|v| timestamp_to_millis(v.extracted_at())),

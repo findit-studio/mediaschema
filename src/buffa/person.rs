@@ -98,7 +98,7 @@ impl From<&Person<Uuid7>> for wire::Person {
   fn from(d: &Person<Uuid7>) -> Self {
     wire::Person {
       id: ::buffa::bytes::Bytes::copy_from_slice(d.id_ref().as_bytes()),
-      name: d.name().to_owned(),
+      name: d.name().to_owned().into(),
       confidence: d.confidence().into(),
       voiceprint: voice_fingerprint_to_wire(d.voiceprint_ref()),
       created_at: d.created_at().as_millisecond(),

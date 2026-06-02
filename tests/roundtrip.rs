@@ -50,6 +50,7 @@ use mediaschema::{
   VolumeStateChangedEvent, VttData, WatchedLocation,
 };
 use mediatime::{TimeRange, Timebase};
+use smol_str::SmolStr;
 
 fn rt<M: Message + PartialEq + std::fmt::Debug>(m: &M) {
   let bytes = m.encode_to_vec();
@@ -82,24 +83,28 @@ fn bounding_box_roundtrip() {
 
 #[test]
 fn timed_detection_extern_roundtrip() {
-  let mut td = TimedDetection::default();
-  td.detection = buffa::MessageField::some(Detection {
-    label: "car".into(),
-    confidence: 0.7,
+  let td = TimedDetection {
+    detection: buffa::MessageField::some(Detection {
+      label: "car".into(),
+      confidence: 0.7,
+      ..Default::default()
+    }),
+    range: buffa::MessageField::some(TimeRange::new(
+      10,
+      20,
+      Timebase::new(30000, NonZeroU32::new(1001).unwrap()),
+    )),
+    timebase: buffa::MessageField::some(Timebase::new(1, NonZeroU32::new(48000).unwrap())),
     ..Default::default()
-  });
-  td.range = buffa::MessageField::some(TimeRange::new(
-    10,
-    20,
-    Timebase::new(30000, NonZeroU32::new(1001).unwrap()),
-  ));
-  td.timebase = buffa::MessageField::some(Timebase::new(1, NonZeroU32::new(48000).unwrap()));
+  };
   rt(&td);
 
   // num == 0 timebase: independently guards mediatime's unconditional-encode
   // contract end-to-end through the mediaschema extern wire path.
-  let mut td0 = TimedDetection::default();
-  td0.timebase = buffa::MessageField::some(Timebase::new(0, NonZeroU32::new(1).unwrap()));
+  let td0 = TimedDetection {
+    timebase: buffa::MessageField::some(Timebase::new(0, NonZeroU32::new(1).unwrap())),
+    ..Default::default()
+  };
   rt(&td0);
 }
 
@@ -149,7 +154,7 @@ fn batch1_roundtrip() {
 
   // HorizonInfo
   let h = HorizonInfo {
-    angle: 3.14,
+    angle: 1.25,
     confidence: 0.9,
     ..Default::default()
   };
@@ -1418,7 +1423,7 @@ fn batch3_sp2_roundtrip() {
     known_kind: buffa::EnumValue::from(ChannelLayoutKind::CHANNEL_LAYOUT_KIND_UNSPECIFIED),
     native_mask: None,
     custom_channels: vec![],
-    description: String::new(),
+    description: SmolStr::default(),
     ..Default::default()
   });
   rt(&AudioChannelLayout::default());
@@ -1845,9 +1850,9 @@ fn batch5_sp2_roundtrip() {
     subtitle_id: None,
     error_status: 0,
     capture_date: 0,
-    device_make: String::new(),
-    device_model: String::new(),
-    gps_location: String::new(),
+    device_make: SmolStr::default(),
+    device_model: SmolStr::default(),
+    gps_location: SmolStr::default(),
     ..Default::default()
   });
   rt(&Media::default());
@@ -1906,7 +1911,7 @@ fn batch5_sp2_roundtrip() {
     ordinal: 1,
     span_start_pts: 0,
     span_end_pts: 1000,
-    text: String::new(),
+    text: SmolStr::default(),
     kind: buffa::EnumValue::Known(SubtitleCueKind::SUBTITLE_CUE_KIND_VTT),
     data: Some(SubtitleCueData::Vtt(::buffa::alloc::boxed::Box::new(
       VttData {
@@ -2400,12 +2405,12 @@ fn batch8_sp2_roundtrip() {
     voice: buffa::MessageField::none(),
     has_speech: false,
     has_music: false,
-    dominant_language: String::new(),
+    dominant_language: SmolStr::default(),
     speech_ratio: 0.0,
     speaker_count: 0,
     loudness_lufs: 0.0,
     rms_db: 0.0,
-    transcript_preview: String::new(),
+    transcript_preview: SmolStr::default(),
     clip_count: 0,
     fingerprint: vec![],
     gemini_enhanced: false,
@@ -2539,10 +2544,10 @@ fn make_audio_stream_meta_mf() -> buffa::MessageField<AudioStreamMeta> {
     bit_rate: 192_000,
     language: "en".into(),
     stream_title: "Main".into(),
-    album: String::new(),
-    artist: String::new(),
-    title: String::new(),
-    genre: String::new(),
+    album: SmolStr::default(),
+    artist: SmolStr::default(),
+    title: SmolStr::default(),
+    genre: SmolStr::default(),
     track_number: 0,
     sample_format: "fltp".into(),
     bits_per_sample: 32,
@@ -2681,25 +2686,25 @@ fn batch9_sp2_roundtrip() {
     zs_mood: buffa::MessageField::none(),
     zs_sound_events: vec![],
     zs_voice: buffa::MessageField::none(),
-    description_en: String::new(),
-    description_zh: String::new(),
-    gemini_scene: String::new(),
-    gemini_mood: String::new(),
+    description_en: SmolStr::default(),
+    description_zh: SmolStr::default(),
+    gemini_scene: SmolStr::default(),
+    gemini_mood: SmolStr::default(),
     gemini_sound_sources: vec![],
-    gemini_foreground: String::new(),
-    gemini_background: String::new(),
+    gemini_foreground: SmolStr::default(),
+    gemini_background: SmolStr::default(),
     gemini_enhanced: false,
     event_timeline: vec![],
-    foreground_layer: String::new(),
-    background_layer: String::new(),
+    foreground_layer: SmolStr::default(),
+    background_layer: SmolStr::default(),
     speech_ratio: 0.0,
     speaker_count: 0,
     speaker_segments: vec![],
     voice_gender: buffa::MessageField::none(),
     voice_emotion: buffa::MessageField::none(),
-    transcript: String::new(),
+    transcript: SmolStr::default(),
     transcript_segments: vec![],
-    language: String::new(),
+    language: SmolStr::default(),
     music_genre: buffa::MessageField::none(),
     music_bpm: None,
     music_instruments: vec![],
@@ -2707,7 +2712,7 @@ fn batch9_sp2_roundtrip() {
     rms_db: 0.0,
     snr_db: None,
     has_sudden_onset: false,
-    energy_profile: String::new(),
+    energy_profile: SmolStr::default(),
     spectral_flatness: 0.0,
     fingerprint: vec![],
     prefilter_class: buffa::EnumValue::from(AudioPrefilterClass::AUDIO_PREFILTER_CLASS_UNSPECIFIED),
@@ -3156,7 +3161,7 @@ fn batch10_sp2_roundtrip() {
   let cover_minimal = AudioCoverArt {
     path: buffa::MessageField::none(),
     dimensions: buffa::MessageField::none(),
-    mime: String::new(),
+    mime: SmolStr::default(),
     size: 0,
     ..Default::default()
   };
@@ -3229,18 +3234,18 @@ fn batch10_sp2_roundtrip() {
     stream_count: 1,
     title: "Sparse".into(),
     artist: "Nobody".into(),
-    album_artist: String::new(),
-    album: String::new(),
-    genre: String::new(),
-    composer: String::new(),
-    performer: String::new(),
-    date: String::new(),
+    album_artist: SmolStr::default(),
+    album: SmolStr::default(),
+    genre: SmolStr::default(),
+    composer: SmolStr::default(),
+    performer: SmolStr::default(),
+    date: SmolStr::default(),
     track_number: 1,
     total_tracks: 1,
     disc_number: 1,
     total_discs: 1,
-    comment: String::new(),
-    lyrics: String::new(),
+    comment: SmolStr::default(),
+    lyrics: SmolStr::default(),
     tag_types: vec![],
     cover_art: buffa::MessageField::none(),
     created_at: 0,
@@ -4279,9 +4284,9 @@ fn batch6_sp3_roundtrip() {
     ..Default::default()
   });
   rt(&Request {
-    kind: Some(RequestKind::ListLocations(Box::new(
-      ListLocationsRequest::default(),
-    ))),
+    kind: Some(RequestKind::ListLocations(
+      Box::<ListLocationsRequest>::default(),
+    )),
     ..Default::default()
   });
   rt(&Request {
@@ -4303,15 +4308,15 @@ fn batch6_sp3_roundtrip() {
     ..Default::default()
   });
   rt(&Request {
-    kind: Some(RequestKind::GetModelStatus(Box::new(
-      GetModelStatusRequest::default(),
-    ))),
+    kind: Some(RequestKind::GetModelStatus(
+      Box::<GetModelStatusRequest>::default(),
+    )),
     ..Default::default()
   });
   rt(&Request {
-    kind: Some(RequestKind::GetDaemonInfo(Box::new(
-      GetDaemonInfoRequest::default(),
-    ))),
+    kind: Some(RequestKind::GetDaemonInfo(
+      Box::<GetDaemonInfoRequest>::default(),
+    )),
     ..Default::default()
   });
   rt(&Request {
@@ -4491,9 +4496,9 @@ fn batch7_sp3_roundtrip() {
     ..Default::default()
   });
   rt(&Response {
-    kind: Some(ResponseKind::ListLocations(Box::new(
-      ListLocationsResponse::default(),
-    ))),
+    kind: Some(ResponseKind::ListLocations(
+      Box::<ListLocationsResponse>::default(),
+    )),
     ..Default::default()
   });
   rt(&Response {
@@ -4568,27 +4573,27 @@ fn batch7_sp3_roundtrip() {
     ..Default::default()
   });
   rt(&Response {
-    kind: Some(ResponseKind::RemoveLocation(Box::new(
-      RemoveLocationResponse::default(),
-    ))),
+    kind: Some(ResponseKind::RemoveLocation(
+      Box::<RemoveLocationResponse>::default(),
+    )),
     ..Default::default()
   });
   rt(&Response {
-    kind: Some(ResponseKind::UpdateAnnotation(Box::new(
-      UpdateAnnotationResponse::default(),
-    ))),
+    kind: Some(ResponseKind::UpdateAnnotation(Box::<
+      UpdateAnnotationResponse,
+    >::default())),
     ..Default::default()
   });
   rt(&Response {
-    kind: Some(ResponseKind::EjectVolume(Box::new(
-      EjectVolumeResponse::default(),
-    ))),
+    kind: Some(ResponseKind::EjectVolume(
+      Box::<EjectVolumeResponse>::default(),
+    )),
     ..Default::default()
   });
   rt(&Response {
-    kind: Some(ResponseKind::RetryFailed(Box::new(
-      RetryFailedResponse::default(),
-    ))),
+    kind: Some(ResponseKind::RetryFailed(
+      Box::<RetryFailedResponse>::default(),
+    )),
     ..Default::default()
   });
   rt(&Response {

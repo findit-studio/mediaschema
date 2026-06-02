@@ -54,7 +54,7 @@ impl From<&Speaker<Uuid7>> for wire::Speaker {
       id: Bytes::copy_from_slice(d.id_ref().as_bytes()),
       audio_track_id: Bytes::copy_from_slice(d.audio_track_id_ref().as_bytes()),
       cluster_id: d.cluster_id(),
-      name: d.name().to_owned(),
+      name: d.name().to_owned().into(),
       speech_duration: match d.speech_duration_ref() {
         Some(ts) => ::buffa::MessageField::some(*ts),
         None => ::buffa::MessageField::none(),

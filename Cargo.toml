@@ -46,17 +46,19 @@ default = ["std", "video", "audio", "subtitle"]
 #   `mediaschema::AudioFormat`, …). Off by default — consumers who only
 #   want the domain types don't pay for buffa. **Does NOT auto-enable
 #   `alloc` or `std`**; pair it explicitly with one of those (the
-#   wire codegen emits `Vec` / `String`, so a heap feature is required
-#   in practice).
+#   wire codegen emits `Vec` / `SmolStr`, so a heap feature is required
+#   in practice). The `buffa` feature forwards `buffa?/smol_str` so the
+#   buffa runtime re-exports `smol_str` for the codegen's `string` →
+#   `SmolStr` mapping (see `xtask/src/main.rs`).
 #
 # `smol_str` is also optional — it doesn't support no-std + no-alloc,
 # so it's pulled in only when either `alloc` or `std` is on (the
 # capability features that themselves require heap).
 alloc = ["dep:smol_str", "dep:bytes", "mediaframe/alloc"]
 std = ["dep:smol_str", "smol_str/default", "dep:bytes", "uuid/default", "uuid/v7", "buffa?/default", "buffa-types?/default", "mediaframe/std"]
-buffa = ["dep:buffa", "dep:buffa-types", "mediaframe?/buffa"]
+buffa = ["dep:buffa", "dep:buffa-types", "buffa?/smol_str", "mediaframe?/buffa"]
 json = ["std", "buffa", "dep:serde", "dep:serde_json", "buffa?/json", "buffa-types?/json", "mediatime/serde"]
-# `arbitrary` implies `std` AND `buffa`. Upstream `buffa-types 0.6.0`'s
+# `arbitrary` implies `std` AND `buffa`. Upstream `buffa-types`'s
 # `arbitrary` codegen references `std::RECURSIVE_COUNT_*` symbols emitted
 # by the `arbitrary` derive macro and won't compile without `std`; the
 # property tests cover the wire-codec round-trip so `buffa` is required
@@ -114,9 +116,9 @@ sqlx-sqlite   = ["std", "dep:sqlx", "sqlx/sqlite", "sqlx/uuid"]
 # default; consumers who want the wire layer add `--features buffa`
 # (typically paired with `--features std` or `--features alloc` since
 # the codegen uses heap types).
-buffa = { version = "0.6", default-features = false, optional = true }
-buffa-types = { version = "0.6", default-features = false, optional = true }
-mediatime = { version = "0.1.6", default-features = false, features = ["buffa"] }
+buffa = { version = "0.7", default-features = false, optional = true }
+buffa-types = { version = "0.7", default-features = false, optional = true }
+mediatime = { version = "0.1", default-features = false, features = ["buffa"] }
 # Shared media-stream descriptor vocabulary (codec / pixel-format / colour /
 # frame / audio / subtitle / capture / language). Optional, pulled in by the
 # heap tiers (`alloc`/`std`) since every mediaframe-typed field lives on a
@@ -191,8 +193,8 @@ bson = { version = "3", optional = true, default-features = false, features = ["
 
 [dev-dependencies]
 serde_json = "1"
-buffa = { version = "0.6", default-features = false, features = ["std"] }
-mediatime = { version = "0.1.6", default-features = false, features = ["buffa"] }
+buffa = { version = "0.7", default-features = false, features = ["std", "smol_str"] }
+mediatime = { version = "0.1", default-features = false, features = ["buffa"] }
 # `mediaframe` / `smol_str` as dev-deps so the integration tests in
 # `tests/` can construct domain aggregates (`SubtitleTrack`) through the
 # public API exactly as a downstream consumer would — building

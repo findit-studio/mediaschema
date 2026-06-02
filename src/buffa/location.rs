@@ -64,7 +64,7 @@ impl From<&Location<Uuid7>> for wire::Local {
     let components = local
       .components_slice()
       .iter()
-      .map(|c| c.as_str().to_owned())
+      .map(|c| c.as_str().to_owned().into())
       .collect();
     wire::Local {
       volume: ::buffa::MessageField::some(volume_wire),
@@ -156,7 +156,7 @@ mod tests {
   fn local_rejects_missing_volume() {
     let w = wire::Local {
       volume: ::buffa::MessageField::none(),
-      components: std::vec!["foo".to_owned()],
+      components: std::vec!["foo".into()],
       __buffa_unknown_fields: Default::default(),
     };
     let err = Location::try_from(&w).unwrap_err();

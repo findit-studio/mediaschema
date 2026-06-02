@@ -1,7 +1,7 @@
 //! PostgreSQL row shape for the `Person` aggregate.
 //!
 //! `id` rides as a native `uuid`. The optional inner
-//! [`VoiceFingerprint`](crate::domain::vo::VoiceFingerprint) VO is flattened
+//! [`VoiceFingerprint`] VO is flattened
 //! into nine sibling columns; `voiceprint_vector_id IS NOT NULL` is the
 //! presence discriminator (when present, every other `voiceprint_*` column
 //! carries a value — except the inner `Option<f32>` `confidence`, which is

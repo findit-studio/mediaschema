@@ -27,7 +27,7 @@ pub enum BuffaError {
   /// Wire `Id.value` did not contain exactly 16 bytes.
   #[error("wire Id.value must be 16 bytes, got {0}")]
   IdWrongLength(usize),
-  /// Wire `Id.value` parsed but failed the domain [`Uuid7`] invariant
+  /// Wire `Id.value` parsed but failed the domain [`Uuid7`](crate::domain::Uuid7) invariant
   /// (nil / non-v7).
   #[error("wire Id failed Uuid7 invariant: {0}")]
   IdInvalid(#[from] Uuid7Error),

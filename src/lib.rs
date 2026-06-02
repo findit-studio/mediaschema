@@ -67,6 +67,13 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+// Enum slug-string parsers are deliberately named `from_str` for symmetry with
+// `as_str` and return `Option<Self>` rather than `Result<Self, Err>` — slug
+// strings are open-ended on the wire and "not a known variant" is a domain
+// concept, not a `FromStr` parse error. Implementing the std `FromStr` trait
+// would lose the `Option` shape, so the inherent method intentionally
+// shadows the trait's `from_str`.
+#![allow(clippy::should_implement_trait)]
 
 // Alias `alloc as std` on no-std + alloc builds so domain code can use
 // `std::vec::Vec` / `std::string::String` uniformly across feature
@@ -131,7 +138,7 @@ pub mod buffa;
 pub mod sqlx;
 
 /// Optional MongoDB backend — `bson::Document` ↔ domain aggregates plus
-/// per-collection [`::mongodb::IndexModel`](mongodb::IndexModel)
+/// per-collection `::mongodb::IndexModel`
 /// constructors. Off by default; enable with `--features mongodb`.
 /// Inside the module the external `::mongodb` crate is referenced via
 /// its absolute path so the `crate::mongodb` module name does not

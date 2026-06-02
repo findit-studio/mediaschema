@@ -71,7 +71,7 @@ impl From<&Media<Uuid7>> for PgMediaRow {
       checksum: m.checksum_ref().as_bytes().to_vec(),
       format: m.format_ref().as_str().to_owned(),
       size: m.size() as i64,
-      duration_raw: m.duration_ref().and_then(|_| None::<i64>),
+      duration_raw: None,
       kind: media_kind_to_i16(m.kind()),
       video_id: m.video_id_ref().map(|id| uuid7_to_uuid(*id)),
       audio_id: m.audio_id_ref().map(|id| uuid7_to_uuid(*id)),

@@ -93,11 +93,11 @@ fn opt_id_to_bytes(id: Option<&Uuid7>) -> Bytes {
   }
 }
 
-fn localized_text_to_wire_string(t: &LocalizedText) -> String {
+fn localized_text_to_wire_string(t: &LocalizedText) -> SmolStr {
   // Base `SubtitleCue.text` is the raw src text only — `translated`
   // rides on the wire `LocalizedText` form elsewhere. The per-format
   // detail messages keep their own untranslated `styled_text` field.
-  t.src().to_owned()
+  t.src().to_owned().into()
 }
 
 fn localized_text_from_wire_string(s: &str) -> LocalizedText {
@@ -332,15 +332,15 @@ impl From<&wire::SrtData> for SrtData {
 impl From<&VttData<Uuid7>> for wire::VttData {
   fn from(d: &VttData<Uuid7>) -> Self {
     wire::VttData {
-      cue_identifier: d.cue_identifier().to_owned(),
+      cue_identifier: d.cue_identifier().to_owned().into(),
       vertical: d
         .vertical()
         .map(|v| ::buffa::EnumValue::Known(wire_vtt_vertical(v))),
-      line_value: d.line_value().to_owned(),
+      line_value: d.line_value().to_owned().into(),
       line_align: d
         .line_align()
         .map(|v| ::buffa::EnumValue::Known(wire_vtt_line_align(v))),
-      position_value: d.position_value().to_owned(),
+      position_value: d.position_value().to_owned().into(),
       position_align: d
         .position_align()
         .map(|v| ::buffa::EnumValue::Known(wire_vtt_position_align(v))),
@@ -349,8 +349,8 @@ impl From<&VttData<Uuid7>> for wire::VttData {
         .text_align()
         .map(|v| ::buffa::EnumValue::Known(wire_vtt_text_align(v))),
       region_id: opt_id_to_bytes(d.region_id_ref()),
-      voice: d.voice().to_owned(),
-      styled_text: d.styled_text().to_owned(),
+      voice: d.voice().to_owned().into(),
+      styled_text: d.styled_text().to_owned().into(),
       __buffa_unknown_fields: Default::default(),
     }
   }
@@ -405,12 +405,12 @@ impl From<&AssData<Uuid7>> for wire::AssData {
     wire::AssData {
       layer: d.layer(),
       style_id: id_to_bytes(d.style_id_ref()),
-      name: d.name().to_owned(),
+      name: d.name().to_owned().into(),
       margin_l: d.margin_l(),
       margin_r: d.margin_r(),
       margin_v: d.margin_v(),
-      effect: d.effect().to_owned(),
-      styled_text: d.styled_text().to_owned(),
+      effect: d.effect().to_owned().into(),
+      styled_text: d.styled_text().to_owned().into(),
       __buffa_unknown_fields: Default::default(),
     }
   }
@@ -460,7 +460,7 @@ impl From<&wire::LrcData> for LrcData {
 impl From<&MicroDvdData> for wire::MicroDvdData {
   fn from(d: &MicroDvdData) -> Self {
     wire::MicroDvdData {
-      styled_text: d.styled_text().to_owned(),
+      styled_text: d.styled_text().to_owned().into(),
       __buffa_unknown_fields: Default::default(),
     }
   }
@@ -479,7 +479,7 @@ impl From<&wire::MicroDvdData> for MicroDvdData {
 impl From<&SubViewerData> for wire::SubViewerData {
   fn from(d: &SubViewerData) -> Self {
     wire::SubViewerData {
-      styled_text: d.styled_text().to_owned(),
+      styled_text: d.styled_text().to_owned().into(),
       __buffa_unknown_fields: Default::default(),
     }
   }
@@ -518,8 +518,8 @@ impl From<&TtmlData<Uuid7>> for wire::TtmlData {
     wire::TtmlData {
       region_id: opt_id_to_bytes(d.region_id_ref()),
       style_id: opt_id_to_bytes(d.style_id_ref()),
-      xml_id: d.xml_id().to_owned(),
-      styled_text: d.styled_text().to_owned(),
+      xml_id: d.xml_id().to_owned().into(),
+      styled_text: d.styled_text().to_owned().into(),
       __buffa_unknown_fields: Default::default(),
     }
   }
@@ -548,8 +548,8 @@ impl TryFrom<&wire::TtmlData> for TtmlData<Uuid7> {
 impl From<&SamiData> for wire::SamiData {
   fn from(d: &SamiData) -> Self {
     wire::SamiData {
-      class_name: d.class_name().to_owned(),
-      styled_text: d.styled_text().to_owned(),
+      class_name: d.class_name().to_owned().into(),
+      styled_text: d.styled_text().to_owned().into(),
       __buffa_unknown_fields: Default::default(),
     }
   }
@@ -661,7 +661,7 @@ impl From<&Cea608Data> for wire::Cea608Data {
     wire::Cea608Data {
       channel: u32::from(d.channel()),
       pac_byte_pair: d.pac_byte_pair(),
-      styled_text: d.styled_text().to_owned(),
+      styled_text: d.styled_text().to_owned().into(),
       __buffa_unknown_fields: Default::default(),
     }
   }
@@ -696,7 +696,7 @@ impl From<&EbuStlData> for wire::EbuStlData {
       cumulative: d.cumulative(),
       vertical_pos: d.vertical_pos(),
       justification: u32::from(d.justification()),
-      styled_text: d.styled_text().to_owned(),
+      styled_text: d.styled_text().to_owned().into(),
       __buffa_unknown_fields: Default::default(),
     }
   }
@@ -978,7 +978,7 @@ pub fn subtitle_cue_from_wire(
     )
   })?;
   let span = mediatime::TimeRange::try_new(w.span_start_pts, w.span_end_pts, parent_timebase)
-    .ok_or_else(|| BuffaError::MissingRequiredField("SubtitleCue.span"))?;
+    .ok_or(BuffaError::MissingRequiredField("SubtitleCue.span"))?;
   let text = localized_text_from_wire_string(w.text.as_str());
   let kind = cue_kind_from_wire(&w.kind)?;
 
@@ -1102,7 +1102,7 @@ impl From<&VttRegion<Uuid7>> for wire::VttRegion {
     wire::VttRegion {
       id: id_to_bytes(r.id_ref()),
       subtitle_track_id: id_to_bytes(r.subtitle_track_id_ref()),
-      name: r.name().to_owned(),
+      name: r.name().to_owned().into(),
       width: r.width(),
       lines: r.lines(),
       region_anchor_x: r.region_anchor_x(),
@@ -1143,7 +1143,7 @@ impl From<&VttStyleBlock<Uuid7>> for wire::VttStyleBlock {
       id: id_to_bytes(b.id_ref()),
       subtitle_track_id: id_to_bytes(b.subtitle_track_id_ref()),
       ordinal: b.ordinal(),
-      css_text: b.css_text().to_owned(),
+      css_text: b.css_text().to_owned().into(),
       __buffa_unknown_fields: Default::default(),
     }
   }
@@ -1169,8 +1169,8 @@ impl From<&AssStyle<Uuid7>> for wire::AssStyle {
     wire::AssStyle {
       id: id_to_bytes(s.id_ref()),
       subtitle_track_id: id_to_bytes(s.subtitle_track_id_ref()),
-      name: s.name().to_owned(),
-      fontname: s.fontname().to_owned(),
+      name: s.name().to_owned().into(),
+      fontname: s.fontname().to_owned().into(),
       fontsize: s.fontsize(),
       primary_colour: s.primary_colour(),
       secondary_colour: s.secondary_colour(),
@@ -1246,12 +1246,12 @@ impl From<&LrcMetadata<Uuid7>> for wire::LrcMetadata {
   fn from(m: &LrcMetadata<Uuid7>) -> Self {
     wire::LrcMetadata {
       subtitle_track_id: id_to_bytes(m.subtitle_track_id_ref()),
-      title: m.title().to_owned(),
-      artist: m.artist().to_owned(),
-      album: m.album().to_owned(),
-      author: m.author().to_owned(),
-      creator: m.creator().to_owned(),
-      length: m.length().to_owned(),
+      title: m.title().to_owned().into(),
+      artist: m.artist().to_owned().into(),
+      album: m.album().to_owned().into(),
+      author: m.author().to_owned().into(),
+      creator: m.creator().to_owned().into(),
+      length: m.length().to_owned().into(),
       offset_ms: m.offset_ms(),
       __buffa_unknown_fields: Default::default(),
     }
@@ -1286,8 +1286,8 @@ impl From<&TtmlRegion<Uuid7>> for wire::TtmlRegion {
     wire::TtmlRegion {
       id: id_to_bytes(r.id_ref()),
       subtitle_track_id: id_to_bytes(r.subtitle_track_id_ref()),
-      xml_id: r.xml_id().to_owned(),
-      xml_attrs: r.xml_attrs().to_owned(),
+      xml_id: r.xml_id().to_owned().into(),
+      xml_attrs: r.xml_attrs().to_owned().into(),
       __buffa_unknown_fields: Default::default(),
     }
   }
@@ -1316,8 +1316,8 @@ impl From<&TtmlStyle<Uuid7>> for wire::TtmlStyle {
     wire::TtmlStyle {
       id: id_to_bytes(s.id_ref()),
       subtitle_track_id: id_to_bytes(s.subtitle_track_id_ref()),
-      xml_id: s.xml_id().to_owned(),
-      xml_attrs: s.xml_attrs().to_owned(),
+      xml_id: s.xml_id().to_owned().into(),
+      xml_attrs: s.xml_attrs().to_owned().into(),
       __buffa_unknown_fields: Default::default(),
     }
   }
@@ -1346,8 +1346,8 @@ impl From<&SamiStyle<Uuid7>> for wire::SamiStyle {
     wire::SamiStyle {
       id: id_to_bytes(s.id_ref()),
       subtitle_track_id: id_to_bytes(s.subtitle_track_id_ref()),
-      class_name: s.class_name().to_owned(),
-      css_text: s.css_text().to_owned(),
+      class_name: s.class_name().to_owned().into(),
+      css_text: s.css_text().to_owned().into(),
       __buffa_unknown_fields: Default::default(),
     }
   }
@@ -1376,7 +1376,7 @@ impl From<&LrcWord<Uuid7>> for wire::LrcWord {
     wire::LrcWord {
       subtitle_cue_id: id_to_bytes(w.subtitle_cue_id_ref()),
       ordinal: w.ordinal(),
-      text: w.text().to_owned(),
+      text: w.text().to_owned().into(),
       start_pts: w.start_pts(),
       __buffa_unknown_fields: Default::default(),
     }
@@ -1677,7 +1677,7 @@ mod tests {
     .unwrap();
     let mut w: wire::SubtitleCue = (&c).into();
     w.data = Some(wire::__buffa::oneof::subtitle_cue::Data::Srt(
-      ::buffa::alloc::boxed::Box::new(wire::SrtData::default()),
+      ::buffa::alloc::boxed::Box::<wire::SrtData>::default(),
     ));
     let e = subtitle_cue_from_wire(&w, tb()).unwrap_err();
     assert!(matches!(
@@ -1977,8 +1977,10 @@ mod tests {
     )
     .unwrap();
     let mut w: wire::SubtitleCue = (&c).into();
-    let mut pgs = wire::PgsData::default();
-    pgs.composition_state = 0xFFFF;
+    let pgs = wire::PgsData {
+      composition_state: 0xFFFF,
+      ..Default::default()
+    };
     w.kind = ::buffa::EnumValue::Known(wire::SubtitleCueKind::SUBTITLE_CUE_KIND_PGS);
     w.data = Some(wire::__buffa::oneof::subtitle_cue::Data::Pgs(
       ::buffa::alloc::boxed::Box::new(pgs),
@@ -2027,8 +2029,10 @@ mod tests {
     )
     .unwrap();
     let mut w: wire::SubtitleCue = (&c).into();
-    let mut cea = wire::Cea608Data::default();
-    cea.channel = 9; // out of valid 1..=4
+    let cea = wire::Cea608Data {
+      channel: 9, // out of valid 1..=4
+      ..Default::default()
+    };
     w.kind = ::buffa::EnumValue::Known(wire::SubtitleCueKind::SUBTITLE_CUE_KIND_CEA_608);
     w.data = Some(wire::__buffa::oneof::subtitle_cue::Data::Cea608(
       ::buffa::alloc::boxed::Box::new(cea),

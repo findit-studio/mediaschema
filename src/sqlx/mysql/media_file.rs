@@ -1,7 +1,7 @@
 //! MySQL row shape for the `MediaFile` aggregate.
 //!
 //! Identity / FK columns are `BINARY(16)` (`Vec<u8>`). The structured
-//! [`Location`](crate::domain::Location) is flattened to a `location_volume`
+//! [`Location`] is flattened to a `location_volume`
 //! (`BINARY(16)`) plus a `location_path` (`TEXT`) — the path components
 //! joined by `/`. Path segments never contain `/`, so the join is lossless
 //! and the column stays prefix-queryable. Wall-clock `created_at` is

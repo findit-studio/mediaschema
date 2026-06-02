@@ -399,9 +399,7 @@ impl<Id> AudioSegment<Id> {
     v: impl Into<std::vec::Vec<Word>>,
   ) -> Result<Self, AudioSegmentError> {
     let words = v.into();
-    if let Err(e) = self.check_words(&words) {
-      return Err(e);
-    }
+    self.check_words(&words)?;
     self.words = words;
     Ok(self)
   }

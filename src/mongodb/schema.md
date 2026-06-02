@@ -6,7 +6,7 @@ records:
 
 - The Mongo collection name.
 - Each top-level bson field (name + type).
-- The `IndexModel`s constructed by [`indexes::all_indexes`].
+- The `IndexModel`s constructed by [`indexes::all_indexes`](crate::mongodb::indexes::all_indexes).
 
 Round-trip identity is verified at unit-test level (see each module's
 `#[cfg(test)] mod tests`); the test pattern is `domain → Document →

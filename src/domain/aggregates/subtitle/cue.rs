@@ -156,7 +156,7 @@ impl SubtitleCueKind {
   /// Stable snake_case slug — the canonical string form of every variant.
   ///
   /// Used for `Display`, serde tags, log keys, schema-doc references,
-  /// and round-trip tests (`from_str(x.as_str()) == x` via [`from_str`]).
+  /// and round-trip tests (`from_str(x.as_str()) == x` via [`from_str`](Self::from_str)).
   /// Slugs are stable across releases — the same wire/storage contract
   /// as [`to_u8`](Self::to_u8). For the two hyphenated standards
   /// (`CEA-608`, `EBU-STL`) the slug uses snake_case (`cea_608`,
@@ -2495,7 +2495,7 @@ impl<Id> AssStyle<Id> {
 // ===========================================================================
 
 /// Per-track TTML `<region>` element. Cues reference a region by `id`
-/// via [`TtmlData::region_id`]. The free-form `xml_attrs` carries the
+/// via `TtmlData::region_id`. The free-form `xml_attrs` carries the
 /// region's serialised XML attribute list (`tts:origin`,
 /// `tts:extent`, …) verbatim — TTML's styling vocabulary is large
 /// enough that pinning each attribute as a typed column would invent
@@ -2560,7 +2560,7 @@ impl<Id> TtmlRegion<Id> {
 // ===========================================================================
 
 /// Per-track TTML `<style>` element. Cues reference a style by `id`
-/// via [`TtmlData::style_id`]. Like [`TtmlRegion`], the styling
+/// via `TtmlData::style_id`. Like [`TtmlRegion`], the styling
 /// vocabulary is stored verbatim in `xml_attrs`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TtmlStyle<Id = Uuid7> {
