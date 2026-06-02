@@ -19,6 +19,44 @@ pub enum VideoFormat {
     VIDEO_FORMAT_WMV = 10i32,
     VIDEO_FORMAT_WEBM = 11i32,
 }
+impl VideoFormat {
+    ///Idiomatic alias for [`Self::VIDEO_FORMAT_UNSPECIFIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Unspecified: Self = Self::VIDEO_FORMAT_UNSPECIFIED;
+    ///Idiomatic alias for [`Self::VIDEO_FORMAT_AVI`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Avi: Self = Self::VIDEO_FORMAT_AVI;
+    ///Idiomatic alias for [`Self::VIDEO_FORMAT_FLV`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Flv: Self = Self::VIDEO_FORMAT_FLV;
+    ///Idiomatic alias for [`Self::VIDEO_FORMAT_MP4`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Mp4: Self = Self::VIDEO_FORMAT_MP4;
+    ///Idiomatic alias for [`Self::VIDEO_FORMAT_M4V`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const M4v: Self = Self::VIDEO_FORMAT_M4V;
+    ///Idiomatic alias for [`Self::VIDEO_FORMAT_MKV`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Mkv: Self = Self::VIDEO_FORMAT_MKV;
+    ///Idiomatic alias for [`Self::VIDEO_FORMAT_MOV`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Mov: Self = Self::VIDEO_FORMAT_MOV;
+    ///Idiomatic alias for [`Self::VIDEO_FORMAT_MXF`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Mxf: Self = Self::VIDEO_FORMAT_MXF;
+    ///Idiomatic alias for [`Self::VIDEO_FORMAT_MTS`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Mts: Self = Self::VIDEO_FORMAT_MTS;
+    ///Idiomatic alias for [`Self::VIDEO_FORMAT_TS`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Ts: Self = Self::VIDEO_FORMAT_TS;
+    ///Idiomatic alias for [`Self::VIDEO_FORMAT_WMV`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Wmv: Self = Self::VIDEO_FORMAT_WMV;
+    ///Idiomatic alias for [`Self::VIDEO_FORMAT_WEBM`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Webm: Self = Self::VIDEO_FORMAT_WEBM;
+}
 impl ::core::default::Default for VideoFormat {
     fn default() -> Self {
         Self::VIDEO_FORMAT_UNSPECIFIED
@@ -204,6 +242,38 @@ pub enum AudioFormat {
     AUDIO_FORMAT_OPUS = 8i32,
     AUDIO_FORMAT_AIFF = 9i32,
 }
+impl AudioFormat {
+    ///Idiomatic alias for [`Self::AUDIO_FORMAT_UNSPECIFIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Unspecified: Self = Self::AUDIO_FORMAT_UNSPECIFIED;
+    ///Idiomatic alias for [`Self::AUDIO_FORMAT_MP3`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Mp3: Self = Self::AUDIO_FORMAT_MP3;
+    ///Idiomatic alias for [`Self::AUDIO_FORMAT_AAC`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Aac: Self = Self::AUDIO_FORMAT_AAC;
+    ///Idiomatic alias for [`Self::AUDIO_FORMAT_FLAC`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Flac: Self = Self::AUDIO_FORMAT_FLAC;
+    ///Idiomatic alias for [`Self::AUDIO_FORMAT_WAV`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Wav: Self = Self::AUDIO_FORMAT_WAV;
+    ///Idiomatic alias for [`Self::AUDIO_FORMAT_OGG`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Ogg: Self = Self::AUDIO_FORMAT_OGG;
+    ///Idiomatic alias for [`Self::AUDIO_FORMAT_WMA`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Wma: Self = Self::AUDIO_FORMAT_WMA;
+    ///Idiomatic alias for [`Self::AUDIO_FORMAT_M4A`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const M4a: Self = Self::AUDIO_FORMAT_M4A;
+    ///Idiomatic alias for [`Self::AUDIO_FORMAT_OPUS`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Opus: Self = Self::AUDIO_FORMAT_OPUS;
+    ///Idiomatic alias for [`Self::AUDIO_FORMAT_AIFF`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Aiff: Self = Self::AUDIO_FORMAT_AIFF;
+}
 impl ::core::default::Default for AudioFormat {
     fn default() -> Self {
         Self::AUDIO_FORMAT_UNSPECIFIED
@@ -374,6 +444,14 @@ pub enum PersonConfidence {
     PERSON_CONFIDENCE_AUTO_MATCHED = 0i32,
     PERSON_CONFIDENCE_USER_CONFIRMED = 1i32,
 }
+impl PersonConfidence {
+    ///Idiomatic alias for [`Self::PERSON_CONFIDENCE_AUTO_MATCHED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const AutoMatched: Self = Self::PERSON_CONFIDENCE_AUTO_MATCHED;
+    ///Idiomatic alias for [`Self::PERSON_CONFIDENCE_USER_CONFIRMED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const UserConfirmed: Self = Self::PERSON_CONFIDENCE_USER_CONFIRMED;
+}
 impl ::core::default::Default for PersonConfidence {
     fn default() -> Self {
         Self::PERSON_CONFIDENCE_AUTO_MATCHED
@@ -511,6 +589,17 @@ pub enum BodyPose3DHeightEstimation {
     BODY_POSE_3D_HEIGHT_ESTIMATION_UNSPECIFIED = 0i32,
     BODY_POSE_3D_HEIGHT_ESTIMATION_REFERENCE = 1i32,
     BODY_POSE_3D_HEIGHT_ESTIMATION_MEASURED = 2i32,
+}
+impl BodyPose3DHeightEstimation {
+    ///Idiomatic alias for [`Self::BODY_POSE_3D_HEIGHT_ESTIMATION_UNSPECIFIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const BodyPose3dHeightEstimationUnspecified: Self = Self::BODY_POSE_3D_HEIGHT_ESTIMATION_UNSPECIFIED;
+    ///Idiomatic alias for [`Self::BODY_POSE_3D_HEIGHT_ESTIMATION_REFERENCE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const BodyPose3dHeightEstimationReference: Self = Self::BODY_POSE_3D_HEIGHT_ESTIMATION_REFERENCE;
+    ///Idiomatic alias for [`Self::BODY_POSE_3D_HEIGHT_ESTIMATION_MEASURED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const BodyPose3dHeightEstimationMeasured: Self = Self::BODY_POSE_3D_HEIGHT_ESTIMATION_MEASURED;
 }
 impl ::core::default::Default for BodyPose3DHeightEstimation {
     fn default() -> Self {
@@ -685,6 +774,17 @@ pub enum HandChirality {
     HAND_CHIRALITY_LEFT = 1i32,
     HAND_CHIRALITY_RIGHT = 2i32,
 }
+impl HandChirality {
+    ///Idiomatic alias for [`Self::HAND_CHIRALITY_UNSPECIFIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Unspecified: Self = Self::HAND_CHIRALITY_UNSPECIFIED;
+    ///Idiomatic alias for [`Self::HAND_CHIRALITY_LEFT`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Left: Self = Self::HAND_CHIRALITY_LEFT;
+    ///Idiomatic alias for [`Self::HAND_CHIRALITY_RIGHT`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Right: Self = Self::HAND_CHIRALITY_RIGHT;
+}
 impl ::core::default::Default for HandChirality {
     fn default() -> Self {
         Self::HAND_CHIRALITY_UNSPECIFIED
@@ -831,6 +931,20 @@ pub enum TrackTimeSource {
     TRACK_TIME_SOURCE_DECLARED = 1i32,
     TRACK_TIME_SOURCE_PACKET_OBSERVED = 2i32,
     TRACK_TIME_SOURCE_DECODED_OBSERVED = 3i32,
+}
+impl TrackTimeSource {
+    ///Idiomatic alias for [`Self::TRACK_TIME_SOURCE_UNSPECIFIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Unspecified: Self = Self::TRACK_TIME_SOURCE_UNSPECIFIED;
+    ///Idiomatic alias for [`Self::TRACK_TIME_SOURCE_DECLARED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Declared: Self = Self::TRACK_TIME_SOURCE_DECLARED;
+    ///Idiomatic alias for [`Self::TRACK_TIME_SOURCE_PACKET_OBSERVED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const PacketObserved: Self = Self::TRACK_TIME_SOURCE_PACKET_OBSERVED;
+    ///Idiomatic alias for [`Self::TRACK_TIME_SOURCE_DECODED_OBSERVED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const DecodedObserved: Self = Self::TRACK_TIME_SOURCE_DECODED_OBSERVED;
 }
 impl ::core::default::Default for TrackTimeSource {
     fn default() -> Self {
@@ -994,6 +1108,17 @@ pub enum DbMediaKind {
     MEDIA_KIND_VIDEO = 1i32,
     MEDIA_KIND_AUDIO = 2i32,
 }
+impl DbMediaKind {
+    ///Idiomatic alias for [`Self::MEDIA_KIND_UNSPECIFIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const MediaKindUnspecified: Self = Self::MEDIA_KIND_UNSPECIFIED;
+    ///Idiomatic alias for [`Self::MEDIA_KIND_VIDEO`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const MediaKindVideo: Self = Self::MEDIA_KIND_VIDEO;
+    ///Idiomatic alias for [`Self::MEDIA_KIND_AUDIO`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const MediaKindAudio: Self = Self::MEDIA_KIND_AUDIO;
+}
 impl ::core::default::Default for DbMediaKind {
     fn default() -> Self {
         Self::MEDIA_KIND_UNSPECIFIED
@@ -1138,6 +1263,38 @@ pub enum SubtitleTrackFormat {
     SUBTITLE_TRACK_FORMAT_SAMI = 7i32,
     SUBTITLE_TRACK_FORMAT_LRC = 8i32,
     SUBTITLE_TRACK_FORMAT_WHISPER = 9i32,
+}
+impl SubtitleTrackFormat {
+    ///Idiomatic alias for [`Self::SUBTITLE_TRACK_FORMAT_UNSPECIFIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Unspecified: Self = Self::SUBTITLE_TRACK_FORMAT_UNSPECIFIED;
+    ///Idiomatic alias for [`Self::SUBTITLE_TRACK_FORMAT_TEXT`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Text: Self = Self::SUBTITLE_TRACK_FORMAT_TEXT;
+    ///Idiomatic alias for [`Self::SUBTITLE_TRACK_FORMAT_ASS`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Ass: Self = Self::SUBTITLE_TRACK_FORMAT_ASS;
+    ///Idiomatic alias for [`Self::SUBTITLE_TRACK_FORMAT_BITMAP`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Bitmap: Self = Self::SUBTITLE_TRACK_FORMAT_BITMAP;
+    ///Idiomatic alias for [`Self::SUBTITLE_TRACK_FORMAT_SRT`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Srt: Self = Self::SUBTITLE_TRACK_FORMAT_SRT;
+    ///Idiomatic alias for [`Self::SUBTITLE_TRACK_FORMAT_VTT`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Vtt: Self = Self::SUBTITLE_TRACK_FORMAT_VTT;
+    ///Idiomatic alias for [`Self::SUBTITLE_TRACK_FORMAT_TTML`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Ttml: Self = Self::SUBTITLE_TRACK_FORMAT_TTML;
+    ///Idiomatic alias for [`Self::SUBTITLE_TRACK_FORMAT_SAMI`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Sami: Self = Self::SUBTITLE_TRACK_FORMAT_SAMI;
+    ///Idiomatic alias for [`Self::SUBTITLE_TRACK_FORMAT_LRC`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Lrc: Self = Self::SUBTITLE_TRACK_FORMAT_LRC;
+    ///Idiomatic alias for [`Self::SUBTITLE_TRACK_FORMAT_WHISPER`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Whisper: Self = Self::SUBTITLE_TRACK_FORMAT_WHISPER;
 }
 impl ::core::default::Default for SubtitleTrackFormat {
     fn default() -> Self {
@@ -1333,6 +1490,29 @@ pub enum SubtitleTrackRole {
     SUBTITLE_TRACK_ROLE_TRANSLATION = 4i32,
     SUBTITLE_TRACK_ROLE_LYRICS = 5i32,
     SUBTITLE_TRACK_ROLE_COMMENTARY = 6i32,
+}
+impl SubtitleTrackRole {
+    ///Idiomatic alias for [`Self::SUBTITLE_TRACK_ROLE_UNSPECIFIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Unspecified: Self = Self::SUBTITLE_TRACK_ROLE_UNSPECIFIED;
+    ///Idiomatic alias for [`Self::SUBTITLE_TRACK_ROLE_SUBTITLE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Subtitle: Self = Self::SUBTITLE_TRACK_ROLE_SUBTITLE;
+    ///Idiomatic alias for [`Self::SUBTITLE_TRACK_ROLE_CAPTION`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Caption: Self = Self::SUBTITLE_TRACK_ROLE_CAPTION;
+    ///Idiomatic alias for [`Self::SUBTITLE_TRACK_ROLE_TRANSCRIPT`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Transcript: Self = Self::SUBTITLE_TRACK_ROLE_TRANSCRIPT;
+    ///Idiomatic alias for [`Self::SUBTITLE_TRACK_ROLE_TRANSLATION`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Translation: Self = Self::SUBTITLE_TRACK_ROLE_TRANSLATION;
+    ///Idiomatic alias for [`Self::SUBTITLE_TRACK_ROLE_LYRICS`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Lyrics: Self = Self::SUBTITLE_TRACK_ROLE_LYRICS;
+    ///Idiomatic alias for [`Self::SUBTITLE_TRACK_ROLE_COMMENTARY`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Commentary: Self = Self::SUBTITLE_TRACK_ROLE_COMMENTARY;
 }
 impl ::core::default::Default for SubtitleTrackRole {
     fn default() -> Self {
@@ -1540,6 +1720,125 @@ pub enum ChannelLayoutKind {
     CHANNEL_LAYOUT_KIND_CH7_2_3 = 36i32,
     CHANNEL_LAYOUT_KIND_CH9_1_4_BACK = 37i32,
     CHANNEL_LAYOUT_KIND_CH22_2 = 38i32,
+}
+impl ChannelLayoutKind {
+    ///Idiomatic alias for [`Self::CHANNEL_LAYOUT_KIND_UNSPECIFIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Unspecified: Self = Self::CHANNEL_LAYOUT_KIND_UNSPECIFIED;
+    ///Idiomatic alias for [`Self::CHANNEL_LAYOUT_KIND_MONO`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Mono: Self = Self::CHANNEL_LAYOUT_KIND_MONO;
+    ///Idiomatic alias for [`Self::CHANNEL_LAYOUT_KIND_STEREO`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Stereo: Self = Self::CHANNEL_LAYOUT_KIND_STEREO;
+    ///Idiomatic alias for [`Self::CHANNEL_LAYOUT_KIND_STEREO_DOWNMIX`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const StereoDownmix: Self = Self::CHANNEL_LAYOUT_KIND_STEREO_DOWNMIX;
+    ///Idiomatic alias for [`Self::CHANNEL_LAYOUT_KIND_SURROUND`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Surround: Self = Self::CHANNEL_LAYOUT_KIND_SURROUND;
+    ///Idiomatic alias for [`Self::CHANNEL_LAYOUT_KIND_QUAD`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Quad: Self = Self::CHANNEL_LAYOUT_KIND_QUAD;
+    ///Idiomatic alias for [`Self::CHANNEL_LAYOUT_KIND_HEXAGONAL`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Hexagonal: Self = Self::CHANNEL_LAYOUT_KIND_HEXAGONAL;
+    ///Idiomatic alias for [`Self::CHANNEL_LAYOUT_KIND_OCTAGONAL`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Octagonal: Self = Self::CHANNEL_LAYOUT_KIND_OCTAGONAL;
+    ///Idiomatic alias for [`Self::CHANNEL_LAYOUT_KIND_HEXADECAGONAL`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Hexadecagonal: Self = Self::CHANNEL_LAYOUT_KIND_HEXADECAGONAL;
+    ///Idiomatic alias for [`Self::CHANNEL_LAYOUT_KIND_CUBE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Cube: Self = Self::CHANNEL_LAYOUT_KIND_CUBE;
+    ///Idiomatic alias for [`Self::CHANNEL_LAYOUT_KIND_CH2_1`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Ch21: Self = Self::CHANNEL_LAYOUT_KIND_CH2_1;
+    ///Idiomatic alias for [`Self::CHANNEL_LAYOUT_KIND_CH2_1_ALT`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Ch21Alt: Self = Self::CHANNEL_LAYOUT_KIND_CH2_1_ALT;
+    ///Idiomatic alias for [`Self::CHANNEL_LAYOUT_KIND_CH2_2`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Ch22: Self = Self::CHANNEL_LAYOUT_KIND_CH2_2;
+    ///Idiomatic alias for [`Self::CHANNEL_LAYOUT_KIND_CH3_1`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Ch31: Self = Self::CHANNEL_LAYOUT_KIND_CH3_1;
+    ///Idiomatic alias for [`Self::CHANNEL_LAYOUT_KIND_CH3_1_2`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Ch312: Self = Self::CHANNEL_LAYOUT_KIND_CH3_1_2;
+    ///Idiomatic alias for [`Self::CHANNEL_LAYOUT_KIND_CH4_0`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Ch40: Self = Self::CHANNEL_LAYOUT_KIND_CH4_0;
+    ///Idiomatic alias for [`Self::CHANNEL_LAYOUT_KIND_CH4_1`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Ch41: Self = Self::CHANNEL_LAYOUT_KIND_CH4_1;
+    ///Idiomatic alias for [`Self::CHANNEL_LAYOUT_KIND_CH5_0`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Ch50: Self = Self::CHANNEL_LAYOUT_KIND_CH5_0;
+    ///Idiomatic alias for [`Self::CHANNEL_LAYOUT_KIND_CH5_0_BACK`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Ch50Back: Self = Self::CHANNEL_LAYOUT_KIND_CH5_0_BACK;
+    ///Idiomatic alias for [`Self::CHANNEL_LAYOUT_KIND_CH5_1`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Ch51: Self = Self::CHANNEL_LAYOUT_KIND_CH5_1;
+    ///Idiomatic alias for [`Self::CHANNEL_LAYOUT_KIND_CH5_1_BACK`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Ch51Back: Self = Self::CHANNEL_LAYOUT_KIND_CH5_1_BACK;
+    ///Idiomatic alias for [`Self::CHANNEL_LAYOUT_KIND_CH5_1_2_BACK`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Ch512Back: Self = Self::CHANNEL_LAYOUT_KIND_CH5_1_2_BACK;
+    ///Idiomatic alias for [`Self::CHANNEL_LAYOUT_KIND_CH5_1_4_BACK`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Ch514Back: Self = Self::CHANNEL_LAYOUT_KIND_CH5_1_4_BACK;
+    ///Idiomatic alias for [`Self::CHANNEL_LAYOUT_KIND_CH6_0`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Ch60: Self = Self::CHANNEL_LAYOUT_KIND_CH6_0;
+    ///Idiomatic alias for [`Self::CHANNEL_LAYOUT_KIND_CH6_0_FRONT`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Ch60Front: Self = Self::CHANNEL_LAYOUT_KIND_CH6_0_FRONT;
+    ///Idiomatic alias for [`Self::CHANNEL_LAYOUT_KIND_CH6_1`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Ch61: Self = Self::CHANNEL_LAYOUT_KIND_CH6_1;
+    ///Idiomatic alias for [`Self::CHANNEL_LAYOUT_KIND_CH6_1_BACK`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Ch61Back: Self = Self::CHANNEL_LAYOUT_KIND_CH6_1_BACK;
+    ///Idiomatic alias for [`Self::CHANNEL_LAYOUT_KIND_CH6_1_FRONT`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Ch61Front: Self = Self::CHANNEL_LAYOUT_KIND_CH6_1_FRONT;
+    ///Idiomatic alias for [`Self::CHANNEL_LAYOUT_KIND_CH7_0`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Ch70: Self = Self::CHANNEL_LAYOUT_KIND_CH7_0;
+    ///Idiomatic alias for [`Self::CHANNEL_LAYOUT_KIND_CH7_0_FRONT`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Ch70Front: Self = Self::CHANNEL_LAYOUT_KIND_CH7_0_FRONT;
+    ///Idiomatic alias for [`Self::CHANNEL_LAYOUT_KIND_CH7_1`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Ch71: Self = Self::CHANNEL_LAYOUT_KIND_CH7_1;
+    ///Idiomatic alias for [`Self::CHANNEL_LAYOUT_KIND_CH7_1_WIDE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Ch71Wide: Self = Self::CHANNEL_LAYOUT_KIND_CH7_1_WIDE;
+    ///Idiomatic alias for [`Self::CHANNEL_LAYOUT_KIND_CH7_1_WIDE_BACK`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Ch71WideBack: Self = Self::CHANNEL_LAYOUT_KIND_CH7_1_WIDE_BACK;
+    ///Idiomatic alias for [`Self::CHANNEL_LAYOUT_KIND_CH7_1_TOP_BACK`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Ch71TopBack: Self = Self::CHANNEL_LAYOUT_KIND_CH7_1_TOP_BACK;
+    ///Idiomatic alias for [`Self::CHANNEL_LAYOUT_KIND_CH7_1_2`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Ch712: Self = Self::CHANNEL_LAYOUT_KIND_CH7_1_2;
+    ///Idiomatic alias for [`Self::CHANNEL_LAYOUT_KIND_CH7_1_4_BACK`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Ch714Back: Self = Self::CHANNEL_LAYOUT_KIND_CH7_1_4_BACK;
+    ///Idiomatic alias for [`Self::CHANNEL_LAYOUT_KIND_CH7_2_3`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Ch723: Self = Self::CHANNEL_LAYOUT_KIND_CH7_2_3;
+    ///Idiomatic alias for [`Self::CHANNEL_LAYOUT_KIND_CH9_1_4_BACK`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Ch914Back: Self = Self::CHANNEL_LAYOUT_KIND_CH9_1_4_BACK;
+    ///Idiomatic alias for [`Self::CHANNEL_LAYOUT_KIND_CH22_2`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Ch222: Self = Self::CHANNEL_LAYOUT_KIND_CH22_2;
 }
 impl ::core::default::Default for ChannelLayoutKind {
     fn default() -> Self {
@@ -1919,6 +2218,20 @@ pub enum AudioChannelOrderKind {
     AUDIO_CHANNEL_ORDER_KIND_CUSTOM = 2i32,
     AUDIO_CHANNEL_ORDER_KIND_AMBISONIC = 3i32,
 }
+impl AudioChannelOrderKind {
+    ///Idiomatic alias for [`Self::AUDIO_CHANNEL_ORDER_KIND_UNSPECIFIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Unspecified: Self = Self::AUDIO_CHANNEL_ORDER_KIND_UNSPECIFIED;
+    ///Idiomatic alias for [`Self::AUDIO_CHANNEL_ORDER_KIND_NATIVE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Native: Self = Self::AUDIO_CHANNEL_ORDER_KIND_NATIVE;
+    ///Idiomatic alias for [`Self::AUDIO_CHANNEL_ORDER_KIND_CUSTOM`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Custom: Self = Self::AUDIO_CHANNEL_ORDER_KIND_CUSTOM;
+    ///Idiomatic alias for [`Self::AUDIO_CHANNEL_ORDER_KIND_AMBISONIC`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Ambisonic: Self = Self::AUDIO_CHANNEL_ORDER_KIND_AMBISONIC;
+}
 impl ::core::default::Default for AudioChannelOrderKind {
     fn default() -> Self {
         Self::AUDIO_CHANNEL_ORDER_KIND_UNSPECIFIED
@@ -2081,6 +2394,23 @@ pub enum AudioClipKind {
     AUDIO_CLIP_KIND_VIDEO_SCENE_ALIGNED = 2i32,
     AUDIO_CLIP_KIND_FIXED_WINDOW = 3i32,
     AUDIO_CLIP_KIND_EVENT_SPAN = 4i32,
+}
+impl AudioClipKind {
+    ///Idiomatic alias for [`Self::AUDIO_CLIP_KIND_UNSPECIFIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Unspecified: Self = Self::AUDIO_CLIP_KIND_UNSPECIFIED;
+    ///Idiomatic alias for [`Self::AUDIO_CLIP_KIND_WHOLE_TRACK_SUMMARY`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const WholeTrackSummary: Self = Self::AUDIO_CLIP_KIND_WHOLE_TRACK_SUMMARY;
+    ///Idiomatic alias for [`Self::AUDIO_CLIP_KIND_VIDEO_SCENE_ALIGNED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const VideoSceneAligned: Self = Self::AUDIO_CLIP_KIND_VIDEO_SCENE_ALIGNED;
+    ///Idiomatic alias for [`Self::AUDIO_CLIP_KIND_FIXED_WINDOW`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const FixedWindow: Self = Self::AUDIO_CLIP_KIND_FIXED_WINDOW;
+    ///Idiomatic alias for [`Self::AUDIO_CLIP_KIND_EVENT_SPAN`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const EventSpan: Self = Self::AUDIO_CLIP_KIND_EVENT_SPAN;
 }
 impl ::core::default::Default for AudioClipKind {
     fn default() -> Self {
@@ -2249,6 +2579,20 @@ pub enum AudioPrefilterClass {
     AUDIO_PREFILTER_CLASS_SILENT = 2i32,
     AUDIO_PREFILTER_CLASS_NOISE = 3i32,
 }
+impl AudioPrefilterClass {
+    ///Idiomatic alias for [`Self::AUDIO_PREFILTER_CLASS_UNSPECIFIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Unspecified: Self = Self::AUDIO_PREFILTER_CLASS_UNSPECIFIED;
+    ///Idiomatic alias for [`Self::AUDIO_PREFILTER_CLASS_CONTENT`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Content: Self = Self::AUDIO_PREFILTER_CLASS_CONTENT;
+    ///Idiomatic alias for [`Self::AUDIO_PREFILTER_CLASS_SILENT`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Silent: Self = Self::AUDIO_PREFILTER_CLASS_SILENT;
+    ///Idiomatic alias for [`Self::AUDIO_PREFILTER_CLASS_NOISE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Noise: Self = Self::AUDIO_PREFILTER_CLASS_NOISE;
+}
 impl ::core::default::Default for AudioPrefilterClass {
     fn default() -> Self {
         Self::AUDIO_PREFILTER_CLASS_UNSPECIFIED
@@ -2407,6 +2751,29 @@ pub enum AudioTrackRole {
     AUDIO_TRACK_ROLE_DESCRIPTIVE_AUDIO = 4i32,
     AUDIO_TRACK_ROLE_KARAOKE = 5i32,
     AUDIO_TRACK_ROLE_LYRICS = 6i32,
+}
+impl AudioTrackRole {
+    ///Idiomatic alias for [`Self::AUDIO_TRACK_ROLE_UNSPECIFIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Unspecified: Self = Self::AUDIO_TRACK_ROLE_UNSPECIFIED;
+    ///Idiomatic alias for [`Self::AUDIO_TRACK_ROLE_MAIN_PROGRAM`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const MainProgram: Self = Self::AUDIO_TRACK_ROLE_MAIN_PROGRAM;
+    ///Idiomatic alias for [`Self::AUDIO_TRACK_ROLE_COMMENTARY`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Commentary: Self = Self::AUDIO_TRACK_ROLE_COMMENTARY;
+    ///Idiomatic alias for [`Self::AUDIO_TRACK_ROLE_DUB`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Dub: Self = Self::AUDIO_TRACK_ROLE_DUB;
+    ///Idiomatic alias for [`Self::AUDIO_TRACK_ROLE_DESCRIPTIVE_AUDIO`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const DescriptiveAudio: Self = Self::AUDIO_TRACK_ROLE_DESCRIPTIVE_AUDIO;
+    ///Idiomatic alias for [`Self::AUDIO_TRACK_ROLE_KARAOKE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Karaoke: Self = Self::AUDIO_TRACK_ROLE_KARAOKE;
+    ///Idiomatic alias for [`Self::AUDIO_TRACK_ROLE_LYRICS`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Lyrics: Self = Self::AUDIO_TRACK_ROLE_LYRICS;
 }
 impl ::core::default::Default for AudioTrackRole {
     fn default() -> Self {
@@ -2589,6 +2956,41 @@ pub enum AudioContainerFormat {
     AUDIO_CONTAINER_FORMAT_MKA = 8i32,
     AUDIO_CONTAINER_FORMAT_WMA = 9i32,
     AUDIO_CONTAINER_FORMAT_AAC = 10i32,
+}
+impl AudioContainerFormat {
+    ///Idiomatic alias for [`Self::AUDIO_CONTAINER_FORMAT_UNSPECIFIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Unspecified: Self = Self::AUDIO_CONTAINER_FORMAT_UNSPECIFIED;
+    ///Idiomatic alias for [`Self::AUDIO_CONTAINER_FORMAT_MP4`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Mp4: Self = Self::AUDIO_CONTAINER_FORMAT_MP4;
+    ///Idiomatic alias for [`Self::AUDIO_CONTAINER_FORMAT_MKV`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Mkv: Self = Self::AUDIO_CONTAINER_FORMAT_MKV;
+    ///Idiomatic alias for [`Self::AUDIO_CONTAINER_FORMAT_MOV`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Mov: Self = Self::AUDIO_CONTAINER_FORMAT_MOV;
+    ///Idiomatic alias for [`Self::AUDIO_CONTAINER_FORMAT_WAV`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Wav: Self = Self::AUDIO_CONTAINER_FORMAT_WAV;
+    ///Idiomatic alias for [`Self::AUDIO_CONTAINER_FORMAT_MP3`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Mp3: Self = Self::AUDIO_CONTAINER_FORMAT_MP3;
+    ///Idiomatic alias for [`Self::AUDIO_CONTAINER_FORMAT_FLAC`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Flac: Self = Self::AUDIO_CONTAINER_FORMAT_FLAC;
+    ///Idiomatic alias for [`Self::AUDIO_CONTAINER_FORMAT_OGG`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Ogg: Self = Self::AUDIO_CONTAINER_FORMAT_OGG;
+    ///Idiomatic alias for [`Self::AUDIO_CONTAINER_FORMAT_MKA`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Mka: Self = Self::AUDIO_CONTAINER_FORMAT_MKA;
+    ///Idiomatic alias for [`Self::AUDIO_CONTAINER_FORMAT_WMA`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Wma: Self = Self::AUDIO_CONTAINER_FORMAT_WMA;
+    ///Idiomatic alias for [`Self::AUDIO_CONTAINER_FORMAT_AAC`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Aac: Self = Self::AUDIO_CONTAINER_FORMAT_AAC;
 }
 impl ::core::default::Default for AudioContainerFormat {
     fn default() -> Self {
@@ -2794,6 +3196,32 @@ pub enum AudioCodec {
     AUDIO_CODEC_AC3 = 6i32,
     AUDIO_CODEC_VORBIS = 7i32,
 }
+impl AudioCodec {
+    ///Idiomatic alias for [`Self::AUDIO_CODEC_UNSPECIFIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Unspecified: Self = Self::AUDIO_CODEC_UNSPECIFIED;
+    ///Idiomatic alias for [`Self::AUDIO_CODEC_AAC`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Aac: Self = Self::AUDIO_CODEC_AAC;
+    ///Idiomatic alias for [`Self::AUDIO_CODEC_FLAC`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Flac: Self = Self::AUDIO_CODEC_FLAC;
+    ///Idiomatic alias for [`Self::AUDIO_CODEC_OPUS`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Opus: Self = Self::AUDIO_CODEC_OPUS;
+    ///Idiomatic alias for [`Self::AUDIO_CODEC_MP3`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Mp3: Self = Self::AUDIO_CODEC_MP3;
+    ///Idiomatic alias for [`Self::AUDIO_CODEC_PCM_S16LE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const PcmS16le: Self = Self::AUDIO_CODEC_PCM_S16LE;
+    ///Idiomatic alias for [`Self::AUDIO_CODEC_AC3`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Ac3: Self = Self::AUDIO_CODEC_AC3;
+    ///Idiomatic alias for [`Self::AUDIO_CODEC_VORBIS`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Vorbis: Self = Self::AUDIO_CODEC_VORBIS;
+}
 impl ::core::default::Default for AudioCodec {
     fn default() -> Self {
         Self::AUDIO_CODEC_UNSPECIFIED
@@ -2962,6 +3390,23 @@ pub enum AudioSampleFormat {
     AUDIO_SAMPLE_FORMAT_S32 = 3i32,
     AUDIO_SAMPLE_FORMAT_F32 = 4i32,
 }
+impl AudioSampleFormat {
+    ///Idiomatic alias for [`Self::AUDIO_SAMPLE_FORMAT_UNSPECIFIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Unspecified: Self = Self::AUDIO_SAMPLE_FORMAT_UNSPECIFIED;
+    ///Idiomatic alias for [`Self::AUDIO_SAMPLE_FORMAT_FLTP`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Fltp: Self = Self::AUDIO_SAMPLE_FORMAT_FLTP;
+    ///Idiomatic alias for [`Self::AUDIO_SAMPLE_FORMAT_S16`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const S16: Self = Self::AUDIO_SAMPLE_FORMAT_S16;
+    ///Idiomatic alias for [`Self::AUDIO_SAMPLE_FORMAT_S32`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const S32: Self = Self::AUDIO_SAMPLE_FORMAT_S32;
+    ///Idiomatic alias for [`Self::AUDIO_SAMPLE_FORMAT_F32`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const F32: Self = Self::AUDIO_SAMPLE_FORMAT_F32;
+}
 impl ::core::default::Default for AudioSampleFormat {
     fn default() -> Self {
         Self::AUDIO_SAMPLE_FORMAT_UNSPECIFIED
@@ -3125,6 +3570,32 @@ pub enum TrackClassificationType {
     TRACK_CLASSIFICATION_TYPE_MUSIC = 5i32,
     TRACK_CLASSIFICATION_TYPE_SOUND_EFFECT = 6i32,
     TRACK_CLASSIFICATION_TYPE_MIXED = 7i32,
+}
+impl TrackClassificationType {
+    ///Idiomatic alias for [`Self::TRACK_CLASSIFICATION_TYPE_UNSPECIFIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Unspecified: Self = Self::TRACK_CLASSIFICATION_TYPE_UNSPECIFIED;
+    ///Idiomatic alias for [`Self::TRACK_CLASSIFICATION_TYPE_TIMECODE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Timecode: Self = Self::TRACK_CLASSIFICATION_TYPE_TIMECODE;
+    ///Idiomatic alias for [`Self::TRACK_CLASSIFICATION_TYPE_SILENT`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Silent: Self = Self::TRACK_CLASSIFICATION_TYPE_SILENT;
+    ///Idiomatic alias for [`Self::TRACK_CLASSIFICATION_TYPE_AMBIENCE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Ambience: Self = Self::TRACK_CLASSIFICATION_TYPE_AMBIENCE;
+    ///Idiomatic alias for [`Self::TRACK_CLASSIFICATION_TYPE_VOICE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Voice: Self = Self::TRACK_CLASSIFICATION_TYPE_VOICE;
+    ///Idiomatic alias for [`Self::TRACK_CLASSIFICATION_TYPE_MUSIC`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Music: Self = Self::TRACK_CLASSIFICATION_TYPE_MUSIC;
+    ///Idiomatic alias for [`Self::TRACK_CLASSIFICATION_TYPE_SOUND_EFFECT`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const SoundEffect: Self = Self::TRACK_CLASSIFICATION_TYPE_SOUND_EFFECT;
+    ///Idiomatic alias for [`Self::TRACK_CLASSIFICATION_TYPE_MIXED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Mixed: Self = Self::TRACK_CLASSIFICATION_TYPE_MIXED;
 }
 impl ::core::default::Default for TrackClassificationType {
     fn default() -> Self {
@@ -3335,6 +3806,47 @@ pub enum SubtitleCueKind {
     SUBTITLE_CUE_KIND_CEA_608 = 11i32,
     SUBTITLE_CUE_KIND_EBU_STL = 12i32,
 }
+impl SubtitleCueKind {
+    ///Idiomatic alias for [`Self::SUBTITLE_CUE_KIND_SRT`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Srt: Self = Self::SUBTITLE_CUE_KIND_SRT;
+    ///Idiomatic alias for [`Self::SUBTITLE_CUE_KIND_VTT`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Vtt: Self = Self::SUBTITLE_CUE_KIND_VTT;
+    ///Idiomatic alias for [`Self::SUBTITLE_CUE_KIND_ASS`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Ass: Self = Self::SUBTITLE_CUE_KIND_ASS;
+    ///Idiomatic alias for [`Self::SUBTITLE_CUE_KIND_MICRO_DVD`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const MicroDvd: Self = Self::SUBTITLE_CUE_KIND_MICRO_DVD;
+    ///Idiomatic alias for [`Self::SUBTITLE_CUE_KIND_SUB_VIEWER`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const SubViewer: Self = Self::SUBTITLE_CUE_KIND_SUB_VIEWER;
+    ///Idiomatic alias for [`Self::SUBTITLE_CUE_KIND_SBV`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Sbv: Self = Self::SUBTITLE_CUE_KIND_SBV;
+    ///Idiomatic alias for [`Self::SUBTITLE_CUE_KIND_LRC`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Lrc: Self = Self::SUBTITLE_CUE_KIND_LRC;
+    ///Idiomatic alias for [`Self::SUBTITLE_CUE_KIND_TTML`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Ttml: Self = Self::SUBTITLE_CUE_KIND_TTML;
+    ///Idiomatic alias for [`Self::SUBTITLE_CUE_KIND_SAMI`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Sami: Self = Self::SUBTITLE_CUE_KIND_SAMI;
+    ///Idiomatic alias for [`Self::SUBTITLE_CUE_KIND_VOB_SUB`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const VobSub: Self = Self::SUBTITLE_CUE_KIND_VOB_SUB;
+    ///Idiomatic alias for [`Self::SUBTITLE_CUE_KIND_PGS`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Pgs: Self = Self::SUBTITLE_CUE_KIND_PGS;
+    ///Idiomatic alias for [`Self::SUBTITLE_CUE_KIND_CEA_608`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Cea608: Self = Self::SUBTITLE_CUE_KIND_CEA_608;
+    ///Idiomatic alias for [`Self::SUBTITLE_CUE_KIND_EBU_STL`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const EbuStl: Self = Self::SUBTITLE_CUE_KIND_EBU_STL;
+}
 impl ::core::default::Default for SubtitleCueKind {
     fn default() -> Self {
         Self::SUBTITLE_CUE_KIND_SRT
@@ -3540,6 +4052,14 @@ pub enum VttVertical {
     VTT_VERTICAL_LR = 0i32,
     VTT_VERTICAL_RL = 1i32,
 }
+impl VttVertical {
+    ///Idiomatic alias for [`Self::VTT_VERTICAL_LR`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Lr: Self = Self::VTT_VERTICAL_LR;
+    ///Idiomatic alias for [`Self::VTT_VERTICAL_RL`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Rl: Self = Self::VTT_VERTICAL_RL;
+}
 impl ::core::default::Default for VttVertical {
     fn default() -> Self {
         Self::VTT_VERTICAL_LR
@@ -3671,6 +4191,17 @@ pub enum VttLineAlign {
     VTT_LINE_ALIGN_START = 0i32,
     VTT_LINE_ALIGN_CENTER = 1i32,
     VTT_LINE_ALIGN_END = 2i32,
+}
+impl VttLineAlign {
+    ///Idiomatic alias for [`Self::VTT_LINE_ALIGN_START`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Start: Self = Self::VTT_LINE_ALIGN_START;
+    ///Idiomatic alias for [`Self::VTT_LINE_ALIGN_CENTER`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Center: Self = Self::VTT_LINE_ALIGN_CENTER;
+    ///Idiomatic alias for [`Self::VTT_LINE_ALIGN_END`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const End: Self = Self::VTT_LINE_ALIGN_END;
 }
 impl ::core::default::Default for VttLineAlign {
     fn default() -> Self {
@@ -3818,6 +4349,23 @@ pub enum VttPositionAlign {
     VTT_POSITION_ALIGN_END = 2i32,
     VTT_POSITION_ALIGN_LINE_LEFT = 3i32,
     VTT_POSITION_ALIGN_LINE_RIGHT = 4i32,
+}
+impl VttPositionAlign {
+    ///Idiomatic alias for [`Self::VTT_POSITION_ALIGN_START`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Start: Self = Self::VTT_POSITION_ALIGN_START;
+    ///Idiomatic alias for [`Self::VTT_POSITION_ALIGN_CENTER`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Center: Self = Self::VTT_POSITION_ALIGN_CENTER;
+    ///Idiomatic alias for [`Self::VTT_POSITION_ALIGN_END`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const End: Self = Self::VTT_POSITION_ALIGN_END;
+    ///Idiomatic alias for [`Self::VTT_POSITION_ALIGN_LINE_LEFT`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const LineLeft: Self = Self::VTT_POSITION_ALIGN_LINE_LEFT;
+    ///Idiomatic alias for [`Self::VTT_POSITION_ALIGN_LINE_RIGHT`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const LineRight: Self = Self::VTT_POSITION_ALIGN_LINE_RIGHT;
 }
 impl ::core::default::Default for VttPositionAlign {
     fn default() -> Self {
@@ -3978,6 +4526,23 @@ pub enum VttTextAlign {
     VTT_TEXT_ALIGN_END = 2i32,
     VTT_TEXT_ALIGN_LEFT = 3i32,
     VTT_TEXT_ALIGN_RIGHT = 4i32,
+}
+impl VttTextAlign {
+    ///Idiomatic alias for [`Self::VTT_TEXT_ALIGN_START`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Start: Self = Self::VTT_TEXT_ALIGN_START;
+    ///Idiomatic alias for [`Self::VTT_TEXT_ALIGN_CENTER`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Center: Self = Self::VTT_TEXT_ALIGN_CENTER;
+    ///Idiomatic alias for [`Self::VTT_TEXT_ALIGN_END`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const End: Self = Self::VTT_TEXT_ALIGN_END;
+    ///Idiomatic alias for [`Self::VTT_TEXT_ALIGN_LEFT`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Left: Self = Self::VTT_TEXT_ALIGN_LEFT;
+    ///Idiomatic alias for [`Self::VTT_TEXT_ALIGN_RIGHT`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Right: Self = Self::VTT_TEXT_ALIGN_RIGHT;
 }
 impl ::core::default::Default for VttTextAlign {
     fn default() -> Self {
@@ -4143,7 +4708,7 @@ pub struct Detection {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub label: ::buffa::alloc::string::String,
+    pub label: ::buffa::smol_str::SmolStr,
     /// Field 2: `confidence`
     #[cfg_attr(
         feature = "json",
@@ -4246,7 +4811,7 @@ impl ::buffa::Message for Detection {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.label, buf)?;
+                self.label = ::buffa::types::decode_string_to(buf)?;
             }
             2u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Fixed32 {
@@ -4266,7 +4831,7 @@ impl ::buffa::Message for Detection {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.label.clear();
+        self.label = ::core::default::Default::default();
         self.confidence = 0f32;
         self.__buffa_unknown_fields.clear();
     }
@@ -6663,7 +7228,7 @@ pub struct Local {
             deserialize_with = "::buffa::json_helpers::null_as_default"
         )
     )]
-    pub components: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
+    pub components: ::buffa::alloc::vec::Vec<::buffa::smol_str::SmolStr>,
     #[cfg_attr(feature = "json", serde(skip))]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -6779,7 +7344,7 @@ impl ::buffa::Message for Local {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                self.components.push(::buffa::types::decode_string(buf)?);
+                self.components.push(::buffa::types::decode_string_to(buf)?);
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -7153,7 +7718,7 @@ impl ::buffa::Message for LocationTarget {
                 }
                 self.kind = ::core::option::Option::Some(
                     __buffa::oneof::location_target::Kind::Local(
-                        ::buffa::types::decode_string(buf)?,
+                        ::buffa::types::decode_string_to(buf)?,
                     ),
                 );
             }
@@ -7200,13 +7765,11 @@ impl<'de> serde::Deserialize<'de> for LocationTarget {
                 while let Some(key) = map.next_key::<::buffa::alloc::string::String>()? {
                     match key.as_str() {
                         "local" => {
-                            let v: ::core::option::Option<
-                                ::buffa::alloc::string::String,
-                            > = map
+                            let v: ::core::option::Option<::buffa::smol_str::SmolStr> = map
                                 .next_value_seed(
                                     ::buffa::json_helpers::NullableDeserializeSeed(
                                         ::buffa::json_helpers::DefaultDeserializeSeed::<
-                                            ::buffa::alloc::string::String,
+                                            ::buffa::smol_str::SmolStr,
                                         >::new(),
                                     ),
                                 )?;
@@ -7474,7 +8037,7 @@ pub struct Tag {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub name: ::buffa::alloc::string::String,
+    pub name: ::buffa::smol_str::SmolStr,
     /// Field 2: `color`
     #[cfg_attr(
         feature = "json",
@@ -7577,7 +8140,7 @@ impl ::buffa::Message for Tag {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.name, buf)?;
+                self.name = ::buffa::types::decode_string_to(buf)?;
             }
             2u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Fixed32 {
@@ -7597,7 +8160,7 @@ impl ::buffa::Message for Tag {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.name.clear();
+        self.name = ::core::default::Default::default();
         self.color = 0u32;
         self.__buffa_unknown_fields.clear();
     }
@@ -7658,7 +8221,7 @@ pub struct ErrorInfo {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub message: ::buffa::alloc::string::String,
+    pub message: ::buffa::smol_str::SmolStr,
     #[cfg_attr(feature = "json", serde(skip))]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -7761,7 +8324,7 @@ impl ::buffa::Message for ErrorInfo {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.message, buf)?;
+                self.message = ::buffa::types::decode_string_to(buf)?;
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -7772,7 +8335,7 @@ impl ::buffa::Message for ErrorInfo {
     }
     fn clear(&mut self) {
         self.code = 0u32;
-        self.message.clear();
+        self.message = ::core::default::Default::default();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -7827,7 +8390,7 @@ pub struct Provenance {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub model_name: ::buffa::alloc::string::String,
+    pub model_name: ::buffa::smol_str::SmolStr,
     /// Field 2: `model_version`
     #[cfg_attr(
         feature = "json",
@@ -7838,7 +8401,7 @@ pub struct Provenance {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub model_version: ::buffa::alloc::string::String,
+    pub model_version: ::buffa::smol_str::SmolStr,
     /// Field 3: `prompt_version`
     #[cfg_attr(
         feature = "json",
@@ -7849,7 +8412,7 @@ pub struct Provenance {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub prompt_version: ::buffa::alloc::string::String,
+    pub prompt_version: ::buffa::smol_str::SmolStr,
     /// Field 4: `indexer_version`
     #[cfg_attr(
         feature = "json",
@@ -7860,7 +8423,7 @@ pub struct Provenance {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub indexer_version: ::buffa::alloc::string::String,
+    pub indexer_version: ::buffa::smol_str::SmolStr,
     #[cfg_attr(feature = "json", serde(skip))]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -7985,7 +8548,7 @@ impl ::buffa::Message for Provenance {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.model_name, buf)?;
+                self.model_name = ::buffa::types::decode_string_to(buf)?;
             }
             2u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -7995,7 +8558,7 @@ impl ::buffa::Message for Provenance {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.model_version, buf)?;
+                self.model_version = ::buffa::types::decode_string_to(buf)?;
             }
             3u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -8005,7 +8568,7 @@ impl ::buffa::Message for Provenance {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.prompt_version, buf)?;
+                self.prompt_version = ::buffa::types::decode_string_to(buf)?;
             }
             4u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -8015,7 +8578,7 @@ impl ::buffa::Message for Provenance {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.indexer_version, buf)?;
+                self.indexer_version = ::buffa::types::decode_string_to(buf)?;
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -8025,10 +8588,10 @@ impl ::buffa::Message for Provenance {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.model_name.clear();
-        self.model_version.clear();
-        self.prompt_version.clear();
-        self.indexer_version.clear();
+        self.model_name = ::core::default::Default::default();
+        self.model_version = ::core::default::Default::default();
+        self.prompt_version = ::core::default::Default::default();
+        self.indexer_version = ::core::default::Default::default();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -8401,7 +8964,7 @@ pub struct Person {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub name: ::buffa::alloc::string::String,
+    pub name: ::buffa::smol_str::SmolStr,
     /// Field 3: `confidence`
     #[cfg_attr(
         feature = "json",
@@ -8603,7 +9166,7 @@ impl ::buffa::Message for Person {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.name, buf)?;
+                self.name = ::buffa::types::decode_string_to(buf)?;
             }
             3u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Varint {
@@ -8660,7 +9223,7 @@ impl ::buffa::Message for Person {
     }
     fn clear(&mut self) {
         self.id = ::buffa::bytes::Bytes::new();
-        self.name.clear();
+        self.name = ::core::default::Default::default();
         self.confidence = ::buffa::EnumValue::from(0);
         self.voiceprint = ::buffa::MessageField::none();
         self.created_at = 0i64;
@@ -8717,7 +9280,7 @@ pub struct LocalizedText {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub src: ::buffa::alloc::string::String,
+    pub src: ::buffa::smol_str::SmolStr,
     /// Field 2: `translated`
     #[cfg_attr(
         feature = "json",
@@ -8727,7 +9290,7 @@ pub struct LocalizedText {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub translated: ::buffa::alloc::string::String,
+    pub translated: ::buffa::smol_str::SmolStr,
     #[cfg_attr(feature = "json", serde(skip))]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -8823,7 +9386,7 @@ impl ::buffa::Message for LocalizedText {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.src, buf)?;
+                self.src = ::buffa::types::decode_string_to(buf)?;
             }
             2u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -8833,7 +9396,7 @@ impl ::buffa::Message for LocalizedText {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.translated, buf)?;
+                self.translated = ::buffa::types::decode_string_to(buf)?;
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -8843,8 +9406,8 @@ impl ::buffa::Message for LocalizedText {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.src.clear();
-        self.translated.clear();
+        self.src = ::core::default::Default::default();
+        self.translated = ::core::default::Default::default();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -8896,7 +9459,7 @@ pub struct Language {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub bcp47: ::buffa::alloc::string::String,
+    pub bcp47: ::buffa::smol_str::SmolStr,
     #[cfg_attr(feature = "json", serde(skip))]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -8978,7 +9541,7 @@ impl ::buffa::Message for Language {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.bcp47, buf)?;
+                self.bcp47 = ::buffa::types::decode_string_to(buf)?;
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -8988,7 +9551,7 @@ impl ::buffa::Message for Language {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.bcp47.clear();
+        self.bcp47 = ::core::default::Default::default();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -9041,7 +9604,7 @@ pub struct Word {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub text: ::buffa::alloc::string::String,
+    pub text: ::buffa::smol_str::SmolStr,
     /// Field 2: `span`
     #[cfg_attr(
         feature = "json",
@@ -9198,7 +9761,7 @@ impl ::buffa::Message for Word {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.text, buf)?;
+                self.text = ::buffa::types::decode_string_to(buf)?;
             }
             2u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -9246,7 +9809,7 @@ impl ::buffa::Message for Word {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.text.clear();
+        self.text = ::core::default::Default::default();
         self.span = ::buffa::MessageField::none();
         self.score = 0f32;
         self.language = ::buffa::MessageField::none();
@@ -9343,7 +9906,7 @@ pub struct Speaker {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub name: ::buffa::alloc::string::String,
+    pub name: ::buffa::smol_str::SmolStr,
     /// Field 5: `speech_duration`
     #[cfg_attr(
         feature = "json",
@@ -9582,7 +10145,7 @@ impl ::buffa::Message for Speaker {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.name, buf)?;
+                self.name = ::buffa::types::decode_string_to(buf)?;
             }
             5u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -9635,7 +10198,7 @@ impl ::buffa::Message for Speaker {
         self.id = ::buffa::bytes::Bytes::new();
         self.audio_track_id = ::buffa::bytes::Bytes::new();
         self.cluster_id = 0u32;
-        self.name.clear();
+        self.name = ::core::default::Default::default();
         self.speech_duration = ::buffa::MessageField::none();
         self.voiceprint = ::buffa::MessageField::none();
         self.person_id = ::core::option::Option::None;
@@ -10305,7 +10868,7 @@ pub struct WatchedLocation {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub name: ::buffa::alloc::string::String,
+    pub name: ::buffa::smol_str::SmolStr,
     /// LocationStatus bitflags (ACTIVE=1, TOMBSTONED=2)
     ///
     /// Field 4: `status`
@@ -10727,7 +11290,7 @@ impl ::buffa::Message for WatchedLocation {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.name, buf)?;
+                self.name = ::buffa::types::decode_string_to(buf)?;
             }
             4u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Varint {
@@ -10871,7 +11434,7 @@ impl ::buffa::Message for WatchedLocation {
     fn clear(&mut self) {
         self.id = ::buffa::MessageField::none();
         self.location = ::buffa::MessageField::none();
-        self.name.clear();
+        self.name = ::core::default::Default::default();
         self.status = 0u32;
         self.created_at = 0i64;
         self.deleted_at = ::core::option::Option::None;
@@ -10952,7 +11515,7 @@ pub struct VolumeMeta {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub name: ::buffa::alloc::string::String,
+    pub name: ::buffa::smol_str::SmolStr,
     /// Field 4: `total_size`
     #[cfg_attr(
         feature = "json",
@@ -11161,7 +11724,7 @@ impl ::buffa::Message for VolumeMeta {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.name, buf)?;
+                self.name = ::buffa::types::decode_string_to(buf)?;
             }
             4u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Varint {
@@ -11203,7 +11766,7 @@ impl ::buffa::Message for VolumeMeta {
     fn clear(&mut self) {
         self.id = ::buffa::MessageField::none();
         self.location = ::buffa::MessageField::none();
-        self.name.clear();
+        self.name = ::core::default::Default::default();
         self.total_size = 0u64;
         self.used_size = 0u64;
         self.status = 0u32;
@@ -12554,7 +13117,7 @@ pub struct TextDetection {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub text: ::buffa::alloc::string::String,
+    pub text: ::buffa::smol_str::SmolStr,
     /// Field 2: `confidence`
     #[cfg_attr(
         feature = "json",
@@ -12684,7 +13247,7 @@ impl ::buffa::Message for TextDetection {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.text, buf)?;
+                self.text = ::buffa::types::decode_string_to(buf)?;
             }
             2u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Fixed32 {
@@ -12718,7 +13281,7 @@ impl ::buffa::Message for TextDetection {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.text.clear();
+        self.text = ::core::default::Default::default();
         self.confidence = 0f32;
         self.bbox = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
@@ -12770,7 +13333,7 @@ pub struct BarcodeDetection {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub payload: ::buffa::alloc::string::String,
+    pub payload: ::buffa::smol_str::SmolStr,
     /// Field 2: `symbology`
     #[cfg_attr(
         feature = "json",
@@ -12780,7 +13343,7 @@ pub struct BarcodeDetection {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub symbology: ::buffa::alloc::string::String,
+    pub symbology: ::buffa::smol_str::SmolStr,
     /// Field 3: `confidence`
     #[cfg_attr(
         feature = "json",
@@ -12922,7 +13485,7 @@ impl ::buffa::Message for BarcodeDetection {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.payload, buf)?;
+                self.payload = ::buffa::types::decode_string_to(buf)?;
             }
             2u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -12932,7 +13495,7 @@ impl ::buffa::Message for BarcodeDetection {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.symbology, buf)?;
+                self.symbology = ::buffa::types::decode_string_to(buf)?;
             }
             3u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Fixed32 {
@@ -12966,8 +13529,8 @@ impl ::buffa::Message for BarcodeDetection {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.payload.clear();
-        self.symbology.clear();
+        self.payload = ::core::default::Default::default();
+        self.symbology = ::core::default::Default::default();
         self.confidence = 0f32;
         self.bbox = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
@@ -13677,7 +14240,7 @@ pub struct FaceLandmarkRegion {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub name: ::buffa::alloc::string::String,
+    pub name: ::buffa::smol_str::SmolStr,
     /// Field 2: `points`
     #[cfg_attr(
         feature = "json",
@@ -13789,7 +14352,7 @@ impl ::buffa::Message for FaceLandmarkRegion {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.name, buf)?;
+                self.name = ::buffa::types::decode_string_to(buf)?;
             }
             2u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -13811,7 +14374,7 @@ impl ::buffa::Message for FaceLandmarkRegion {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.name.clear();
+        self.name = ::core::default::Default::default();
         self.points.clear();
         self.__buffa_unknown_fields.clear();
     }
@@ -14086,7 +14649,7 @@ pub struct BodyPoseJoint {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub name: ::buffa::alloc::string::String,
+    pub name: ::buffa::smol_str::SmolStr,
     /// Field 2: `x`
     #[cfg_attr(
         feature = "json",
@@ -14227,7 +14790,7 @@ impl ::buffa::Message for BodyPoseJoint {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.name, buf)?;
+                self.name = ::buffa::types::decode_string_to(buf)?;
             }
             2u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Fixed32 {
@@ -14267,7 +14830,7 @@ impl ::buffa::Message for BodyPoseJoint {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.name.clear();
+        self.name = ::core::default::Default::default();
         self.x = 0f32;
         self.y = 0f32;
         self.confidence = 0f32;
@@ -14544,7 +15107,7 @@ pub struct BodyPose3DJoint {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub name: ::buffa::alloc::string::String,
+    pub name: ::buffa::smol_str::SmolStr,
     /// Field 2: `x`
     #[cfg_attr(
         feature = "json",
@@ -14704,7 +15267,7 @@ impl ::buffa::Message for BodyPose3DJoint {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.name, buf)?;
+                self.name = ::buffa::types::decode_string_to(buf)?;
             }
             2u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Fixed32 {
@@ -14754,7 +15317,7 @@ impl ::buffa::Message for BodyPose3DJoint {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.name.clear();
+        self.name = ::core::default::Default::default();
         self.x = 0f32;
         self.y = 0f32;
         self.z = 0f32;
@@ -17090,7 +17653,7 @@ pub struct TagConfidence {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub label: ::buffa::alloc::string::String,
+    pub label: ::buffa::smol_str::SmolStr,
     /// Field 2: `confidence`
     #[cfg_attr(
         feature = "json",
@@ -17193,7 +17756,7 @@ impl ::buffa::Message for TagConfidence {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.label, buf)?;
+                self.label = ::buffa::types::decode_string_to(buf)?;
             }
             2u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Fixed32 {
@@ -17213,7 +17776,7 @@ impl ::buffa::Message for TagConfidence {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.label.clear();
+        self.label = ::core::default::Default::default();
         self.confidence = 0f32;
         self.__buffa_unknown_fields.clear();
     }
@@ -17263,7 +17826,7 @@ pub struct SoundSource {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub name: ::buffa::alloc::string::String,
+    pub name: ::buffa::smol_str::SmolStr,
     /// Field 2: `prominence`
     #[cfg_attr(
         feature = "json",
@@ -17273,7 +17836,7 @@ pub struct SoundSource {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub prominence: ::buffa::alloc::string::String,
+    pub prominence: ::buffa::smol_str::SmolStr,
     /// Field 3: `description`
     #[cfg_attr(
         feature = "json",
@@ -17283,7 +17846,7 @@ pub struct SoundSource {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub description: ::buffa::alloc::string::String,
+    pub description: ::buffa::smol_str::SmolStr,
     #[cfg_attr(feature = "json", serde(skip))]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -17391,7 +17954,7 @@ impl ::buffa::Message for SoundSource {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.name, buf)?;
+                self.name = ::buffa::types::decode_string_to(buf)?;
             }
             2u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -17401,7 +17964,7 @@ impl ::buffa::Message for SoundSource {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.prominence, buf)?;
+                self.prominence = ::buffa::types::decode_string_to(buf)?;
             }
             3u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -17411,7 +17974,7 @@ impl ::buffa::Message for SoundSource {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.description, buf)?;
+                self.description = ::buffa::types::decode_string_to(buf)?;
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -17421,9 +17984,9 @@ impl ::buffa::Message for SoundSource {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.name.clear();
-        self.prominence.clear();
-        self.description.clear();
+        self.name = ::core::default::Default::default();
+        self.prominence = ::core::default::Default::default();
+        self.description = ::core::default::Default::default();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -17473,7 +18036,7 @@ pub struct AudioEvent {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub event_type: ::buffa::alloc::string::String,
+    pub event_type: ::buffa::smol_str::SmolStr,
     /// Field 2: `start_ms`
     #[cfg_attr(
         feature = "json",
@@ -17617,7 +18180,7 @@ impl ::buffa::Message for AudioEvent {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.event_type, buf)?;
+                self.event_type = ::buffa::types::decode_string_to(buf)?;
             }
             2u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Varint {
@@ -17657,7 +18220,7 @@ impl ::buffa::Message for AudioEvent {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.event_type.clear();
+        self.event_type = ::core::default::Default::default();
         self.start_ms = 0u32;
         self.end_ms = 0u32;
         self.avg_confidence = 0f32;
@@ -17934,7 +18497,7 @@ pub struct AudioTranscriptSegment {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub text: ::buffa::alloc::string::String,
+    pub text: ::buffa::smol_str::SmolStr,
     /// Field 4: `language`
     #[cfg_attr(
         feature = "json",
@@ -17944,7 +18507,7 @@ pub struct AudioTranscriptSegment {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub language: ::buffa::alloc::string::String,
+    pub language: ::buffa::smol_str::SmolStr,
     /// Field 5: `confidence`
     #[cfg_attr(
         feature = "json",
@@ -18097,7 +18660,7 @@ impl ::buffa::Message for AudioTranscriptSegment {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.text, buf)?;
+                self.text = ::buffa::types::decode_string_to(buf)?;
             }
             4u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -18107,7 +18670,7 @@ impl ::buffa::Message for AudioTranscriptSegment {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.language, buf)?;
+                self.language = ::buffa::types::decode_string_to(buf)?;
             }
             5u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Fixed32 {
@@ -18129,8 +18692,8 @@ impl ::buffa::Message for AudioTranscriptSegment {
     fn clear(&mut self) {
         self.start_ms = 0u32;
         self.end_ms = 0u32;
-        self.text.clear();
-        self.language.clear();
+        self.text = ::core::default::Default::default();
+        self.language = ::core::default::Default::default();
         self.confidence = 0f32;
         self.__buffa_unknown_fields.clear();
     }
@@ -18201,7 +18764,7 @@ pub struct AudioChannelSpec {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub label: ::buffa::alloc::string::String,
+    pub label: ::buffa::smol_str::SmolStr,
     #[cfg_attr(feature = "json", serde(skip))]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -18323,7 +18886,7 @@ impl ::buffa::Message for AudioChannelSpec {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.label, buf)?;
+                self.label = ::buffa::types::decode_string_to(buf)?;
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -18335,7 +18898,7 @@ impl ::buffa::Message for AudioChannelSpec {
     fn clear(&mut self) {
         self.index = 0u32;
         self.raw_id = 0u32;
-        self.label.clear();
+        self.label = ::core::default::Default::default();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -18765,7 +19328,7 @@ pub struct Timecode {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub start: ::buffa::alloc::string::String,
+    pub start: ::buffa::smol_str::SmolStr,
     /// Field 2: `end`
     #[cfg_attr(
         feature = "json",
@@ -18775,7 +19338,7 @@ pub struct Timecode {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub end: ::buffa::alloc::string::String,
+    pub end: ::buffa::smol_str::SmolStr,
     /// Field 3: `fps`
     #[cfg_attr(
         feature = "json",
@@ -18910,7 +19473,7 @@ impl ::buffa::Message for Timecode {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.start, buf)?;
+                self.start = ::buffa::types::decode_string_to(buf)?;
             }
             2u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -18920,7 +19483,7 @@ impl ::buffa::Message for Timecode {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.end, buf)?;
+                self.end = ::buffa::types::decode_string_to(buf)?;
             }
             3u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Fixed32 {
@@ -18950,8 +19513,8 @@ impl ::buffa::Message for Timecode {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.start.clear();
-        self.end.clear();
+        self.start = ::core::default::Default::default();
+        self.end = ::core::default::Default::default();
         self.fps = 0f32;
         self.drop_frame = false;
         self.__buffa_unknown_fields.clear();
@@ -19377,7 +19940,7 @@ pub struct AudioChannelLayout {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub description: ::buffa::alloc::string::String,
+    pub description: ::buffa::smol_str::SmolStr,
     #[cfg_attr(feature = "json", serde(skip))]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -19594,7 +20157,7 @@ impl ::buffa::Message for AudioChannelLayout {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.description, buf)?;
+                self.description = ::buffa::types::decode_string_to(buf)?;
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -19609,7 +20172,7 @@ impl ::buffa::Message for AudioChannelLayout {
         self.known_kind = ::buffa::EnumValue::from(0);
         self.native_mask = ::core::option::Option::None;
         self.custom_channels.clear();
-        self.description.clear();
+        self.description = ::core::default::Default::default();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -19983,7 +20546,7 @@ pub struct TrackTag {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub category: ::buffa::alloc::string::String,
+    pub category: ::buffa::smol_str::SmolStr,
     /// Field 2: `detections`
     #[cfg_attr(
         feature = "json",
@@ -20003,7 +20566,7 @@ pub struct TrackTag {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub source: ::buffa::alloc::string::String,
+    pub source: ::buffa::smol_str::SmolStr,
     #[cfg_attr(feature = "json", serde(skip))]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -20117,7 +20680,7 @@ impl ::buffa::Message for TrackTag {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.category, buf)?;
+                self.category = ::buffa::types::decode_string_to(buf)?;
             }
             2u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -20139,7 +20702,7 @@ impl ::buffa::Message for TrackTag {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.source, buf)?;
+                self.source = ::buffa::types::decode_string_to(buf)?;
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -20149,9 +20712,9 @@ impl ::buffa::Message for TrackTag {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.category.clear();
+        self.category = ::core::default::Default::default();
         self.detections.clear();
-        self.source.clear();
+        self.source = ::core::default::Default::default();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -20215,7 +20778,7 @@ pub struct VideoMeta {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub name: ::buffa::alloc::string::String,
+    pub name: ::buffa::smol_str::SmolStr,
     /// Field 3: `format`
     #[cfg_attr(
         feature = "json",
@@ -20479,7 +21042,7 @@ impl ::buffa::Message for VideoMeta {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.name, buf)?;
+                self.name = ::buffa::types::decode_string_to(buf)?;
             }
             3u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Varint {
@@ -20570,7 +21133,7 @@ impl ::buffa::Message for VideoMeta {
     }
     fn clear(&mut self) {
         self.id = ::buffa::bytes::Bytes::new();
-        self.name.clear();
+        self.name = ::core::default::Default::default();
         self.format = ::buffa::EnumValue::from(0);
         self.dimensions = ::buffa::MessageField::none();
         self.size = 0u64;
@@ -23576,7 +24139,7 @@ pub struct VideoTrack {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub selection_reason: ::buffa::alloc::string::String,
+    pub selection_reason: ::buffa::smol_str::SmolStr,
     /// Field 7: `video_id`
     #[cfg_attr(
         feature = "json",
@@ -23838,7 +24401,7 @@ impl ::buffa::Message for VideoTrack {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.selection_reason, buf)?;
+                self.selection_reason = ::buffa::types::decode_string_to(buf)?;
             }
             7u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -23877,7 +24440,7 @@ impl ::buffa::Message for VideoTrack {
         self.disposition = 0u32;
         self.is_primary = false;
         self.auto_selected = false;
-        self.selection_reason.clear();
+        self.selection_reason = ::core::default::Default::default();
         self.video_id = ::buffa::bytes::Bytes::new();
         self.index_error = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
@@ -24038,7 +24601,7 @@ pub struct Media {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub device_make: ::buffa::alloc::string::String,
+    pub device_make: ::buffa::smol_str::SmolStr,
     /// Field 11: `device_model`
     #[cfg_attr(
         feature = "json",
@@ -24049,7 +24612,7 @@ pub struct Media {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub device_model: ::buffa::alloc::string::String,
+    pub device_model: ::buffa::smol_str::SmolStr,
     /// Field 12: `gps_location`
     #[cfg_attr(
         feature = "json",
@@ -24060,7 +24623,7 @@ pub struct Media {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub gps_location: ::buffa::alloc::string::String,
+    pub gps_location: ::buffa::smol_str::SmolStr,
     #[cfg_attr(feature = "json", serde(skip))]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -24409,7 +24972,7 @@ impl ::buffa::Message for Media {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.device_make, buf)?;
+                self.device_make = ::buffa::types::decode_string_to(buf)?;
             }
             11u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -24419,7 +24982,7 @@ impl ::buffa::Message for Media {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.device_model, buf)?;
+                self.device_model = ::buffa::types::decode_string_to(buf)?;
             }
             12u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -24429,7 +24992,7 @@ impl ::buffa::Message for Media {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.gps_location, buf)?;
+                self.gps_location = ::buffa::types::decode_string_to(buf)?;
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -24448,9 +25011,9 @@ impl ::buffa::Message for Media {
         self.subtitle_id = ::core::option::Option::None;
         self.error_status = 0u32;
         self.capture_date = 0i64;
-        self.device_make.clear();
-        self.device_model.clear();
-        self.gps_location.clear();
+        self.device_make = ::core::default::Default::default();
+        self.device_model = ::core::default::Default::default();
+        self.gps_location = ::core::default::Default::default();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -24787,7 +25350,7 @@ pub struct SubtitleTrack {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub language: ::buffa::alloc::string::String,
+    pub language: ::buffa::smol_str::SmolStr,
     /// Field 7: `title`
     #[cfg_attr(
         feature = "json",
@@ -24797,7 +25360,7 @@ pub struct SubtitleTrack {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub title: ::buffa::alloc::string::String,
+    pub title: ::buffa::smol_str::SmolStr,
     /// Field 8: `codec_id`
     #[cfg_attr(
         feature = "json",
@@ -24850,7 +25413,7 @@ pub struct SubtitleTrack {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub selection_reason: ::buffa::alloc::string::String,
+    pub selection_reason: ::buffa::smol_str::SmolStr,
     /// Field 13: `index_error`
     #[cfg_attr(
         feature = "json",
@@ -25171,7 +25734,7 @@ impl ::buffa::Message for SubtitleTrack {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.language, buf)?;
+                self.language = ::buffa::types::decode_string_to(buf)?;
             }
             7u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -25181,7 +25744,7 @@ impl ::buffa::Message for SubtitleTrack {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.title, buf)?;
+                self.title = ::buffa::types::decode_string_to(buf)?;
             }
             8u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -25235,7 +25798,7 @@ impl ::buffa::Message for SubtitleTrack {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.selection_reason, buf)?;
+                self.selection_reason = ::buffa::types::decode_string_to(buf)?;
             }
             13u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -25264,13 +25827,13 @@ impl ::buffa::Message for SubtitleTrack {
         self.origin = ::buffa::MessageField::none();
         self.format = ::buffa::EnumValue::from(0);
         self.role = ::buffa::EnumValue::from(0);
-        self.language.clear();
-        self.title.clear();
+        self.language = ::core::default::Default::default();
+        self.title = ::core::default::Default::default();
         self.codec_id = ::buffa::MessageField::none();
         self.disposition = 0u32;
         self.is_primary = false;
         self.auto_selected = false;
-        self.selection_reason.clear();
+        self.selection_reason = ::core::default::Default::default();
         self.index_error = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
@@ -25387,7 +25950,7 @@ pub struct SubtitleCue {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub text: ::buffa::alloc::string::String,
+    pub text: ::buffa::smol_str::SmolStr,
     /// Field 7: `kind`
     #[cfg_attr(
         feature = "json",
@@ -25831,7 +26394,7 @@ impl ::buffa::Message for SubtitleCue {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.text, buf)?;
+                self.text = ::buffa::types::decode_string_to(buf)?;
             }
             7u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Varint {
@@ -26207,7 +26770,7 @@ impl ::buffa::Message for SubtitleCue {
         self.ordinal = 0u64;
         self.span_start_pts = 0i64;
         self.span_end_pts = 0i64;
-        self.text.clear();
+        self.text = ::core::default::Default::default();
         self.kind = ::buffa::EnumValue::from(0);
         self.data = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
@@ -26245,9 +26808,7 @@ impl<'de> serde::Deserialize<'de> for SubtitleCue {
                 let mut __f_ordinal: ::core::option::Option<u64> = None;
                 let mut __f_span_start_pts: ::core::option::Option<i64> = None;
                 let mut __f_span_end_pts: ::core::option::Option<i64> = None;
-                let mut __f_text: ::core::option::Option<
-                    ::buffa::alloc::string::String,
-                > = None;
+                let mut __f_text: ::core::option::Option<::buffa::smol_str::SmolStr> = None;
                 let mut __f_kind: ::core::option::Option<
                     ::buffa::EnumValue<SubtitleCueKind>,
                 > = None;
@@ -26341,12 +26902,12 @@ impl<'de> serde::Deserialize<'de> for SubtitleCue {
                             __f_text = Some({
                                 struct _S;
                                 impl<'de> serde::de::DeserializeSeed<'de> for _S {
-                                    type Value = ::buffa::alloc::string::String;
+                                    type Value = ::buffa::smol_str::SmolStr;
                                     fn deserialize<D: serde::Deserializer<'de>>(
                                         self,
                                         d: D,
                                     ) -> ::core::result::Result<
-                                        ::buffa::alloc::string::String,
+                                        ::buffa::smol_str::SmolStr,
                                         D::Error,
                                     > {
                                         ::buffa::json_helpers::proto_string::deserialize(d)
@@ -26874,7 +27435,7 @@ pub struct VttData {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub cue_identifier: ::buffa::alloc::string::String,
+    pub cue_identifier: ::buffa::smol_str::SmolStr,
     /// Field 2: `vertical`
     #[cfg_attr(
         feature = "json",
@@ -26895,7 +27456,7 @@ pub struct VttData {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub line_value: ::buffa::alloc::string::String,
+    pub line_value: ::buffa::smol_str::SmolStr,
     /// Field 4: `line_align`
     #[cfg_attr(
         feature = "json",
@@ -26917,7 +27478,7 @@ pub struct VttData {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub position_value: ::buffa::alloc::string::String,
+    pub position_value: ::buffa::smol_str::SmolStr,
     /// Field 6: `position_align`
     #[cfg_attr(
         feature = "json",
@@ -26975,7 +27536,7 @@ pub struct VttData {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub voice: ::buffa::alloc::string::String,
+    pub voice: ::buffa::smol_str::SmolStr,
     /// Field 11: `styled_text`
     #[cfg_attr(
         feature = "json",
@@ -26986,7 +27547,7 @@ pub struct VttData {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub styled_text: ::buffa::alloc::string::String,
+    pub styled_text: ::buffa::smol_str::SmolStr,
     #[cfg_attr(feature = "json", serde(skip))]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -27228,7 +27789,7 @@ impl ::buffa::Message for VttData {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.cue_identifier, buf)?;
+                self.cue_identifier = ::buffa::types::decode_string_to(buf)?;
             }
             2u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Varint {
@@ -27250,7 +27811,7 @@ impl ::buffa::Message for VttData {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.line_value, buf)?;
+                self.line_value = ::buffa::types::decode_string_to(buf)?;
             }
             4u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Varint {
@@ -27272,7 +27833,7 @@ impl ::buffa::Message for VttData {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.position_value, buf)?;
+                self.position_value = ::buffa::types::decode_string_to(buf)?;
             }
             6u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Varint {
@@ -27328,7 +27889,7 @@ impl ::buffa::Message for VttData {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.voice, buf)?;
+                self.voice = ::buffa::types::decode_string_to(buf)?;
             }
             11u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -27338,7 +27899,7 @@ impl ::buffa::Message for VttData {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.styled_text, buf)?;
+                self.styled_text = ::buffa::types::decode_string_to(buf)?;
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -27348,17 +27909,17 @@ impl ::buffa::Message for VttData {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.cue_identifier.clear();
+        self.cue_identifier = ::core::default::Default::default();
         self.vertical = ::core::option::Option::None;
-        self.line_value.clear();
+        self.line_value = ::core::default::Default::default();
         self.line_align = ::core::option::Option::None;
-        self.position_value.clear();
+        self.position_value = ::core::default::Default::default();
         self.position_align = ::core::option::Option::None;
         self.size_value = ::core::option::Option::None;
         self.text_align = ::core::option::Option::None;
         self.region_id = ::buffa::bytes::Bytes::new();
-        self.voice.clear();
-        self.styled_text.clear();
+        self.voice = ::core::default::Default::default();
+        self.styled_text = ::core::default::Default::default();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -27433,7 +27994,7 @@ pub struct AssData {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub name: ::buffa::alloc::string::String,
+    pub name: ::buffa::smol_str::SmolStr,
     /// Field 4: `margin_l`
     #[cfg_attr(
         feature = "json",
@@ -27476,7 +28037,7 @@ pub struct AssData {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub effect: ::buffa::alloc::string::String,
+    pub effect: ::buffa::smol_str::SmolStr,
     /// Field 8: `styled_text`
     #[cfg_attr(
         feature = "json",
@@ -27487,7 +28048,7 @@ pub struct AssData {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub styled_text: ::buffa::alloc::string::String,
+    pub styled_text: ::buffa::smol_str::SmolStr,
     #[cfg_attr(feature = "json", serde(skip))]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -27663,7 +28224,7 @@ impl ::buffa::Message for AssData {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.name, buf)?;
+                self.name = ::buffa::types::decode_string_to(buf)?;
             }
             4u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Varint {
@@ -27703,7 +28264,7 @@ impl ::buffa::Message for AssData {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.effect, buf)?;
+                self.effect = ::buffa::types::decode_string_to(buf)?;
             }
             8u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -27713,7 +28274,7 @@ impl ::buffa::Message for AssData {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.styled_text, buf)?;
+                self.styled_text = ::buffa::types::decode_string_to(buf)?;
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -27725,12 +28286,12 @@ impl ::buffa::Message for AssData {
     fn clear(&mut self) {
         self.layer = 0i32;
         self.style_id = ::buffa::bytes::Bytes::new();
-        self.name.clear();
+        self.name = ::core::default::Default::default();
         self.margin_l = 0i32;
         self.margin_r = 0i32;
         self.margin_v = 0i32;
-        self.effect.clear();
-        self.styled_text.clear();
+        self.effect = ::core::default::Default::default();
+        self.styled_text = ::core::default::Default::default();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -27948,7 +28509,7 @@ pub struct LrcWord {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub text: ::buffa::alloc::string::String,
+    pub text: ::buffa::smol_str::SmolStr,
     /// Field 4: `start_pts`
     #[cfg_attr(
         feature = "json",
@@ -28095,7 +28656,7 @@ impl ::buffa::Message for LrcWord {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.text, buf)?;
+                self.text = ::buffa::types::decode_string_to(buf)?;
             }
             4u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Varint {
@@ -28117,7 +28678,7 @@ impl ::buffa::Message for LrcWord {
     fn clear(&mut self) {
         self.subtitle_cue_id = ::buffa::bytes::Bytes::new();
         self.ordinal = 0u32;
-        self.text.clear();
+        self.text = ::core::default::Default::default();
         self.start_pts = 0i64;
         self.__buffa_unknown_fields.clear();
     }
@@ -28197,7 +28758,7 @@ pub struct VttRegion {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub name: ::buffa::alloc::string::String,
+    pub name: ::buffa::smol_str::SmolStr,
     /// Field 4: `width`
     #[cfg_attr(
         feature = "json",
@@ -28465,7 +29026,7 @@ impl ::buffa::Message for VttRegion {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.name, buf)?;
+                self.name = ::buffa::types::decode_string_to(buf)?;
             }
             4u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Fixed32 {
@@ -28547,7 +29108,7 @@ impl ::buffa::Message for VttRegion {
     fn clear(&mut self) {
         self.id = ::buffa::bytes::Bytes::new();
         self.subtitle_track_id = ::buffa::bytes::Bytes::new();
-        self.name.clear();
+        self.name = ::core::default::Default::default();
         self.width = 0f32;
         self.lines = 0u32;
         self.region_anchor_x = 0f32;
@@ -28644,7 +29205,7 @@ pub struct VttStyleBlock {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub css_text: ::buffa::alloc::string::String,
+    pub css_text: ::buffa::smol_str::SmolStr,
     #[cfg_attr(feature = "json", serde(skip))]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -28793,7 +29354,7 @@ impl ::buffa::Message for VttStyleBlock {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.css_text, buf)?;
+                self.css_text = ::buffa::types::decode_string_to(buf)?;
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -28806,7 +29367,7 @@ impl ::buffa::Message for VttStyleBlock {
         self.id = ::buffa::bytes::Bytes::new();
         self.subtitle_track_id = ::buffa::bytes::Bytes::new();
         self.ordinal = 0u32;
-        self.css_text.clear();
+        self.css_text = ::core::default::Default::default();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -28885,7 +29446,7 @@ pub struct AssStyle {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub name: ::buffa::alloc::string::String,
+    pub name: ::buffa::smol_str::SmolStr,
     /// Field 4: `fontname`
     #[cfg_attr(
         feature = "json",
@@ -28895,7 +29456,7 @@ pub struct AssStyle {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub fontname: ::buffa::alloc::string::String,
+    pub fontname: ::buffa::smol_str::SmolStr,
     /// Field 5: `fontsize`
     #[cfg_attr(
         feature = "json",
@@ -29450,7 +30011,7 @@ impl ::buffa::Message for AssStyle {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.name, buf)?;
+                self.name = ::buffa::types::decode_string_to(buf)?;
             }
             4u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -29460,7 +30021,7 @@ impl ::buffa::Message for AssStyle {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.fontname, buf)?;
+                self.fontname = ::buffa::types::decode_string_to(buf)?;
             }
             5u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Fixed32 {
@@ -29682,8 +30243,8 @@ impl ::buffa::Message for AssStyle {
     fn clear(&mut self) {
         self.id = ::buffa::bytes::Bytes::new();
         self.subtitle_track_id = ::buffa::bytes::Bytes::new();
-        self.name.clear();
-        self.fontname.clear();
+        self.name = ::core::default::Default::default();
+        self.fontname = ::core::default::Default::default();
         self.fontsize = 0f32;
         self.primary_colour = 0u32;
         self.secondary_colour = 0u32;
@@ -29769,7 +30330,7 @@ pub struct LrcMetadata {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub title: ::buffa::alloc::string::String,
+    pub title: ::buffa::smol_str::SmolStr,
     /// Field 3: `artist`
     #[cfg_attr(
         feature = "json",
@@ -29779,7 +30340,7 @@ pub struct LrcMetadata {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub artist: ::buffa::alloc::string::String,
+    pub artist: ::buffa::smol_str::SmolStr,
     /// Field 4: `album`
     #[cfg_attr(
         feature = "json",
@@ -29789,7 +30350,7 @@ pub struct LrcMetadata {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub album: ::buffa::alloc::string::String,
+    pub album: ::buffa::smol_str::SmolStr,
     /// Field 5: `author`
     #[cfg_attr(
         feature = "json",
@@ -29799,7 +30360,7 @@ pub struct LrcMetadata {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub author: ::buffa::alloc::string::String,
+    pub author: ::buffa::smol_str::SmolStr,
     /// Field 6: `creator`
     #[cfg_attr(
         feature = "json",
@@ -29809,7 +30370,7 @@ pub struct LrcMetadata {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub creator: ::buffa::alloc::string::String,
+    pub creator: ::buffa::smol_str::SmolStr,
     /// Field 7: `length`
     #[cfg_attr(
         feature = "json",
@@ -29819,7 +30380,7 @@ pub struct LrcMetadata {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub length: ::buffa::alloc::string::String,
+    pub length: ::buffa::smol_str::SmolStr,
     /// Field 8: `offset_ms`
     #[cfg_attr(
         feature = "json",
@@ -30007,7 +30568,7 @@ impl ::buffa::Message for LrcMetadata {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.title, buf)?;
+                self.title = ::buffa::types::decode_string_to(buf)?;
             }
             3u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -30017,7 +30578,7 @@ impl ::buffa::Message for LrcMetadata {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.artist, buf)?;
+                self.artist = ::buffa::types::decode_string_to(buf)?;
             }
             4u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -30027,7 +30588,7 @@ impl ::buffa::Message for LrcMetadata {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.album, buf)?;
+                self.album = ::buffa::types::decode_string_to(buf)?;
             }
             5u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -30037,7 +30598,7 @@ impl ::buffa::Message for LrcMetadata {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.author, buf)?;
+                self.author = ::buffa::types::decode_string_to(buf)?;
             }
             6u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -30047,7 +30608,7 @@ impl ::buffa::Message for LrcMetadata {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.creator, buf)?;
+                self.creator = ::buffa::types::decode_string_to(buf)?;
             }
             7u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -30057,7 +30618,7 @@ impl ::buffa::Message for LrcMetadata {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.length, buf)?;
+                self.length = ::buffa::types::decode_string_to(buf)?;
             }
             8u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Varint {
@@ -30078,12 +30639,12 @@ impl ::buffa::Message for LrcMetadata {
     }
     fn clear(&mut self) {
         self.subtitle_track_id = ::buffa::bytes::Bytes::new();
-        self.title.clear();
-        self.artist.clear();
-        self.album.clear();
-        self.author.clear();
-        self.creator.clear();
-        self.length.clear();
+        self.title = ::core::default::Default::default();
+        self.artist = ::core::default::Default::default();
+        self.album = ::core::default::Default::default();
+        self.author = ::core::default::Default::default();
+        self.creator = ::core::default::Default::default();
+        self.length = ::core::default::Default::default();
         self.offset_ms = 0i32;
         self.__buffa_unknown_fields.clear();
     }
@@ -30135,7 +30696,7 @@ pub struct MicroDvdData {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub styled_text: ::buffa::alloc::string::String,
+    pub styled_text: ::buffa::smol_str::SmolStr,
     #[cfg_attr(feature = "json", serde(skip))]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -30217,7 +30778,7 @@ impl ::buffa::Message for MicroDvdData {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.styled_text, buf)?;
+                self.styled_text = ::buffa::types::decode_string_to(buf)?;
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -30227,7 +30788,7 @@ impl ::buffa::Message for MicroDvdData {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.styled_text.clear();
+        self.styled_text = ::core::default::Default::default();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -30278,7 +30839,7 @@ pub struct SubViewerData {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub styled_text: ::buffa::alloc::string::String,
+    pub styled_text: ::buffa::smol_str::SmolStr,
     #[cfg_attr(feature = "json", serde(skip))]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -30360,7 +30921,7 @@ impl ::buffa::Message for SubViewerData {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.styled_text, buf)?;
+                self.styled_text = ::buffa::types::decode_string_to(buf)?;
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -30370,7 +30931,7 @@ impl ::buffa::Message for SubViewerData {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.styled_text.clear();
+        self.styled_text = ::core::default::Default::default();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -30563,7 +31124,7 @@ pub struct TtmlData {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub xml_id: ::buffa::alloc::string::String,
+    pub xml_id: ::buffa::smol_str::SmolStr,
     /// Field 4: `styled_text`
     #[cfg_attr(
         feature = "json",
@@ -30574,7 +31135,7 @@ pub struct TtmlData {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub styled_text: ::buffa::alloc::string::String,
+    pub styled_text: ::buffa::smol_str::SmolStr,
     #[cfg_attr(feature = "json", serde(skip))]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -30714,7 +31275,7 @@ impl ::buffa::Message for TtmlData {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.xml_id, buf)?;
+                self.xml_id = ::buffa::types::decode_string_to(buf)?;
             }
             4u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -30724,7 +31285,7 @@ impl ::buffa::Message for TtmlData {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.styled_text, buf)?;
+                self.styled_text = ::buffa::types::decode_string_to(buf)?;
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -30736,8 +31297,8 @@ impl ::buffa::Message for TtmlData {
     fn clear(&mut self) {
         self.region_id = ::buffa::bytes::Bytes::new();
         self.style_id = ::buffa::bytes::Bytes::new();
-        self.xml_id.clear();
-        self.styled_text.clear();
+        self.xml_id = ::core::default::Default::default();
+        self.styled_text = ::core::default::Default::default();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -30789,7 +31350,7 @@ pub struct SamiData {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub class_name: ::buffa::alloc::string::String,
+    pub class_name: ::buffa::smol_str::SmolStr,
     /// Field 2: `styled_text`
     #[cfg_attr(
         feature = "json",
@@ -30800,7 +31361,7 @@ pub struct SamiData {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub styled_text: ::buffa::alloc::string::String,
+    pub styled_text: ::buffa::smol_str::SmolStr,
     #[cfg_attr(feature = "json", serde(skip))]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -30896,7 +31457,7 @@ impl ::buffa::Message for SamiData {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.class_name, buf)?;
+                self.class_name = ::buffa::types::decode_string_to(buf)?;
             }
             2u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -30906,7 +31467,7 @@ impl ::buffa::Message for SamiData {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.styled_text, buf)?;
+                self.styled_text = ::buffa::types::decode_string_to(buf)?;
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -30916,8 +31477,8 @@ impl ::buffa::Message for SamiData {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.class_name.clear();
-        self.styled_text.clear();
+        self.class_name = ::core::default::Default::default();
+        self.styled_text = ::core::default::Default::default();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -30997,7 +31558,7 @@ pub struct TtmlRegion {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub xml_id: ::buffa::alloc::string::String,
+    pub xml_id: ::buffa::smol_str::SmolStr,
     /// Field 4: `xml_attrs`
     #[cfg_attr(
         feature = "json",
@@ -31008,7 +31569,7 @@ pub struct TtmlRegion {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub xml_attrs: ::buffa::alloc::string::String,
+    pub xml_attrs: ::buffa::smol_str::SmolStr,
     #[cfg_attr(feature = "json", serde(skip))]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -31150,7 +31711,7 @@ impl ::buffa::Message for TtmlRegion {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.xml_id, buf)?;
+                self.xml_id = ::buffa::types::decode_string_to(buf)?;
             }
             4u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -31160,7 +31721,7 @@ impl ::buffa::Message for TtmlRegion {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.xml_attrs, buf)?;
+                self.xml_attrs = ::buffa::types::decode_string_to(buf)?;
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -31172,8 +31733,8 @@ impl ::buffa::Message for TtmlRegion {
     fn clear(&mut self) {
         self.id = ::buffa::bytes::Bytes::new();
         self.subtitle_track_id = ::buffa::bytes::Bytes::new();
-        self.xml_id.clear();
-        self.xml_attrs.clear();
+        self.xml_id = ::core::default::Default::default();
+        self.xml_attrs = ::core::default::Default::default();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -31253,7 +31814,7 @@ pub struct TtmlStyle {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub xml_id: ::buffa::alloc::string::String,
+    pub xml_id: ::buffa::smol_str::SmolStr,
     /// Field 4: `xml_attrs`
     #[cfg_attr(
         feature = "json",
@@ -31264,7 +31825,7 @@ pub struct TtmlStyle {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub xml_attrs: ::buffa::alloc::string::String,
+    pub xml_attrs: ::buffa::smol_str::SmolStr,
     #[cfg_attr(feature = "json", serde(skip))]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -31406,7 +31967,7 @@ impl ::buffa::Message for TtmlStyle {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.xml_id, buf)?;
+                self.xml_id = ::buffa::types::decode_string_to(buf)?;
             }
             4u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -31416,7 +31977,7 @@ impl ::buffa::Message for TtmlStyle {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.xml_attrs, buf)?;
+                self.xml_attrs = ::buffa::types::decode_string_to(buf)?;
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -31428,8 +31989,8 @@ impl ::buffa::Message for TtmlStyle {
     fn clear(&mut self) {
         self.id = ::buffa::bytes::Bytes::new();
         self.subtitle_track_id = ::buffa::bytes::Bytes::new();
-        self.xml_id.clear();
-        self.xml_attrs.clear();
+        self.xml_id = ::core::default::Default::default();
+        self.xml_attrs = ::core::default::Default::default();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -31509,7 +32070,7 @@ pub struct SamiStyle {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub class_name: ::buffa::alloc::string::String,
+    pub class_name: ::buffa::smol_str::SmolStr,
     /// Field 4: `css_text`
     #[cfg_attr(
         feature = "json",
@@ -31520,7 +32081,7 @@ pub struct SamiStyle {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub css_text: ::buffa::alloc::string::String,
+    pub css_text: ::buffa::smol_str::SmolStr,
     #[cfg_attr(feature = "json", serde(skip))]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -31662,7 +32223,7 @@ impl ::buffa::Message for SamiStyle {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.class_name, buf)?;
+                self.class_name = ::buffa::types::decode_string_to(buf)?;
             }
             4u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -31672,7 +32233,7 @@ impl ::buffa::Message for SamiStyle {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.css_text, buf)?;
+                self.css_text = ::buffa::types::decode_string_to(buf)?;
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -31684,8 +32245,8 @@ impl ::buffa::Message for SamiStyle {
     fn clear(&mut self) {
         self.id = ::buffa::bytes::Bytes::new();
         self.subtitle_track_id = ::buffa::bytes::Bytes::new();
-        self.class_name.clear();
-        self.css_text.clear();
+        self.class_name = ::core::default::Default::default();
+        self.css_text = ::core::default::Default::default();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -32478,7 +33039,7 @@ pub struct Cea608Data {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub styled_text: ::buffa::alloc::string::String,
+    pub styled_text: ::buffa::smol_str::SmolStr,
     #[cfg_attr(feature = "json", serde(skip))]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -32600,7 +33161,7 @@ impl ::buffa::Message for Cea608Data {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.styled_text, buf)?;
+                self.styled_text = ::buffa::types::decode_string_to(buf)?;
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -32612,7 +33173,7 @@ impl ::buffa::Message for Cea608Data {
     fn clear(&mut self) {
         self.channel = 0u32;
         self.pac_byte_pair = 0u32;
-        self.styled_text.clear();
+        self.styled_text = ::core::default::Default::default();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -32706,7 +33267,7 @@ pub struct EbuStlData {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub styled_text: ::buffa::alloc::string::String,
+    pub styled_text: ::buffa::smol_str::SmolStr,
     #[cfg_attr(feature = "json", serde(skip))]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -32868,7 +33429,7 @@ impl ::buffa::Message for EbuStlData {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.styled_text, buf)?;
+                self.styled_text = ::buffa::types::decode_string_to(buf)?;
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -32882,7 +33443,7 @@ impl ::buffa::Message for EbuStlData {
         self.cumulative = false;
         self.vertical_pos = 0i32;
         self.justification = 0u32;
-        self.styled_text.clear();
+        self.styled_text = ::core::default::Default::default();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -33211,7 +33772,7 @@ pub struct Scene {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub description: ::buffa::alloc::string::String,
+    pub description: ::buffa::smol_str::SmolStr,
     /// Field 4: `shot_type`
     #[cfg_attr(
         feature = "json",
@@ -33222,7 +33783,7 @@ pub struct Scene {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub shot_type: ::buffa::alloc::string::String,
+    pub shot_type: ::buffa::smol_str::SmolStr,
     /// Field 5: `camera_motion`
     #[cfg_attr(
         feature = "json",
@@ -33233,7 +33794,7 @@ pub struct Scene {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub camera_motion: ::buffa::alloc::string::String,
+    pub camera_motion: ::buffa::smol_str::SmolStr,
     /// Field 6: `tags`
     #[cfg_attr(
         feature = "json",
@@ -33243,7 +33804,7 @@ pub struct Scene {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub tags: ::buffa::alloc::string::String,
+    pub tags: ::buffa::smol_str::SmolStr,
     /// Field 7: `people_count`
     #[cfg_attr(
         feature = "json",
@@ -33280,7 +33841,7 @@ pub struct Scene {
             deserialize_with = "::buffa::json_helpers::null_as_default"
         )
     )]
-    pub vision_provider: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
+    pub vision_provider: ::buffa::alloc::vec::Vec<::buffa::smol_str::SmolStr>,
     /// Field 10: `smart_folders`
     #[cfg_attr(
         feature = "json",
@@ -33291,7 +33852,7 @@ pub struct Scene {
             deserialize_with = "::buffa::json_helpers::null_as_default"
         )
     )]
-    pub smart_folders: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
+    pub smart_folders: ::buffa::alloc::vec::Vec<::buffa::smol_str::SmolStr>,
     #[cfg_attr(feature = "json", serde(skip))]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -33511,7 +34072,7 @@ impl ::buffa::Message for Scene {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.description, buf)?;
+                self.description = ::buffa::types::decode_string_to(buf)?;
             }
             4u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -33521,7 +34082,7 @@ impl ::buffa::Message for Scene {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.shot_type, buf)?;
+                self.shot_type = ::buffa::types::decode_string_to(buf)?;
             }
             5u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -33531,7 +34092,7 @@ impl ::buffa::Message for Scene {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.camera_motion, buf)?;
+                self.camera_motion = ::buffa::types::decode_string_to(buf)?;
             }
             6u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -33541,7 +34102,7 @@ impl ::buffa::Message for Scene {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.tags, buf)?;
+                self.tags = ::buffa::types::decode_string_to(buf)?;
             }
             7u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Varint {
@@ -33571,7 +34132,7 @@ impl ::buffa::Message for Scene {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                self.vision_provider.push(::buffa::types::decode_string(buf)?);
+                self.vision_provider.push(::buffa::types::decode_string_to(buf)?);
             }
             10u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -33581,7 +34142,7 @@ impl ::buffa::Message for Scene {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                self.smart_folders.push(::buffa::types::decode_string(buf)?);
+                self.smart_folders.push(::buffa::types::decode_string_to(buf)?);
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -33593,10 +34154,10 @@ impl ::buffa::Message for Scene {
     fn clear(&mut self) {
         self.meta = ::buffa::MessageField::none();
         self.keyframes.clear();
-        self.description.clear();
-        self.shot_type.clear();
-        self.camera_motion.clear();
-        self.tags.clear();
+        self.description = ::core::default::Default::default();
+        self.shot_type = ::core::default::Default::default();
+        self.camera_motion = ::core::default::Default::default();
+        self.tags = ::core::default::Default::default();
         self.people_count = 0u32;
         self.tag_ids.clear();
         self.vision_provider.clear();
@@ -33648,7 +34209,7 @@ pub struct SceneVlmResult {
         feature = "json",
         serde(rename = "scene", skip_serializing_if = "::core::option::Option::is_none")
     )]
-    pub scene: ::core::option::Option<::buffa::alloc::string::String>,
+    pub scene: ::core::option::Option<::buffa::smol_str::SmolStr>,
     /// Field 2: `description`
     #[cfg_attr(
         feature = "json",
@@ -33657,7 +34218,7 @@ pub struct SceneVlmResult {
             skip_serializing_if = "::core::option::Option::is_none"
         )
     )]
-    pub description: ::core::option::Option<::buffa::alloc::string::String>,
+    pub description: ::core::option::Option<::buffa::smol_str::SmolStr>,
     /// Field 3: `subjects`
     #[cfg_attr(
         feature = "json",
@@ -33707,7 +34268,7 @@ pub struct SceneVlmResult {
             skip_serializing_if = "::core::option::Option::is_none"
         )
     )]
-    pub shot_type: ::core::option::Option<::buffa::alloc::string::String>,
+    pub shot_type: ::core::option::Option<::buffa::smol_str::SmolStr>,
     /// Field 8: `lighting`
     #[cfg_attr(
         feature = "json",
@@ -33737,7 +34298,7 @@ pub struct SceneVlmResult {
             deserialize_with = "::buffa::json_helpers::null_as_default"
         )
     )]
-    pub tags: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
+    pub tags: ::buffa::alloc::vec::Vec<::buffa::smol_str::SmolStr>,
     /// Field 11: `classifications`
     #[cfg_attr(
         feature = "json",
@@ -33780,10 +34341,7 @@ impl SceneVlmResult {
     #[must_use = "with_* setters return `self` by value; assign or chain the result"]
     #[inline]
     ///Sets [`Self::scene`] to `Some(value)`, consuming and returning `self`.
-    pub fn with_scene(
-        mut self,
-        value: impl Into<::buffa::alloc::string::String>,
-    ) -> Self {
+    pub fn with_scene(mut self, value: impl Into<::buffa::smol_str::SmolStr>) -> Self {
         self.scene = Some(value.into());
         self
     }
@@ -33792,7 +34350,7 @@ impl SceneVlmResult {
     ///Sets [`Self::description`] to `Some(value)`, consuming and returning `self`.
     pub fn with_description(
         mut self,
-        value: impl Into<::buffa::alloc::string::String>,
+        value: impl Into<::buffa::smol_str::SmolStr>,
     ) -> Self {
         self.description = Some(value.into());
         self
@@ -33802,7 +34360,7 @@ impl SceneVlmResult {
     ///Sets [`Self::shot_type`] to `Some(value)`, consuming and returning `self`.
     pub fn with_shot_type(
         mut self,
-        value: impl Into<::buffa::alloc::string::String>,
+        value: impl Into<::buffa::smol_str::SmolStr>,
     ) -> Self {
         self.shot_type = Some(value.into());
         self
@@ -34025,10 +34583,9 @@ impl ::buffa::Message for SceneVlmResult {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(
-                    self.scene.get_or_insert_with(::buffa::alloc::string::String::new),
-                    buf,
-                )?;
+                self.scene = ::core::option::Option::Some(
+                    ::buffa::types::decode_string_to(buf)?,
+                );
             }
             2u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -34038,12 +34595,9 @@ impl ::buffa::Message for SceneVlmResult {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(
-                    self
-                        .description
-                        .get_or_insert_with(::buffa::alloc::string::String::new),
-                    buf,
-                )?;
+                self.description = ::core::option::Option::Some(
+                    ::buffa::types::decode_string_to(buf)?,
+                );
             }
             3u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -34101,12 +34655,9 @@ impl ::buffa::Message for SceneVlmResult {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(
-                    self
-                        .shot_type
-                        .get_or_insert_with(::buffa::alloc::string::String::new),
-                    buf,
-                )?;
+                self.shot_type = ::core::option::Option::Some(
+                    ::buffa::types::decode_string_to(buf)?,
+                );
             }
             8u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -34140,7 +34691,7 @@ impl ::buffa::Message for SceneVlmResult {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                self.tags.push(::buffa::types::decode_string(buf)?);
+                self.tags.push(::buffa::types::decode_string_to(buf)?);
             }
             11u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -35238,7 +35789,7 @@ pub struct AudioMeta {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub name: ::buffa::alloc::string::String,
+    pub name: ::buffa::smol_str::SmolStr,
     /// Field 3: `container`
     #[cfg_attr(
         feature = "json",
@@ -35248,7 +35799,7 @@ pub struct AudioMeta {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub container: ::buffa::alloc::string::String,
+    pub container: ::buffa::smol_str::SmolStr,
     /// Field 4: `size`
     #[cfg_attr(
         feature = "json",
@@ -35432,7 +35983,7 @@ impl ::buffa::Message for AudioMeta {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.name, buf)?;
+                self.name = ::buffa::types::decode_string_to(buf)?;
             }
             3u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -35442,7 +35993,7 @@ impl ::buffa::Message for AudioMeta {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.container, buf)?;
+                self.container = ::buffa::types::decode_string_to(buf)?;
             }
             4u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Varint {
@@ -35487,8 +36038,8 @@ impl ::buffa::Message for AudioMeta {
     }
     fn clear(&mut self) {
         self.id = ::buffa::bytes::Bytes::new();
-        self.name.clear();
-        self.container.clear();
+        self.name = ::core::default::Default::default();
+        self.container = ::core::default::Default::default();
         self.size = 0u64;
         self.time = ::buffa::MessageField::none();
         self.created_at = 0i64;
@@ -35581,7 +36132,7 @@ pub struct AudioStreamMeta {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub language: ::buffa::alloc::string::String,
+    pub language: ::buffa::smol_str::SmolStr,
     /// Field 6: `stream_title`
     #[cfg_attr(
         feature = "json",
@@ -35592,7 +36143,7 @@ pub struct AudioStreamMeta {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub stream_title: ::buffa::alloc::string::String,
+    pub stream_title: ::buffa::smol_str::SmolStr,
     /// Field 7: `album`
     #[cfg_attr(
         feature = "json",
@@ -35602,7 +36153,7 @@ pub struct AudioStreamMeta {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub album: ::buffa::alloc::string::String,
+    pub album: ::buffa::smol_str::SmolStr,
     /// Field 8: `artist`
     #[cfg_attr(
         feature = "json",
@@ -35612,7 +36163,7 @@ pub struct AudioStreamMeta {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub artist: ::buffa::alloc::string::String,
+    pub artist: ::buffa::smol_str::SmolStr,
     /// Field 9: `title`
     #[cfg_attr(
         feature = "json",
@@ -35622,7 +36173,7 @@ pub struct AudioStreamMeta {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub title: ::buffa::alloc::string::String,
+    pub title: ::buffa::smol_str::SmolStr,
     /// Field 10: `genre`
     #[cfg_attr(
         feature = "json",
@@ -35632,7 +36183,7 @@ pub struct AudioStreamMeta {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub genre: ::buffa::alloc::string::String,
+    pub genre: ::buffa::smol_str::SmolStr,
     /// Field 11: `track_number`
     #[cfg_attr(
         feature = "json",
@@ -35654,7 +36205,7 @@ pub struct AudioStreamMeta {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub sample_format: ::buffa::alloc::string::String,
+    pub sample_format: ::buffa::smol_str::SmolStr,
     /// Field 13: `bits_per_sample`
     #[cfg_attr(
         feature = "json",
@@ -35944,7 +36495,7 @@ impl ::buffa::Message for AudioStreamMeta {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.language, buf)?;
+                self.language = ::buffa::types::decode_string_to(buf)?;
             }
             6u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -35954,7 +36505,7 @@ impl ::buffa::Message for AudioStreamMeta {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.stream_title, buf)?;
+                self.stream_title = ::buffa::types::decode_string_to(buf)?;
             }
             7u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -35964,7 +36515,7 @@ impl ::buffa::Message for AudioStreamMeta {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.album, buf)?;
+                self.album = ::buffa::types::decode_string_to(buf)?;
             }
             8u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -35974,7 +36525,7 @@ impl ::buffa::Message for AudioStreamMeta {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.artist, buf)?;
+                self.artist = ::buffa::types::decode_string_to(buf)?;
             }
             9u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -35984,7 +36535,7 @@ impl ::buffa::Message for AudioStreamMeta {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.title, buf)?;
+                self.title = ::buffa::types::decode_string_to(buf)?;
             }
             10u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -35994,7 +36545,7 @@ impl ::buffa::Message for AudioStreamMeta {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.genre, buf)?;
+                self.genre = ::buffa::types::decode_string_to(buf)?;
             }
             11u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Varint {
@@ -36014,7 +36565,7 @@ impl ::buffa::Message for AudioStreamMeta {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.sample_format, buf)?;
+                self.sample_format = ::buffa::types::decode_string_to(buf)?;
             }
             13u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Varint {
@@ -36038,14 +36589,14 @@ impl ::buffa::Message for AudioStreamMeta {
         self.sample_rate = 0u32;
         self.layout = ::buffa::MessageField::none();
         self.bit_rate = 0u64;
-        self.language.clear();
-        self.stream_title.clear();
-        self.album.clear();
-        self.artist.clear();
-        self.title.clear();
-        self.genre.clear();
+        self.language = ::core::default::Default::default();
+        self.stream_title = ::core::default::Default::default();
+        self.album = ::core::default::Default::default();
+        self.artist = ::core::default::Default::default();
+        self.title = ::core::default::Default::default();
+        self.genre = ::core::default::Default::default();
         self.track_number = 0u32;
-        self.sample_format.clear();
+        self.sample_format = ::core::default::Default::default();
         self.bits_per_sample = 0u32;
         self.__buffa_unknown_fields.clear();
     }
@@ -36458,7 +37009,7 @@ pub struct AudioSummary {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub dominant_language: ::buffa::alloc::string::String,
+    pub dominant_language: ::buffa::smol_str::SmolStr,
     /// Field 9: `speech_ratio`
     #[cfg_attr(
         feature = "json",
@@ -36513,7 +37064,7 @@ pub struct AudioSummary {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub transcript_preview: ::buffa::alloc::string::String,
+    pub transcript_preview: ::buffa::smol_str::SmolStr,
     /// Field 14: `clip_count`
     #[cfg_attr(
         feature = "json",
@@ -36919,7 +37470,7 @@ impl ::buffa::Message for AudioSummary {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.dominant_language, buf)?;
+                self.dominant_language = ::buffa::types::decode_string_to(buf)?;
             }
             9u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Fixed32 {
@@ -36969,7 +37520,7 @@ impl ::buffa::Message for AudioSummary {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.transcript_preview, buf)?;
+                self.transcript_preview = ::buffa::types::decode_string_to(buf)?;
             }
             14u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Varint {
@@ -37036,12 +37587,12 @@ impl ::buffa::Message for AudioSummary {
         self.voice = ::buffa::MessageField::none();
         self.has_speech = false;
         self.has_music = false;
-        self.dominant_language.clear();
+        self.dominant_language = ::core::default::Default::default();
         self.speech_ratio = 0f32;
         self.speaker_count = 0u32;
         self.loudness_lufs = 0f32;
         self.rms_db = 0f32;
-        self.transcript_preview.clear();
+        self.transcript_preview = ::core::default::Default::default();
         self.clip_count = 0u32;
         self.fingerprint.clear();
         self.gemini_enhanced = false;
@@ -37254,7 +37805,7 @@ pub struct AudioAnalysis {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub description_en: ::buffa::alloc::string::String,
+    pub description_en: ::buffa::smol_str::SmolStr,
     /// Field 31: `description_zh`
     #[cfg_attr(
         feature = "json",
@@ -37265,7 +37816,7 @@ pub struct AudioAnalysis {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub description_zh: ::buffa::alloc::string::String,
+    pub description_zh: ::buffa::smol_str::SmolStr,
     /// Field 32: `gemini_scene`
     #[cfg_attr(
         feature = "json",
@@ -37276,7 +37827,7 @@ pub struct AudioAnalysis {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub gemini_scene: ::buffa::alloc::string::String,
+    pub gemini_scene: ::buffa::smol_str::SmolStr,
     /// Field 33: `gemini_mood`
     #[cfg_attr(
         feature = "json",
@@ -37287,7 +37838,7 @@ pub struct AudioAnalysis {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub gemini_mood: ::buffa::alloc::string::String,
+    pub gemini_mood: ::buffa::smol_str::SmolStr,
     /// Field 34: `gemini_sound_sources`
     #[cfg_attr(
         feature = "json",
@@ -37309,7 +37860,7 @@ pub struct AudioAnalysis {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub gemini_foreground: ::buffa::alloc::string::String,
+    pub gemini_foreground: ::buffa::smol_str::SmolStr,
     /// Field 36: `gemini_background`
     #[cfg_attr(
         feature = "json",
@@ -37320,7 +37871,7 @@ pub struct AudioAnalysis {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub gemini_background: ::buffa::alloc::string::String,
+    pub gemini_background: ::buffa::smol_str::SmolStr,
     /// Field 37: `gemini_enhanced`
     #[cfg_attr(
         feature = "json",
@@ -37353,7 +37904,7 @@ pub struct AudioAnalysis {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub foreground_layer: ::buffa::alloc::string::String,
+    pub foreground_layer: ::buffa::smol_str::SmolStr,
     /// Field 42: `background_layer`
     #[cfg_attr(
         feature = "json",
@@ -37364,7 +37915,7 @@ pub struct AudioAnalysis {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub background_layer: ::buffa::alloc::string::String,
+    pub background_layer: ::buffa::smol_str::SmolStr,
     /// Field 50: `speech_ratio`
     #[cfg_attr(
         feature = "json",
@@ -37427,7 +37978,7 @@ pub struct AudioAnalysis {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub transcript: ::buffa::alloc::string::String,
+    pub transcript: ::buffa::smol_str::SmolStr,
     /// Field 71: `transcript_segments`
     #[cfg_attr(
         feature = "json",
@@ -37448,7 +37999,7 @@ pub struct AudioAnalysis {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub language: ::buffa::alloc::string::String,
+    pub language: ::buffa::smol_str::SmolStr,
     /// Field 80: `music_genre`
     #[cfg_attr(
         feature = "json",
@@ -37535,7 +38086,7 @@ pub struct AudioAnalysis {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub energy_profile: ::buffa::alloc::string::String,
+    pub energy_profile: ::buffa::smol_str::SmolStr,
     /// Field 95: `spectral_flatness`
     #[cfg_attr(
         feature = "json",
@@ -38455,7 +39006,7 @@ impl ::buffa::Message for AudioAnalysis {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.description_en, buf)?;
+                self.description_en = ::buffa::types::decode_string_to(buf)?;
             }
             31u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -38465,7 +39016,7 @@ impl ::buffa::Message for AudioAnalysis {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.description_zh, buf)?;
+                self.description_zh = ::buffa::types::decode_string_to(buf)?;
             }
             32u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -38475,7 +39026,7 @@ impl ::buffa::Message for AudioAnalysis {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.gemini_scene, buf)?;
+                self.gemini_scene = ::buffa::types::decode_string_to(buf)?;
             }
             33u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -38485,7 +39036,7 @@ impl ::buffa::Message for AudioAnalysis {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.gemini_mood, buf)?;
+                self.gemini_mood = ::buffa::types::decode_string_to(buf)?;
             }
             34u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -38507,7 +39058,7 @@ impl ::buffa::Message for AudioAnalysis {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.gemini_foreground, buf)?;
+                self.gemini_foreground = ::buffa::types::decode_string_to(buf)?;
             }
             36u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -38517,7 +39068,7 @@ impl ::buffa::Message for AudioAnalysis {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.gemini_background, buf)?;
+                self.gemini_background = ::buffa::types::decode_string_to(buf)?;
             }
             37u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Varint {
@@ -38549,7 +39100,7 @@ impl ::buffa::Message for AudioAnalysis {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.foreground_layer, buf)?;
+                self.foreground_layer = ::buffa::types::decode_string_to(buf)?;
             }
             42u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -38559,7 +39110,7 @@ impl ::buffa::Message for AudioAnalysis {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.background_layer, buf)?;
+                self.background_layer = ::buffa::types::decode_string_to(buf)?;
             }
             50u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Fixed32 {
@@ -38629,7 +39180,7 @@ impl ::buffa::Message for AudioAnalysis {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.transcript, buf)?;
+                self.transcript = ::buffa::types::decode_string_to(buf)?;
             }
             71u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -38651,7 +39202,7 @@ impl ::buffa::Message for AudioAnalysis {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.language, buf)?;
+                self.language = ::buffa::types::decode_string_to(buf)?;
             }
             80u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -38741,7 +39292,7 @@ impl ::buffa::Message for AudioAnalysis {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.energy_profile, buf)?;
+                self.energy_profile = ::buffa::types::decode_string_to(buf)?;
             }
             95u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Fixed32 {
@@ -38836,25 +39387,25 @@ impl ::buffa::Message for AudioAnalysis {
         self.zs_mood = ::buffa::MessageField::none();
         self.zs_sound_events.clear();
         self.zs_voice = ::buffa::MessageField::none();
-        self.description_en.clear();
-        self.description_zh.clear();
-        self.gemini_scene.clear();
-        self.gemini_mood.clear();
+        self.description_en = ::core::default::Default::default();
+        self.description_zh = ::core::default::Default::default();
+        self.gemini_scene = ::core::default::Default::default();
+        self.gemini_mood = ::core::default::Default::default();
         self.gemini_sound_sources.clear();
-        self.gemini_foreground.clear();
-        self.gemini_background.clear();
+        self.gemini_foreground = ::core::default::Default::default();
+        self.gemini_background = ::core::default::Default::default();
         self.gemini_enhanced = false;
         self.event_timeline.clear();
-        self.foreground_layer.clear();
-        self.background_layer.clear();
+        self.foreground_layer = ::core::default::Default::default();
+        self.background_layer = ::core::default::Default::default();
         self.speech_ratio = 0f32;
         self.speaker_count = 0u32;
         self.speaker_segments.clear();
         self.voice_gender = ::buffa::MessageField::none();
         self.voice_emotion = ::buffa::MessageField::none();
-        self.transcript.clear();
+        self.transcript = ::core::default::Default::default();
         self.transcript_segments.clear();
-        self.language.clear();
+        self.language = ::core::default::Default::default();
         self.music_genre = ::buffa::MessageField::none();
         self.music_bpm = ::core::option::Option::None;
         self.music_instruments.clear();
@@ -38862,7 +39413,7 @@ impl ::buffa::Message for AudioAnalysis {
         self.rms_db = 0f32;
         self.snr_db = ::core::option::Option::None;
         self.has_sudden_onset = false;
-        self.energy_profile.clear();
+        self.energy_profile = ::core::default::Default::default();
         self.spectral_flatness = 0f32;
         self.fingerprint.clear();
         self.prefilter_class = ::buffa::EnumValue::from(0);
@@ -40285,7 +40836,7 @@ pub struct AudioTrack {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub selection_reason: ::buffa::alloc::string::String,
+    pub selection_reason: ::buffa::smol_str::SmolStr,
     /// Field 8: `audio_id`
     #[cfg_attr(
         feature = "json",
@@ -40572,7 +41123,7 @@ impl ::buffa::Message for AudioTrack {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.selection_reason, buf)?;
+                self.selection_reason = ::buffa::types::decode_string_to(buf)?;
             }
             8u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -40612,7 +41163,7 @@ impl ::buffa::Message for AudioTrack {
         self.role = ::buffa::EnumValue::from(0);
         self.is_primary = false;
         self.auto_selected = false;
-        self.selection_reason.clear();
+        self.selection_reason = ::core::default::Default::default();
         self.audio_id = ::buffa::bytes::Bytes::new();
         self.index_error = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
@@ -40673,7 +41224,7 @@ pub struct AudioCoverArt {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub mime: ::buffa::alloc::string::String,
+    pub mime: ::buffa::smol_str::SmolStr,
     /// Field 3: `dimensions`
     #[cfg_attr(
         feature = "json",
@@ -40835,7 +41386,7 @@ impl ::buffa::Message for AudioCoverArt {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.mime, buf)?;
+                self.mime = ::buffa::types::decode_string_to(buf)?;
             }
             3u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -40870,7 +41421,7 @@ impl ::buffa::Message for AudioCoverArt {
     }
     fn clear(&mut self) {
         self.path = ::buffa::MessageField::none();
-        self.mime.clear();
+        self.mime = ::core::default::Default::default();
         self.dimensions = ::buffa::MessageField::none();
         self.size = 0u32;
         self.__buffa_unknown_fields.clear();
@@ -40949,7 +41500,7 @@ pub struct AudioFileRecord {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub name: ::buffa::alloc::string::String,
+    pub name: ::buffa::smol_str::SmolStr,
     /// Field 4: `format`
     #[cfg_attr(
         feature = "json",
@@ -41044,7 +41595,7 @@ pub struct AudioFileRecord {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub title: ::buffa::alloc::string::String,
+    pub title: ::buffa::smol_str::SmolStr,
     /// Field 13: `artist`
     #[cfg_attr(
         feature = "json",
@@ -41054,7 +41605,7 @@ pub struct AudioFileRecord {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub artist: ::buffa::alloc::string::String,
+    pub artist: ::buffa::smol_str::SmolStr,
     /// Field 14: `album_artist`
     #[cfg_attr(
         feature = "json",
@@ -41065,7 +41616,7 @@ pub struct AudioFileRecord {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub album_artist: ::buffa::alloc::string::String,
+    pub album_artist: ::buffa::smol_str::SmolStr,
     /// Field 15: `album`
     #[cfg_attr(
         feature = "json",
@@ -41075,7 +41626,7 @@ pub struct AudioFileRecord {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub album: ::buffa::alloc::string::String,
+    pub album: ::buffa::smol_str::SmolStr,
     /// Field 16: `genre`
     #[cfg_attr(
         feature = "json",
@@ -41085,7 +41636,7 @@ pub struct AudioFileRecord {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub genre: ::buffa::alloc::string::String,
+    pub genre: ::buffa::smol_str::SmolStr,
     /// Field 17: `composer`
     #[cfg_attr(
         feature = "json",
@@ -41095,7 +41646,7 @@ pub struct AudioFileRecord {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub composer: ::buffa::alloc::string::String,
+    pub composer: ::buffa::smol_str::SmolStr,
     /// Field 18: `performer`
     #[cfg_attr(
         feature = "json",
@@ -41105,7 +41656,7 @@ pub struct AudioFileRecord {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub performer: ::buffa::alloc::string::String,
+    pub performer: ::buffa::smol_str::SmolStr,
     /// Field 19: `date`
     #[cfg_attr(
         feature = "json",
@@ -41115,7 +41666,7 @@ pub struct AudioFileRecord {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub date: ::buffa::alloc::string::String,
+    pub date: ::buffa::smol_str::SmolStr,
     /// Field 20: `track_number`
     #[cfg_attr(
         feature = "json",
@@ -41169,7 +41720,7 @@ pub struct AudioFileRecord {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub comment: ::buffa::alloc::string::String,
+    pub comment: ::buffa::smol_str::SmolStr,
     /// Field 25: `lyrics`
     #[cfg_attr(
         feature = "json",
@@ -41179,7 +41730,7 @@ pub struct AudioFileRecord {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub lyrics: ::buffa::alloc::string::String,
+    pub lyrics: ::buffa::smol_str::SmolStr,
     /// Field 26: `tag_types`
     #[cfg_attr(
         feature = "json",
@@ -41190,7 +41741,7 @@ pub struct AudioFileRecord {
             deserialize_with = "::buffa::json_helpers::null_as_default"
         )
     )]
-    pub tag_types: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
+    pub tag_types: ::buffa::alloc::vec::Vec<::buffa::smol_str::SmolStr>,
     /// Field 27: `cover_art`
     #[cfg_attr(
         feature = "json",
@@ -41638,7 +42189,7 @@ impl ::buffa::Message for AudioFileRecord {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.name, buf)?;
+                self.name = ::buffa::types::decode_string_to(buf)?;
             }
             4u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Varint {
@@ -41736,7 +42287,7 @@ impl ::buffa::Message for AudioFileRecord {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.title, buf)?;
+                self.title = ::buffa::types::decode_string_to(buf)?;
             }
             13u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -41746,7 +42297,7 @@ impl ::buffa::Message for AudioFileRecord {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.artist, buf)?;
+                self.artist = ::buffa::types::decode_string_to(buf)?;
             }
             14u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -41756,7 +42307,7 @@ impl ::buffa::Message for AudioFileRecord {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.album_artist, buf)?;
+                self.album_artist = ::buffa::types::decode_string_to(buf)?;
             }
             15u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -41766,7 +42317,7 @@ impl ::buffa::Message for AudioFileRecord {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.album, buf)?;
+                self.album = ::buffa::types::decode_string_to(buf)?;
             }
             16u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -41776,7 +42327,7 @@ impl ::buffa::Message for AudioFileRecord {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.genre, buf)?;
+                self.genre = ::buffa::types::decode_string_to(buf)?;
             }
             17u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -41786,7 +42337,7 @@ impl ::buffa::Message for AudioFileRecord {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.composer, buf)?;
+                self.composer = ::buffa::types::decode_string_to(buf)?;
             }
             18u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -41796,7 +42347,7 @@ impl ::buffa::Message for AudioFileRecord {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.performer, buf)?;
+                self.performer = ::buffa::types::decode_string_to(buf)?;
             }
             19u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -41806,7 +42357,7 @@ impl ::buffa::Message for AudioFileRecord {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.date, buf)?;
+                self.date = ::buffa::types::decode_string_to(buf)?;
             }
             20u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Varint {
@@ -41856,7 +42407,7 @@ impl ::buffa::Message for AudioFileRecord {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.comment, buf)?;
+                self.comment = ::buffa::types::decode_string_to(buf)?;
             }
             25u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -41866,7 +42417,7 @@ impl ::buffa::Message for AudioFileRecord {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.lyrics, buf)?;
+                self.lyrics = ::buffa::types::decode_string_to(buf)?;
             }
             26u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -41876,7 +42427,7 @@ impl ::buffa::Message for AudioFileRecord {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                self.tag_types.push(::buffa::types::decode_string(buf)?);
+                self.tag_types.push(::buffa::types::decode_string_to(buf)?);
             }
             27u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -41912,7 +42463,7 @@ impl ::buffa::Message for AudioFileRecord {
     fn clear(&mut self) {
         self.id = ::buffa::bytes::Bytes::new();
         self.checksum = ::core::option::Option::None;
-        self.name.clear();
+        self.name = ::core::default::Default::default();
         self.format = ::buffa::EnumValue::from(0);
         self.size = 0u64;
         self.total_pts = 0i64;
@@ -41921,20 +42472,20 @@ impl ::buffa::Message for AudioFileRecord {
         self.time_base = ::buffa::MessageField::none();
         self.container_format = ::buffa::EnumValue::from(0);
         self.stream_count = 0u32;
-        self.title.clear();
-        self.artist.clear();
-        self.album_artist.clear();
-        self.album.clear();
-        self.genre.clear();
-        self.composer.clear();
-        self.performer.clear();
-        self.date.clear();
+        self.title = ::core::default::Default::default();
+        self.artist = ::core::default::Default::default();
+        self.album_artist = ::core::default::Default::default();
+        self.album = ::core::default::Default::default();
+        self.genre = ::core::default::Default::default();
+        self.composer = ::core::default::Default::default();
+        self.performer = ::core::default::Default::default();
+        self.date = ::core::default::Default::default();
         self.track_number = 0u32;
         self.total_tracks = 0u32;
         self.disc_number = 0u32;
         self.total_discs = 0u32;
-        self.comment.clear();
-        self.lyrics.clear();
+        self.comment = ::core::default::Default::default();
+        self.lyrics = ::core::default::Default::default();
         self.tag_types.clear();
         self.cover_art = ::buffa::MessageField::none();
         self.created_at = 0i64;
@@ -42457,7 +43008,7 @@ pub struct SearchFilter {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub key: ::buffa::alloc::string::String,
+    pub key: ::buffa::smol_str::SmolStr,
     /// Field 2: `value`
     #[cfg_attr(
         feature = "json",
@@ -42467,7 +43018,7 @@ pub struct SearchFilter {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub value: ::buffa::alloc::string::String,
+    pub value: ::buffa::smol_str::SmolStr,
     /// Field 3: `weight`
     #[cfg_attr(
         feature = "json",
@@ -42582,7 +43133,7 @@ impl ::buffa::Message for SearchFilter {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.key, buf)?;
+                self.key = ::buffa::types::decode_string_to(buf)?;
             }
             2u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -42592,7 +43143,7 @@ impl ::buffa::Message for SearchFilter {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.value, buf)?;
+                self.value = ::buffa::types::decode_string_to(buf)?;
             }
             3u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Fixed32 {
@@ -42612,8 +43163,8 @@ impl ::buffa::Message for SearchFilter {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.key.clear();
-        self.value.clear();
+        self.key = ::core::default::Default::default();
+        self.value = ::core::default::Default::default();
         self.weight = 0f32;
         self.__buffa_unknown_fields.clear();
     }
@@ -42978,7 +43529,7 @@ pub struct SearchHit {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub video_name: ::buffa::alloc::string::String,
+    pub video_name: ::buffa::smol_str::SmolStr,
     /// Field 4: `location`
     #[cfg_attr(
         feature = "json",
@@ -42997,7 +43548,7 @@ pub struct SearchHit {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub description: ::buffa::alloc::string::String,
+    pub description: ::buffa::smol_str::SmolStr,
     /// Field 6: `score`
     #[cfg_attr(
         feature = "json",
@@ -43254,7 +43805,7 @@ impl ::buffa::Message for SearchHit {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.video_name, buf)?;
+                self.video_name = ::buffa::types::decode_string_to(buf)?;
             }
             4u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -43278,7 +43829,7 @@ impl ::buffa::Message for SearchHit {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.description, buf)?;
+                self.description = ::buffa::types::decode_string_to(buf)?;
             }
             6u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Fixed32 {
@@ -43338,9 +43889,9 @@ impl ::buffa::Message for SearchHit {
     fn clear(&mut self) {
         self.scene_id = ::buffa::bytes::Bytes::new();
         self.video_id = ::buffa::bytes::Bytes::new();
-        self.video_name.clear();
+        self.video_name = ::core::default::Default::default();
         self.location = ::buffa::MessageField::none();
-        self.description.clear();
+        self.description = ::core::default::Default::default();
         self.score = 0f32;
         self.range = ::buffa::MessageField::none();
         self.thumbnail = ::buffa::bytes::Bytes::new();
@@ -43660,7 +44211,7 @@ pub struct ModelInfo {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub name: ::buffa::alloc::string::String,
+    pub name: ::buffa::smol_str::SmolStr,
     /// Field 2: `status`
     #[cfg_attr(
         feature = "json",
@@ -43783,7 +44334,7 @@ impl ::buffa::Message for ModelInfo {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.name, buf)?;
+                self.name = ::buffa::types::decode_string_to(buf)?;
             }
             2u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Varint {
@@ -43813,7 +44364,7 @@ impl ::buffa::Message for ModelInfo {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.name.clear();
+        self.name = ::core::default::Default::default();
         self.status = 0u32;
         self.size_bytes = 0u64;
         self.__buffa_unknown_fields.clear();
@@ -43867,7 +44418,7 @@ pub struct ModelDownloadProgress {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub name: ::buffa::alloc::string::String,
+    pub name: ::buffa::smol_str::SmolStr,
     /// Field 2: `progress`
     #[cfg_attr(
         feature = "json",
@@ -43920,7 +44471,7 @@ pub struct ModelDownloadProgress {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub error_msg: ::buffa::alloc::string::String,
+    pub error_msg: ::buffa::smol_str::SmolStr,
     #[cfg_attr(feature = "json", serde(skip))]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -44054,7 +44605,7 @@ impl ::buffa::Message for ModelDownloadProgress {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.name, buf)?;
+                self.name = ::buffa::types::decode_string_to(buf)?;
             }
             2u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Fixed32 {
@@ -44104,7 +44655,7 @@ impl ::buffa::Message for ModelDownloadProgress {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.error_msg, buf)?;
+                self.error_msg = ::buffa::types::decode_string_to(buf)?;
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -44114,12 +44665,12 @@ impl ::buffa::Message for ModelDownloadProgress {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.name.clear();
+        self.name = ::core::default::Default::default();
         self.progress = 0f32;
         self.downloaded_bytes = 0u64;
         self.total_bytes = 0u64;
         self.status = 0u32;
-        self.error_msg.clear();
+        self.error_msg = ::core::default::Default::default();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -44475,7 +45026,7 @@ pub struct IndexingFile {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub name: ::buffa::alloc::string::String,
+    pub name: ::buffa::smol_str::SmolStr,
     /// Field 3: `completed_phases`
     #[cfg_attr(
         feature = "json",
@@ -44613,7 +45164,7 @@ impl ::buffa::Message for IndexingFile {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.name, buf)?;
+                self.name = ::buffa::types::decode_string_to(buf)?;
             }
             3u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Varint {
@@ -44634,7 +45185,7 @@ impl ::buffa::Message for IndexingFile {
     }
     fn clear(&mut self) {
         self.location = ::buffa::MessageField::none();
-        self.name.clear();
+        self.name = ::core::default::Default::default();
         self.completed_phases = 0u32;
         self.__buffa_unknown_fields.clear();
     }
@@ -47217,7 +47768,7 @@ pub struct GetDaemonInfoResponse {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub version: ::buffa::alloc::string::String,
+    pub version: ::buffa::smol_str::SmolStr,
     /// Field 2: `started_at`
     #[cfg_attr(
         feature = "json",
@@ -47381,7 +47932,7 @@ impl ::buffa::Message for GetDaemonInfoResponse {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.version, buf)?;
+                self.version = ::buffa::types::decode_string_to(buf)?;
             }
             2u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Varint {
@@ -47431,7 +47982,7 @@ impl ::buffa::Message for GetDaemonInfoResponse {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.version.clear();
+        self.version = ::core::default::Default::default();
         self.started_at = 0i64;
         self.total_videos = 0u64;
         self.total_scenes = 0u64;
@@ -48328,7 +48879,7 @@ pub struct SearchRequest {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub query: ::buffa::alloc::string::String,
+    pub query: ::buffa::smol_str::SmolStr,
     /// Field 2: `pagination`
     #[cfg_attr(
         feature = "json",
@@ -48467,7 +49018,7 @@ impl ::buffa::Message for SearchRequest {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.query, buf)?;
+                self.query = ::buffa::types::decode_string_to(buf)?;
             }
             2u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
@@ -48503,7 +49054,7 @@ impl ::buffa::Message for SearchRequest {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.query.clear();
+        self.query = ::core::default::Default::default();
         self.pagination = ::buffa::MessageField::none();
         self.filters.clear();
         self.__buffa_unknown_fields.clear();
@@ -49961,7 +50512,7 @@ pub struct FolderUpdatedEvent {
             skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
         )
     )]
-    pub path: ::buffa::alloc::string::String,
+    pub path: ::buffa::smol_str::SmolStr,
     /// Field 3: `event`
     #[cfg_attr(
         feature = "json",
@@ -50096,7 +50647,7 @@ impl ::buffa::Message for FolderUpdatedEvent {
                         actual: tag.wire_type() as u8,
                     });
                 }
-                ::buffa::types::merge_string(&mut self.path, buf)?;
+                self.path = ::buffa::types::decode_string_to(buf)?;
             }
             3u32 => {
                 if tag.wire_type() != ::buffa::encoding::WireType::Varint {
@@ -50117,7 +50668,7 @@ impl ::buffa::Message for FolderUpdatedEvent {
     }
     fn clear(&mut self) {
         self.folder_location = ::buffa::MessageField::none();
-        self.path.clear();
+        self.path = ::core::default::Default::default();
         self.event = 0u32;
         self.__buffa_unknown_fields.clear();
     }

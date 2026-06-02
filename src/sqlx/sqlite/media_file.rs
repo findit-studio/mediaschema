@@ -1,7 +1,7 @@
 //! SQLite row shape for the `MediaFile` aggregate.
 //!
 //! Identity / FK columns are 16-byte `BLOB`s (`Vec<u8>`). The structured
-//! [`Location`](crate::domain::Location) is flattened to a `location_volume`
+//! [`Location`] is flattened to a `location_volume`
 //! (16-byte `BLOB`) plus a `location_path` (`TEXT`) — the path components
 //! joined by `/`. Path segments never contain `/`, so the join is lossless
 //! and the column stays prefix-queryable. Wall-clock `created_at` is

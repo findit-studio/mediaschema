@@ -1589,7 +1589,7 @@ fn push_saliency(
   let bb = s.bbox_ref();
   out.push(SqliteKeyframeSaliencyRow {
     keyframe_id: keyframe_id.to_vec(),
-    kind: kind as i64,
+    kind,
     ordinal: ordinal as i64,
     bbox_x: bb.x(),
     bbox_y: bb.y(),
@@ -1609,7 +1609,7 @@ fn push_subject(
   let bb = s.bbox_ref();
   out.push(SqliteKeyframeSubjectRow {
     keyframe_id: keyframe_id.to_vec(),
-    scope: scope as i64,
+    scope,
     ordinal: ordinal as i64,
     label: s.detection_ref().label().to_owned(),
     confidence: s.detection_ref().confidence(),
@@ -1630,7 +1630,7 @@ fn push_face(
   let bb = f.bbox_ref();
   out.push(SqliteKeyframeFaceRow {
     keyframe_id: keyframe_id.to_vec(),
-    kind: kind as i64,
+    kind,
     ordinal: ordinal as i64,
     bbox_x: bb.x(),
     bbox_y: bb.y(),
@@ -1655,7 +1655,7 @@ fn push_body_pose(
   let bb = bp.bbox_ref();
   rows.push(SqliteKeyframeBodyPoseRow {
     keyframe_id: keyframe_id.to_vec(),
-    scope: scope as i64,
+    scope,
     ordinal: ordinal as i64,
     bbox_x: bb.x(),
     bbox_y: bb.y(),
@@ -1666,7 +1666,7 @@ fn push_body_pose(
   for (jord, j) in bp.joints_slice().iter().enumerate() {
     joint_rows.push(SqliteKeyframeBodyPoseJointRow {
       keyframe_id: keyframe_id.to_vec(),
-      scope: scope as i64,
+      scope,
       parent_ordinal: ordinal as i64,
       ordinal: jord as i64,
       name: j.name().to_owned(),
@@ -1686,7 +1686,7 @@ fn push_vlm(
   for (ordinal, l) in labels.iter().enumerate() {
     out.push(SqliteKeyframeVlmLabelRow {
       keyframe_id: keyframe_id.to_vec(),
-      kind: kind as i64,
+      kind,
       ordinal: ordinal as i64,
       src: l.src().to_owned(),
       translated: l.translated().to_owned(),

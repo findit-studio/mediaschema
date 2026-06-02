@@ -104,6 +104,14 @@ fn validate_v7(u: Uuid) -> Result<Uuid7, Uuid7Error> {
   Ok(Uuid7(u))
 }
 
+#[cfg(feature = "std")]
+impl Default for Uuid7 {
+  #[inline(always)]
+  fn default() -> Self {
+    Self::new()
+  }
+}
+
 impl Uuid7 {
   /// Generate a new time-ordered UUIDv7 from the current wall-clock time.
   #[cfg(feature = "std")]

@@ -2891,7 +2891,6 @@ mod tests {
   use bytes::Bytes;
   use core::num::NonZeroU32;
   use mediatime::{TimeRange, Timebase, Timestamp};
-  use smol_str::SmolStr;
 
   fn tb() -> Timebase {
     Timebase::new(1, NonZeroU32::new(1000).unwrap())

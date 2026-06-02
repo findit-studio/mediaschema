@@ -114,7 +114,7 @@ impl From<&ErrorInfo> for wire::ErrorInfo {
   fn from(d: &ErrorInfo) -> Self {
     wire::ErrorInfo {
       code: d.code().as_u32(),
-      message: d.message().to_string(),
+      message: d.message().to_string().into(),
       __buffa_unknown_fields: Default::default(),
     }
   }
@@ -206,7 +206,7 @@ mod tests {
   fn error_info_unknown_code_round_trips_verbatim() {
     let w = wire::ErrorInfo {
       code: 99_999,
-      message: String::from("future code"),
+      message: SmolStr::from("future code"),
       __buffa_unknown_fields: Default::default(),
     };
     let d = ErrorInfo::from(&w);

@@ -1,7 +1,7 @@
 //! MySQL row shape for the `Person` aggregate.
 //!
 //! `id` rides as `BINARY(16)`. The optional inner
-//! [`VoiceFingerprint`](crate::domain::vo::VoiceFingerprint) VO is flattened
+//! [`VoiceFingerprint`] VO is flattened
 //! into nine sibling columns; `voiceprint_vector_id IS NOT NULL` is the
 //! presence discriminator. `confidence` rides as a `SMALLINT` discriminator
 //! (`0 = AutoMatched, 1 = UserConfirmed`). Wall-clock timestamps are

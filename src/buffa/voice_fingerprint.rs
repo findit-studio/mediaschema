@@ -53,10 +53,10 @@ use std::{
 impl From<&Provenance> for wire::Provenance {
   fn from(d: &Provenance) -> Self {
     wire::Provenance {
-      model_name: d.model_name().to_owned(),
-      model_version: d.model_version().to_owned(),
-      prompt_version: d.prompt_version().to_owned(),
-      indexer_version: d.indexer_version().to_owned(),
+      model_name: d.model_name().to_owned().into(),
+      model_version: d.model_version().to_owned().into(),
+      prompt_version: d.prompt_version().to_owned().into(),
+      indexer_version: d.indexer_version().to_owned().into(),
       __buffa_unknown_fields: Default::default(),
     }
   }

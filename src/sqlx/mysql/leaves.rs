@@ -56,7 +56,7 @@ impl From<&Speaker<Uuid7>> for MySqlSpeakerRow {
       audio_track_id: s.audio_track_id_ref().as_bytes().to_vec(),
       cluster_id: s.cluster_id(),
       name: s.name().to_owned(),
-      speech_duration_ms: s.speech_duration_ref().and_then(|_| None::<i64>),
+      speech_duration_ms: None,
       voiceprint_vector_id: vfp.map(|v| v.vector_id_ref().as_bytes().to_vec()),
       voiceprint_dimensions: vfp.map(|v| v.dimensions()),
       voiceprint_extracted_at_ms: vfp.map(|v| timestamp_to_millis(v.extracted_at())),

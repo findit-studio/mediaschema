@@ -16,10 +16,10 @@
 //!
 //! ## Conventions
 //!
-//! Per [`rust-type-conventions`]: getters are named `_ref`-suffixed
+//! Per `rust-type-conventions`: getters are named `_ref`-suffixed
 //! (`id_ref`, `data_ref`), `new` is `const`, and there is no
 //! `as_ref()` impl — this is a value-type wrapper, not a smart
-//! pointer. There are no intrinsic invariants ([`validation-responsibility-boundary`]:
+//! pointer. There are no intrinsic invariants (`validation-responsibility-boundary`:
 //! sentinel-id rejection is an aggregate / application concern, not a
 //! transport one), so the constructor is infallible.
 //!

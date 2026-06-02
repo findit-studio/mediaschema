@@ -79,8 +79,8 @@ use std::{
 impl From<&LocalizedText> for wire::LocalizedText {
   fn from(d: &LocalizedText) -> Self {
     wire::LocalizedText {
-      src: d.src().to_owned(),
-      translated: d.translated().to_owned(),
+      src: d.src().to_owned().into(),
+      translated: d.translated().to_owned().into(),
       __buffa_unknown_fields: Default::default(),
     }
   }
@@ -116,7 +116,7 @@ fn localized_text_from_wire(w: &::buffa::MessageField<wire::LocalizedText>) -> L
 impl From<&Language> for wire::Language {
   fn from(d: &Language) -> Self {
     wire::Language {
-      bcp47: d.to_bcp47(),
+      bcp47: d.to_bcp47().into(),
       __buffa_unknown_fields: Default::default(),
     }
   }
@@ -161,8 +161,8 @@ fn language_from_wire(
 impl From<&Word> for wire::Word {
   fn from(d: &Word) -> Self {
     wire::Word {
-      text: d.text().to_owned(),
-      span: ::buffa::MessageField::some(d.span_ref().clone()),
+      text: d.text().to_owned().into(),
+      span: ::buffa::MessageField::some(*d.span_ref()),
       score: d.score(),
       language: language_to_wire(d.language()),
       __buffa_unknown_fields: Default::default(),
@@ -203,7 +203,7 @@ impl From<&AudioSegment<Uuid7>> for wire::AudioSegment {
       id: Bytes::copy_from_slice(d.id_ref().as_bytes()),
       audio_track_id: Bytes::copy_from_slice(d.audio_track_id_ref().as_bytes()),
       index: d.index(),
-      span: ::buffa::MessageField::some(d.span_ref().clone()),
+      span: ::buffa::MessageField::some(*d.span_ref()),
       speaker_id: d
         .speaker_id_ref()
         .map(|id| Bytes::copy_from_slice(id.as_bytes())),
@@ -366,7 +366,7 @@ mod tests {
   #[test]
   fn language_empty_bcp47_decodes_as_undetermined() {
     let w = wire::Language {
-      bcp47: String::new(),
+      bcp47: SmolStr::default(),
       __buffa_unknown_fields: Default::default(),
     };
     let d = Language::try_from(&w).unwrap();
@@ -385,7 +385,7 @@ mod tests {
   #[test]
   fn language_malformed_bcp47_errors() {
     let w = wire::Language {
-      bcp47: String::from("xx-yy-zz-bogus"),
+      bcp47: SmolStr::from("xx-yy-zz-bogus"),
       __buffa_unknown_fields: Default::default(),
     };
     let err = Language::try_from(&w).unwrap_err();

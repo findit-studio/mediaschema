@@ -7,14 +7,14 @@
 //!
 //! ## Layout
 //!
-//! - [`error`] — backend-specific [`SqlxError`] (`Debug + Clone + PartialEq +
+//! - [`error`](crate::sqlx::error) — backend-specific [`SqlxError`](crate::sqlx::error::SqlxError) (`Debug + Clone + PartialEq +
 //!   Eq + IsVariant + non_exhaustive`, implements [`core::error::Error`]).
-//! - [`dto`] — shared row-mapping helpers for the 16-byte UUID /
+//! - [`dto`](crate::sqlx::dto) — shared row-mapping helpers for the 16-byte UUID /
 //!   32-byte checksum / ms-timestamp conversions. Nested value-objects
 //!   are no longer stored as JSON DTOs — each scalar VO is flattened
 //!   into its own real columns and the one many-to-many collection
 //!   rides in a join table.
-//! - [`postgres`] / [`mysql`] / [`sqlite`] — per-backend modules. Each
+//! - [`postgres`](crate::sqlx::postgres) / [`mysql`](crate::sqlx::mysql) / [`sqlite`](crate::sqlx::sqlite) — per-backend modules. Each
 //!   ships row structs with `sqlx::FromRow` derives, `TryFrom` impls
 //!   going to/from the domain aggregates, the canonical `schema.sql`
 //!   DDL, and a minimal `migrations/0001_init.sql` mirror.
@@ -27,7 +27,7 @@
 //!   bytes_to_uuid7}` for symmetric conversion.
 //! - **File checksum** (`FileChecksum`): `BYTEA` (Postgres),
 //!   `BINARY(32)` (MySQL), `BLOB(32)` (SQLite). Round-trip via
-//!   [`dto::bytes_to_checksum`].
+//!   [`dto::bytes_to_checksum`](crate::sqlx::dto::bytes_to_checksum).
 //! - **Nested value-objects** (capture `Device`, capture `GeoLocation`,
 //!   `ErrorInfo`): flattened into real, individually-indexable columns
 //!   (e.g. `Device` → `device_make` / `device_model`, `ErrorInfo` →

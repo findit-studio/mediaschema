@@ -1,7 +1,7 @@
 //! `Media` ↔ bson `Document` mapping.
 //!
 //! See module-root docs for the high-level mapping rules. This file
-//! covers [`Media`], its nested [`MediaDevice`] / [`MediaGeoLocation`]
+//! covers [`Media`], its nested [`Device`] / [`GeoLocation`]
 //! VOs, and the [`MediaKind`] / [`MediaErrorFlags`] discriminants.
 
 use ::bson::{Bson, Document};

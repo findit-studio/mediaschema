@@ -82,7 +82,7 @@ impl From<&Media<Uuid7>> for SqliteMediaRow {
       // now and document the gap. Round-trip tests build Media without
       // a duration; consumers needing duration persistence can hold the
       // raw nanoseconds in a sidecar column.
-      duration_raw: m.duration_ref().and_then(|_| None::<i64>),
+      duration_raw: None,
       kind: media_kind_to_i64(m.kind()),
       video_id: m.video_id_ref().map(|id| id.as_bytes().to_vec()),
       audio_id: m.audio_id_ref().map(|id| id.as_bytes().to_vec()),

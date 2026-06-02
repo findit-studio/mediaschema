@@ -26,10 +26,10 @@
 //!   components }`) where this copy lives — volume-aware, not a path
 //!   string.
 //! - `watched_location_id` is **non-optional**: every copy enters the
-//!   index via a [`WatchedLocation`](crate::domain::WatchedLocation) scan,
+//!   index via a [`WatchedLocation`] scan,
 //!   and WL deletion cascades to its files, so the FK is never dangling.
 //! - **Volume consistency**: a `MediaFile`'s `location` must sit on the
-//!   *same volume* as the [`WatchedLocation`](crate::domain::WatchedLocation)
+//!   *same volume* as the [`WatchedLocation`]
 //!   that discovered it (the watch is volume-scoped). `try_new` takes the
 //!   `WatchedLocation` itself (not a bare id) so it can verify
 //!   `WatchedLocation::volume_ref() == location.volume_ref()`. The watch volume is

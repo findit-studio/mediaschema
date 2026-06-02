@@ -73,7 +73,7 @@ pub mod location_target {
     #[derive(Clone, PartialEq, Debug)]
     #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
     pub enum Kind {
-        Local(::buffa::alloc::string::String),
+        Local(::buffa::smol_str::SmolStr),
     }
     impl ::buffa::Oneof for Kind {}
     #[cfg(feature = "json")]

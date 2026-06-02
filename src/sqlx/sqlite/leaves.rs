@@ -30,7 +30,7 @@ use crate::{
 /// SQLite row shape for [`crate::domain::Speaker`].
 ///
 /// The optional inner
-/// [`VoiceFingerprint`](crate::domain::vo::VoiceFingerprint) VO and the
+/// [`VoiceFingerprint`] VO and the
 /// `Person` FK are flattened into sibling columns;
 /// `voiceprint_vector_id IS NOT NULL` discriminates the VO's presence.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
@@ -67,7 +67,7 @@ impl From<&Speaker<Uuid7>> for SqliteSpeakerRow {
       // speech_duration as a separate ms-since-track-start integer column.
       // For now we drop the duration on encode (it's None-by-default
       // anyway). Round-trip tests build Speakers without it.
-      speech_duration_ms: s.speech_duration_ref().and_then(|_t| None::<i64>),
+      speech_duration_ms: None,
       voiceprint_vector_id: vfp.map(|v| v.vector_id_ref().as_bytes().to_vec()),
       voiceprint_dimensions: vfp.map(|v| i64::from(v.dimensions())),
       voiceprint_extracted_at_ms: vfp.map(|v| timestamp_to_millis(v.extracted_at())),

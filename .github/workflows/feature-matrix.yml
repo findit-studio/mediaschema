@@ -1,6 +1,36 @@
 name: feature-matrix
 on: [push, pull_request]
 jobs:
+  # Lint gate: clippy with all features on across the whole tree (lib +
+  # bin + integration tests). `--no-deps` skips upstream-crate lints we
+  # can't fix; `-D warnings` makes any clippy warning a CI failure so the
+  # tree stays lint-clean. The crate-level
+  # `#![allow(clippy::should_implement_trait)]` in `src/lib.rs` covers
+  # the deliberate inherent `from_str` methods on enum slug types.
+  clippy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - name: cargo clippy --all-features (-D warnings)
+        run: cargo clippy --all-features --tests --no-deps -- -D warnings
+
+  # Docs gate: full `--all-features` rustdoc build with intra-doc-link
+  # resolution enforced (`-D warnings` upgrades unresolved-link /
+  # broken-link / private-item-link lints to errors). Keeps the
+  # docs.rs surface — which is built with all features — usable.
+  doc:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - name: cargo doc --all-features (-D warnings)
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: cargo doc --all-features --no-deps
+
   # `cargo hack` matrix that verifies the crate builds and tests pass across
   # the feature combinations consumers actually use. The existing `codegen`
   # job covers `--no-default-features` / default / `--all-features`; this

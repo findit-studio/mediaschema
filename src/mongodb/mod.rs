@@ -1,5 +1,5 @@
 //! Optional MongoDB backend — `bson::Document` ↔ domain aggregates +
-//! per-collection [`::mongodb::IndexModel`] constructors.
+//! per-collection `::mongodb::IndexModel` constructors.
 //!
 //! # Mapping rules
 //!
@@ -55,7 +55,7 @@
 //!
 //! ## Collections + indexes
 //!
-//! [`indexes::all_indexes`] returns the full collection-name + `IndexModel`
+//! [`indexes::all_indexes`](crate::mongodb::indexes::all_indexes) returns the full collection-name + `IndexModel`
 //! list so a deployer can iterate and `create_indexes` on a live cluster.
 //!
 //! See `schema.md` (sibling file) for the per-collection bson shape and

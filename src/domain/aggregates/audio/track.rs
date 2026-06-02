@@ -765,9 +765,7 @@ impl<Id> AudioTrack<Id> {
   /// On rejection `self` is returned unchanged inside the `Err`.
   #[inline]
   pub fn try_with_index_status(mut self, v: AudioIndexStatus) -> Result<Self, AudioTrackError> {
-    if let Err(e) = validate_status_topology(v) {
-      return Err(e);
-    }
+    validate_status_topology(v)?;
     if status_asserts_descriptor(v) && (self.sample_rate == 0 || self.channels == 0) {
       return Err(AudioTrackError::ExtractedWithoutDescriptor);
     }

@@ -1,7 +1,7 @@
 //! PostgreSQL row shape for the `MediaFile` aggregate.
 //!
 //! Identity / FK columns are native `uuid`. The structured
-//! [`Location`](crate::domain::Location) is flattened to a `location_volume`
+//! [`Location`] is flattened to a `location_volume`
 //! (`uuid`) plus a `location_path` (`text`) — the path components joined by
 //! `/`. Path segments never contain `/`, so the join is lossless and the
 //! column stays prefix-queryable. Wall-clock `created_at` is `BIGINT`

@@ -4,6 +4,7 @@
 //! .proto exists only so protoc can resolve the import and so the wire
 //! contract is documented.
 
+use buffa_build::StringRepr;
 use std::path::PathBuf;
 
 fn main() {
@@ -42,6 +43,14 @@ fn gen() {
         // json/arbitrary generically, so no extra dependency or feature
         // wiring is required.
         .use_bytes_type()
+        // proto `string` -> `smol_str::SmolStr` (24-byte struct, inlines up
+        // to 23 bytes, O(1) clone of long strings via `Arc<str>`). The wire
+        // model is read-only, so SmolStr's immutability is a non-issue; the
+        // cheap clone matters because messages copy strings through view +
+        // owned conversions. buffa 0.7's `string_type` knob; consuming crate
+        // must enable `buffa/smol_str` (forwarded via the `buffa` feature in
+        // mediaschema/Cargo.toml) so buffa re-exports smol_str for codegen.
+        .string_type(StringRepr::SmolStr)
         .compile()
         .expect("buffa codegen failed");
 

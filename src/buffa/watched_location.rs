@@ -51,6 +51,7 @@
 //!   reconcile-state fields).
 
 use jiff::Timestamp as JiffTimestamp;
+use smol_str::SmolStr;
 
 use crate::{
   buffa::error::BuffaError,
@@ -128,7 +129,7 @@ impl From<&WatchedLocation<Uuid7>> for wire::WatchedLocation {
       location: ::buffa::MessageField::some(location),
       // NOTE(buffa-bridge): wire-only fields default to "absent"
       // (proto3 zero) — the locked domain doesn't model them.
-      name: String::new(),
+      name: SmolStr::default(),
       status: 0,
       created_at,
       deleted_at: None,
