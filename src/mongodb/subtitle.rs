@@ -200,6 +200,7 @@ impl From<&SubtitleTrack<Uuid7>> for Document {
       "index_errors",
       error_info_vec_to_bson(t.index_errors_slice()),
     );
+    d.insert("metadata", metadata_to_bson(t.metadata_ref()));
     d
   }
 }
@@ -302,6 +303,9 @@ impl TryFrom<Document> for SubtitleTrack<Uuid7> {
     }
     if let Some(b) = take_opt(&mut d, "index_errors") {
       t.set_index_errors(error_info_vec_from_bson(b, "index_errors")?);
+    }
+    if let Some(b) = take_opt(&mut d, "metadata") {
+      t.set_metadata(metadata_from_bson(b, "metadata")?);
     }
     Ok(t)
   }

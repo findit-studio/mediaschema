@@ -37,13 +37,15 @@ pub use primitives::{ErrorCode, FileChecksum, Rgba, Uuid7};
 pub use aggregates::{
   Media, MediaFile, Person, PersonConfidence, SceneAnnotation, Speaker, UserTag, WatchedLocation,
 };
-// Medium-specific aggregate re-exports: only re-export when the
-// corresponding medium feature is on (in addition to the heap tier).
-#[cfg(all(any(feature = "std", feature = "alloc"), feature = "audio"))]
+// Medium-specific aggregate re-exports. Gated on `std AND <medium>`
+// because every `*Track` now reaches `IndexMap<SmolStr, SmolStr>` for
+// its `metadata` bag and IndexMap's default hasher (`RandomState`)
+// is std-only. Same constraint as the `Chapter` aggregate.
+#[cfg(all(feature = "std", feature = "audio"))]
 pub use aggregates::{Audio, AudioSegment, AudioTrack, Word};
-#[cfg(all(any(feature = "std", feature = "alloc"), feature = "video"))]
+#[cfg(all(feature = "std", feature = "video"))]
 pub use aggregates::{Keyframe, Scene, Video, VideoTrack};
-#[cfg(all(any(feature = "std", feature = "alloc"), feature = "subtitle"))]
+#[cfg(all(feature = "std", feature = "subtitle"))]
 pub use aggregates::{Subtitle, SubtitleCue, SubtitleTrack};
 #[cfg(any(feature = "std", feature = "alloc"))]
 pub use primitives::{ErrorInfo, Location};

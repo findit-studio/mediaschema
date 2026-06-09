@@ -1,4 +1,4 @@
-# `VideoTrack<Id>` — a video stream  *(rev 8 — LOCKED, user-approved; `provenance` hoisted from `Scene`/`Keyframe`)*
+# `VideoTrack<Id>` — a video stream  *(rev 9 — LOCKED, user-approved; +`avg_frame_rate` + per-track `metadata` AVDictionary bag)*
 
 ## Domain meaning
 
@@ -36,7 +36,8 @@ WebCodecs only. Conversions deferred.
 | `color` | `mediaframe::ColorInfo` | **VF** | primaries/transfer/matrix/range/chroma |
 | `hdr_static` | `Option<mediaframe::HdrStaticMetadata>` | **VF** | MaxCLL/MaxFALL + mastering display (real ffmpeg side-data) |
 | `rotation` | `mediaframe::Rotation` | **VF** | display rotation |
-| `frame_rate` | `mediaframe::FrameRate` (num/den + `is_vfr`) | **VF\*** | exact ratio (replaces `f64`); VFR-aware. **NOT `mediatime::Timebase`** — see mediatime note |
+| `frame_rate` | `mediaframe::FrameRate` (num/den + `is_vfr`) | **VF\*** | `AVStream.r_frame_rate` — base / real frame rate (timebase reciprocal). exact ratio (replaces `f64`); VFR-aware. **NOT `mediatime::Timebase`** — see mediatime note |
+| `avg_frame_rate` | `mediaframe::FrameRate` | **VF\*** | `AVStream.avg_frame_rate` — empirical average (declared / nb_frames ÷ duration). Equals `frame_rate` for CFR; diverges for VFR |
 | `field_order` | `mediaframe::FieldOrder` (enum) | **VF\*** | progressive / tff / bff (interlace) |
 | `stereo_mode` | `Option<mediaframe::StereoMode>` | **VF\*** | 3D/stereoscopic packing |
 | `dovi` | `Option<mediaframe::DolbyVisionConfig>` | **VF\*** | Dolby Vision (profile/level/rpu/el/bl-compat); **≠ HDR10 static** |
@@ -44,6 +45,7 @@ WebCodecs only. Conversions deferred.
 | `disposition` | `TrackDisposition` (bitflags!) | MS | shared flag set ([bitflags.md](bitflags.md)) |
 | `is_primary` · `auto_selected` | `bool` | MS | selection signals |
 | `scenes` | `Vec<Id>` | MS | refs → [scene.md](scene.md) (per-stream detection) |
+| `metadata` | `IndexMap<SmolStr, SmolStr>` | MS | container `AVDictionary` entries from this stream; insertion-ordered. No keys are hoisted on VideoTrack — every entry rides here. SQL projection: `video_track_metadata` join table with `(video_track_id, ordinal, key, value)` preserving `IndexMap` order via `ordinal`. |
 | `index_status` | `VideoIndexStatus` (bitflags!) | MS | per-kind pipeline stages (bit = stage succeeded) |
 | `index_errors` | `Vec<ErrorInfo>` | MS | per-track error truth (stage-coded `ErrorInfo.code`); → `Media.error_flags` rollup. **Error-state is derived from this + `index_status`** — no separate `error_status` field |
 | `provenance` | `Provenance` (shared VO) | MS | **analysis-run reproducibility (per track, not per `Scene`/`Keyframe`).** The indexer pins one model bundle per track-per-run; every `Scene` and `Keyframe` inside this track inherits its `{model_name, model_version, prompt_version, indexer_version}` from here. Matches `AudioTrack`/`SubtitleTrack`. Shared cross-cutting VO ([README.md](README.md)). |

@@ -14,12 +14,14 @@
 //! an `ordinal` order column. The `Vec<Id>` reverse-FK fields
 //! (`Subtitle::tracks`, `SubtitleTrack::cues`) are NOT stored.
 
+use indexmap::IndexMap;
 use mediaframe::{
   codec::SubtitleCodec,
   disposition::TrackDisposition,
   lang::Language,
   subtitle::{Format, TrackOrigin},
 };
+use smol_str::SmolStr;
 
 use crate::{
   domain::{
@@ -164,10 +166,22 @@ pub struct MySqlSubtitleTrackIndexErrorRow {
   pub message: String,
 }
 
+/// MySQL row for `subtitle_track_metadata`. Position in the per-
+/// `subtitle_track_id` `ordinal` sequence IS the [`IndexMap`] insertion
+/// order. `subtitle_track_from_rows` sorts by `ordinal` on decode.
+#[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
+pub struct MySqlSubtitleTrackMetadataRow {
+  pub subtitle_track_id: std::vec::Vec<u8>,
+  pub ordinal: i32,
+  pub key: String,
+  pub value: String,
+}
+
 impl From<&SubtitleTrack<Uuid7>>
   for (
     MySqlSubtitleTrackRow,
     std::vec::Vec<MySqlSubtitleTrackIndexErrorRow>,
+    std::vec::Vec<MySqlSubtitleTrackMetadataRow>,
   )
 {
   fn from(t: &SubtitleTrack<Uuid7>) -> Self {
@@ -225,7 +239,18 @@ impl From<&SubtitleTrack<Uuid7>>
         message: e.message().to_owned(),
       })
       .collect();
-    (row, errors)
+    let metadata = t
+      .metadata_ref()
+      .iter()
+      .enumerate()
+      .map(|(i, (k, v))| MySqlSubtitleTrackMetadataRow {
+        subtitle_track_id: id.clone(),
+        ordinal: i32::try_from(i).unwrap_or(i32::MAX),
+        key: k.as_str().to_owned(),
+        value: v.as_str().to_owned(),
+      })
+      .collect();
+    (row, errors, metadata)
   }
 }
 
@@ -233,16 +258,30 @@ impl
   TryFrom<(
     MySqlSubtitleTrackRow,
     std::vec::Vec<MySqlSubtitleTrackIndexErrorRow>,
+    std::vec::Vec<MySqlSubtitleTrackMetadataRow>,
   )> for SubtitleTrack<Uuid7>
 {
   type Error = SqlxError;
 
   fn try_from(
-    (r, mut errors): (
+    (r, errors, metadata): (
       MySqlSubtitleTrackRow,
       std::vec::Vec<MySqlSubtitleTrackIndexErrorRow>,
+      std::vec::Vec<MySqlSubtitleTrackMetadataRow>,
     ),
   ) -> Result<Self, Self::Error> {
+    subtitle_track_from_rows(r, errors, metadata)
+  }
+}
+
+/// Reconstruct a [`SubtitleTrack`] from its row, `index_errors` rows,
+/// and `metadata` rows.
+pub fn subtitle_track_from_rows(
+  r: MySqlSubtitleTrackRow,
+  mut errors: std::vec::Vec<MySqlSubtitleTrackIndexErrorRow>,
+  mut metadata: std::vec::Vec<MySqlSubtitleTrackMetadataRow>,
+) -> Result<SubtitleTrack<Uuid7>, SqlxError> {
+  {
     let id = bytes_to_uuid7(&r.id)?;
     let subtitle_id = bytes_to_uuid7(&r.subtitle_id)?;
     let mut t = SubtitleTrack::try_new(id, subtitle_id)
@@ -327,6 +366,19 @@ impl
       infos.push(ErrorInfo::new(ErrorCode::from_u32(code), e.message));
     }
     t = t.with_index_errors(infos);
+
+    metadata.sort_by_key(|m| m.ordinal);
+    let mut bag = IndexMap::with_capacity(metadata.len());
+    for entry in metadata {
+      if entry.subtitle_track_id != r.id {
+        return Err(SqlxError::DomainConstructorRejected(
+          "subtitle_track_metadata.subtitle_track_id does not match parent subtitle_track.id"
+            .to_owned(),
+        ));
+      }
+      bag.insert(SmolStr::from(entry.key), SmolStr::from(entry.value));
+    }
+    t = t.with_metadata(bag);
 
     Ok(t)
   }
@@ -1554,6 +1606,15 @@ pub struct MySqlSubtitleTrackIndexErrorRowRef<'r> {
   pub message: &'r str,
 }
 
+/// Borrowed view of [`MySqlSubtitleTrackMetadataRow`].
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct MySqlSubtitleTrackMetadataRowRef<'r> {
+  pub subtitle_track_id: &'r [u8],
+  pub ordinal: i32,
+  pub key: &'r str,
+  pub value: &'r str,
+}
+
 // --- Polymorphic subtitle_cue tables ----------------------------------------
 //
 // MySQL stores ids as `BINARY(16)` (Vec<u8> owned, &'r [u8] borrowed); only
@@ -2704,6 +2765,18 @@ impl MySqlSubtitleTrackIndexErrorRow {
   }
 }
 
+impl MySqlSubtitleTrackMetadataRow {
+  /// Cheap borrow — produces a [`MySqlSubtitleTrackMetadataRowRef`] referencing `self`.
+  pub fn as_ref(&self) -> MySqlSubtitleTrackMetadataRowRef<'_> {
+    MySqlSubtitleTrackMetadataRowRef {
+      subtitle_track_id: &self.subtitle_track_id,
+      ordinal: self.ordinal,
+      key: &self.key,
+      value: &self.value,
+    }
+  }
+}
+
 impl<'r> TryFrom<MySqlSubtitleRowRef<'r>> for Subtitle<Uuid7> {
   type Error = SqlxError;
 
@@ -2725,14 +2798,16 @@ impl<'r>
   TryFrom<(
     MySqlSubtitleTrackRowRef<'r>,
     std::vec::Vec<MySqlSubtitleTrackIndexErrorRowRef<'r>>,
+    std::vec::Vec<MySqlSubtitleTrackMetadataRowRef<'r>>,
   )> for SubtitleTrack<Uuid7>
 {
   type Error = SqlxError;
 
   fn try_from(
-    (r, mut errors): (
+    (r, mut errors, mut metadata): (
       MySqlSubtitleTrackRowRef<'r>,
       std::vec::Vec<MySqlSubtitleTrackIndexErrorRowRef<'r>>,
+      std::vec::Vec<MySqlSubtitleTrackMetadataRowRef<'r>>,
     ),
   ) -> Result<Self, Self::Error> {
     let id = bytes_to_uuid7(r.id)?;
@@ -2819,6 +2894,19 @@ impl<'r>
       infos.push(ErrorInfo::new(ErrorCode::from_u32(code), e.message));
     }
     t = t.with_index_errors(infos);
+
+    metadata.sort_by_key(|m| m.ordinal);
+    let mut bag = IndexMap::with_capacity(metadata.len());
+    for entry in metadata {
+      if entry.subtitle_track_id != r.id {
+        return Err(SqlxError::DomainConstructorRejected(
+          "subtitle_track_metadata.subtitle_track_id does not match parent subtitle_track.id"
+            .to_owned(),
+        ));
+      }
+      bag.insert(SmolStr::from(entry.key), SmolStr::from(entry.value));
+    }
+    t = t.with_metadata(bag);
 
     Ok(t)
   }
@@ -2914,9 +3002,30 @@ mod tests {
     let tuple: (
       MySqlSubtitleTrackRow,
       std::vec::Vec<MySqlSubtitleTrackIndexErrorRow>,
+      std::vec::Vec<MySqlSubtitleTrackMetadataRow>,
     ) = (&t).into();
     let t2: SubtitleTrack<Uuid7> = tuple.try_into().unwrap();
     assert_eq!(t, t2);
+  }
+
+  #[test]
+  fn subtitle_track_metadata_roundtrip_preserves_insertion_order() {
+    let mut meta = IndexMap::new();
+    meta.insert(SmolStr::new("language_alt"), SmolStr::new("en-US"));
+    meta.insert(SmolStr::new("encoding_origin"), SmolStr::new("scte35"));
+    let t = SubtitleTrack::try_new(Uuid7::new(), Uuid7::new())
+      .unwrap()
+      .with_metadata(meta);
+    let (row, errs, mut metadata): (
+      MySqlSubtitleTrackRow,
+      std::vec::Vec<MySqlSubtitleTrackIndexErrorRow>,
+      std::vec::Vec<MySqlSubtitleTrackMetadataRow>,
+    ) = (&t).into();
+    assert_eq!(metadata.len(), 2);
+    metadata.reverse();
+    let t2: SubtitleTrack<Uuid7> = (row, errs, metadata).try_into().unwrap();
+    let keys: std::vec::Vec<&str> = t2.metadata_ref().keys().map(SmolStr::as_str).collect();
+    assert_eq!(keys, std::vec!["language_alt", "encoding_origin"]);
   }
 
   #[test]
@@ -2959,6 +3068,7 @@ mod tests {
     let tuple: (
       MySqlSubtitleTrackRow,
       std::vec::Vec<MySqlSubtitleTrackIndexErrorRow>,
+      std::vec::Vec<MySqlSubtitleTrackMetadataRow>,
     ) = (&t).into();
     let t2: SubtitleTrack<Uuid7> = tuple.try_into().unwrap();
     assert_eq!(t, t2);
@@ -2972,12 +3082,13 @@ mod tests {
         ErrorInfo::new(ErrorCode::ProbeCorrupt, "a"),
         ErrorInfo::new(ErrorCode::PathNotFound, "b"),
       ]);
-    let (row, mut errs): (
+    let (row, mut errs, meta): (
       MySqlSubtitleTrackRow,
       std::vec::Vec<MySqlSubtitleTrackIndexErrorRow>,
+      std::vec::Vec<MySqlSubtitleTrackMetadataRow>,
     ) = (&t).into();
     errs.reverse();
-    let t2: SubtitleTrack<Uuid7> = (row, errs).try_into().unwrap();
+    let t2: SubtitleTrack<Uuid7> = (row, errs, meta).try_into().unwrap();
     assert_eq!(t2.index_errors_slice()[0].message(), "a");
     assert_eq!(t2.index_errors_slice()[1].message(), "b");
   }
@@ -3161,15 +3272,20 @@ mod tests {
         SubtitleIndexStatus::TRACKS_DISCOVERED | SubtitleIndexStatus::CUES_EXTRACTED,
       )
       .with_index_errors(std::vec![ErrorInfo::new(ErrorCode::ProbeCorrupt, "bad")]);
-    let (row, errs): (
+    let (row, errs, meta): (
       MySqlSubtitleTrackRow,
       std::vec::Vec<MySqlSubtitleTrackIndexErrorRow>,
+      std::vec::Vec<MySqlSubtitleTrackMetadataRow>,
     ) = (&t).into();
     let err_refs: std::vec::Vec<MySqlSubtitleTrackIndexErrorRowRef<'_>> = errs
       .iter()
       .map(MySqlSubtitleTrackIndexErrorRow::as_ref)
       .collect();
-    let t2: SubtitleTrack<Uuid7> = (row.as_ref(), err_refs).try_into().unwrap();
+    let meta_refs: std::vec::Vec<MySqlSubtitleTrackMetadataRowRef<'_>> = meta
+      .iter()
+      .map(MySqlSubtitleTrackMetadataRow::as_ref)
+      .collect();
+    let t2: SubtitleTrack<Uuid7> = (row.as_ref(), err_refs, meta_refs).try_into().unwrap();
     assert_eq!(t, t2);
   }
 

@@ -22,6 +22,7 @@
 //! are NOT stored — they are derived by querying the child table's FK.
 
 use bytes::Bytes;
+use indexmap::IndexMap;
 use mediaframe::{
   codec::VideoCodec,
   color::{
@@ -199,6 +200,11 @@ pub struct PgVideoTrackRow {
   pub fr_num: i64,
   pub fr_den: i64,
   pub fr_is_vfr: bool,
+  /// `AVStream.avg_frame_rate` — empirical average; defaults `0/1`
+  /// (= `FrameRate::default()`, absent). For CFR content this matches
+  /// (`fr_num`, `fr_den`); for VFR content the two diverge.
+  pub avg_fr_num: i64,
+  pub avg_fr_den: i64,
   pub field_order: i64,
   pub stereo_mode: Option<i64>,
 
@@ -235,7 +241,24 @@ pub struct PgVideoTrackIndexErrorRow {
   pub message: String,
 }
 
-impl From<&VideoTrack<Uuid7>> for (PgVideoTrackRow, std::vec::Vec<PgVideoTrackIndexErrorRow>) {
+/// PostgreSQL row for `video_track_metadata`. Position in the per-
+/// `video_track_id` `ordinal` sequence IS the [`IndexMap`] insertion
+/// order. `video_track_from_rows` sorts by `ordinal` on decode.
+#[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
+pub struct PgVideoTrackMetadataRow {
+  pub video_track_id: Uuid,
+  pub ordinal: i32,
+  pub key: String,
+  pub value: String,
+}
+
+impl From<&VideoTrack<Uuid7>>
+  for (
+    PgVideoTrackRow,
+    std::vec::Vec<PgVideoTrackIndexErrorRow>,
+    std::vec::Vec<PgVideoTrackMetadataRow>,
+  )
+{
   fn from(t: &VideoTrack<Uuid7>) -> Self {
     let id = uuid7_to_uuid(*t.id_ref());
     let prov = t.provenance_ref();
@@ -243,6 +266,7 @@ impl From<&VideoTrack<Uuid7>> for (PgVideoTrackRow, std::vec::Vec<PgVideoTrackIn
     let sar = t.sample_aspect_ratio();
     let color = t.color_ref();
     let fr = t.frame_rate();
+    let avg_fr = t.avg_frame_rate();
     let visible_rect = t.visible_rect();
     let dovi = t.dovi();
     let hdr = t.hdr_static_ref();
@@ -303,6 +327,8 @@ impl From<&VideoTrack<Uuid7>> for (PgVideoTrackRow, std::vec::Vec<PgVideoTrackIn
       fr_num: i64::from(fr.rate().num()),
       fr_den: i64::from(fr.rate().den().get()),
       fr_is_vfr: fr.is_vfr(),
+      avg_fr_num: i64::from(avg_fr.rate().num()),
+      avg_fr_den: i64::from(avg_fr.rate().den().get()),
       field_order: i64::from(t.field_order().to_u32()),
       stereo_mode: t.stereo_mode().map(|s| i64::from(s.to_u32())),
       has_dovi: dovi.is_some(),
@@ -332,16 +358,51 @@ impl From<&VideoTrack<Uuid7>> for (PgVideoTrackRow, std::vec::Vec<PgVideoTrackIn
         message: e.message().to_owned(),
       })
       .collect();
-    (row, errors)
+    let metadata = t
+      .metadata_ref()
+      .iter()
+      .enumerate()
+      .map(|(i, (k, v))| PgVideoTrackMetadataRow {
+        video_track_id: id,
+        ordinal: i32::try_from(i).unwrap_or(i32::MAX),
+        key: k.as_str().to_owned(),
+        value: v.as_str().to_owned(),
+      })
+      .collect();
+    (row, errors, metadata)
   }
 }
 
-impl TryFrom<(PgVideoTrackRow, std::vec::Vec<PgVideoTrackIndexErrorRow>)> for VideoTrack<Uuid7> {
+impl
+  TryFrom<(
+    PgVideoTrackRow,
+    std::vec::Vec<PgVideoTrackIndexErrorRow>,
+    std::vec::Vec<PgVideoTrackMetadataRow>,
+  )> for VideoTrack<Uuid7>
+{
   type Error = SqlxError;
 
   fn try_from(
-    (r, mut errors): (PgVideoTrackRow, std::vec::Vec<PgVideoTrackIndexErrorRow>),
+    (r, errors, metadata): (
+      PgVideoTrackRow,
+      std::vec::Vec<PgVideoTrackIndexErrorRow>,
+      std::vec::Vec<PgVideoTrackMetadataRow>,
+    ),
   ) -> Result<Self, Self::Error> {
+    video_track_from_rows(r, errors, metadata)
+  }
+}
+
+/// Reconstruct a [`VideoTrack`] from its row, `index_errors` rows, and
+/// `metadata` rows. The supplied collections may be in any order — both
+/// are sorted by `ordinal` before insertion so the original `Vec` /
+/// `IndexMap` ordering is recovered.
+pub fn video_track_from_rows(
+  r: PgVideoTrackRow,
+  mut errors: std::vec::Vec<PgVideoTrackIndexErrorRow>,
+  mut metadata: std::vec::Vec<PgVideoTrackMetadataRow>,
+) -> Result<VideoTrack<Uuid7>, SqlxError> {
+  {
     let id = uuid_to_uuid7(r.id)?;
     let video_id = uuid_to_uuid7(r.video_id)?;
     let mut t = VideoTrack::try_new(id, video_id)
@@ -526,6 +587,15 @@ impl TryFrom<(PgVideoTrackRow, std::vec::Vec<PgVideoTrackIndexErrorRow>)> for Vi
       ),
       r.fr_is_vfr,
     ));
+    // `avg_frame_rate` mirrors `frame_rate`; the VFR flag is **not**
+    // duplicated (`AVStream.avg_frame_rate` is a rational, not a flag).
+    t = t.with_avg_frame_rate(FrameRate::new(
+      Rational::new(
+        u32_from_i64(r.avg_fr_num, "VideoTrack.avg_fr_num")?,
+        nonzero_u32_from_i64(r.avg_fr_den, "VideoTrack.avg_fr_den")?,
+      ),
+      false,
+    ));
     t = t.with_field_order(FieldOrder::from_u32(u32_from_i64(
       r.field_order,
       "VideoTrack.field_order",
@@ -579,6 +649,19 @@ impl TryFrom<(PgVideoTrackRow, std::vec::Vec<PgVideoTrackIndexErrorRow>)> for Vi
       infos.push(ErrorInfo::new(ErrorCode::from_u32(code), e.message));
     }
     t = t.with_index_errors(infos);
+
+    metadata.sort_by_key(|m| m.ordinal);
+    let mut bag = IndexMap::with_capacity(metadata.len());
+    for entry in metadata {
+      if entry.video_track_id != r.id {
+        return Err(SqlxError::DomainConstructorRejected(format!(
+          "video_track_metadata.video_track_id ({}) does not match parent video_track.id ({})",
+          entry.video_track_id, r.id
+        )));
+      }
+      bag.insert(SmolStr::from(entry.key), SmolStr::from(entry.value));
+    }
+    t = t.with_metadata(bag);
 
     Ok(t)
   }
@@ -2133,6 +2216,8 @@ pub struct PgVideoTrackRowRef<'r> {
   pub fr_num: i64,
   pub fr_den: i64,
   pub fr_is_vfr: bool,
+  pub avg_fr_num: i64,
+  pub avg_fr_den: i64,
   pub field_order: i64,
   pub stereo_mode: Option<i64>,
   pub has_dovi: bool,
@@ -2159,6 +2244,15 @@ pub struct PgVideoTrackIndexErrorRowRef<'r> {
   pub ordinal: i32,
   pub code: i32,
   pub message: &'r str,
+}
+
+/// Borrowed view of [`PgVideoTrackMetadataRow`].
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct PgVideoTrackMetadataRowRef<'r> {
+  pub video_track_id: Uuid,
+  pub ordinal: i32,
+  pub key: &'r str,
+  pub value: &'r str,
 }
 
 impl PgVideoTrackRow {
@@ -2217,6 +2311,8 @@ impl PgVideoTrackRow {
       fr_num: self.fr_num,
       fr_den: self.fr_den,
       fr_is_vfr: self.fr_is_vfr,
+      avg_fr_num: self.avg_fr_num,
+      avg_fr_den: self.avg_fr_den,
       field_order: self.field_order,
       stereo_mode: self.stereo_mode,
       has_dovi: self.has_dovi,
@@ -2250,18 +2346,32 @@ impl PgVideoTrackIndexErrorRow {
   }
 }
 
+impl PgVideoTrackMetadataRow {
+  /// Cheap borrow — produces a [`PgVideoTrackMetadataRowRef`] referencing `self`.
+  pub fn as_ref(&self) -> PgVideoTrackMetadataRowRef<'_> {
+    PgVideoTrackMetadataRowRef {
+      video_track_id: self.video_track_id,
+      ordinal: self.ordinal,
+      key: &self.key,
+      value: &self.value,
+    }
+  }
+}
+
 impl<'r>
   TryFrom<(
     PgVideoTrackRowRef<'r>,
     std::vec::Vec<PgVideoTrackIndexErrorRowRef<'r>>,
+    std::vec::Vec<PgVideoTrackMetadataRowRef<'r>>,
   )> for VideoTrack<Uuid7>
 {
   type Error = SqlxError;
 
   fn try_from(
-    (r, mut errors): (
+    (r, mut errors, mut metadata): (
       PgVideoTrackRowRef<'r>,
       std::vec::Vec<PgVideoTrackIndexErrorRowRef<'r>>,
+      std::vec::Vec<PgVideoTrackMetadataRowRef<'r>>,
     ),
   ) -> Result<Self, Self::Error> {
     let id = uuid_to_uuid7(r.id)?;
@@ -2438,6 +2548,13 @@ impl<'r>
       ),
       r.fr_is_vfr,
     ));
+    t = t.with_avg_frame_rate(FrameRate::new(
+      Rational::new(
+        u32_from_i64(r.avg_fr_num, "VideoTrack.avg_fr_num")?,
+        nonzero_u32_from_i64(r.avg_fr_den, "VideoTrack.avg_fr_den")?,
+      ),
+      false,
+    ));
     t = t.with_field_order(FieldOrder::from_u32(u32_from_i64(
       r.field_order,
       "VideoTrack.field_order",
@@ -2491,6 +2608,19 @@ impl<'r>
       infos.push(ErrorInfo::new(ErrorCode::from_u32(code), e.message));
     }
     t = t.with_index_errors(infos);
+
+    metadata.sort_by_key(|m| m.ordinal);
+    let mut bag = IndexMap::with_capacity(metadata.len());
+    for entry in metadata {
+      if entry.video_track_id != r.id {
+        return Err(SqlxError::DomainConstructorRejected(format!(
+          "video_track_metadata.video_track_id ({}) does not match parent video_track.id ({})",
+          entry.video_track_id, r.id
+        )));
+      }
+      bag.insert(SmolStr::from(entry.key), SmolStr::from(entry.value));
+    }
+    t = t.with_metadata(bag);
 
     Ok(t)
   }
@@ -3552,7 +3682,11 @@ mod tests {
   #[test]
   fn video_track_roundtrip_minimal() {
     let t = VideoTrack::try_new(Uuid7::new(), Uuid7::new()).unwrap();
-    let tuple: (PgVideoTrackRow, std::vec::Vec<PgVideoTrackIndexErrorRow>) = (&t).into();
+    let tuple: (
+      PgVideoTrackRow,
+      std::vec::Vec<PgVideoTrackIndexErrorRow>,
+      std::vec::Vec<PgVideoTrackMetadataRow>,
+    ) = (&t).into();
     let t2: VideoTrack<Uuid7> = tuple.try_into().unwrap();
     assert_eq!(t, t2);
   }
@@ -3617,7 +3751,11 @@ mod tests {
         ErrorCode::SceneDetectionFailed,
         "bad"
       ),]);
-    let tuple: (PgVideoTrackRow, std::vec::Vec<PgVideoTrackIndexErrorRow>) = (&t).into();
+    let tuple: (
+      PgVideoTrackRow,
+      std::vec::Vec<PgVideoTrackIndexErrorRow>,
+      std::vec::Vec<PgVideoTrackMetadataRow>,
+    ) = (&t).into();
     assert_eq!(tuple.1.len(), 1);
     let t2: VideoTrack<Uuid7> = tuple.try_into().unwrap();
     assert_eq!(t, t2);
@@ -3800,11 +3938,36 @@ mod tests {
         ErrorInfo::new(ErrorCode::PathNotFound, "b"),
         ErrorInfo::new(ErrorCode::SceneDetectionFailed, "c"),
       ]);
-    let (row, mut errs): (PgVideoTrackRow, std::vec::Vec<PgVideoTrackIndexErrorRow>) = (&t).into();
+    let (row, mut errs, meta): (
+      PgVideoTrackRow,
+      std::vec::Vec<PgVideoTrackIndexErrorRow>,
+      std::vec::Vec<PgVideoTrackMetadataRow>,
+    ) = (&t).into();
     errs.reverse();
-    let t2: VideoTrack<Uuid7> = (row, errs).try_into().unwrap();
+    let t2: VideoTrack<Uuid7> = (row, errs, meta).try_into().unwrap();
     assert_eq!(t2.index_errors_slice().len(), 3);
     assert_eq!(t2.index_errors_slice()[0].message(), "a");
+  }
+
+  #[test]
+  fn video_track_metadata_roundtrip_preserves_insertion_order() {
+    let mut meta = IndexMap::new();
+    meta.insert(SmolStr::new("comment"), SmolStr::new("first"));
+    meta.insert(SmolStr::new("encoder"), SmolStr::new("x265"));
+    meta.insert(SmolStr::new("language"), SmolStr::new("eng"));
+    let t = VideoTrack::try_new(Uuid7::new(), Uuid7::new())
+      .unwrap()
+      .with_metadata(meta);
+    let (row, errs, mut metadata): (
+      PgVideoTrackRow,
+      std::vec::Vec<PgVideoTrackIndexErrorRow>,
+      std::vec::Vec<PgVideoTrackMetadataRow>,
+    ) = (&t).into();
+    assert_eq!(metadata.len(), 3);
+    metadata.reverse();
+    let t2: VideoTrack<Uuid7> = (row, errs, metadata).try_into().unwrap();
+    let keys: std::vec::Vec<&str> = t2.metadata_ref().keys().map(SmolStr::as_str).collect();
+    assert_eq!(keys, std::vec!["comment", "encoder", "language"]);
   }
 
   // -------------------------------------------------------------------------
@@ -3834,10 +3997,16 @@ mod tests {
       .with_provenance(Provenance::from_parts("v", "1", "p", "i"))
       .with_index_status(VideoIndexStatus::PROBED)
       .with_index_errors(std::vec![ErrorInfo::new(ErrorCode::ProbeCorrupt, "bad")]);
-    let (row, errs): (PgVideoTrackRow, std::vec::Vec<PgVideoTrackIndexErrorRow>) = (&t).into();
+    let (row, errs, meta): (
+      PgVideoTrackRow,
+      std::vec::Vec<PgVideoTrackIndexErrorRow>,
+      std::vec::Vec<PgVideoTrackMetadataRow>,
+    ) = (&t).into();
     let err_refs: std::vec::Vec<PgVideoTrackIndexErrorRowRef<'_>> =
       errs.iter().map(PgVideoTrackIndexErrorRow::as_ref).collect();
-    let t2: VideoTrack<Uuid7> = (row.as_ref(), err_refs).try_into().unwrap();
+    let meta_refs: std::vec::Vec<PgVideoTrackMetadataRowRef<'_>> =
+      meta.iter().map(PgVideoTrackMetadataRow::as_ref).collect();
+    let t2: VideoTrack<Uuid7> = (row.as_ref(), err_refs, meta_refs).try_into().unwrap();
     assert_eq!(t, t2);
   }
 

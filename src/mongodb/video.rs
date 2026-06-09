@@ -471,6 +471,7 @@ impl From<&VideoTrack<Uuid7>> for Document {
     );
     d.insert("rotation", Bson::Int64(t.rotation().to_u32() as i64));
     d.insert("frame_rate", frame_rate_to_bson(t.frame_rate()));
+    d.insert("avg_frame_rate", frame_rate_to_bson(t.avg_frame_rate()));
     d.insert("field_order", Bson::Int64(t.field_order().to_u32() as i64));
     d.insert(
       "stereo_mode",
@@ -498,6 +499,7 @@ impl From<&VideoTrack<Uuid7>> for Document {
       error_info_vec_to_bson(t.index_errors_slice()),
     );
     d.insert("provenance", provenance_to_bson(t.provenance_ref()));
+    d.insert("metadata", metadata_to_bson(t.metadata_ref()));
     d
   }
 }
@@ -570,6 +572,9 @@ impl TryFrom<Document> for VideoTrack<Uuid7> {
     if let Some(b) = take_opt(&mut d, "frame_rate") {
       t.set_frame_rate(frame_rate_from_bson(b, "frame_rate")?);
     }
+    if let Some(b) = take_opt(&mut d, "avg_frame_rate") {
+      t.set_avg_frame_rate(frame_rate_from_bson(b, "avg_frame_rate")?);
+    }
     if let Some(b) = take_opt(&mut d, "field_order") {
       t.set_field_order(FieldOrder::from_u32(as_u32(b, "field_order")?));
     }
@@ -607,6 +612,9 @@ impl TryFrom<Document> for VideoTrack<Uuid7> {
     }
     if let Some(b) = take_opt(&mut d, "provenance") {
       t.set_provenance(provenance_from_bson(b, "provenance")?);
+    }
+    if let Some(b) = take_opt(&mut d, "metadata") {
+      t.set_metadata(metadata_from_bson(b, "metadata")?);
     }
     Ok(t)
   }

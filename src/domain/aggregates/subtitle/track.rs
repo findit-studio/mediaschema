@@ -14,6 +14,7 @@
 //! (same path used by the locked `Speaker`) until that type exists.
 
 use derive_more::IsVariant;
+use indexmap::IndexMap;
 use mediaframe::{
   codec::SubtitleCodec,
   disposition::TrackDisposition,
@@ -94,6 +95,11 @@ pub struct SubtitleTrack<Id = Uuid7> {
   first_cue: Option<Timestamp>,
   last_cue: Option<Timestamp>,
 
+  /// Container-`AVDictionary` entries from this stream's metadata,
+  /// **excluding** keys hoisted into dedicated columns (`title`,
+  /// `language`). Insertion-ordered.
+  metadata: IndexMap<SmolStr, SmolStr>,
+
   // Per-kind indexing.
   index_status: SubtitleIndexStatus,
   index_errors: std::vec::Vec<ErrorInfo>,
@@ -143,6 +149,7 @@ impl SubtitleTrack<Uuid7> {
       is_empty: false,
       first_cue: None,
       last_cue: None,
+      metadata: IndexMap::new(),
       index_status: SubtitleIndexStatus::new(),
       index_errors: std::vec::Vec::new(),
     })
@@ -385,6 +392,14 @@ impl<Id> SubtitleTrack<Id> {
     self.last_cue.as_ref()
   }
 
+  /// Container-`AVDictionary` entries from this stream's metadata,
+  /// with the hoisted `title` / `language` keys (any case) consumed
+  /// into dedicated columns. Insertion-ordered.
+  #[inline(always)]
+  pub const fn metadata_ref(&self) -> &IndexMap<SmolStr, SmolStr> {
+    &self.metadata
+  }
+
   /// Per-kind pipeline-stage bits (bit = stage succeeded).
   #[inline(always)]
   pub const fn index_status(&self) -> SubtitleIndexStatus {
@@ -599,6 +614,21 @@ impl<Id> SubtitleTrack<Id> {
   #[inline(always)]
   pub fn with_last_cue(mut self, v: Option<Timestamp>) -> Self {
     self.last_cue = v;
+    self
+  }
+
+  /// Builder: replace the container-`AVDictionary` metadata bag.
+  #[must_use]
+  #[inline(always)]
+  pub fn with_metadata(mut self, v: IndexMap<SmolStr, SmolStr>) -> Self {
+    self.metadata = v;
+    self
+  }
+
+  /// In-place mutator: replace the container-`AVDictionary` metadata bag.
+  #[inline(always)]
+  pub fn set_metadata(&mut self, v: IndexMap<SmolStr, SmolStr>) -> &mut Self {
+    self.metadata = v;
     self
   }
 

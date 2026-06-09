@@ -10,6 +10,7 @@
 #[cfg(feature = "audio")]
 #[cfg_attr(docsrs, doc(cfg(feature = "audio")))]
 pub mod audio;
+pub mod chapter;
 pub mod leaves;
 pub mod media;
 pub mod media_file;
@@ -23,9 +24,10 @@ pub mod video;
 
 #[cfg(feature = "audio")]
 pub use audio::{
-  MySqlAudioRow, MySqlAudioSegmentRow, MySqlAudioSegmentWordRow, MySqlAudioTrackIndexErrorRow,
-  MySqlAudioTrackRow,
+  audio_track_from_rows, MySqlAudioRow, MySqlAudioSegmentRow, MySqlAudioSegmentWordRow,
+  MySqlAudioTrackIndexErrorRow, MySqlAudioTrackMetadataRow, MySqlAudioTrackRow,
 };
+pub use chapter::{chapter_from_rows, MySqlChapterMetadataRow, MySqlChapterRow};
 pub use leaves::{
   MySqlSceneAnnotationRow, MySqlSpeakerRow, MySqlUserTagRow, MySqlWatchedLocationRow,
 };
@@ -34,22 +36,23 @@ pub use media_file::MySqlMediaFileRow;
 pub use person::MySqlPersonRow;
 #[cfg(feature = "subtitle")]
 pub use subtitle::{
-  MySqlSubtitleCueAssRow, MySqlSubtitleCueBaseRow, MySqlSubtitleCueLrcRow,
-  MySqlSubtitleCueLrcWordRow, MySqlSubtitleCueVttRow, MySqlSubtitleRow,
+  subtitle_track_from_rows, MySqlSubtitleCueAssRow, MySqlSubtitleCueBaseRow,
+  MySqlSubtitleCueLrcRow, MySqlSubtitleCueLrcWordRow, MySqlSubtitleCueVttRow, MySqlSubtitleRow,
   MySqlSubtitleTrackAssStyleRow, MySqlSubtitleTrackIndexErrorRow, MySqlSubtitleTrackLrcMetadataRow,
-  MySqlSubtitleTrackRow, MySqlSubtitleTrackVttRegionRow, MySqlSubtitleTrackVttStyleRow,
+  MySqlSubtitleTrackMetadataRow, MySqlSubtitleTrackRow, MySqlSubtitleTrackVttRegionRow,
+  MySqlSubtitleTrackVttStyleRow,
 };
 #[cfg(feature = "video")]
 pub use video::{
-  MySqlKeyframeActionRow, MySqlKeyframeBarcodeRow, MySqlKeyframeBodyPose3DJointRow,
-  MySqlKeyframeBodyPose3DRow, MySqlKeyframeBodyPoseJointRow, MySqlKeyframeBodyPoseRow,
-  MySqlKeyframeClassificationRow, MySqlKeyframeColorRow, MySqlKeyframeDocumentSegmentRow,
-  MySqlKeyframeFaceLandmarkPointRow, MySqlKeyframeFaceLandmarkRegionRow,
-  MySqlKeyframeFaceLandmarksRow, MySqlKeyframeFaceRow, MySqlKeyframeHandPoseRow,
-  MySqlKeyframeMaskRow, MySqlKeyframeObjectRow, MySqlKeyframeRow, MySqlKeyframeRows,
-  MySqlKeyframeSaliencyRow, MySqlKeyframeSubjectRow, MySqlKeyframeTextDetectionRow,
-  MySqlKeyframeVlmLabelRow, MySqlSceneRow, MySqlVideoRow, MySqlVideoTrackIndexErrorRow,
-  MySqlVideoTrackRow,
+  video_track_from_rows, MySqlKeyframeActionRow, MySqlKeyframeBarcodeRow,
+  MySqlKeyframeBodyPose3DJointRow, MySqlKeyframeBodyPose3DRow, MySqlKeyframeBodyPoseJointRow,
+  MySqlKeyframeBodyPoseRow, MySqlKeyframeClassificationRow, MySqlKeyframeColorRow,
+  MySqlKeyframeDocumentSegmentRow, MySqlKeyframeFaceLandmarkPointRow,
+  MySqlKeyframeFaceLandmarkRegionRow, MySqlKeyframeFaceLandmarksRow, MySqlKeyframeFaceRow,
+  MySqlKeyframeHandPoseRow, MySqlKeyframeMaskRow, MySqlKeyframeObjectRow, MySqlKeyframeRow,
+  MySqlKeyframeRows, MySqlKeyframeSaliencyRow, MySqlKeyframeSubjectRow,
+  MySqlKeyframeTextDetectionRow, MySqlKeyframeVlmLabelRow, MySqlSceneRow, MySqlVideoRow,
+  MySqlVideoTrackIndexErrorRow, MySqlVideoTrackMetadataRow, MySqlVideoTrackRow,
 };
 
 /// Canonical MySQL DDL for the mediaschema tables this revision maps.

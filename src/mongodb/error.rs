@@ -10,6 +10,7 @@ use smol_str::SmolStr;
 
 use crate::domain::{
   aggregates::{
+    chapter::ChapterError,
     curation::{NilIdError, SceneAnnotationError},
     media::MediaError,
     speaker::SpeakerError,
@@ -98,6 +99,15 @@ pub enum MongoError {
   // Domain-aggregate `try_new` rejections (one variant per aggregate).
   #[error("Media try_new rejected: {0}")]
   Media(#[from] MediaError),
+  #[error("Chapter try_new rejected: {0}")]
+  Chapter(#[from] ChapterError),
+  /// A domain `try_new` / `try_with_*` constructor rejected a decoded
+  /// payload. Wraps the originating message stringly because the
+  /// domain validators have their own typed errors (`ChapterError::*`
+  /// etc.) that are surfaced via dedicated variants — this is the
+  /// catch-all for shape errors that don't map cleanly.
+  #[error("domain constructor rejected: {0}")]
+  DomainConstructorRejected(String),
   #[error("WatchedLocation try_new rejected: {0}")]
   WatchedLocation(#[from] WatchedLocationError),
   #[error("Speaker try_new rejected: {0}")]

@@ -13,6 +13,9 @@ CREATE TABLE IF NOT EXISTS media (
     size                INTEGER NOT NULL,
     duration_raw        INTEGER,
     kind                INTEGER NOT NULL,        -- 0=Video, 1=Audio
+    -- Verbatim AVFormatContext.nb_streams / nb_chapters (rev 11).
+    nb_streams          INTEGER NOT NULL DEFAULT 0,
+    nb_chapters         INTEGER NOT NULL DEFAULT 0,
     video               BLOB,
     audio               BLOB,
     subtitle            BLOB,
@@ -26,6 +29,35 @@ CREATE TABLE IF NOT EXISTS media (
     gps_lon             REAL,
     gps_altitude        REAL
 );
+
+-- Container-level chapters (AVFormatContext.chapters[i]). See
+-- schema/chapter.md (rev 1). `title` hoisted from AVDictionary's "title"
+-- key; remaining metadata in `chapter_metadata`, keyed by ordinal.
+CREATE TABLE IF NOT EXISTS chapter (
+    id                  BLOB    NOT NULL PRIMARY KEY,
+    media_id            BLOB    NOT NULL,
+    chapter_index       INTEGER NOT NULL,
+    source_id           INTEGER NOT NULL,
+    start_pts           INTEGER NOT NULL,
+    end_pts             INTEGER NOT NULL,
+    timebase_num        INTEGER NOT NULL,
+    timebase_den        INTEGER NOT NULL,
+    title               TEXT    NOT NULL DEFAULT ''
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_chapter_media_id_index ON chapter(media_id, chapter_index);
+CREATE INDEX        IF NOT EXISTS idx_chapter_media_id       ON chapter(media_id);
+CREATE INDEX        IF NOT EXISTS idx_chapter_title_lower    ON chapter(LOWER(title));
+
+-- AVDictionary entries per chapter, **excluding** the "title" key.
+-- `ordinal` preserves IndexMap insertion order.
+CREATE TABLE IF NOT EXISTS chapter_metadata (
+    chapter_id  BLOB    NOT NULL,
+    ordinal     INTEGER NOT NULL,
+    key         TEXT    NOT NULL,
+    value       TEXT    NOT NULL,
+    PRIMARY KEY (chapter_id, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_chapter_metadata_chapter_id ON chapter_metadata(chapter_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_media_checksum ON media(checksum);
 CREATE INDEX        IF NOT EXISTS idx_media_video    ON media(video);
 CREATE INDEX        IF NOT EXISTS idx_media_audio    ON media(audio);
@@ -136,6 +168,10 @@ CREATE TABLE IF NOT EXISTS audio_track (
     sample_rate               INTEGER NOT NULL DEFAULT 0,
     channels                  INTEGER NOT NULL DEFAULT 0,
     channel_layout            TEXT    NOT NULL,
+    -- `SampleFormat::to_u32` (FFmpeg `AV_SAMPLE_FMT_*` code). Default
+    -- `4294967295` (`u32::MAX`) so a freshly-inserted row decodes back as
+    -- `SampleFormat::Unknown(u32::MAX)` == `SampleFormat::default()`.
+    sample_format             INTEGER NOT NULL DEFAULT 4294967295,
     bit_rate                  INTEGER NOT NULL DEFAULT 0,
     bit_rate_mode             INTEGER,
     bits_per_sample           INTEGER,
@@ -159,6 +195,11 @@ CREATE TABLE IF NOT EXISTS audio_track (
     loudness_range_lu         REAL,
     loudness_true_peak_dbtp   REAL,
     loudness_sample_peak_dbfs REAL,
+    has_replay_gain           INTEGER NOT NULL DEFAULT 0,
+    replay_gain_track_gain_db REAL,
+    replay_gain_track_peak    REAL,
+    replay_gain_album_gain_db REAL,
+    replay_gain_album_peak    REAL,
     fingerprint_algo          TEXT,
     fingerprint_value         BLOB,
     isrc                      TEXT    NOT NULL,
@@ -187,6 +228,17 @@ CREATE TABLE IF NOT EXISTS audio_track (
     index_status              INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_audio_track_audio_id ON audio_track(audio_id);
+
+-- AVDictionary entries per audio_track. `ordinal` preserves IndexMap
+-- insertion order; ORDER BY ordinal yields the original sequence.
+CREATE TABLE IF NOT EXISTS audio_track_metadata (
+    audio_track_id  BLOB    NOT NULL,
+    ordinal         INTEGER NOT NULL,
+    key             TEXT    NOT NULL,
+    value           TEXT    NOT NULL,
+    PRIMARY KEY (audio_track_id, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_audio_track_metadata_audio_track_id ON audio_track_metadata(audio_track_id);
 
 CREATE TABLE IF NOT EXISTS audio_track_index_error (
     audio_track_id BLOB    NOT NULL,   -- FK -> audio_track.id
@@ -300,6 +352,11 @@ CREATE TABLE IF NOT EXISTS video_track (
     fr_num                   INTEGER NOT NULL DEFAULT 1,
     fr_den                   INTEGER NOT NULL DEFAULT 1,
     fr_is_vfr                INTEGER NOT NULL DEFAULT 0,
+    -- `AVStream.avg_frame_rate` — defaults `0/1` (= `FrameRate::default()`,
+    -- absent). For CFR content this equals (fr_num, fr_den); for VFR the
+    -- two diverge.
+    avg_fr_num               INTEGER NOT NULL DEFAULT 0,
+    avg_fr_den               INTEGER NOT NULL DEFAULT 1,
     field_order              INTEGER NOT NULL DEFAULT 0,
     stereo_mode              INTEGER,
     has_dovi                 INTEGER NOT NULL DEFAULT 0,
@@ -319,6 +376,17 @@ CREATE TABLE IF NOT EXISTS video_track (
     index_status             INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_video_track_video_id ON video_track(video_id);
+
+-- AVDictionary entries per video_track. `ordinal` preserves IndexMap
+-- insertion order; ORDER BY ordinal yields the original sequence.
+CREATE TABLE IF NOT EXISTS video_track_metadata (
+    video_track_id  BLOB    NOT NULL,
+    ordinal         INTEGER NOT NULL,
+    key             TEXT    NOT NULL,
+    value           TEXT    NOT NULL,
+    PRIMARY KEY (video_track_id, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_video_track_metadata_video_track_id ON video_track_metadata(video_track_id);
 
 CREATE TABLE IF NOT EXISTS video_track_index_error (
     video_track_id BLOB    NOT NULL,
@@ -668,6 +736,17 @@ CREATE INDEX IF NOT EXISTS idx_subtitle_track_subtitle_id ON subtitle_track(subt
 CREATE INDEX IF NOT EXISTS idx_subtitle_track_codec       ON subtitle_track(codec);
 CREATE INDEX IF NOT EXISTS idx_subtitle_track_language    ON subtitle_track(language);
 CREATE INDEX IF NOT EXISTS idx_subtitle_track_origin      ON subtitle_track(origin);
+
+-- AVDictionary entries per subtitle_track. `ordinal` preserves IndexMap
+-- insertion order; ORDER BY ordinal yields the original sequence.
+CREATE TABLE IF NOT EXISTS subtitle_track_metadata (
+    subtitle_track_id  BLOB    NOT NULL,
+    ordinal            INTEGER NOT NULL,
+    key                TEXT    NOT NULL,
+    value              TEXT    NOT NULL,
+    PRIMARY KEY (subtitle_track_id, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_subtitle_track_metadata_subtitle_track_id ON subtitle_track_metadata(subtitle_track_id);
 
 CREATE TABLE IF NOT EXISTS subtitle_track_index_error (
     subtitle_track_id BLOB    NOT NULL,

@@ -165,6 +165,11 @@ impl TryFrom<&wire::Media> for Media<Uuid7> {
       d = d.with_gps(Some(geo));
     }
 
+    // --- verbatim probe counts (rev 11) ---
+    d = d
+      .with_nb_streams(w.nb_streams)
+      .with_nb_chapters(w.nb_chapters);
+
     Ok(d)
   }
 }
@@ -225,6 +230,8 @@ impl From<&Media<Uuid7>> for wire::Media {
       device_make,
       device_model,
       gps_location,
+      nb_streams: d.nb_streams(),
+      nb_chapters: d.nb_chapters(),
       __buffa_unknown_fields: Default::default(),
     }
   }

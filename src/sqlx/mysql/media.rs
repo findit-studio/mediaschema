@@ -23,6 +23,10 @@ pub struct MySqlMediaRow {
   pub size: u64,
   pub duration_raw: Option<i64>,
   pub kind: i16,
+  /// Verbatim `AVFormatContext.nb_streams` (rev 11).
+  pub nb_streams: u32,
+  /// Verbatim `AVFormatContext.nb_chapters` (rev 11).
+  pub nb_chapters: u32,
   pub video_id: Option<std::vec::Vec<u8>>,
   pub audio_id: Option<std::vec::Vec<u8>>,
   pub subtitle_id: Option<std::vec::Vec<u8>>,
@@ -70,6 +74,8 @@ impl From<&Media<Uuid7>> for MySqlMediaRow {
       size: m.size(),
       duration_raw: None,
       kind: media_kind_to_i16(m.kind()),
+      nb_streams: m.nb_streams(),
+      nb_chapters: m.nb_chapters(),
       video_id: m.video_id_ref().map(|id| id.as_bytes().to_vec()),
       audio_id: m.audio_id_ref().map(|id| id.as_bytes().to_vec()),
       subtitle_id: m.subtitle_id_ref().map(|id| id.as_bytes().to_vec()),
@@ -101,6 +107,10 @@ impl TryFrom<MySqlMediaRow> for Media<Uuid7> {
     // `Format::from_str` is infallible (unknown slugs → `Other`).
     let format = r.format.parse::<Format>().unwrap_or_default();
     let mut m = Media::try_new(id, checksum, format, r.size, kind)
+      .map(|m| {
+        m.with_nb_streams(r.nb_streams)
+          .with_nb_chapters(r.nb_chapters)
+      })
       .map_err(|e: MediaError| SqlxError::DomainConstructorRejected(e.to_string()))?;
     if let Some(v) = r.video_id {
       m = m.with_video_id(Some(bytes_to_uuid7(&v)?));
@@ -154,6 +164,10 @@ pub struct MySqlMediaRowRef<'r> {
   pub size: u64,
   pub duration_raw: Option<i64>,
   pub kind: i16,
+  /// Verbatim `AVFormatContext.nb_streams` (rev 11).
+  pub nb_streams: u32,
+  /// Verbatim `AVFormatContext.nb_chapters` (rev 11).
+  pub nb_chapters: u32,
   pub video_id: Option<&'r [u8]>,
   pub audio_id: Option<&'r [u8]>,
   pub subtitle_id: Option<&'r [u8]>,
@@ -178,6 +192,8 @@ impl MySqlMediaRow {
       size: self.size,
       duration_raw: self.duration_raw,
       kind: self.kind,
+      nb_streams: self.nb_streams,
+      nb_chapters: self.nb_chapters,
       video_id: self.video_id.as_deref(),
       audio_id: self.audio_id.as_deref(),
       subtitle_id: self.subtitle_id.as_deref(),
@@ -208,6 +224,10 @@ impl<'r> TryFrom<MySqlMediaRowRef<'r>> for Media<Uuid7> {
     let kind = media_kind_from_i16(r.kind)?;
     let format = r.format.parse::<Format>().unwrap_or_default();
     let mut m = Media::try_new(id, checksum, format, r.size, kind)
+      .map(|m| {
+        m.with_nb_streams(r.nb_streams)
+          .with_nb_chapters(r.nb_chapters)
+      })
       .map_err(|e: MediaError| SqlxError::DomainConstructorRejected(e.to_string()))?;
     if let Some(v) = r.video_id {
       m = m.with_video_id(Some(bytes_to_uuid7(v)?));
@@ -319,6 +339,8 @@ mod tests {
       size: 0,
       duration_raw: None,
       kind: 0,
+      nb_streams: 0,
+      nb_chapters: 0,
       video_id: None,
       audio_id: None,
       subtitle_id: None,

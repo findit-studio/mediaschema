@@ -18,12 +18,14 @@
 //! (`Subtitle::tracks`, `SubtitleTrack::cues`) are NOT stored — they are
 //! derived by querying the child table's FK.
 
+use indexmap::IndexMap;
 use mediaframe::{
   codec::SubtitleCodec,
   disposition::TrackDisposition,
   lang::Language,
   subtitle::{Format, TrackOrigin},
 };
+use smol_str::SmolStr;
 use uuid::Uuid;
 
 use crate::{
@@ -193,10 +195,22 @@ pub struct PgSubtitleTrackIndexErrorRow {
   pub message: String,
 }
 
+/// PostgreSQL row for `subtitle_track_metadata`. Position in the per-
+/// `subtitle_track_id` `ordinal` sequence IS the [`IndexMap`] insertion
+/// order. `subtitle_track_from_rows` sorts by `ordinal` on decode.
+#[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
+pub struct PgSubtitleTrackMetadataRow {
+  pub subtitle_track_id: Uuid,
+  pub ordinal: i32,
+  pub key: String,
+  pub value: String,
+}
+
 impl From<&SubtitleTrack<Uuid7>>
   for (
     PgSubtitleTrackRow,
     std::vec::Vec<PgSubtitleTrackIndexErrorRow>,
+    std::vec::Vec<PgSubtitleTrackMetadataRow>,
   )
 {
   fn from(t: &SubtitleTrack<Uuid7>) -> Self {
@@ -254,7 +268,18 @@ impl From<&SubtitleTrack<Uuid7>>
         message: e.message().to_owned(),
       })
       .collect();
-    (row, errors)
+    let metadata = t
+      .metadata_ref()
+      .iter()
+      .enumerate()
+      .map(|(i, (k, v))| PgSubtitleTrackMetadataRow {
+        subtitle_track_id: id,
+        ordinal: i32::try_from(i).unwrap_or(i32::MAX),
+        key: k.as_str().to_owned(),
+        value: v.as_str().to_owned(),
+      })
+      .collect();
+    (row, errors, metadata)
   }
 }
 
@@ -262,16 +287,32 @@ impl
   TryFrom<(
     PgSubtitleTrackRow,
     std::vec::Vec<PgSubtitleTrackIndexErrorRow>,
+    std::vec::Vec<PgSubtitleTrackMetadataRow>,
   )> for SubtitleTrack<Uuid7>
 {
   type Error = SqlxError;
 
   fn try_from(
-    (r, mut errors): (
+    (r, errors, metadata): (
       PgSubtitleTrackRow,
       std::vec::Vec<PgSubtitleTrackIndexErrorRow>,
+      std::vec::Vec<PgSubtitleTrackMetadataRow>,
     ),
   ) -> Result<Self, Self::Error> {
+    subtitle_track_from_rows(r, errors, metadata)
+  }
+}
+
+/// Reconstruct a [`SubtitleTrack`] from its row, `index_errors` rows,
+/// and `metadata` rows. The supplied collections may be in any order —
+/// both are sorted by `ordinal` before insertion so the original `Vec` /
+/// `IndexMap` ordering is recovered.
+pub fn subtitle_track_from_rows(
+  r: PgSubtitleTrackRow,
+  mut errors: std::vec::Vec<PgSubtitleTrackIndexErrorRow>,
+  mut metadata: std::vec::Vec<PgSubtitleTrackMetadataRow>,
+) -> Result<SubtitleTrack<Uuid7>, SqlxError> {
+  {
     let id = uuid_to_uuid7(r.id)?;
     let subtitle_id = uuid_to_uuid7(r.subtitle_id)?;
     let mut t = SubtitleTrack::try_new(id, subtitle_id)
@@ -356,6 +397,19 @@ impl
       infos.push(ErrorInfo::new(ErrorCode::from_u32(code), e.message));
     }
     t = t.with_index_errors(infos);
+
+    metadata.sort_by_key(|m| m.ordinal);
+    let mut bag = IndexMap::with_capacity(metadata.len());
+    for entry in metadata {
+      if entry.subtitle_track_id != r.id {
+        return Err(SqlxError::DomainConstructorRejected(format!(
+          "subtitle_track_metadata.subtitle_track_id ({}) does not match parent subtitle_track.id ({})",
+          entry.subtitle_track_id, r.id
+        )));
+      }
+      bag.insert(SmolStr::from(entry.key), SmolStr::from(entry.value));
+    }
+    t = t.with_metadata(bag);
 
     Ok(t)
   }
@@ -1569,6 +1623,15 @@ pub struct PgSubtitleTrackIndexErrorRowRef<'r> {
   pub message: &'r str,
 }
 
+/// Borrowed view of [`PgSubtitleTrackMetadataRow`].
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct PgSubtitleTrackMetadataRowRef<'r> {
+  pub subtitle_track_id: Uuid,
+  pub ordinal: i32,
+  pub key: &'r str,
+  pub value: &'r str,
+}
+
 // --- Polymorphic subtitle_cue tables ----------------------------------------
 //
 // Each owned row from the base / per-format detail / per-track aggregate
@@ -2690,18 +2753,32 @@ impl PgSubtitleTrackIndexErrorRow {
   }
 }
 
+impl PgSubtitleTrackMetadataRow {
+  /// Cheap borrow — produces a [`PgSubtitleTrackMetadataRowRef`] referencing `self`.
+  pub fn as_ref(&self) -> PgSubtitleTrackMetadataRowRef<'_> {
+    PgSubtitleTrackMetadataRowRef {
+      subtitle_track_id: self.subtitle_track_id,
+      ordinal: self.ordinal,
+      key: &self.key,
+      value: &self.value,
+    }
+  }
+}
+
 impl<'r>
   TryFrom<(
     PgSubtitleTrackRowRef<'r>,
     std::vec::Vec<PgSubtitleTrackIndexErrorRowRef<'r>>,
+    std::vec::Vec<PgSubtitleTrackMetadataRowRef<'r>>,
   )> for SubtitleTrack<Uuid7>
 {
   type Error = SqlxError;
 
   fn try_from(
-    (r, mut errors): (
+    (r, mut errors, mut metadata): (
       PgSubtitleTrackRowRef<'r>,
       std::vec::Vec<PgSubtitleTrackIndexErrorRowRef<'r>>,
+      std::vec::Vec<PgSubtitleTrackMetadataRowRef<'r>>,
     ),
   ) -> Result<Self, Self::Error> {
     let id = uuid_to_uuid7(r.id)?;
@@ -2788,6 +2865,19 @@ impl<'r>
       infos.push(ErrorInfo::new(ErrorCode::from_u32(code), e.message));
     }
     t = t.with_index_errors(infos);
+
+    metadata.sort_by_key(|m| m.ordinal);
+    let mut bag = IndexMap::with_capacity(metadata.len());
+    for entry in metadata {
+      if entry.subtitle_track_id != r.id {
+        return Err(SqlxError::DomainConstructorRejected(format!(
+          "subtitle_track_metadata.subtitle_track_id ({}) does not match parent subtitle_track.id ({})",
+          entry.subtitle_track_id, r.id
+        )));
+      }
+      bag.insert(SmolStr::from(entry.key), SmolStr::from(entry.value));
+    }
+    t = t.with_metadata(bag);
 
     Ok(t)
   }
@@ -2896,6 +2986,7 @@ mod tests {
     let tuple: (
       PgSubtitleTrackRow,
       std::vec::Vec<PgSubtitleTrackIndexErrorRow>,
+      std::vec::Vec<PgSubtitleTrackMetadataRow>,
     ) = (&t).into();
     let t2: SubtitleTrack<Uuid7> = tuple.try_into().unwrap();
     assert_eq!(t, t2);
@@ -2948,6 +3039,7 @@ mod tests {
     let tuple: (
       PgSubtitleTrackRow,
       std::vec::Vec<PgSubtitleTrackIndexErrorRow>,
+      std::vec::Vec<PgSubtitleTrackMetadataRow>,
     ) = (&t).into();
     assert_eq!(tuple.1.len(), 2);
     let t2: SubtitleTrack<Uuid7> = tuple.try_into().unwrap();
@@ -2963,15 +3055,36 @@ mod tests {
         ErrorInfo::new(ErrorCode::PathNotFound, "b"),
         ErrorInfo::new(ErrorCode::TranscriptionFailed, "c"),
       ]);
-    let (row, mut errs): (
+    let (row, mut errs, meta): (
       PgSubtitleTrackRow,
       std::vec::Vec<PgSubtitleTrackIndexErrorRow>,
+      std::vec::Vec<PgSubtitleTrackMetadataRow>,
     ) = (&t).into();
     errs.reverse();
-    let t2: SubtitleTrack<Uuid7> = (row, errs).try_into().unwrap();
+    let t2: SubtitleTrack<Uuid7> = (row, errs, meta).try_into().unwrap();
     assert_eq!(t2.index_errors_slice().len(), 3);
     assert_eq!(t2.index_errors_slice()[0].message(), "a");
     assert_eq!(t2.index_errors_slice()[2].message(), "c");
+  }
+
+  #[test]
+  fn subtitle_track_metadata_roundtrip_preserves_insertion_order() {
+    let mut meta = IndexMap::new();
+    meta.insert(SmolStr::new("language_alt"), SmolStr::new("en-US"));
+    meta.insert(SmolStr::new("encoding_origin"), SmolStr::new("scte35"));
+    let t = SubtitleTrack::try_new(Uuid7::new(), Uuid7::new())
+      .unwrap()
+      .with_metadata(meta);
+    let (row, errs, mut metadata): (
+      PgSubtitleTrackRow,
+      std::vec::Vec<PgSubtitleTrackIndexErrorRow>,
+      std::vec::Vec<PgSubtitleTrackMetadataRow>,
+    ) = (&t).into();
+    assert_eq!(metadata.len(), 2);
+    metadata.reverse();
+    let t2: SubtitleTrack<Uuid7> = (row, errs, metadata).try_into().unwrap();
+    let keys: std::vec::Vec<&str> = t2.metadata_ref().keys().map(SmolStr::as_str).collect();
+    assert_eq!(keys, std::vec!["language_alt", "encoding_origin"]);
   }
 
   #[test]
@@ -3122,12 +3235,13 @@ mod tests {
   #[test]
   fn subtitle_track_row_with_nil_uuid_rejected() {
     let t = SubtitleTrack::try_new(Uuid7::new(), Uuid7::new()).unwrap();
-    let (mut row, errs): (
+    let (mut row, errs, meta): (
       PgSubtitleTrackRow,
       std::vec::Vec<PgSubtitleTrackIndexErrorRow>,
+      std::vec::Vec<PgSubtitleTrackMetadataRow>,
     ) = (&t).into();
     row.id = Uuid::nil();
-    assert!(SubtitleTrack::<Uuid7>::try_from((row, errs))
+    assert!(SubtitleTrack::<Uuid7>::try_from((row, errs, meta))
       .unwrap_err()
       .is_invalid_uuid());
   }
@@ -3176,15 +3290,20 @@ mod tests {
         ErrorInfo::new(ErrorCode::ProbeCorrupt, "bad"),
         ErrorInfo::new(ErrorCode::PathNotFound, "gone"),
       ]);
-    let (row, errs): (
+    let (row, errs, meta): (
       PgSubtitleTrackRow,
       std::vec::Vec<PgSubtitleTrackIndexErrorRow>,
+      std::vec::Vec<PgSubtitleTrackMetadataRow>,
     ) = (&t).into();
     let err_refs: std::vec::Vec<PgSubtitleTrackIndexErrorRowRef<'_>> = errs
       .iter()
       .map(PgSubtitleTrackIndexErrorRow::as_ref)
       .collect();
-    let t2: SubtitleTrack<Uuid7> = (row.as_ref(), err_refs).try_into().unwrap();
+    let meta_refs: std::vec::Vec<PgSubtitleTrackMetadataRowRef<'_>> = meta
+      .iter()
+      .map(PgSubtitleTrackMetadataRow::as_ref)
+      .collect();
+    let t2: SubtitleTrack<Uuid7> = (row.as_ref(), err_refs, meta_refs).try_into().unwrap();
     assert_eq!(t, t2);
   }
 

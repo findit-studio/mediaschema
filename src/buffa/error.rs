@@ -11,6 +11,7 @@
 //! `unwrap_*_ref` on the inner error per the derive_more pattern.
 
 use derive_more::{IsVariant, TryUnwrap, Unwrap};
+use smol_str::SmolStr;
 
 use crate::domain::primitives::{LocationError, Uuid7Error};
 
@@ -92,4 +93,10 @@ pub enum BuffaError {
   /// the field name, second is the offending value.
   #[error("wire SubtitleCue numeric field `{0}` value {1} is out of range for the domain")]
   SubtitleNumericOutOfRange(&'static str, i32),
+  /// A domain `try_new` / `try_with_*` constructor rejected the wire
+  /// payload. Carries the originating error's display message; the
+  /// per-aggregate typed errors have their own variants where the
+  /// distinction matters.
+  #[error("wire payload rejected by domain constructor: {0}")]
+  DomainConstructorRejected(SmolStr),
 }

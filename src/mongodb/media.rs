@@ -102,6 +102,8 @@ impl From<&Media<Uuid7>> for Document {
         .unwrap_or(Bson::Null),
     );
     d.insert("kind", Bson::Int32(media_kind_to_i32(m.kind())));
+    d.insert("nb_streams", Bson::Int64(i64::from(m.nb_streams())));
+    d.insert("nb_chapters", Bson::Int64(i64::from(m.nb_chapters())));
     d.insert(
       "video_id",
       m.video_id_ref()
@@ -155,6 +157,22 @@ impl TryFrom<Document> for Media<Uuid7> {
     let kind = media_kind_from_i64(as_i64(take(&mut d, "kind")?, "kind")?, "kind")?;
     let mut m = Media::try_new(id, checksum, format, size, kind)?;
 
+    if let Some(b) = take_opt(&mut d, "nb_streams") {
+      let n = as_u64(b, "nb_streams")?;
+      let n32 = u32::try_from(n).map_err(|_| MongoError::IntOutOfRange {
+        field: smol_str::SmolStr::from("nb_streams"),
+        value: n as i64,
+      })?;
+      m.set_nb_streams(n32);
+    }
+    if let Some(b) = take_opt(&mut d, "nb_chapters") {
+      let n = as_u64(b, "nb_chapters")?;
+      let n32 = u32::try_from(n).map_err(|_| MongoError::IntOutOfRange {
+        field: smol_str::SmolStr::from("nb_chapters"),
+        value: n as i64,
+      })?;
+      m.set_nb_chapters(n32);
+    }
     if let Some(b) = take_opt(&mut d, "duration") {
       m.try_set_duration(Some(media_ts_from_bson(b, "duration")?))?;
     }

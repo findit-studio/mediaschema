@@ -1,0 +1,126 @@
+//! PostgreSQL row shapes for `Chapter` + its `chapter_metadata` child table.
+//!
+//! The metadata side-table preserves [`IndexMap`] insertion order via a
+//! per-row `ordinal` column (`PRIMARY KEY (chapter_id, ordinal)`).
+//! Encode emits `(0..)`; decode sorts by `ordinal` before inserting into
+//! the `IndexMap` so the original order is faithfully recovered.
+
+use core::num::NonZeroU32;
+
+use indexmap::IndexMap;
+use mediatime::{TimeRange, Timebase};
+use smol_str::SmolStr;
+use uuid::Uuid;
+
+use crate::{
+  domain::{
+    aggregates::chapter::{Chapter, ChapterError},
+    Uuid7,
+  },
+  sqlx::{
+    dto::{uuid7_to_uuid, uuid_to_uuid7},
+    SqlxError,
+  },
+};
+
+/// PostgreSQL row for the `chapter` table.
+#[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
+pub struct PgChapterRow {
+  pub id: Uuid,
+  pub media_id: Uuid,
+  /// `chapter_index` in SQL (the bare word `index` is a reserved
+  /// identifier in some dialects).
+  pub chapter_index: i32,
+  pub source_id: i64,
+  pub start_pts: i64,
+  pub end_pts: i64,
+  pub timebase_num: i64,
+  pub timebase_den: i64,
+  /// Hoisted from the AVDictionary `"title"` key; empty string = absent.
+  pub title: String,
+}
+
+/// PostgreSQL row for `chapter_metadata`. Position in the per-`chapter_id`
+/// `ordinal` sequence IS the [`IndexMap`] insertion order.
+#[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
+pub struct PgChapterMetadataRow {
+  pub chapter_id: Uuid,
+  pub ordinal: i32,
+  pub key: String,
+  pub value: String,
+}
+
+impl From<&Chapter<Uuid7>> for (PgChapterRow, std::vec::Vec<PgChapterMetadataRow>) {
+  fn from(c: &Chapter<Uuid7>) -> Self {
+    let id = uuid7_to_uuid(*c.id_ref());
+    let row = PgChapterRow {
+      id,
+      media_id: uuid7_to_uuid(*c.media_id_ref()),
+      chapter_index: i32::try_from(c.index()).unwrap_or(i32::MAX),
+      source_id: c.source_id(),
+      start_pts: c.time_range_ref().start_pts(),
+      end_pts: c.time_range_ref().end_pts(),
+      timebase_num: i64::from(c.time_range_ref().timebase().num()),
+      timebase_den: i64::from(c.time_range_ref().timebase().den().get()),
+      title: c.title().to_owned(),
+    };
+    let metadata = c
+      .metadata_ref()
+      .iter()
+      .enumerate()
+      .map(|(i, (k, v))| PgChapterMetadataRow {
+        chapter_id: id,
+        ordinal: i32::try_from(i).unwrap_or(i32::MAX),
+        key: k.as_str().to_owned(),
+        value: v.as_str().to_owned(),
+      })
+      .collect();
+    (row, metadata)
+  }
+}
+
+/// Reconstruct a domain [`Chapter`] from the row + its metadata side-table
+/// rows. The supplied `metadata` may be in any order — this function
+/// sorts by `ordinal` before insertion so the original [`IndexMap`]
+/// order is recovered.
+pub fn chapter_from_rows(
+  row: PgChapterRow,
+  mut metadata: std::vec::Vec<PgChapterMetadataRow>,
+) -> Result<Chapter<Uuid7>, SqlxError> {
+  let id = uuid_to_uuid7(row.id)?;
+  let media_id = uuid_to_uuid7(row.media_id)?;
+  let index = u32::try_from(row.chapter_index)
+    .map_err(|e| SqlxError::UnknownDiscriminant(format!("Chapter.index: {e}")))?;
+  let num = u32::try_from(row.timebase_num)
+    .map_err(|e| SqlxError::UnknownDiscriminant(format!("Chapter.timebase_num: {e}")))?;
+  let den_u32 = u32::try_from(row.timebase_den)
+    .map_err(|e| SqlxError::UnknownDiscriminant(format!("Chapter.timebase_den: {e}")))?;
+  let den = NonZeroU32::new(den_u32).ok_or_else(|| {
+    SqlxError::DomainConstructorRejected("Chapter.timebase_den must be non-zero".to_owned())
+  })?;
+  let timebase = Timebase::new(num, den);
+  let time_range = TimeRange::new(row.start_pts, row.end_pts, timebase);
+
+  let chapter = Chapter::try_new(id, media_id, index, row.source_id, time_range)
+    .map_err(chapter_err_to_sqlx)?;
+  let chapter = chapter
+    .try_with_title(row.title)
+    .map_err(chapter_err_to_sqlx)?;
+
+  metadata.sort_by_key(|m| m.ordinal);
+  let mut bag = IndexMap::with_capacity(metadata.len());
+  for entry in metadata {
+    if entry.chapter_id != row.id {
+      return Err(SqlxError::DomainConstructorRejected(format!(
+        "chapter_metadata.chapter_id ({}) does not match parent chapter.id ({})",
+        entry.chapter_id, row.id
+      )));
+    }
+    bag.insert(SmolStr::from(entry.key), SmolStr::from(entry.value));
+  }
+  chapter.try_with_metadata(bag).map_err(chapter_err_to_sqlx)
+}
+
+fn chapter_err_to_sqlx(e: ChapterError) -> SqlxError {
+  SqlxError::DomainConstructorRejected(e.to_string())
+}

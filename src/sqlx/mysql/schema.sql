@@ -13,6 +13,9 @@ CREATE TABLE IF NOT EXISTS media (
     size                BIGINT UNSIGNED NOT NULL,
     duration_raw        BIGINT,
     kind                SMALLINT    NOT NULL,
+    -- Verbatim AVFormatContext.nb_streams / nb_chapters (rev 11).
+    nb_streams          INT UNSIGNED NOT NULL DEFAULT 0,
+    nb_chapters         INT UNSIGNED NOT NULL DEFAULT 0,
     video               BINARY(16),
     audio               BINARY(16),
     subtitle            BINARY(16),
@@ -30,6 +33,40 @@ CREATE TABLE IF NOT EXISTS media (
     KEY idx_media_video (video),
     KEY idx_media_audio (audio),
     KEY idx_media_subtitle (subtitle)
+);
+
+-- Container-level chapters (AVFormatContext.chapters[i]). See
+-- schema/chapter.md (rev 1). `title` hoisted from AVDictionary's "title"
+-- key (any case; first match wins); remaining metadata in
+-- `chapter_metadata`, keyed by ordinal.
+CREATE TABLE IF NOT EXISTS chapter (
+    id                  BINARY(16)      NOT NULL,
+    media_id            BINARY(16)      NOT NULL,
+    chapter_index       INT UNSIGNED    NOT NULL,
+    source_id           BIGINT          NOT NULL,
+    start_pts           BIGINT          NOT NULL,
+    end_pts             BIGINT          NOT NULL,
+    timebase_num        BIGINT          NOT NULL,
+    timebase_den        BIGINT          NOT NULL,
+    -- MySQL has no functional index on LOWER(title); use a generated
+    -- column for the case-insensitive lookup index.
+    title               VARCHAR(4096)   NOT NULL DEFAULT '',
+    title_lower         VARCHAR(4096) GENERATED ALWAYS AS (LOWER(title)) STORED,
+    PRIMARY KEY (id),
+    UNIQUE KEY idx_chapter_media_id_index (media_id, chapter_index),
+    KEY idx_chapter_media_id     (media_id),
+    KEY idx_chapter_title_lower  (title_lower(255))
+);
+
+-- AVDictionary entries per chapter, **excluding** the "title" key.
+-- `ordinal` preserves IndexMap insertion order.
+CREATE TABLE IF NOT EXISTS chapter_metadata (
+    chapter_id  BINARY(16)      NOT NULL,
+    ordinal     INT UNSIGNED    NOT NULL,
+    `key`       VARCHAR(255)    NOT NULL,
+    value       TEXT            NOT NULL,
+    PRIMARY KEY (chapter_id, ordinal),
+    KEY idx_chapter_metadata_chapter_id (chapter_id)
 );
 
 CREATE TABLE IF NOT EXISTS watched_location (
@@ -149,6 +186,10 @@ CREATE TABLE IF NOT EXISTS audio_track (
     sample_rate               BIGINT       NOT NULL DEFAULT 0,
     channels                  INT          NOT NULL DEFAULT 0,
     channel_layout            VARCHAR(64)  NOT NULL,
+    -- `SampleFormat::to_u32` (FFmpeg `AV_SAMPLE_FMT_*` code). Default
+    -- `4294967295` (`u32::MAX`) so a freshly-inserted row decodes back as
+    -- `SampleFormat::Unknown(u32::MAX)` == `SampleFormat::default()`.
+    sample_format             BIGINT       NOT NULL DEFAULT 4294967295,
     bit_rate                  BIGINT       NOT NULL DEFAULT 0,
     bit_rate_mode             INT,
     bits_per_sample           INT,
@@ -172,6 +213,11 @@ CREATE TABLE IF NOT EXISTS audio_track (
     loudness_range_lu         FLOAT,
     loudness_true_peak_dbtp   FLOAT,
     loudness_sample_peak_dbfs FLOAT,
+    has_replay_gain           TINYINT      NOT NULL DEFAULT 0,
+    replay_gain_track_gain_db FLOAT,
+    replay_gain_track_peak    FLOAT,
+    replay_gain_album_gain_db FLOAT,
+    replay_gain_album_peak    FLOAT,
     fingerprint_algo          VARCHAR(64),
     fingerprint_value         BLOB,
     isrc                      VARCHAR(64)  NOT NULL,
@@ -200,6 +246,17 @@ CREATE TABLE IF NOT EXISTS audio_track (
     index_status              BIGINT       NOT NULL DEFAULT 0,
     PRIMARY KEY (id),
     KEY idx_audio_track_audio_id (audio_id)
+);
+
+-- AVDictionary entries per audio_track. `ordinal` preserves IndexMap
+-- insertion order; ORDER BY ordinal yields the original sequence.
+CREATE TABLE IF NOT EXISTS audio_track_metadata (
+    audio_track_id  BINARY(16)   NOT NULL,
+    ordinal         INT          NOT NULL,
+    `key`           VARCHAR(255) NOT NULL,
+    value           TEXT         NOT NULL,
+    PRIMARY KEY (audio_track_id, ordinal),
+    KEY idx_audio_track_metadata_audio_track_id (audio_track_id)
 );
 
 CREATE TABLE IF NOT EXISTS audio_track_index_error (
@@ -317,6 +374,11 @@ CREATE TABLE IF NOT EXISTS video_track (
     fr_num                   BIGINT       NOT NULL DEFAULT 1,
     fr_den                   BIGINT       NOT NULL DEFAULT 1,
     fr_is_vfr                TINYINT      NOT NULL DEFAULT 0,
+    -- `AVStream.avg_frame_rate` — defaults `0/1` (= `FrameRate::default()`,
+    -- absent). For CFR content this equals (fr_num, fr_den); for VFR the
+    -- two diverge.
+    avg_fr_num               BIGINT       NOT NULL DEFAULT 0,
+    avg_fr_den               BIGINT       NOT NULL DEFAULT 1,
     field_order              BIGINT       NOT NULL DEFAULT 0,
     stereo_mode              BIGINT,
     has_dovi                 TINYINT      NOT NULL DEFAULT 0,
@@ -336,6 +398,17 @@ CREATE TABLE IF NOT EXISTS video_track (
     index_status             BIGINT       NOT NULL DEFAULT 0,
     PRIMARY KEY (id),
     KEY idx_video_track_video_id (video_id)
+);
+
+-- AVDictionary entries per video_track. `ordinal` preserves IndexMap
+-- insertion order; ORDER BY ordinal yields the original sequence.
+CREATE TABLE IF NOT EXISTS video_track_metadata (
+    video_track_id  BINARY(16)   NOT NULL,
+    ordinal         INT          NOT NULL,
+    `key`           VARCHAR(255) NOT NULL,
+    value           TEXT         NOT NULL,
+    PRIMARY KEY (video_track_id, ordinal),
+    KEY idx_video_track_metadata_video_track_id (video_track_id)
 );
 
 CREATE TABLE IF NOT EXISTS video_track_index_error (
@@ -689,6 +762,17 @@ CREATE TABLE IF NOT EXISTS subtitle_track (
     KEY idx_subtitle_track_codec (codec),
     KEY idx_subtitle_track_language (language),
     KEY idx_subtitle_track_origin (origin)
+);
+
+-- AVDictionary entries per subtitle_track. `ordinal` preserves IndexMap
+-- insertion order; ORDER BY ordinal yields the original sequence.
+CREATE TABLE IF NOT EXISTS subtitle_track_metadata (
+    subtitle_track_id  BINARY(16)   NOT NULL,
+    ordinal            INT          NOT NULL,
+    `key`              VARCHAR(255) NOT NULL,
+    value              TEXT         NOT NULL,
+    PRIMARY KEY (subtitle_track_id, ordinal),
+    KEY idx_subtitle_track_metadata_subtitle_track_id (subtitle_track_id)
 );
 
 CREATE TABLE IF NOT EXISTS subtitle_track_index_error (

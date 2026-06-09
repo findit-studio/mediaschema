@@ -1,4 +1,4 @@
-# `AudioTrack<Id>` — an audio stream  *(rev 4 — LOCKED, user-approved)*
+# `AudioTrack<Id>` — an audio stream  *(rev 6 — LOCKED, user-approved; +`replay_gain` (mediaframe 0.1.4))*
 
 ## Domain meaning
 
@@ -37,6 +37,7 @@ track. Conversions deferred.
 | `sample_rate` | `u32` | sample_rate | Hz |
 | `channels` | `u16` | channels | channel count |
 | `channel_layout` | `mediaframe::ChannelLayout` | channel_layout | extern; `Mono`/`Stereo`/`5_1`/`7_1`/`Other` |
+| `sample_format` | `mediaframe::audio::SampleFormat` | sample_format | extern; FFmpeg `AV_SAMPLE_FMT_*`-coded enum (`U8`/`S16`/`S32`/`Flt`/`Dbl` + planar siblings + `Unknown(u32)` / `Other(SmolStr)` escapes). Default = `Unknown(u32::MAX)` (the `AV_SAMPLE_FMT_NONE` sentinel). SQL projection: integer column carrying `SampleFormat::to_u32()` |
 | `bit_rate` | `u64` | bit_rate | bits/s (0 → unknown) |
 | `bit_rate_mode` | `Option<mediaframe::BitRateMode>` | analyze | `Cbr`/`Vbr`/`Abr` (extern; adopted) |
 | `bits_per_sample` | `Option<u16>` | — | PCM/lossless depth |
@@ -52,6 +53,7 @@ track. Conversions deferred.
 | `speech_ratio` | `Option<f32>` | analyze | fraction speech (drives the pipeline) |
 | `is_silent` | `bool` | analyze | cheap defect signal |
 | `loudness` | `Option<Loudness>` (VO) | EBU R128 | `{ integrated_lufs, true_peak_dbtp, loudness_range_lu }` |
+| `replay_gain` | `Option<ReplayGain>` (VO) | tags | `{ track_gain_db, track_peak, album_gain_db?, album_peak? }` — container's normalization recommendation; distinct from EBU R128 `loudness` (the measurement) |
 | `fingerprint` | `Option<AudioFingerprint>` (VO) | chromaprint | acoustic id / dedup |
 | `isrc` | `SmolStr` | tags | recording code; `""`=absent |
 | `acoustid` · `musicbrainz_recording_id` | `SmolStr` · `SmolStr` | resolve | canonical dedup ids; `""`=absent |
@@ -59,6 +61,7 @@ track. Conversions deferred.
 | `tags` | `Option<AudioTags>` (VO) | flat tag fields | per-recording music tags (grouped) |
 | `cover_art` | `Option<AudioCoverArt>` (VO) | cover_art | per-recording embedded art (inline) |
 | `segments` | `Vec<Id>` | — | → `AudioSegment` (**A-loc per-track**); `Audio.total_segments` rolls these up |
+| `metadata` | `IndexMap<SmolStr, SmolStr>` | — | container `AVDictionary` entries from this stream, with the keys hoisted into `Tags` and `language` already consumed. Insertion-ordered. SQL projection: `audio_track_metadata` join table with `(audio_track_id, ordinal, key, value)` |
 | `provenance` | `Provenance` (shared VO) | — | analysis-run reproducibility |
 | `index_status` | `AudioIndexStatus` (bitflags `u32`) | status | the **verified 11-bit `ProcessingStage`** (below) |
 | `index_errors` | `Vec<ErrorInfo>` | index errors | per-track truth (stage-coded `ErrorInfo.code`); → `Media.error_flags` rollup; error-state **derived** (no `error_status`) |
@@ -85,6 +88,11 @@ track. Conversions deferred.
   dimensions: Option<mediaframe::Dimensions> }`. `size` dropped (= `data.len()`).
 - **`Loudness`** = `{ integrated_lufs: f32, true_peak_dbtp: f32,
   loudness_range_lu: f32 }` (EBU R128).
+- **`ReplayGain`** = `{ track_gain_db: f32, track_peak: f32,
+  album_gain_db: Option<f32>, album_peak: Option<f32> }`. Container-tagged
+  normalization recommendation (`REPLAYGAIN_*` tags) — distinct from
+  `Loudness` (the measurement). Track scalars required; album scalars
+  independently optional (single tracks lack album context).
 - **`AudioFingerprint`** = `{ algo: SmolStr, value: Bytes }` (chromaprint
   acoustic hash for recording dedup / AcoustID lookup; `value` = `Bytes`.
   `duration_s` **dropped** — AcoustID lookup uses `AudioTrack.duration`; a

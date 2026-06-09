@@ -17,8 +17,11 @@
 //! in `mediaframe`. These are wired through directly.
 
 use derive_more::IsVariant;
+use indexmap::IndexMap;
 use mediaframe::{
-  audio::{BitRateMode, ChannelLayout, CoverArt, Fingerprint, Loudness, Tags},
+  audio::{
+    BitRateMode, ChannelLayout, CoverArt, Fingerprint, Loudness, ReplayGain, SampleFormat, Tags,
+  },
   codec::AudioCodec,
   disposition::TrackDisposition,
   lang::Language,
@@ -146,6 +149,9 @@ pub struct AudioTrack<Id = Uuid7> {
   sample_rate: u32,
   channels: u16,
   channel_layout: ChannelLayout,
+  /// Sample format (mediaframe `AVSampleFormat`-coded). `Default` is
+  /// `Unknown(u32::MAX)` — the FFmpeg `AV_SAMPLE_FMT_NONE` sentinel.
+  sample_format: SampleFormat,
   bit_rate: u64,
   bit_rate_mode: Option<BitRateMode>,
   bits_per_sample: Option<u16>,
@@ -165,6 +171,16 @@ pub struct AudioTrack<Id = Uuid7> {
   speech_ratio: Option<f32>,
   is_silent: bool,
   loudness: Option<Loudness>,
+  /// Container-tagged ReplayGain normalization recommendation
+  /// (FFmpeg `AV_PKT_DATA_REPLAYGAIN` side data or
+  /// `REPLAYGAIN_TRACK_*` / `REPLAYGAIN_ALBUM_*` `AVDictionary` keys).
+  /// **Distinct from `loudness`** — `loudness` is the EBU R128 / BS.1770
+  /// *measurement* of the signal; `replay_gain` is the normalization
+  /// *recommendation* a tagger wrote into the container (delta from a
+  /// −18 LUFS reference per ReplayGain 2.0). Album-level numbers
+  /// cannot be derived from a single track's loudness, so the two are
+  /// not redundant.
+  replay_gain: Option<ReplayGain>,
   fingerprint: Option<Fingerprint>,
   isrc: SmolStr,
   acoustid: SmolStr,
@@ -173,6 +189,12 @@ pub struct AudioTrack<Id = Uuid7> {
   tags: Option<Tags>,
   cover_art: Option<CoverArt>,
   segments: std::vec::Vec<Id>,
+  /// AVDictionary entries from the container's stream metadata, with
+  /// any "title" / "language" / "artist" / "album" / "genre" / "comment"
+  /// keys (and the rest of the `Tags`-hoisted set) **already consumed**
+  /// into their dedicated columns (`title` on the parent, `language`,
+  /// `tags: Tags`, etc.). Insertion-ordered (`IndexMap`).
+  metadata: IndexMap<SmolStr, SmolStr>,
   provenance: Provenance,
   index_status: AudioIndexStatus,
   index_errors: std::vec::Vec<ErrorInfo>,
@@ -202,6 +224,7 @@ impl AudioTrack<Uuid7> {
       sample_rate: 0,
       channels: 0,
       channel_layout: ChannelLayout::default(),
+      sample_format: SampleFormat::default(),
       bit_rate: 0,
       bit_rate_mode: None,
       bits_per_sample: None,
@@ -217,6 +240,7 @@ impl AudioTrack<Uuid7> {
       speech_ratio: None,
       is_silent: false,
       loudness: None,
+      replay_gain: None,
       fingerprint: None,
       isrc: SmolStr::default(),
       acoustid: SmolStr::default(),
@@ -225,6 +249,7 @@ impl AudioTrack<Uuid7> {
       tags: None,
       cover_art: None,
       segments: std::vec::Vec::new(),
+      metadata: IndexMap::new(),
       provenance: Provenance::new(),
       index_status: AudioIndexStatus::empty(),
       index_errors: std::vec::Vec::new(),
@@ -285,6 +310,13 @@ impl<Id> AudioTrack<Id> {
   #[inline(always)]
   pub const fn channel_layout_ref(&self) -> &ChannelLayout {
     &self.channel_layout
+  }
+
+  /// Sample format (`AV_SAMPLE_FMT_NONE` = `Unknown(u32::MAX)`).
+  /// Returns by `&` — `SampleFormat::Other(SmolStr)` is non-`Copy`.
+  #[inline(always)]
+  pub const fn sample_format_ref(&self) -> &SampleFormat {
+    &self.sample_format
   }
 
   /// Bit rate (bits/s; `0` = unknown).
@@ -393,6 +425,12 @@ impl<Id> AudioTrack<Id> {
     self.loudness.as_ref()
   }
 
+  /// Container-tagged ReplayGain (`None` = container carried no tags).
+  #[inline(always)]
+  pub const fn replay_gain_ref(&self) -> Option<&ReplayGain> {
+    self.replay_gain.as_ref()
+  }
+
   /// Chromaprint fingerprint (`None` = stage not run yet).
   #[inline(always)]
   pub const fn fingerprint_ref(&self) -> Option<&Fingerprint> {
@@ -434,6 +472,14 @@ impl<Id> AudioTrack<Id> {
   #[inline(always)]
   pub const fn cover_art_ref(&self) -> Option<&CoverArt> {
     self.cover_art.as_ref()
+  }
+
+  /// Container `AVDictionary` entries with the hoisted keys
+  /// (`title`/`language`/`tags_*`) already consumed into dedicated
+  /// columns. Insertion-ordered.
+  #[inline(always)]
+  pub const fn metadata_ref(&self) -> &IndexMap<SmolStr, SmolStr> {
+    &self.metadata
   }
 
   /// Per-track `AudioSegment` ids (`Audio.total_segments` rolls these up).
@@ -532,6 +578,14 @@ impl<Id> AudioTrack<Id> {
   #[must_use]
   pub fn with_channel_layout(mut self, v: ChannelLayout) -> Self {
     self.channel_layout = v;
+    self
+  }
+
+  /// Builder: replace `sample_format`.
+  #[inline(always)]
+  #[must_use]
+  pub fn with_sample_format(mut self, v: SampleFormat) -> Self {
+    self.sample_format = v;
     self
   }
 
@@ -675,6 +729,14 @@ impl<Id> AudioTrack<Id> {
     self
   }
 
+  /// Builder: replace `replay_gain`.
+  #[inline(always)]
+  #[must_use]
+  pub const fn with_replay_gain(mut self, v: Option<ReplayGain>) -> Self {
+    self.replay_gain = v;
+    self
+  }
+
   /// Builder: replace `fingerprint`.
   #[inline(always)]
   #[must_use]
@@ -720,6 +782,28 @@ impl<Id> AudioTrack<Id> {
   #[must_use]
   pub fn with_cover_art(mut self, v: Option<CoverArt>) -> Self {
     self.cover_art = v;
+    self
+  }
+
+  /// Builder: replace the container-`AVDictionary` metadata bag.
+  #[inline(always)]
+  #[must_use]
+  pub fn with_metadata(mut self, v: IndexMap<SmolStr, SmolStr>) -> Self {
+    self.metadata = v;
+    self
+  }
+
+  /// In-place mutator: replace `sample_format`.
+  #[inline(always)]
+  pub fn set_sample_format(&mut self, v: SampleFormat) -> &mut Self {
+    self.sample_format = v;
+    self
+  }
+
+  /// In-place mutator: replace the container-`AVDictionary` metadata bag.
+  #[inline(always)]
+  pub fn set_metadata(&mut self, v: IndexMap<SmolStr, SmolStr>) -> &mut Self {
+    self.metadata = v;
     self
   }
 
@@ -961,6 +1045,13 @@ impl<Id> AudioTrack<Id> {
   #[inline(always)]
   pub const fn set_loudness(&mut self, v: Option<Loudness>) -> &mut Self {
     self.loudness = v;
+    self
+  }
+
+  /// In-place mutator for `replay_gain`.
+  #[inline(always)]
+  pub const fn set_replay_gain(&mut self, v: Option<ReplayGain>) -> &mut Self {
+    self.replay_gain = v;
     self
   }
 

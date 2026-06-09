@@ -1,4 +1,4 @@
-# `SubtitleTrack<Id>` — a subtitle stream  *(rev 5 — LOCKED, user-approved; `source_path` dropped per #67)*
+# `SubtitleTrack<Id>` — a subtitle stream  *(rev 6 — LOCKED, user-approved; +per-track `metadata` AVDictionary bag)*
 
 ## Domain meaning
 
@@ -33,6 +33,7 @@ Conversions deferred.
 | `duration` | `Option<TrackTime>` | time | per-track duration (mediatime extern) |
 | `cue_count` | `u32` | — (rollup) | maintained Σ of the cue aggregate's len (no progress lifecycle, like scenes) |
 | `cues` | `Vec<Id>` | — | refs to the per-track `SubtitleCue` segment aggregate |
+| `metadata` | `IndexMap<SmolStr, SmolStr>` | — | container `AVDictionary` entries from this stream, with the hoisted `title` / `language` keys (any case) consumed into dedicated columns. Insertion-ordered. SQL projection: `subtitle_track_metadata` join table with `(subtitle_track_id, ordinal, key, value)` |
 | `provenance` | `Provenance` (shared VO) | — | parse/OCR reproducibility; shared cross-cutting VO ([README.md](README.md)) |
 | — *adopted rev 2 (all obtainable via ffmpeg-probe / parse / ingest — your "if we can obtain them" gate met)* — |
 | `source_checksum` | `Option<FileChecksum>` | ingest | change-detection / re-index; `None` for embedded. **`source_path` was dropped in rev 5 (#67)** — with the polymorphic-cue redesign every cue is parsed and stored as a `subtitle_cue` row, so the storage layer no longer needs the source file path; FS-rescan change detection now keys on the checksum alone |
