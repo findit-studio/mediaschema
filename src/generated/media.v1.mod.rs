@@ -116,6 +116,7 @@ pub mod __buffa {
         reg.register_json_any(super::__AUDIO_CHANNEL_SPEC_JSON_ANY);
         #[cfg(feature = "json")] reg.register_json_any(super::__CHROMAPRINT_JSON_ANY);
         #[cfg(feature = "json")] reg.register_json_any(super::__EBUR128_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__REPLAY_GAIN_JSON_ANY);
         #[cfg(feature = "json")] reg.register_json_any(super::__TIMECODE_JSON_ANY);
         #[cfg(feature = "json")] reg.register_json_any(super::__CED_DETECTION_JSON_ANY);
         #[cfg(feature = "json")] reg.register_json_any(super::__CED_JSON_ANY);
@@ -140,6 +141,8 @@ pub mod __buffa {
         #[cfg(feature = "json")] reg.register_json_any(super::__VIDEO_JSON_ANY);
         #[cfg(feature = "json")] reg.register_json_any(super::__VIDEO_TRACK_JSON_ANY);
         #[cfg(feature = "json")] reg.register_json_any(super::__MEDIA_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__CHAPTER_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__KEY_VALUE_JSON_ANY);
         #[cfg(feature = "json")] reg.register_json_any(super::__SUBTITLE_JSON_ANY);
         #[cfg(feature = "json")] reg.register_json_any(super::__SUBTITLE_TRACK_JSON_ANY);
         #[cfg(feature = "json")] reg.register_json_any(super::__SUBTITLE_CUE_JSON_ANY);

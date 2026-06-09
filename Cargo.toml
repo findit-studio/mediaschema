@@ -4,7 +4,7 @@ members = ["xtask"]
 
 [package]
 name = "mediaschema"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 description = "Product-agnostic media-primitive schema (buffa-generated)"
@@ -55,9 +55,9 @@ default = ["std", "video", "audio", "subtitle"]
 # so it's pulled in only when either `alloc` or `std` is on (the
 # capability features that themselves require heap).
 alloc = ["dep:smol_str", "dep:bytes", "mediaframe/alloc"]
-std = ["dep:smol_str", "smol_str/default", "dep:bytes", "uuid/default", "uuid/v7", "buffa?/default", "buffa-types?/default", "mediaframe/std"]
+std = ["dep:smol_str", "smol_str/default", "dep:bytes", "dep:indexmap", "indexmap?/std", "uuid/default", "uuid/v7", "buffa?/default", "buffa-types?/default", "mediaframe/std"]
 buffa = ["dep:buffa", "dep:buffa-types", "buffa?/smol_str", "mediaframe?/buffa"]
-json = ["std", "buffa", "dep:serde", "dep:serde_json", "buffa?/json", "buffa-types?/json", "mediatime/serde"]
+json = ["std", "buffa", "dep:serde", "dep:serde_json", "buffa?/json", "buffa-types?/json", "mediatime/serde", "indexmap?/serde"]
 # `arbitrary` implies `std` AND `buffa`. Upstream `buffa-types`'s
 # `arbitrary` codegen references `std::RECURSIVE_COUNT_*` symbols emitted
 # by the `arbitrary` derive macro and won't compile without `std`; the
@@ -138,6 +138,13 @@ bytes = { version = "1", default-features = false, optional = true }
 # long strings, so it's pulled in only when the `alloc` or `std`
 # feature is on (which are the gates for heap-using domain types).
 smol_str = { version = "0.3", default-features = false, optional = true }
+# `IndexMap<SmolStr, SmolStr>` is the on-domain shape for AVDictionary-
+# style key/value bags (Chapter.metadata today; expected to spread to
+# any other order-preserving metadata bag). Optional; pulled in by the
+# heap tiers (`alloc`/`std`) since IndexMap requires alloc.
+# `default-features = false` keeps it `alloc`-only; the `serde` feature
+# is forwarded on by mediaschema's `json` feature.
+indexmap = { version = "2", default-features = false, optional = true }
 # `uuid` features are gated on mediaschema's `std` feature (see above).
 # `v7` provides `Uuid::now_v7()` which requires `SystemTime` (std), so
 # under `--no-default-features` the bare `Uuid` type stays available

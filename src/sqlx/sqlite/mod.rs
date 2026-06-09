@@ -8,6 +8,7 @@
 #[cfg(feature = "audio")]
 #[cfg_attr(docsrs, doc(cfg(feature = "audio")))]
 pub mod audio;
+pub mod chapter;
 pub mod leaves;
 pub mod media;
 pub mod media_file;
@@ -21,9 +22,10 @@ pub mod video;
 
 #[cfg(feature = "audio")]
 pub use audio::{
-  SqliteAudioRow, SqliteAudioSegmentRow, SqliteAudioSegmentWordRow, SqliteAudioTrackIndexErrorRow,
-  SqliteAudioTrackRow,
+  audio_track_from_rows, SqliteAudioRow, SqliteAudioSegmentRow, SqliteAudioSegmentWordRow,
+  SqliteAudioTrackIndexErrorRow, SqliteAudioTrackMetadataRow, SqliteAudioTrackRow,
 };
+pub use chapter::{chapter_from_rows, SqliteChapterMetadataRow, SqliteChapterRow};
 pub use leaves::{
   SqliteSceneAnnotationRow, SqliteSpeakerRow, SqliteUserTagRow, SqliteWatchedLocationRow,
 };
@@ -32,23 +34,23 @@ pub use media_file::SqliteMediaFileRow;
 pub use person::SqlitePersonRow;
 #[cfg(feature = "subtitle")]
 pub use subtitle::{
-  SqliteSubtitleCueAssRow, SqliteSubtitleCueBaseRow, SqliteSubtitleCueLrcRow,
-  SqliteSubtitleCueLrcWordRow, SqliteSubtitleCueVttRow, SqliteSubtitleRow,
+  subtitle_track_from_rows, SqliteSubtitleCueAssRow, SqliteSubtitleCueBaseRow,
+  SqliteSubtitleCueLrcRow, SqliteSubtitleCueLrcWordRow, SqliteSubtitleCueVttRow, SqliteSubtitleRow,
   SqliteSubtitleTrackAssStyleRow, SqliteSubtitleTrackIndexErrorRow,
-  SqliteSubtitleTrackLrcMetadataRow, SqliteSubtitleTrackRow, SqliteSubtitleTrackVttRegionRow,
-  SqliteSubtitleTrackVttStyleRow,
+  SqliteSubtitleTrackLrcMetadataRow, SqliteSubtitleTrackMetadataRow, SqliteSubtitleTrackRow,
+  SqliteSubtitleTrackVttRegionRow, SqliteSubtitleTrackVttStyleRow,
 };
 #[cfg(feature = "video")]
 pub use video::{
-  SqliteKeyframeActionRow, SqliteKeyframeBarcodeRow, SqliteKeyframeBodyPose3DJointRow,
-  SqliteKeyframeBodyPose3DRow, SqliteKeyframeBodyPoseJointRow, SqliteKeyframeBodyPoseRow,
-  SqliteKeyframeClassificationRow, SqliteKeyframeColorRow, SqliteKeyframeDocumentSegmentRow,
-  SqliteKeyframeFaceLandmarkPointRow, SqliteKeyframeFaceLandmarkRegionRow,
-  SqliteKeyframeFaceLandmarksRow, SqliteKeyframeFaceRow, SqliteKeyframeHandPoseRow,
-  SqliteKeyframeMaskRow, SqliteKeyframeObjectRow, SqliteKeyframeRow, SqliteKeyframeRows,
-  SqliteKeyframeSaliencyRow, SqliteKeyframeSubjectRow, SqliteKeyframeTextDetectionRow,
-  SqliteKeyframeVlmLabelRow, SqliteSceneRow, SqliteVideoRow, SqliteVideoTrackIndexErrorRow,
-  SqliteVideoTrackRow,
+  video_track_from_rows, SqliteKeyframeActionRow, SqliteKeyframeBarcodeRow,
+  SqliteKeyframeBodyPose3DJointRow, SqliteKeyframeBodyPose3DRow, SqliteKeyframeBodyPoseJointRow,
+  SqliteKeyframeBodyPoseRow, SqliteKeyframeClassificationRow, SqliteKeyframeColorRow,
+  SqliteKeyframeDocumentSegmentRow, SqliteKeyframeFaceLandmarkPointRow,
+  SqliteKeyframeFaceLandmarkRegionRow, SqliteKeyframeFaceLandmarksRow, SqliteKeyframeFaceRow,
+  SqliteKeyframeHandPoseRow, SqliteKeyframeMaskRow, SqliteKeyframeObjectRow, SqliteKeyframeRow,
+  SqliteKeyframeRows, SqliteKeyframeSaliencyRow, SqliteKeyframeSubjectRow,
+  SqliteKeyframeTextDetectionRow, SqliteKeyframeVlmLabelRow, SqliteSceneRow, SqliteVideoRow,
+  SqliteVideoTrackIndexErrorRow, SqliteVideoTrackMetadataRow, SqliteVideoTrackRow,
 };
 
 /// Canonical SQLite DDL for the mediaschema tables this revision maps.

@@ -6,7 +6,7 @@
 use ::bson::{Bson, Document};
 use core::str::FromStr;
 use mediaframe::{
-  audio::{ChannelLayout, CoverArt, Fingerprint, Loudness, Tags},
+  audio::{ChannelLayout, CoverArt, Fingerprint, Loudness, ReplayGain, SampleFormat, Tags},
   codec::AudioCodec,
 };
 use smol_str::SmolStr;
@@ -227,6 +227,40 @@ fn loudness_from_bson(b: Bson, field: &'static str) -> Result<Loudness, MongoErr
 }
 
 // ---------------------------------------------------------------------------
+// ReplayGain
+// ---------------------------------------------------------------------------
+
+fn replay_gain_to_bson(rg: &ReplayGain) -> Bson {
+  let mut d = Document::new();
+  d.insert("track_gain_db", Bson::Double(rg.track_gain_db() as f64));
+  d.insert("track_peak", Bson::Double(rg.track_peak() as f64));
+  if let Some(v) = rg.album_gain_db() {
+    d.insert("album_gain_db", Bson::Double(v as f64));
+  }
+  if let Some(v) = rg.album_peak() {
+    d.insert("album_peak", Bson::Double(v as f64));
+  }
+  Bson::Document(d)
+}
+
+fn replay_gain_from_bson(b: Bson, field: &'static str) -> Result<ReplayGain, MongoError> {
+  let mut d = as_doc(b, field)?;
+  let tg = as_f32(take(&mut d, "track_gain_db")?, "track_gain_db")?;
+  let tp = as_f32(take(&mut d, "track_peak")?, "track_peak")?;
+  let ag = if let Some(b) = take_opt(&mut d, "album_gain_db") {
+    Some(as_f32(b, "album_gain_db")?)
+  } else {
+    None
+  };
+  let ap = if let Some(b) = take_opt(&mut d, "album_peak") {
+    Some(as_f32(b, "album_peak")?)
+  } else {
+    None
+  };
+  Ok(ReplayGain::new(tg, tp, ag, ap))
+}
+
+// ---------------------------------------------------------------------------
 // AudioFingerprint
 // ---------------------------------------------------------------------------
 
@@ -272,6 +306,10 @@ impl From<&AudioTrack<Uuid7>> for Document {
     d.insert(
       "channel_layout",
       Bson::String(t.channel_layout_ref().as_str().to_owned()),
+    );
+    d.insert(
+      "sample_format",
+      Bson::Int64(i64::from(t.sample_format_ref().to_u32())),
     );
     d.insert("bit_rate", Bson::Int64(t.bit_rate() as i64));
     d.insert(
@@ -333,6 +371,12 @@ impl From<&AudioTrack<Uuid7>> for Document {
       t.loudness_ref().map(loudness_to_bson).unwrap_or(Bson::Null),
     );
     d.insert(
+      "replay_gain",
+      t.replay_gain_ref()
+        .map(replay_gain_to_bson)
+        .unwrap_or(Bson::Null),
+    );
+    d.insert(
       "fingerprint",
       t.fingerprint_ref()
         .map(fingerprint_to_bson)
@@ -361,6 +405,7 @@ impl From<&AudioTrack<Uuid7>> for Document {
       "index_errors",
       error_info_vec_to_bson(t.index_errors_slice()),
     );
+    d.insert("metadata", metadata_to_bson(t.metadata_ref()));
     d
   }
 }
@@ -400,6 +445,9 @@ impl TryFrom<Document> for AudioTrack<Uuid7> {
       let s = as_str(b, "channel_layout")?;
       let Ok(layout) = ChannelLayout::from_str(&s);
       t.set_channel_layout(layout);
+    }
+    if let Some(b) = take_opt(&mut d, "sample_format") {
+      t.set_sample_format(SampleFormat::from_u32(as_u32(b, "sample_format")?));
     }
     if let Some(b) = take_opt(&mut d, "bit_rate") {
       t.set_bit_rate(as_u64(b, "bit_rate")?);
@@ -460,6 +508,9 @@ impl TryFrom<Document> for AudioTrack<Uuid7> {
     if let Some(b) = take_opt(&mut d, "loudness") {
       t.set_loudness(Some(loudness_from_bson(b, "loudness")?));
     }
+    if let Some(b) = take_opt(&mut d, "replay_gain") {
+      t.set_replay_gain(Some(replay_gain_from_bson(b, "replay_gain")?));
+    }
     if let Some(b) = take_opt(&mut d, "fingerprint") {
       t.set_fingerprint(Some(fingerprint_from_bson(b, "fingerprint")?));
     }
@@ -495,6 +546,9 @@ impl TryFrom<Document> for AudioTrack<Uuid7> {
     }
     if let Some(b) = take_opt(&mut d, "index_errors") {
       t.set_index_errors(error_info_vec_from_bson(b, "index_errors")?);
+    }
+    if let Some(b) = take_opt(&mut d, "metadata") {
+      t.set_metadata(metadata_from_bson(b, "metadata")?);
     }
     Ok(t)
   }

@@ -16,6 +16,7 @@
 
 use ::bson::{spec::BinarySubtype, Binary, Bson, DateTime as BsonDateTime, Document};
 use core::num::NonZeroU32;
+use indexmap::IndexMap;
 use jiff::Timestamp as JiffTimestamp;
 use mediatime::{TimeRange, Timebase, Timestamp as MediaTimestamp};
 use smol_str::SmolStr;
@@ -615,4 +616,33 @@ where
     None | Some(Bson::Null) => Ok(None),
     Some(v) => f(v).map(Some),
   }
+}
+
+// ---------------------------------------------------------------------------
+// `IndexMap<SmolStr, SmolStr>` ↔ Document
+// ---------------------------------------------------------------------------
+//
+// BSON documents preserve insertion order, so an `IndexMap` round-trips
+// natively as a nested `{ key: value, … }` document — no ordinal field
+// needed (mirrors the chapter / per-track `metadata` storage on sqlx).
+
+pub(super) fn metadata_to_bson(m: &IndexMap<SmolStr, SmolStr>) -> Bson {
+  let mut d = Document::new();
+  for (k, v) in m {
+    d.insert(k.as_str(), Bson::String(v.as_str().to_owned()));
+  }
+  Bson::Document(d)
+}
+
+pub(super) fn metadata_from_bson(
+  b: Bson,
+  field: &'static str,
+) -> Result<IndexMap<SmolStr, SmolStr>, MongoError> {
+  let inner = as_doc(b, field)?;
+  let mut bag = IndexMap::with_capacity(inner.len());
+  for (k, v) in inner {
+    let value = as_str(v, field)?;
+    bag.insert(SmolStr::from(k), SmolStr::from(value));
+  }
+  Ok(bag)
 }

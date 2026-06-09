@@ -73,6 +73,7 @@ use ::mongodb as mongodb_crate;
 #[cfg(feature = "audio")]
 #[cfg_attr(docsrs, doc(cfg(feature = "audio")))]
 pub mod audio;
+pub mod chapter;
 pub mod error;
 pub mod indexes;
 pub mod leaves;

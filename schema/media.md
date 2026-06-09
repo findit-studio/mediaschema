@@ -1,4 +1,4 @@
-# `Media<Id>` — root / content entity  *(rev 10 — LOCKED, user-approved; content/copy split)*
+# `Media<Id>` — root / content entity  *(rev 11 — LOCKED, user-approved; verbatim probe counts + chapters reverse lookup)*
 
 ## Domain meaning
 
@@ -31,7 +31,10 @@ meta flattened in. Conversions deferred.
 | `size` | `u64` | `MediaMeta.size` | content size in bytes |
 | `duration` | `Option<TrackTime>` | `MediaMeta.time` | **overall** media length (per-track duration is on the track) |
 | `kind` | `MediaKind` (enum) | `Media.kind: DbMediaKind` | closed; may gain kinds |
+| `nb_streams` | `u32` | `Media.nb_streams` | **verbatim** `AVFormatContext.nb_streams`; total stream count *including* data / attachment streams the schema may not model per-track |
+| `nb_chapters` | `u32` | `Media.nb_chapters` | **verbatim** `AVFormatContext.nb_chapters`; symmetric with `nb_streams` (kept even when `chapters.is_empty()` so probe-without-chapter-fetch stays meaningful) |
 | `files` | `Vec<Id>` | — (reverse lookup) | reverse lookup → [`MediaFile`](media_file.md) copies (reverse side of `MediaFile.media_id`); starts empty |
+| `chapters` | `Vec<Id>` | — (reverse lookup) | reverse lookup → [`Chapter`](chapter.md) rows (reverse side of `Chapter.media_id`); starts empty; `chapters.len() <= nb_chapters` always (and equals it once chapter probe completes) |
 | `video_id` | `Option<Id>` | `Media.video_id` | ref → `Video` facet |
 | `audio_id` | `Option<Id>` | `Media.audio_id` | ref → `Audio` facet |
 | `subtitle_id` | `Option<Id>` | `Media.subtitle_id` | ref → `Subtitle` facet |
@@ -61,11 +64,23 @@ maintained rollup of `kind.track_progress.failed > 0` — bit set ⇒ drill down
   `kind`/`format` indexed; `error_flags` 2-byte `INTEGER` +
   generated per-bit booleans; `device`/`gps` flattened (extern types still
   flatten to columns: `device_make`/`device_model`, `gps_lat`/`lon`/`alt`);
-  facet FKs (UUIDv7). No `name`/`created_at` columns — those are
-  copy-specific and live on `media_file`. `files` is **not** a stored
-  column: it is the reverse side of the `media_file.media_id` FK,
-  materialised by a join (`SELECT id FROM media_file WHERE media_id = ?`).
-- **mongodb**: `_id`=UUIDv7; `device`/`gps` embedded (mediaframe externs).
+  facet FKs (UUIDv7); `nb_streams` / `nb_chapters` as `INTEGER` columns
+  (verbatim probe counts). No `name`/`created_at` columns — those are
+  copy-specific and live on `media_file`. `files` and `chapters` are
+  **not** stored columns: they are the reverse sides of
+  `media_file.media_id` and [`chapter`](chapter.md)`.media_id` respectively,
+  materialised by a join.
+- **mongodb**: `_id`=UUIDv7; `device`/`gps` embedded (mediaframe externs);
+  `nb_streams` / `nb_chapters` as scalar `int32` fields.
+
+**Status: LOCKED (rev 11) — user-approved.** *(rev 11: add
+`nb_streams` / `nb_chapters` verbatim probe counts and a
+`chapters: Vec<Id>` reverse lookup to the new [`Chapter`](chapter.md)
+aggregate. `nb_streams` captures the full `AVFormatContext.nb_streams`
+count so consumers can detect "ffmpeg saw streams we don't model
+per-track" (data / attachment); `nb_chapters` is kept symmetric so a
+probe-without-chapter-fetch still carries the count. Breaking on
+Rust API + proto wire + sqlx DDL + mongodb document shape → 0.2.0.)*
 
 **Status: LOCKED (rev 9) — user-approved.** *(rev 9: content/copy split
 (codex review finding on PR #13). `Media` is now the **content** row (one

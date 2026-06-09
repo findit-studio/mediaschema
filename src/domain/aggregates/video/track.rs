@@ -12,6 +12,7 @@ use derive_more::IsVariant;
 use mediatime::Timestamp;
 use smol_str::SmolStr;
 
+use indexmap::IndexMap;
 use mediaframe::{
   codec::VideoCodec,
   color::{DolbyVisionConfig, HdrStaticMetadata, Info as ColorInfo},
@@ -84,8 +85,15 @@ pub struct VideoTrack<Id = Uuid7> {
   hdr_static: Option<HdrStaticMetadata>,
   /// Display rotation (`mediaframe::frame::Rotation`).
   rotation: Rotation,
-  /// Frame rate (`mediaframe::frame::FrameRate`).
+  /// Frame rate (`mediaframe::frame::FrameRate`). Corresponds to
+  /// `AVStream.r_frame_rate` — the timebase reciprocal (true CFR frame
+  /// rate; for VFR content, the LCD of all inter-frame intervals).
   frame_rate: FrameRate,
+  /// Empirical / declared average frame rate
+  /// (`AVStream.avg_frame_rate`). For CFR content this equals
+  /// `frame_rate`; for VFR content the two diverge.
+  /// Default = `FrameRate::default()` (`0/1`) — absent.
+  avg_frame_rate: FrameRate,
   /// Field order (`mediaframe::frame::FieldOrder`).
   field_order: FieldOrder,
   /// 3D / stereo packing (`mediaframe::frame::StereoMode`).
@@ -104,6 +112,12 @@ pub struct VideoTrack<Id = Uuid7> {
 
   // --- per-stream segmented refs ---
   scenes: std::vec::Vec<Id>,
+
+  // --- container-level AVDictionary bag ---
+  /// Container `AVDictionary` entries from this stream's metadata,
+  /// **excluding** keys hoisted into dedicated columns (none today on
+  /// VideoTrack — every entry rides here). Insertion-ordered.
+  metadata: IndexMap<SmolStr, SmolStr>,
 
   // --- indexing state ---
   index_status: VideoIndexStatus,
@@ -156,6 +170,7 @@ impl VideoTrack<Uuid7> {
       hdr_static: None,
       rotation: Rotation::default(),
       frame_rate: FrameRate::default(),
+      avg_frame_rate: FrameRate::default(),
       field_order: FieldOrder::default(),
       stereo_mode: None,
       dovi: None,
@@ -164,6 +179,7 @@ impl VideoTrack<Uuid7> {
       is_primary: false,
       auto_selected: false,
       scenes: std::vec::Vec::new(),
+      metadata: IndexMap::new(),
       index_status: VideoIndexStatus::empty(),
       index_errors: std::vec::Vec::new(),
       provenance: Provenance::new(),
@@ -325,6 +341,20 @@ impl<Id> VideoTrack<Id> {
   #[inline(always)]
   pub const fn frame_rate(&self) -> FrameRate {
     self.frame_rate
+  }
+
+  /// `AVStream.avg_frame_rate` — empirical average frame rate. Equals
+  /// `frame_rate()` for CFR content; diverges for VFR.
+  #[inline(always)]
+  pub const fn avg_frame_rate(&self) -> FrameRate {
+    self.avg_frame_rate
+  }
+
+  /// Container-`AVDictionary` entries from this stream's metadata,
+  /// insertion-ordered.
+  #[inline(always)]
+  pub const fn metadata_ref(&self) -> &IndexMap<SmolStr, SmolStr> {
+    &self.metadata
   }
 
   /// Field order (`mediaframe::frame::FieldOrder`).
@@ -706,6 +736,32 @@ impl<Id> VideoTrack<Id> {
   #[inline(always)]
   pub const fn set_frame_rate(&mut self, v: FrameRate) -> &mut Self {
     self.frame_rate = v;
+    self
+  }
+  /// Builder: replace `avg_frame_rate`.
+  #[must_use]
+  #[inline(always)]
+  pub const fn with_avg_frame_rate(mut self, v: FrameRate) -> Self {
+    self.avg_frame_rate = v;
+    self
+  }
+  /// In-place mutator: replace `avg_frame_rate`.
+  #[inline(always)]
+  pub const fn set_avg_frame_rate(&mut self, v: FrameRate) -> &mut Self {
+    self.avg_frame_rate = v;
+    self
+  }
+  /// Builder: replace the container-`AVDictionary` metadata bag.
+  #[must_use]
+  #[inline(always)]
+  pub fn with_metadata(mut self, v: IndexMap<SmolStr, SmolStr>) -> Self {
+    self.metadata = v;
+    self
+  }
+  /// In-place mutator: replace the container-`AVDictionary` metadata bag.
+  #[inline(always)]
+  pub fn set_metadata(&mut self, v: IndexMap<SmolStr, SmolStr>) -> &mut Self {
+    self.metadata = v;
     self
   }
   #[must_use]

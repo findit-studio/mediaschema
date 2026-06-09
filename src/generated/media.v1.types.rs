@@ -19314,6 +19314,270 @@ pub const __EBUR128_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::ty
     from_json: ::buffa::type_registry::any_from_json::<Ebur128>,
     is_wkt: false,
 };
+/// ReplayGain 2.0 — container-tagged loudness-normalization recommendation
+/// (FFmpeg `AV_PKT_DATA_REPLAYGAIN` side data or `REPLAYGAIN_TRACK_*` /
+/// `REPLAYGAIN_ALBUM_*` `AVDictionary` keys). Distinct from `Ebur128`
+/// (the EBU R128 *measurement* of the signal); ReplayGain is the
+/// *delta* a tagger wrote in (delta from a -18 LUFS reference).
+///
+/// `track_gain_db` / `track_peak` use proto3 zero-elision (default is
+/// all-zero == proto-zero for f32). `album_gain_db` / `album_peak` are
+/// `optional float` so a distribution-absent album-level number
+/// round-trips as `None` (wire field absent rather than zero).
+#[derive(Clone, PartialEq, Default)]
+#[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
+#[cfg_attr(feature = "json", serde(default))]
+#[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
+pub struct ReplayGain {
+    /// Field 1: `track_gain_db`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "trackGainDb",
+            alias = "track_gain_db",
+            with = "::buffa::json_helpers::float",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_f32"
+        )
+    )]
+    pub track_gain_db: f32,
+    /// Field 2: `track_peak`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "trackPeak",
+            alias = "track_peak",
+            with = "::buffa::json_helpers::float",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_f32"
+        )
+    )]
+    pub track_peak: f32,
+    /// Field 3: `album_gain_db`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "albumGainDb",
+            alias = "album_gain_db",
+            with = "::buffa::json_helpers::opt_float",
+            skip_serializing_if = "::core::option::Option::is_none"
+        )
+    )]
+    pub album_gain_db: ::core::option::Option<f32>,
+    /// Field 4: `album_peak`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "albumPeak",
+            alias = "album_peak",
+            with = "::buffa::json_helpers::opt_float",
+            skip_serializing_if = "::core::option::Option::is_none"
+        )
+    )]
+    pub album_peak: ::core::option::Option<f32>,
+    #[cfg_attr(feature = "json", serde(skip))]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for ReplayGain {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("ReplayGain")
+            .field("track_gain_db", &self.track_gain_db)
+            .field("track_peak", &self.track_peak)
+            .field("album_gain_db", &self.album_gain_db)
+            .field("album_peak", &self.album_peak)
+            .finish()
+    }
+}
+impl ReplayGain {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/media.v1.ReplayGain";
+}
+impl ReplayGain {
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::album_gain_db`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_album_gain_db(mut self, value: f32) -> Self {
+        self.album_gain_db = Some(value);
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::album_peak`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_album_peak(mut self, value: f32) -> Self {
+        self.album_peak = Some(value);
+        self
+    }
+}
+impl ::buffa::DefaultInstance for ReplayGain {
+    fn default_instance() -> &'static Self {
+        static VALUE: ::buffa::__private::OnceBox<ReplayGain> = ::buffa::__private::OnceBox::new();
+        VALUE.get_or_init(|| ::buffa::alloc::boxed::Box::new(Self::default()))
+    }
+}
+impl ::buffa::MessageName for ReplayGain {
+    const PACKAGE: &'static str = "media.v1";
+    const NAME: &'static str = "ReplayGain";
+    const FULL_NAME: &'static str = "media.v1.ReplayGain";
+    const TYPE_URL: &'static str = "type.googleapis.com/media.v1.ReplayGain";
+}
+impl ::buffa::Message for ReplayGain {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// The result is a `u32`; the protobuf specification requires all
+    /// messages to fit within 2 GiB (2,147,483,647 bytes), so a
+    /// compliant message will never overflow this type.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u32;
+        if self.track_gain_db.to_bits() != 0u32 {
+            size += 1u32 + ::buffa::types::FIXED32_ENCODED_LEN as u32;
+        }
+        if self.track_peak.to_bits() != 0u32 {
+            size += 1u32 + ::buffa::types::FIXED32_ENCODED_LEN as u32;
+        }
+        if self.album_gain_db.is_some() {
+            size += 1u32 + ::buffa::types::FIXED32_ENCODED_LEN as u32;
+        }
+        if self.album_peak.is_some() {
+            size += 1u32 + ::buffa::types::FIXED32_ENCODED_LEN as u32;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u32;
+        size
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::bytes::BufMut,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.track_gain_db.to_bits() != 0u32 {
+            ::buffa::encoding::Tag::new(1u32, ::buffa::encoding::WireType::Fixed32)
+                .encode(buf);
+            ::buffa::types::encode_float(self.track_gain_db, buf);
+        }
+        if self.track_peak.to_bits() != 0u32 {
+            ::buffa::encoding::Tag::new(2u32, ::buffa::encoding::WireType::Fixed32)
+                .encode(buf);
+            ::buffa::types::encode_float(self.track_peak, buf);
+        }
+        if let Some(v) = self.album_gain_db {
+            ::buffa::encoding::Tag::new(3u32, ::buffa::encoding::WireType::Fixed32)
+                .encode(buf);
+            ::buffa::types::encode_float(v, buf);
+        }
+        if let Some(v) = self.album_peak {
+            ::buffa::encoding::Tag::new(4u32, ::buffa::encoding::WireType::Fixed32)
+                .encode(buf);
+            ::buffa::types::encode_float(v, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        depth: u32,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::Fixed32 {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 1u32,
+                        expected: 5u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.track_gain_db = ::buffa::types::decode_float(buf)?;
+            }
+            2u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::Fixed32 {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 2u32,
+                        expected: 5u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.track_peak = ::buffa::types::decode_float(buf)?;
+            }
+            3u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::Fixed32 {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 3u32,
+                        expected: 5u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.album_gain_db = ::core::option::Option::Some(
+                    ::buffa::types::decode_float(buf)?,
+                );
+            }
+            4u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::Fixed32 {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 4u32,
+                        expected: 5u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.album_peak = ::core::option::Option::Some(
+                    ::buffa::types::decode_float(buf)?,
+                );
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, depth)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.track_gain_db = 0f32;
+        self.track_peak = 0f32;
+        self.album_gain_db = ::core::option::Option::None;
+        self.album_peak = ::core::option::Option::None;
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for ReplayGain {
+    const PROTO_FQN: &'static str = "media.v1.ReplayGain";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+#[cfg(feature = "json")]
+impl ::buffa::json_helpers::ProtoElemJson for ReplayGain {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[cfg(feature = "json")]
+#[doc(hidden)]
+pub const __REPLAY_GAIN_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/media.v1.ReplayGain",
+    to_json: ::buffa::type_registry::any_to_json::<ReplayGain>,
+    from_json: ::buffa::type_registry::any_from_json::<ReplayGain>,
+    is_wkt: false,
+};
 #[derive(Clone, PartialEq, Default)]
 #[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(default))]
@@ -21502,6 +21766,9 @@ pub struct VideoStreamMeta {
         )
     )]
     pub total_pts: i64,
+    /// `AVStream.r_frame_rate` — base / real frame rate. For CFR content
+    /// this equals `avg_frame_rate`; for VFR they diverge.
+    ///
     /// Field 4: `frame_rate`
     #[cfg_attr(
         feature = "json",
@@ -21534,6 +21801,21 @@ pub struct VideoStreamMeta {
         )
     )]
     pub time_base: ::buffa::MessageField<::mediatime::Timebase>,
+    /// `AVStream.avg_frame_rate` — empirical average (declared / nb_frames
+    /// ÷ duration). Diverges from `frame_rate` on VFR content. Domain
+    /// rev 8.
+    ///
+    /// Field 7: `avg_frame_rate`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "avgFrameRate",
+            alias = "avg_frame_rate",
+            with = "::buffa::json_helpers::double",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_f64"
+        )
+    )]
+    pub avg_frame_rate: f64,
     #[cfg_attr(feature = "json", serde(skip))]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -21547,6 +21829,7 @@ impl ::core::fmt::Debug for VideoStreamMeta {
             .field("frame_rate", &self.frame_rate)
             .field("bit_rate", &self.bit_rate)
             .field("time_base", &self.time_base)
+            .field("avg_frame_rate", &self.avg_frame_rate)
             .finish()
     }
 }
@@ -21613,6 +21896,9 @@ impl ::buffa::Message for VideoStreamMeta {
                 += 1u32 + ::buffa::encoding::varint_len(inner_size as u64) as u32
                     + inner_size;
         }
+        if self.avg_frame_rate.to_bits() != 0u64 {
+            size += 1u32 + ::buffa::types::FIXED64_ENCODED_LEN as u32;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u32;
         size
     }
@@ -21664,6 +21950,11 @@ impl ::buffa::Message for VideoStreamMeta {
                 .encode(buf);
             ::buffa::encoding::encode_varint(__cache.consume_next() as u64, buf);
             self.time_base.write_to(__cache, buf);
+        }
+        if self.avg_frame_rate.to_bits() != 0u64 {
+            ::buffa::encoding::Tag::new(7u32, ::buffa::encoding::WireType::Fixed64)
+                .encode(buf);
+            ::buffa::types::encode_double(self.avg_frame_rate, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -21750,6 +22041,16 @@ impl ::buffa::Message for VideoStreamMeta {
                     depth,
                 )?;
             }
+            7u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::Fixed64 {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 7u32,
+                        expected: 1u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.avg_frame_rate = ::buffa::types::decode_double(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, depth)?);
@@ -21764,6 +22065,7 @@ impl ::buffa::Message for VideoStreamMeta {
         self.frame_rate = 0f64;
         self.bit_rate = 0u64;
         self.time_base = ::buffa::MessageField::none();
+        self.avg_frame_rate = 0f64;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -24165,6 +24467,19 @@ pub struct VideoTrack {
         )
     )]
     pub index_error: ::buffa::MessageField<ErrorInfo>,
+    /// Container `AVDictionary` entries from this stream's metadata,
+    /// insertion-ordered. Domain rev 8.
+    ///
+    /// Field 9: `metadata`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "metadata",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+            deserialize_with = "::buffa::json_helpers::null_as_default"
+        )
+    )]
+    pub metadata: ::buffa::alloc::vec::Vec<KeyValue>,
     #[cfg_attr(feature = "json", serde(skip))]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -24180,6 +24495,7 @@ impl ::core::fmt::Debug for VideoTrack {
             .field("selection_reason", &self.selection_reason)
             .field("video_id", &self.video_id)
             .field("index_error", &self.index_error)
+            .field("metadata", &self.metadata)
             .finish()
     }
 }
@@ -24254,6 +24570,14 @@ impl ::buffa::Message for VideoTrack {
                 += 1u32 + ::buffa::encoding::varint_len(inner_size as u64) as u32
                     + inner_size;
         }
+        for v in &self.metadata {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u32 + ::buffa::encoding::varint_len(inner_size as u64) as u32
+                    + inner_size;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u32;
         size
     }
@@ -24321,6 +24645,15 @@ impl ::buffa::Message for VideoTrack {
                 .encode(buf);
             ::buffa::encoding::encode_varint(__cache.consume_next() as u64, buf);
             self.index_error.write_to(__cache, buf);
+        }
+        for v in &self.metadata {
+            ::buffa::encoding::Tag::new(
+                    9u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::encoding::encode_varint(__cache.consume_next() as u64, buf);
+            v.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -24427,6 +24760,18 @@ impl ::buffa::Message for VideoTrack {
                     depth,
                 )?;
             }
+            9u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 9u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                let mut elem = ::core::default::Default::default();
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, depth)?;
+                self.metadata.push(elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, depth)?);
@@ -24443,6 +24788,7 @@ impl ::buffa::Message for VideoTrack {
         self.selection_reason = ::core::default::Default::default();
         self.video_id = ::buffa::bytes::Bytes::new();
         self.index_error = ::buffa::MessageField::none();
+        self.metadata.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -24624,6 +24970,37 @@ pub struct Media {
         )
     )]
     pub gps_location: ::buffa::smol_str::SmolStr,
+    /// Verbatim `AVFormatContext.nb_streams` — total stream count from the
+    /// container probe, including data / attachment streams the schema
+    /// may not model per-track. Domain rev 11.
+    ///
+    /// Field 13: `nb_streams`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "nbStreams",
+            alias = "nb_streams",
+            with = "::buffa::json_helpers::uint32",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
+        )
+    )]
+    pub nb_streams: u32,
+    /// Verbatim `AVFormatContext.nb_chapters` — kept symmetric with
+    /// `nb_streams` so a probe-without-chapter-fetch still carries the count.
+    /// The domain `chapters: Vec<Id>` reverse lookup is materialised by
+    /// joining the `Chapter` table; not on the wire here.
+    ///
+    /// Field 14: `nb_chapters`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "nbChapters",
+            alias = "nb_chapters",
+            with = "::buffa::json_helpers::uint32",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
+        )
+    )]
+    pub nb_chapters: u32,
     #[cfg_attr(feature = "json", serde(skip))]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -24643,6 +25020,8 @@ impl ::core::fmt::Debug for Media {
             .field("device_make", &self.device_make)
             .field("device_model", &self.device_model)
             .field("gps_location", &self.gps_location)
+            .field("nb_streams", &self.nb_streams)
+            .field("nb_chapters", &self.nb_chapters)
             .finish()
     }
 }
@@ -24748,6 +25127,12 @@ impl ::buffa::Message for Media {
         if !self.gps_location.is_empty() {
             size += 1u32 + ::buffa::types::string_encoded_len(&self.gps_location) as u32;
         }
+        if self.nb_streams != 0u32 {
+            size += 1u32 + ::buffa::types::uint32_encoded_len(self.nb_streams) as u32;
+        }
+        if self.nb_chapters != 0u32 {
+            size += 1u32 + ::buffa::types::uint32_encoded_len(self.nb_chapters) as u32;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u32;
         size
     }
@@ -24846,6 +25231,16 @@ impl ::buffa::Message for Media {
                 )
                 .encode(buf);
             ::buffa::types::encode_string(&self.gps_location, buf);
+        }
+        if self.nb_streams != 0u32 {
+            ::buffa::encoding::Tag::new(13u32, ::buffa::encoding::WireType::Varint)
+                .encode(buf);
+            ::buffa::types::encode_uint32(self.nb_streams, buf);
+        }
+        if self.nb_chapters != 0u32 {
+            ::buffa::encoding::Tag::new(14u32, ::buffa::encoding::WireType::Varint)
+                .encode(buf);
+            ::buffa::types::encode_uint32(self.nb_chapters, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -24994,6 +25389,26 @@ impl ::buffa::Message for Media {
                 }
                 self.gps_location = ::buffa::types::decode_string_to(buf)?;
             }
+            13u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::Varint {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 13u32,
+                        expected: 0u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.nb_streams = ::buffa::types::decode_uint32(buf)?;
+            }
+            14u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::Varint {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 14u32,
+                        expected: 0u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.nb_chapters = ::buffa::types::decode_uint32(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, depth)?);
@@ -25014,6 +25429,8 @@ impl ::buffa::Message for Media {
         self.device_make = ::core::default::Default::default();
         self.device_model = ::core::default::Default::default();
         self.gps_location = ::core::default::Default::default();
+        self.nb_streams = 0u32;
+        self.nb_chapters = 0u32;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -25046,6 +25463,569 @@ pub const __MEDIA_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type
     type_url: "type.googleapis.com/media.v1.Media",
     to_json: ::buffa::type_registry::any_to_json::<Media>,
     from_json: ::buffa::type_registry::any_from_json::<Media>,
+    is_wkt: false,
+};
+/// One container-level chapter / cue point — `AVFormatContext.chapters[i]`.
+/// See `schema/chapter.md` (rev 1).
+#[derive(Clone, PartialEq, Default)]
+#[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
+#[cfg_attr(feature = "json", serde(default))]
+#[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
+pub struct Chapter {
+    /// mediaschema-native UUIDv7.
+    ///
+    /// Field 1: `id`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "id",
+            with = "::buffa::json_helpers::bytes",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
+        )
+    )]
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes)
+    )]
+    pub id: ::buffa::bytes::Bytes,
+    /// FK → `Media.id`.
+    ///
+    /// Field 2: `media_id`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "mediaId",
+            alias = "media_id",
+            with = "::buffa::json_helpers::bytes",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
+        )
+    )]
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes)
+    )]
+    pub media_id: ::buffa::bytes::Bytes,
+    /// Ordinal within the parent media, `0..media.nb_chapters`.
+    ///
+    /// Field 3: `index`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "index",
+            with = "::buffa::json_helpers::uint32",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
+        )
+    )]
+    pub index: u32,
+    /// `AVChapter.id` verbatim (container's own id; containers reuse).
+    ///
+    /// Field 4: `source_id`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "sourceId",
+            alias = "source_id",
+            with = "::buffa::json_helpers::int64",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
+        )
+    )]
+    pub source_id: i64,
+    /// start..end with its own timebase (mediatime carries the `Timebase`).
+    ///
+    /// Field 5: `time_range`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "timeRange",
+            alias = "time_range",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+        )
+    )]
+    pub time_range: ::buffa::MessageField<::mediatime::TimeRange>,
+    /// Conventional `metadata["title"]` value (any case), hoisted; empty =
+    /// absent (never `Option`).
+    ///
+    /// Field 6: `title`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "title",
+            with = "::buffa::json_helpers::proto_string",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+        )
+    )]
+    pub title: ::buffa::smol_str::SmolStr,
+    /// Every remaining AVDictionary entry, insertion-ordered. The `title`
+    /// key (any case) is consumed into the `title` field and not repeated
+    /// here. `repeated` rather than `map<string, string>` because proto3
+    /// maps have no ordering guarantees, and AVDictionary insertion order
+    /// is what we need to round-trip.
+    ///
+    /// Field 7: `metadata`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "metadata",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+            deserialize_with = "::buffa::json_helpers::null_as_default"
+        )
+    )]
+    pub metadata: ::buffa::alloc::vec::Vec<KeyValue>,
+    #[cfg_attr(feature = "json", serde(skip))]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for Chapter {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("Chapter")
+            .field("id", &self.id)
+            .field("media_id", &self.media_id)
+            .field("index", &self.index)
+            .field("source_id", &self.source_id)
+            .field("time_range", &self.time_range)
+            .field("title", &self.title)
+            .field("metadata", &self.metadata)
+            .finish()
+    }
+}
+impl Chapter {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/media.v1.Chapter";
+}
+impl ::buffa::DefaultInstance for Chapter {
+    fn default_instance() -> &'static Self {
+        static VALUE: ::buffa::__private::OnceBox<Chapter> = ::buffa::__private::OnceBox::new();
+        VALUE.get_or_init(|| ::buffa::alloc::boxed::Box::new(Self::default()))
+    }
+}
+impl ::buffa::MessageName for Chapter {
+    const PACKAGE: &'static str = "media.v1";
+    const NAME: &'static str = "Chapter";
+    const FULL_NAME: &'static str = "media.v1.Chapter";
+    const TYPE_URL: &'static str = "type.googleapis.com/media.v1.Chapter";
+}
+impl ::buffa::Message for Chapter {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// The result is a `u32`; the protobuf specification requires all
+    /// messages to fit within 2 GiB (2,147,483,647 bytes), so a
+    /// compliant message will never overflow this type.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u32;
+        if !self.id.is_empty() {
+            size += 1u32 + ::buffa::types::bytes_encoded_len(&self.id) as u32;
+        }
+        if !self.media_id.is_empty() {
+            size += 1u32 + ::buffa::types::bytes_encoded_len(&self.media_id) as u32;
+        }
+        if self.index != 0u32 {
+            size += 1u32 + ::buffa::types::uint32_encoded_len(self.index) as u32;
+        }
+        if self.source_id != 0i64 {
+            size += 1u32 + ::buffa::types::int64_encoded_len(self.source_id) as u32;
+        }
+        if self.time_range.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.time_range.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u32 + ::buffa::encoding::varint_len(inner_size as u64) as u32
+                    + inner_size;
+        }
+        if !self.title.is_empty() {
+            size += 1u32 + ::buffa::types::string_encoded_len(&self.title) as u32;
+        }
+        for v in &self.metadata {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u32 + ::buffa::encoding::varint_len(inner_size as u64) as u32
+                    + inner_size;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u32;
+        size
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::bytes::BufMut,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.id.is_empty() {
+            ::buffa::encoding::Tag::new(
+                    1u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::types::encode_bytes(&self.id, buf);
+        }
+        if !self.media_id.is_empty() {
+            ::buffa::encoding::Tag::new(
+                    2u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::types::encode_bytes(&self.media_id, buf);
+        }
+        if self.index != 0u32 {
+            ::buffa::encoding::Tag::new(3u32, ::buffa::encoding::WireType::Varint)
+                .encode(buf);
+            ::buffa::types::encode_uint32(self.index, buf);
+        }
+        if self.source_id != 0i64 {
+            ::buffa::encoding::Tag::new(4u32, ::buffa::encoding::WireType::Varint)
+                .encode(buf);
+            ::buffa::types::encode_int64(self.source_id, buf);
+        }
+        if self.time_range.is_set() {
+            ::buffa::encoding::Tag::new(
+                    5u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::encoding::encode_varint(__cache.consume_next() as u64, buf);
+            self.time_range.write_to(__cache, buf);
+        }
+        if !self.title.is_empty() {
+            ::buffa::encoding::Tag::new(
+                    6u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::types::encode_string(&self.title, buf);
+        }
+        for v in &self.metadata {
+            ::buffa::encoding::Tag::new(
+                    7u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::encoding::encode_varint(__cache.consume_next() as u64, buf);
+            v.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        depth: u32,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 1u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.id = ::buffa::types::decode_bytes_to_bytes(buf)?;
+            }
+            2u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 2u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.media_id = ::buffa::types::decode_bytes_to_bytes(buf)?;
+            }
+            3u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::Varint {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 3u32,
+                        expected: 0u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.index = ::buffa::types::decode_uint32(buf)?;
+            }
+            4u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::Varint {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 4u32,
+                        expected: 0u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.source_id = ::buffa::types::decode_int64(buf)?;
+            }
+            5u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 5u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                ::buffa::Message::merge_length_delimited(
+                    self.time_range.get_or_insert_default(),
+                    buf,
+                    depth,
+                )?;
+            }
+            6u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 6u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.title = ::buffa::types::decode_string_to(buf)?;
+            }
+            7u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 7u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                let mut elem = ::core::default::Default::default();
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, depth)?;
+                self.metadata.push(elem);
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, depth)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.id = ::buffa::bytes::Bytes::new();
+        self.media_id = ::buffa::bytes::Bytes::new();
+        self.index = 0u32;
+        self.source_id = 0i64;
+        self.time_range = ::buffa::MessageField::none();
+        self.title = ::core::default::Default::default();
+        self.metadata.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for Chapter {
+    const PROTO_FQN: &'static str = "media.v1.Chapter";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+#[cfg(feature = "json")]
+impl ::buffa::json_helpers::ProtoElemJson for Chapter {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[cfg(feature = "json")]
+#[doc(hidden)]
+pub const __CHAPTER_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/media.v1.Chapter",
+    to_json: ::buffa::type_registry::any_to_json::<Chapter>,
+    from_json: ::buffa::type_registry::any_from_json::<Chapter>,
+    is_wkt: false,
+};
+/// Ordered key/value pair for AVDictionary-style metadata bags
+/// (`Chapter.metadata`). Position in the parent `repeated` field IS the
+/// insertion ordinal — no explicit ordinal column on the wire.
+#[derive(Clone, PartialEq, Default)]
+#[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
+#[cfg_attr(feature = "json", serde(default))]
+#[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
+pub struct KeyValue {
+    /// Field 1: `key`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "key",
+            with = "::buffa::json_helpers::proto_string",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+        )
+    )]
+    pub key: ::buffa::smol_str::SmolStr,
+    /// Field 2: `value`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "value",
+            with = "::buffa::json_helpers::proto_string",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+        )
+    )]
+    pub value: ::buffa::smol_str::SmolStr,
+    #[cfg_attr(feature = "json", serde(skip))]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for KeyValue {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("KeyValue")
+            .field("key", &self.key)
+            .field("value", &self.value)
+            .finish()
+    }
+}
+impl KeyValue {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/media.v1.KeyValue";
+}
+impl ::buffa::DefaultInstance for KeyValue {
+    fn default_instance() -> &'static Self {
+        static VALUE: ::buffa::__private::OnceBox<KeyValue> = ::buffa::__private::OnceBox::new();
+        VALUE.get_or_init(|| ::buffa::alloc::boxed::Box::new(Self::default()))
+    }
+}
+impl ::buffa::MessageName for KeyValue {
+    const PACKAGE: &'static str = "media.v1";
+    const NAME: &'static str = "KeyValue";
+    const FULL_NAME: &'static str = "media.v1.KeyValue";
+    const TYPE_URL: &'static str = "type.googleapis.com/media.v1.KeyValue";
+}
+impl ::buffa::Message for KeyValue {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// The result is a `u32`; the protobuf specification requires all
+    /// messages to fit within 2 GiB (2,147,483,647 bytes), so a
+    /// compliant message will never overflow this type.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u32;
+        if !self.key.is_empty() {
+            size += 1u32 + ::buffa::types::string_encoded_len(&self.key) as u32;
+        }
+        if !self.value.is_empty() {
+            size += 1u32 + ::buffa::types::string_encoded_len(&self.value) as u32;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u32;
+        size
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::bytes::BufMut,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.key.is_empty() {
+            ::buffa::encoding::Tag::new(
+                    1u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::types::encode_string(&self.key, buf);
+        }
+        if !self.value.is_empty() {
+            ::buffa::encoding::Tag::new(
+                    2u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::types::encode_string(&self.value, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        depth: u32,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 1u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.key = ::buffa::types::decode_string_to(buf)?;
+            }
+            2u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 2u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.value = ::buffa::types::decode_string_to(buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, depth)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.key = ::core::default::Default::default();
+        self.value = ::core::default::Default::default();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for KeyValue {
+    const PROTO_FQN: &'static str = "media.v1.KeyValue";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+#[cfg(feature = "json")]
+impl ::buffa::json_helpers::ProtoElemJson for KeyValue {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[cfg(feature = "json")]
+#[doc(hidden)]
+pub const __KEY_VALUE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/media.v1.KeyValue",
+    to_json: ::buffa::type_registry::any_to_json::<KeyValue>,
+    from_json: ::buffa::type_registry::any_from_json::<KeyValue>,
     is_wkt: false,
 };
 /// `index_status` bits (SubtitleIndexStatus, §6.4): TRACKS_DISCOVERED=0x01,
@@ -25424,6 +26404,20 @@ pub struct SubtitleTrack {
         )
     )]
     pub index_error: ::buffa::MessageField<ErrorInfo>,
+    /// Container `AVDictionary` entries from this stream's metadata,
+    /// with the hoisted `title` / `language` keys consumed into the
+    /// dedicated columns. Insertion-ordered. Domain rev 4.
+    ///
+    /// Field 14: `metadata`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "metadata",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+            deserialize_with = "::buffa::json_helpers::null_as_default"
+        )
+    )]
+    pub metadata: ::buffa::alloc::vec::Vec<KeyValue>,
     #[cfg_attr(feature = "json", serde(skip))]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -25444,6 +26438,7 @@ impl ::core::fmt::Debug for SubtitleTrack {
             .field("auto_selected", &self.auto_selected)
             .field("selection_reason", &self.selection_reason)
             .field("index_error", &self.index_error)
+            .field("metadata", &self.metadata)
             .finish()
     }
 }
@@ -25539,6 +26534,14 @@ impl ::buffa::Message for SubtitleTrack {
         if self.index_error.is_set() {
             let __slot = __cache.reserve();
             let inner_size = self.index_error.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u32 + ::buffa::encoding::varint_len(inner_size as u64) as u32
+                    + inner_size;
+        }
+        for v in &self.metadata {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
             __cache.set(__slot, inner_size);
             size
                 += 1u32 + ::buffa::encoding::varint_len(inner_size as u64) as u32
@@ -25652,6 +26655,15 @@ impl ::buffa::Message for SubtitleTrack {
                 .encode(buf);
             ::buffa::encoding::encode_varint(__cache.consume_next() as u64, buf);
             self.index_error.write_to(__cache, buf);
+        }
+        for v in &self.metadata {
+            ::buffa::encoding::Tag::new(
+                    14u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::encoding::encode_varint(__cache.consume_next() as u64, buf);
+            v.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -25814,6 +26826,18 @@ impl ::buffa::Message for SubtitleTrack {
                     depth,
                 )?;
             }
+            14u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 14u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                let mut elem = ::core::default::Default::default();
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, depth)?;
+                self.metadata.push(elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, depth)?);
@@ -25835,6 +26859,7 @@ impl ::buffa::Message for SubtitleTrack {
         self.auto_selected = false;
         self.selection_reason = ::core::default::Default::default();
         self.index_error = ::buffa::MessageField::none();
+        self.metadata.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -40862,6 +41887,35 @@ pub struct AudioTrack {
         )
     )]
     pub index_error: ::buffa::MessageField<ErrorInfo>,
+    /// Container `AVDictionary` entries from this stream's metadata,
+    /// with the hoisted keys (the `*Tags`-recognized set) already consumed
+    /// into dedicated columns. Insertion-ordered. Domain rev 8.
+    ///
+    /// Field 10: `metadata`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "metadata",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+            deserialize_with = "::buffa::json_helpers::null_as_default"
+        )
+    )]
+    pub metadata: ::buffa::alloc::vec::Vec<KeyValue>,
+    /// Container-tagged ReplayGain normalization recommendation (FFmpeg
+    /// `AV_PKT_DATA_REPLAYGAIN` side data / `REPLAYGAIN_TRACK_*` /
+    /// `REPLAYGAIN_ALBUM_*` `AVDictionary` keys). Distinct from Ebur128
+    /// measurement; see `ReplayGain` message above. Domain rev 5.
+    ///
+    /// Field 11: `replay_gain`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "replayGain",
+            alias = "replay_gain",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+        )
+    )]
+    pub replay_gain: ::buffa::MessageField<ReplayGain>,
     #[cfg_attr(feature = "json", serde(skip))]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -40878,6 +41932,8 @@ impl ::core::fmt::Debug for AudioTrack {
             .field("selection_reason", &self.selection_reason)
             .field("audio_id", &self.audio_id)
             .field("index_error", &self.index_error)
+            .field("metadata", &self.metadata)
+            .field("replay_gain", &self.replay_gain)
             .finish()
     }
 }
@@ -40958,6 +42014,22 @@ impl ::buffa::Message for AudioTrack {
                 += 1u32 + ::buffa::encoding::varint_len(inner_size as u64) as u32
                     + inner_size;
         }
+        for v in &self.metadata {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u32 + ::buffa::encoding::varint_len(inner_size as u64) as u32
+                    + inner_size;
+        }
+        if self.replay_gain.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.replay_gain.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u32 + ::buffa::encoding::varint_len(inner_size as u64) as u32
+                    + inner_size;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u32;
         size
     }
@@ -41033,6 +42105,24 @@ impl ::buffa::Message for AudioTrack {
                 .encode(buf);
             ::buffa::encoding::encode_varint(__cache.consume_next() as u64, buf);
             self.index_error.write_to(__cache, buf);
+        }
+        for v in &self.metadata {
+            ::buffa::encoding::Tag::new(
+                    10u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::encoding::encode_varint(__cache.consume_next() as u64, buf);
+            v.write_to(__cache, buf);
+        }
+        if self.replay_gain.is_set() {
+            ::buffa::encoding::Tag::new(
+                    11u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::encoding::encode_varint(__cache.consume_next() as u64, buf);
+            self.replay_gain.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -41149,6 +42239,32 @@ impl ::buffa::Message for AudioTrack {
                     depth,
                 )?;
             }
+            10u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 10u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                let mut elem = ::core::default::Default::default();
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, depth)?;
+                self.metadata.push(elem);
+            }
+            11u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 11u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                ::buffa::Message::merge_length_delimited(
+                    self.replay_gain.get_or_insert_default(),
+                    buf,
+                    depth,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, depth)?);
@@ -41166,6 +42282,8 @@ impl ::buffa::Message for AudioTrack {
         self.selection_reason = ::core::default::Default::default();
         self.audio_id = ::buffa::bytes::Bytes::new();
         self.index_error = ::buffa::MessageField::none();
+        self.metadata.clear();
+        self.replay_gain = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
 }

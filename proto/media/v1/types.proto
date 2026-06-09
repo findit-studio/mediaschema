@@ -628,6 +628,23 @@ message Ebur128 {
   float true_peak_dbtp = 3;
 }
 
+// ReplayGain 2.0 — container-tagged loudness-normalization recommendation
+// (FFmpeg `AV_PKT_DATA_REPLAYGAIN` side data or `REPLAYGAIN_TRACK_*` /
+// `REPLAYGAIN_ALBUM_*` `AVDictionary` keys). Distinct from `Ebur128`
+// (the EBU R128 *measurement* of the signal); ReplayGain is the
+// *delta* a tagger wrote in (delta from a -18 LUFS reference).
+//
+// `track_gain_db` / `track_peak` use proto3 zero-elision (default is
+// all-zero == proto-zero for f32). `album_gain_db` / `album_peak` are
+// `optional float` so a distribution-absent album-level number
+// round-trips as `None` (wire field absent rather than zero).
+message ReplayGain {
+  float track_gain_db = 1;
+  float track_peak = 2;
+  optional float album_gain_db = 3;
+  optional float album_peak = 4;
+}
+
 message Timecode {
   string start = 1;
   string end = 2;
@@ -699,9 +716,15 @@ message VideoStreamMeta {
   CodecId codec_id = 1;
   Dimensions dimensions = 2;
   int64 total_pts = 3;
+  // `AVStream.r_frame_rate` — base / real frame rate. For CFR content
+  // this equals `avg_frame_rate`; for VFR they diverge.
   double frame_rate = 4;
   uint64 bit_rate = 5;
   mediatime.v1.Timebase time_base = 6;
+  // `AVStream.avg_frame_rate` — empirical average (declared / nb_frames
+  // ÷ duration). Diverges from `frame_rate` on VFR content. Domain
+  // rev 8.
+  double avg_frame_rate = 7;
 }
 
 // Per-copy metadata `name` (field 3) and `created_at` (field 6) were
@@ -801,6 +824,9 @@ message VideoTrack {
   string selection_reason = 6;
   bytes video_id = 7;
   optional ErrorInfo index_error = 8;
+  // Container `AVDictionary` entries from this stream's metadata,
+  // insertion-ordered. Domain rev 8.
+  repeated KeyValue metadata = 9;
 }
 
 // `index_status` bits (MediaIndexStatus, §6.4): PROBED=0x01,
@@ -818,6 +844,47 @@ message Media {
   string device_make = 10;
   string device_model = 11;
   string gps_location = 12;
+  // Verbatim `AVFormatContext.nb_streams` — total stream count from the
+  // container probe, including data / attachment streams the schema
+  // may not model per-track. Domain rev 11.
+  uint32 nb_streams = 13;
+  // Verbatim `AVFormatContext.nb_chapters` — kept symmetric with
+  // `nb_streams` so a probe-without-chapter-fetch still carries the count.
+  // The domain `chapters: Vec<Id>` reverse lookup is materialised by
+  // joining the `Chapter` table; not on the wire here.
+  uint32 nb_chapters = 14;
+}
+
+// One container-level chapter / cue point — `AVFormatContext.chapters[i]`.
+// See `schema/chapter.md` (rev 1).
+message Chapter {
+  // mediaschema-native UUIDv7.
+  bytes id = 1;
+  // FK → `Media.id`.
+  bytes media_id = 2;
+  // Ordinal within the parent media, `0..media.nb_chapters`.
+  uint32 index = 3;
+  // `AVChapter.id` verbatim (container's own id; containers reuse).
+  int64 source_id = 4;
+  // start..end with its own timebase (mediatime carries the `Timebase`).
+  mediatime.v1.TimeRange time_range = 5;
+  // Conventional `metadata["title"]` value (any case), hoisted; empty =
+  // absent (never `Option`).
+  string title = 6;
+  // Every remaining AVDictionary entry, insertion-ordered. The `title`
+  // key (any case) is consumed into the `title` field and not repeated
+  // here. `repeated` rather than `map<string, string>` because proto3
+  // maps have no ordering guarantees, and AVDictionary insertion order
+  // is what we need to round-trip.
+  repeated KeyValue metadata = 7;
+}
+
+// Ordered key/value pair for AVDictionary-style metadata bags
+// (`Chapter.metadata`). Position in the parent `repeated` field IS the
+// insertion ordinal — no explicit ordinal column on the wire.
+message KeyValue {
+  string key = 1;
+  string value = 2;
 }
 
 // `index_status` bits (SubtitleIndexStatus, §6.4): TRACKS_DISCOVERED=0x01,
@@ -849,6 +916,10 @@ message SubtitleTrack {
   bool auto_selected = 11;
   string selection_reason = 12;
   optional ErrorInfo index_error = 13;
+  // Container `AVDictionary` entries from this stream's metadata,
+  // with the hoisted `title` / `language` keys consumed into the
+  // dedicated columns. Insertion-ordered. Domain rev 4.
+  repeated KeyValue metadata = 14;
 }
 
 // Polymorphic subtitle cue — base fields plus a `data` oneof carrying the
@@ -1376,6 +1447,15 @@ message AudioTrack {
   string selection_reason = 7;
   bytes audio_id = 8;
   optional ErrorInfo index_error = 9;
+  // Container `AVDictionary` entries from this stream's metadata,
+  // with the hoisted keys (the `*Tags`-recognized set) already consumed
+  // into dedicated columns. Insertion-ordered. Domain rev 8.
+  repeated KeyValue metadata = 10;
+  // Container-tagged ReplayGain normalization recommendation (FFmpeg
+  // `AV_PKT_DATA_REPLAYGAIN` side data / `REPLAYGAIN_TRACK_*` /
+  // `REPLAYGAIN_ALBUM_*` `AVDictionary` keys). Distinct from Ebur128
+  // measurement; see `ReplayGain` message above. Domain rev 5.
+  optional ReplayGain replay_gain = 11;
 }
 
 // ── Batch 10: audio file record (§6.5 audio aggregates table; §6.8 #1) ──────

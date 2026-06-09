@@ -13,6 +13,7 @@
 #[cfg(feature = "audio")]
 #[cfg_attr(docsrs, doc(cfg(feature = "audio")))]
 pub mod audio;
+pub mod chapter;
 pub mod leaves;
 pub mod media;
 pub mod media_file;
@@ -26,28 +27,31 @@ pub mod video;
 
 #[cfg(feature = "audio")]
 pub use audio::{
-  PgAudioRow, PgAudioSegmentRow, PgAudioSegmentWordRow, PgAudioTrackIndexErrorRow, PgAudioTrackRow,
+  audio_track_from_rows, PgAudioRow, PgAudioSegmentRow, PgAudioSegmentWordRow,
+  PgAudioTrackIndexErrorRow, PgAudioTrackMetadataRow, PgAudioTrackRow,
 };
+pub use chapter::{chapter_from_rows, PgChapterMetadataRow, PgChapterRow};
 pub use leaves::{PgSceneAnnotationRow, PgSpeakerRow, PgUserTagRow, PgWatchedLocationRow};
 pub use media::PgMediaRow;
 pub use media_file::PgMediaFileRow;
 pub use person::PgPersonRow;
 #[cfg(feature = "subtitle")]
 pub use subtitle::{
-  PgSubtitleCueAssRow, PgSubtitleCueBaseRow, PgSubtitleCueLrcRow, PgSubtitleCueLrcWordRow,
-  PgSubtitleCueVttRow, PgSubtitleRow, PgSubtitleTrackAssStyleRow, PgSubtitleTrackIndexErrorRow,
-  PgSubtitleTrackLrcMetadataRow, PgSubtitleTrackRow, PgSubtitleTrackVttRegionRow,
-  PgSubtitleTrackVttStyleRow,
+  subtitle_track_from_rows, PgSubtitleCueAssRow, PgSubtitleCueBaseRow, PgSubtitleCueLrcRow,
+  PgSubtitleCueLrcWordRow, PgSubtitleCueVttRow, PgSubtitleRow, PgSubtitleTrackAssStyleRow,
+  PgSubtitleTrackIndexErrorRow, PgSubtitleTrackLrcMetadataRow, PgSubtitleTrackMetadataRow,
+  PgSubtitleTrackRow, PgSubtitleTrackVttRegionRow, PgSubtitleTrackVttStyleRow,
 };
 #[cfg(feature = "video")]
 pub use video::{
-  PgKeyframeActionRow, PgKeyframeBarcodeRow, PgKeyframeBodyPose3DJointRow, PgKeyframeBodyPose3DRow,
-  PgKeyframeBodyPoseJointRow, PgKeyframeBodyPoseRow, PgKeyframeClassificationRow,
-  PgKeyframeColorRow, PgKeyframeDocumentSegmentRow, PgKeyframeFaceLandmarkPointRow,
-  PgKeyframeFaceLandmarkRegionRow, PgKeyframeFaceLandmarksRow, PgKeyframeFaceRow,
-  PgKeyframeHandPoseRow, PgKeyframeMaskRow, PgKeyframeObjectRow, PgKeyframeRow, PgKeyframeRows,
-  PgKeyframeSaliencyRow, PgKeyframeSubjectRow, PgKeyframeTextDetectionRow, PgKeyframeVlmLabelRow,
-  PgSceneRow, PgVideoRow, PgVideoTrackIndexErrorRow, PgVideoTrackRow,
+  video_track_from_rows, PgKeyframeActionRow, PgKeyframeBarcodeRow, PgKeyframeBodyPose3DJointRow,
+  PgKeyframeBodyPose3DRow, PgKeyframeBodyPoseJointRow, PgKeyframeBodyPoseRow,
+  PgKeyframeClassificationRow, PgKeyframeColorRow, PgKeyframeDocumentSegmentRow,
+  PgKeyframeFaceLandmarkPointRow, PgKeyframeFaceLandmarkRegionRow, PgKeyframeFaceLandmarksRow,
+  PgKeyframeFaceRow, PgKeyframeHandPoseRow, PgKeyframeMaskRow, PgKeyframeObjectRow, PgKeyframeRow,
+  PgKeyframeRows, PgKeyframeSaliencyRow, PgKeyframeSubjectRow, PgKeyframeTextDetectionRow,
+  PgKeyframeVlmLabelRow, PgSceneRow, PgVideoRow, PgVideoTrackIndexErrorRow,
+  PgVideoTrackMetadataRow, PgVideoTrackRow,
 };
 
 /// Canonical PostgreSQL DDL for the mediaschema tables this revision maps.

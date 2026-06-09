@@ -21,6 +21,7 @@ use derive_more::Display;
 pub enum CollectionName {
   Media,
   MediaFiles,
+  Chapters,
   WatchedLocations,
   Speakers,
   Persons,
@@ -72,6 +73,7 @@ impl CollectionName {
     match self {
       Self::Media => "media",
       Self::MediaFiles => "media_files",
+      Self::Chapters => "chapters",
       Self::WatchedLocations => "watched_locations",
       Self::Speakers => "speakers",
       Self::Persons => "persons",
@@ -169,6 +171,40 @@ pub fn media_file_indexes() -> Vec<IndexModel> {
       doc! { "watched_location_id": 1 },
       "media_file_watched_location_id",
     ),
+  ]
+}
+
+/// `chapters` — FK index on `media_id`; unique `(media_id, index)`;
+/// case-insensitive index on `title` for the conventional title-lookup
+/// query. Mongo collation `strength = 2` is case + diacritic-insensitive.
+pub fn chapter_indexes() -> Vec<IndexModel> {
+  use ::bson::doc as bdoc;
+  use ::mongodb::options::Collation;
+  vec![
+    index_on(doc! { "media_id": 1 }, "chapter_media_id"),
+    IndexModel::builder()
+      .keys(doc! { "media_id": 1, "index": 1 })
+      .options(
+        IndexOptions::builder()
+          .name("chapter_media_id_index_unique".to_owned())
+          .unique(true)
+          .build(),
+      )
+      .build(),
+    IndexModel::builder()
+      .keys(bdoc! { "title": 1 })
+      .options(
+        IndexOptions::builder()
+          .name("chapter_title_ci".to_owned())
+          .collation(
+            Collation::builder()
+              .locale("en".to_owned())
+              .strength(::mongodb::options::CollationStrength::Secondary)
+              .build(),
+          )
+          .build(),
+      )
+      .build(),
   ]
 }
 
@@ -490,6 +526,7 @@ pub fn all_indexes() -> Vec<(CollectionName, Vec<IndexModel>)> {
   let mut v: Vec<(CollectionName, Vec<IndexModel>)> = vec![
     (CollectionName::Media, media_indexes()),
     (CollectionName::MediaFiles, media_file_indexes()),
+    (CollectionName::Chapters, chapter_indexes()),
     (CollectionName::WatchedLocations, watched_location_indexes()),
     (CollectionName::Speakers, speaker_indexes()),
     (CollectionName::Persons, person_indexes()),
@@ -565,10 +602,10 @@ mod tests {
   #[test]
   fn all_indexes_covers_every_collection() {
     let v = all_indexes();
-    // 7 always-on (Media + MediaFiles + WatchedLocations + Speakers
-    // + Persons + UserTags + SceneAnnotations), plus 3 audio,
+    // 8 always-on (Media + MediaFiles + Chapters + WatchedLocations +
+    // Speakers + Persons + UserTags + SceneAnnotations), plus 3 audio,
     // 4 video, 12 subtitle when those features are on.
-    let mut expected = 7usize;
+    let mut expected = 8usize;
     if cfg!(feature = "audio") {
       expected += 3;
     }

@@ -26,6 +26,10 @@ pub struct PgMediaRow {
   pub size: i64,
   pub duration_raw: Option<i64>,
   pub kind: i16,
+  /// Verbatim `AVFormatContext.nb_streams` (rev 11).
+  pub nb_streams: i32,
+  /// Verbatim `AVFormatContext.nb_chapters` (rev 11).
+  pub nb_chapters: i32,
   pub video_id: Option<Uuid>,
   pub audio_id: Option<Uuid>,
   pub subtitle_id: Option<Uuid>,
@@ -73,6 +77,8 @@ impl From<&Media<Uuid7>> for PgMediaRow {
       size: m.size() as i64,
       duration_raw: None,
       kind: media_kind_to_i16(m.kind()),
+      nb_streams: i32::try_from(m.nb_streams()).unwrap_or(i32::MAX),
+      nb_chapters: i32::try_from(m.nb_chapters()).unwrap_or(i32::MAX),
       video_id: m.video_id_ref().map(|id| uuid7_to_uuid(*id)),
       audio_id: m.audio_id_ref().map(|id| uuid7_to_uuid(*id)),
       subtitle_id: m.subtitle_id_ref().map(|id| uuid7_to_uuid(*id)),
@@ -107,6 +113,11 @@ impl TryFrom<PgMediaRow> for Media<Uuid7> {
     let format = r.format.parse::<Format>().unwrap_or_default();
     let mut m = Media::try_new(id, checksum, format, size, kind)
       .map_err(|e: MediaError| SqlxError::DomainConstructorRejected(e.to_string()))?;
+    let nb_streams = u32::try_from(r.nb_streams)
+      .map_err(|e| SqlxError::UnknownDiscriminant(format!("Media.nb_streams: {e}")))?;
+    let nb_chapters = u32::try_from(r.nb_chapters)
+      .map_err(|e| SqlxError::UnknownDiscriminant(format!("Media.nb_chapters: {e}")))?;
+    m = m.with_nb_streams(nb_streams).with_nb_chapters(nb_chapters);
     if let Some(v) = r.video_id {
       m = m.with_video_id(Some(uuid_to_uuid7(v)?));
     }
@@ -161,6 +172,10 @@ pub struct PgMediaRowRef<'r> {
   pub size: i64,
   pub duration_raw: Option<i64>,
   pub kind: i16,
+  /// Verbatim `AVFormatContext.nb_streams` (rev 11).
+  pub nb_streams: i32,
+  /// Verbatim `AVFormatContext.nb_chapters` (rev 11).
+  pub nb_chapters: i32,
   pub video_id: Option<Uuid>,
   pub audio_id: Option<Uuid>,
   pub subtitle_id: Option<Uuid>,
@@ -185,6 +200,8 @@ impl PgMediaRow {
       size: self.size,
       duration_raw: self.duration_raw,
       kind: self.kind,
+      nb_streams: self.nb_streams,
+      nb_chapters: self.nb_chapters,
       video_id: self.video_id,
       audio_id: self.audio_id,
       subtitle_id: self.subtitle_id,
@@ -218,6 +235,11 @@ impl<'r> TryFrom<PgMediaRowRef<'r>> for Media<Uuid7> {
     let format = r.format.parse::<Format>().unwrap_or_default();
     let mut m = Media::try_new(id, checksum, format, size, kind)
       .map_err(|e: MediaError| SqlxError::DomainConstructorRejected(e.to_string()))?;
+    let nb_streams = u32::try_from(r.nb_streams)
+      .map_err(|e| SqlxError::UnknownDiscriminant(format!("Media.nb_streams: {e}")))?;
+    let nb_chapters = u32::try_from(r.nb_chapters)
+      .map_err(|e| SqlxError::UnknownDiscriminant(format!("Media.nb_chapters: {e}")))?;
+    m = m.with_nb_streams(nb_streams).with_nb_chapters(nb_chapters);
     if let Some(v) = r.video_id {
       m = m.with_video_id(Some(uuid_to_uuid7(v)?));
     }
@@ -346,6 +368,8 @@ mod tests {
       size: 0,
       duration_raw: None,
       kind: 0,
+      nb_streams: 0,
+      nb_chapters: 0,
       video_id: None,
       audio_id: None,
       subtitle_id: None,

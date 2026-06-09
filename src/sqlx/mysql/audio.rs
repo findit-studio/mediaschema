@@ -13,12 +13,16 @@
 //! `audio_track_index_error`) with an `ordinal` order column. The
 //! `Vec<Id>` reverse-FK fields are NOT stored.
 
+use indexmap::IndexMap;
 use mediaframe::{
-  audio::{BitRateMode, ChannelLayout, CoverArt, Fingerprint, Loudness, Tags},
+  audio::{
+    BitRateMode, ChannelLayout, CoverArt, Fingerprint, Loudness, ReplayGain, SampleFormat, Tags,
+  },
   codec::AudioCodec,
   disposition::TrackDisposition,
   lang::Language,
 };
+use smol_str::SmolStr;
 
 use crate::{
   domain::{
@@ -130,6 +134,9 @@ pub struct MySqlAudioTrackRow {
   pub sample_rate: i64,
   pub channels: i32,
   pub channel_layout: String,
+  /// `SampleFormat::to_u32` (FFmpeg `AV_SAMPLE_FMT_*`). Default
+  /// `u32::MAX` (= `SampleFormat::default()` = `Unknown(u32::MAX)`).
+  pub sample_format: i64,
   pub bit_rate: i64,
   pub bit_rate_mode: Option<i32>,
   pub bits_per_sample: Option<i32>,
@@ -153,6 +160,11 @@ pub struct MySqlAudioTrackRow {
   pub loudness_range_lu: Option<f32>,
   pub loudness_true_peak_dbtp: Option<f32>,
   pub loudness_sample_peak_dbfs: Option<f32>,
+  pub has_replay_gain: bool,
+  pub replay_gain_track_gain_db: Option<f32>,
+  pub replay_gain_track_peak: Option<f32>,
+  pub replay_gain_album_gain_db: Option<f32>,
+  pub replay_gain_album_peak: Option<f32>,
   pub fingerprint_algo: Option<String>,
   pub fingerprint_value: Option<std::vec::Vec<u8>>,
   pub isrc: String,
@@ -190,15 +202,28 @@ pub struct MySqlAudioTrackIndexErrorRow {
   pub message: String,
 }
 
+/// MySQL row for `audio_track_metadata`. Position in the per-
+/// `audio_track_id` `ordinal` sequence IS the [`IndexMap`] insertion
+/// order. `audio_track_from_rows` sorts by `ordinal` on decode.
+#[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
+pub struct MySqlAudioTrackMetadataRow {
+  pub audio_track_id: std::vec::Vec<u8>,
+  pub ordinal: i32,
+  pub key: String,
+  pub value: String,
+}
+
 impl From<&AudioTrack<Uuid7>>
   for (
     MySqlAudioTrackRow,
     std::vec::Vec<MySqlAudioTrackIndexErrorRow>,
+    std::vec::Vec<MySqlAudioTrackMetadataRow>,
   )
 {
   fn from(t: &AudioTrack<Uuid7>) -> Self {
     let id = t.id_ref().as_bytes().to_vec();
     let loudness = t.loudness_ref();
+    let replay_gain = t.replay_gain_ref();
     let fingerprint = t.fingerprint_ref();
     let cover = t.cover_art_ref();
     let tags = t.tags_ref();
@@ -215,6 +240,7 @@ impl From<&AudioTrack<Uuid7>>
       sample_rate: i64::from(t.sample_rate()),
       channels: i32::from(t.channels()),
       channel_layout: t.channel_layout_ref().as_str().to_owned(),
+      sample_format: i64::from(t.sample_format_ref().to_u32()),
       bit_rate: t.bit_rate() as i64,
       bit_rate_mode: t.bit_rate_mode().map(|m| m.to_u32() as i32),
       bits_per_sample: t.bits_per_sample().map(i32::from),
@@ -238,6 +264,11 @@ impl From<&AudioTrack<Uuid7>>
       loudness_range_lu: loudness.map(Loudness::range_lu),
       loudness_true_peak_dbtp: loudness.map(Loudness::true_peak_dbtp),
       loudness_sample_peak_dbfs: loudness.map(Loudness::sample_peak_dbfs),
+      has_replay_gain: replay_gain.is_some(),
+      replay_gain_track_gain_db: replay_gain.map(ReplayGain::track_gain_db),
+      replay_gain_track_peak: replay_gain.map(ReplayGain::track_peak),
+      replay_gain_album_gain_db: replay_gain.and_then(ReplayGain::album_gain_db),
+      replay_gain_album_peak: replay_gain.and_then(ReplayGain::album_peak),
       fingerprint_algo: fingerprint.map(|f| f.algorithm().to_owned()),
       fingerprint_value: fingerprint.map(|f| f.value().to_vec()),
       isrc: t.isrc().to_owned(),
@@ -276,7 +307,18 @@ impl From<&AudioTrack<Uuid7>>
         message: e.message().to_owned(),
       })
       .collect();
-    (row, errors)
+    let metadata = t
+      .metadata_ref()
+      .iter()
+      .enumerate()
+      .map(|(i, (k, v))| MySqlAudioTrackMetadataRow {
+        audio_track_id: id.clone(),
+        ordinal: i32::try_from(i).unwrap_or(i32::MAX),
+        key: k.as_str().to_owned(),
+        value: v.as_str().to_owned(),
+      })
+      .collect();
+    (row, errors, metadata)
   }
 }
 
@@ -284,16 +326,30 @@ impl
   TryFrom<(
     MySqlAudioTrackRow,
     std::vec::Vec<MySqlAudioTrackIndexErrorRow>,
+    std::vec::Vec<MySqlAudioTrackMetadataRow>,
   )> for AudioTrack<Uuid7>
 {
   type Error = SqlxError;
 
   fn try_from(
-    (r, mut errors): (
+    (r, errors, metadata): (
       MySqlAudioTrackRow,
       std::vec::Vec<MySqlAudioTrackIndexErrorRow>,
+      std::vec::Vec<MySqlAudioTrackMetadataRow>,
     ),
   ) -> Result<Self, Self::Error> {
+    audio_track_from_rows(r, errors, metadata)
+  }
+}
+
+/// Reconstruct an [`AudioTrack`] from its row, `index_errors` rows, and
+/// `metadata` rows.
+pub fn audio_track_from_rows(
+  r: MySqlAudioTrackRow,
+  mut errors: std::vec::Vec<MySqlAudioTrackIndexErrorRow>,
+  mut metadata: std::vec::Vec<MySqlAudioTrackMetadataRow>,
+) -> Result<AudioTrack<Uuid7>, SqlxError> {
+  {
     let id = bytes_to_uuid7(&r.id)?;
     let audio_id = bytes_to_uuid7(&r.audio_id)?;
     let mut t = AudioTrack::try_new(id, audio_id)
@@ -303,6 +359,10 @@ impl
       .with_codec(parse_audio_codec(&r.codec))
       .with_profile(r.profile)
       .with_channel_layout(parse_channel_layout(&r.channel_layout))
+      .with_sample_format(SampleFormat::from_u32(u32_from_i64(
+        r.sample_format,
+        "AudioTrack.sample_format",
+      )?))
       .with_bit_rate(r.bit_rate as u64)
       .with_lossless(r.is_lossless)
       .with_primary(r.is_primary)
@@ -369,6 +429,14 @@ impl
         r.loudness_sample_peak_dbfs.unwrap_or_default(),
       )));
     }
+    if r.has_replay_gain {
+      t = t.with_replay_gain(Some(ReplayGain::new(
+        r.replay_gain_track_gain_db.unwrap_or_default(),
+        r.replay_gain_track_peak.unwrap_or_default(),
+        r.replay_gain_album_gain_db,
+        r.replay_gain_album_peak,
+      )));
+    }
     if let Some(algo) = r.fingerprint_algo {
       let value = r.fingerprint_value.unwrap_or_default();
       t = t.with_fingerprint(Some(Fingerprint::try_new(algo, value).map_err(|e| {
@@ -421,6 +489,18 @@ impl
       infos.push(ErrorInfo::new(ErrorCode::from_u32(code), e.message));
     }
     t = t.with_index_errors(infos);
+
+    metadata.sort_by_key(|m| m.ordinal);
+    let mut bag = IndexMap::with_capacity(metadata.len());
+    for entry in metadata {
+      if entry.audio_track_id != r.id {
+        return Err(SqlxError::DomainConstructorRejected(
+          "audio_track_metadata.audio_track_id does not match parent audio_track.id".to_owned(),
+        ));
+      }
+      bag.insert(SmolStr::from(entry.key), SmolStr::from(entry.value));
+    }
+    t = t.with_metadata(bag);
 
     Ok(t)
   }
@@ -675,6 +755,7 @@ pub struct MySqlAudioTrackRowRef<'r> {
   pub sample_rate: i64,
   pub channels: i32,
   pub channel_layout: &'r str,
+  pub sample_format: i64,
   pub bit_rate: i64,
   pub bit_rate_mode: Option<i32>,
   pub bits_per_sample: Option<i32>,
@@ -698,6 +779,11 @@ pub struct MySqlAudioTrackRowRef<'r> {
   pub loudness_range_lu: Option<f32>,
   pub loudness_true_peak_dbtp: Option<f32>,
   pub loudness_sample_peak_dbfs: Option<f32>,
+  pub has_replay_gain: bool,
+  pub replay_gain_track_gain_db: Option<f32>,
+  pub replay_gain_track_peak: Option<f32>,
+  pub replay_gain_album_gain_db: Option<f32>,
+  pub replay_gain_album_peak: Option<f32>,
   pub fingerprint_algo: Option<&'r str>,
   pub fingerprint_value: Option<&'r [u8]>,
   pub isrc: &'r str,
@@ -735,6 +821,15 @@ pub struct MySqlAudioTrackIndexErrorRowRef<'r> {
   pub message: &'r str,
 }
 
+/// Borrowed view of [`MySqlAudioTrackMetadataRow`].
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct MySqlAudioTrackMetadataRowRef<'r> {
+  pub audio_track_id: &'r [u8],
+  pub ordinal: i32,
+  pub key: &'r str,
+  pub value: &'r str,
+}
+
 impl MySqlAudioTrackRow {
   /// Cheap borrow — produces a [`MySqlAudioTrackRowRef`] referencing `self`.
   pub fn as_ref(&self) -> MySqlAudioTrackRowRef<'_> {
@@ -748,6 +843,7 @@ impl MySqlAudioTrackRow {
       sample_rate: self.sample_rate,
       channels: self.channels,
       channel_layout: &self.channel_layout,
+      sample_format: self.sample_format,
       bit_rate: self.bit_rate,
       bit_rate_mode: self.bit_rate_mode,
       bits_per_sample: self.bits_per_sample,
@@ -771,6 +867,11 @@ impl MySqlAudioTrackRow {
       loudness_range_lu: self.loudness_range_lu,
       loudness_true_peak_dbtp: self.loudness_true_peak_dbtp,
       loudness_sample_peak_dbfs: self.loudness_sample_peak_dbfs,
+      has_replay_gain: self.has_replay_gain,
+      replay_gain_track_gain_db: self.replay_gain_track_gain_db,
+      replay_gain_track_peak: self.replay_gain_track_peak,
+      replay_gain_album_gain_db: self.replay_gain_album_gain_db,
+      replay_gain_album_peak: self.replay_gain_album_peak,
       fingerprint_algo: self.fingerprint_algo.as_deref(),
       fingerprint_value: self.fingerprint_value.as_deref(),
       isrc: &self.isrc,
@@ -813,18 +914,32 @@ impl MySqlAudioTrackIndexErrorRow {
   }
 }
 
+impl MySqlAudioTrackMetadataRow {
+  /// Cheap borrow — produces a [`MySqlAudioTrackMetadataRowRef`] referencing `self`.
+  pub fn as_ref(&self) -> MySqlAudioTrackMetadataRowRef<'_> {
+    MySqlAudioTrackMetadataRowRef {
+      audio_track_id: &self.audio_track_id,
+      ordinal: self.ordinal,
+      key: &self.key,
+      value: &self.value,
+    }
+  }
+}
+
 impl<'r>
   TryFrom<(
     MySqlAudioTrackRowRef<'r>,
     std::vec::Vec<MySqlAudioTrackIndexErrorRowRef<'r>>,
+    std::vec::Vec<MySqlAudioTrackMetadataRowRef<'r>>,
   )> for AudioTrack<Uuid7>
 {
   type Error = SqlxError;
 
   fn try_from(
-    (r, mut errors): (
+    (r, mut errors, mut metadata): (
       MySqlAudioTrackRowRef<'r>,
       std::vec::Vec<MySqlAudioTrackIndexErrorRowRef<'r>>,
+      std::vec::Vec<MySqlAudioTrackMetadataRowRef<'r>>,
     ),
   ) -> Result<Self, Self::Error> {
     let id = bytes_to_uuid7(r.id)?;
@@ -836,6 +951,10 @@ impl<'r>
       .with_codec(parse_audio_codec(r.codec))
       .with_profile(r.profile)
       .with_channel_layout(parse_channel_layout(r.channel_layout))
+      .with_sample_format(SampleFormat::from_u32(u32_from_i64(
+        r.sample_format,
+        "AudioTrack.sample_format",
+      )?))
       .with_bit_rate(r.bit_rate as u64)
       .with_lossless(r.is_lossless)
       .with_primary(r.is_primary)
@@ -902,6 +1021,14 @@ impl<'r>
         r.loudness_sample_peak_dbfs.unwrap_or_default(),
       )));
     }
+    if r.has_replay_gain {
+      t = t.with_replay_gain(Some(ReplayGain::new(
+        r.replay_gain_track_gain_db.unwrap_or_default(),
+        r.replay_gain_track_peak.unwrap_or_default(),
+        r.replay_gain_album_gain_db,
+        r.replay_gain_album_peak,
+      )));
+    }
     if let Some(algo) = r.fingerprint_algo {
       let value = r.fingerprint_value.unwrap_or_default().to_vec();
       t = t.with_fingerprint(Some(Fingerprint::try_new(algo, value).map_err(|e| {
@@ -954,6 +1081,18 @@ impl<'r>
       infos.push(ErrorInfo::new(ErrorCode::from_u32(code), e.message));
     }
     t = t.with_index_errors(infos);
+
+    metadata.sort_by_key(|m| m.ordinal);
+    let mut bag = IndexMap::with_capacity(metadata.len());
+    for entry in metadata {
+      if entry.audio_track_id != r.id {
+        return Err(SqlxError::DomainConstructorRejected(
+          "audio_track_metadata.audio_track_id does not match parent audio_track.id".to_owned(),
+        ));
+      }
+      bag.insert(SmolStr::from(entry.key), SmolStr::from(entry.value));
+    }
+    t = t.with_metadata(bag);
 
     Ok(t)
   }
@@ -1239,9 +1378,33 @@ mod tests {
     let tuple: (
       MySqlAudioTrackRow,
       std::vec::Vec<MySqlAudioTrackIndexErrorRow>,
+      std::vec::Vec<MySqlAudioTrackMetadataRow>,
     ) = (&t).into();
     let t2: AudioTrack<Uuid7> = tuple.try_into().unwrap();
     assert_eq!(t, t2);
+  }
+
+  #[test]
+  fn audio_track_metadata_roundtrip_preserves_insertion_order() {
+    let mut meta = IndexMap::new();
+    meta.insert(SmolStr::new("encoder"), SmolStr::new("flac 1.4.3"));
+    meta.insert(SmolStr::new("compatible_brands"), SmolStr::new("isom"));
+    let t = AudioTrack::try_new(Uuid7::new(), Uuid7::new())
+      .unwrap()
+      .with_metadata(meta)
+      .with_sample_format(SampleFormat::Fltp);
+    let (row, errs, mut metadata): (
+      MySqlAudioTrackRow,
+      std::vec::Vec<MySqlAudioTrackIndexErrorRow>,
+      std::vec::Vec<MySqlAudioTrackMetadataRow>,
+    ) = (&t).into();
+    assert_eq!(metadata.len(), 2);
+    assert_eq!(row.sample_format, i64::from(SampleFormat::Fltp.to_u32()));
+    metadata.reverse();
+    let t2: AudioTrack<Uuid7> = (row, errs, metadata).try_into().unwrap();
+    let keys: std::vec::Vec<&str> = t2.metadata_ref().keys().map(SmolStr::as_str).collect();
+    assert_eq!(keys, std::vec!["encoder", "compatible_brands"]);
+    assert_eq!(t2.sample_format_ref(), &SampleFormat::Fltp);
   }
 
   #[test]
@@ -1290,6 +1453,7 @@ mod tests {
     let tuple: (
       MySqlAudioTrackRow,
       std::vec::Vec<MySqlAudioTrackIndexErrorRow>,
+      std::vec::Vec<MySqlAudioTrackMetadataRow>,
     ) = (&t).into();
     let t2: AudioTrack<Uuid7> = tuple.try_into().unwrap();
     assert_eq!(t, t2);
@@ -1404,15 +1568,20 @@ mod tests {
       .try_with_index_status(AudioIndexStatus::EXTRACTED)
       .unwrap()
       .with_index_errors(std::vec![ErrorInfo::new(ErrorCode::ProbeCorrupt, "bad")]);
-    let (row, errs): (
+    let (row, errs, meta): (
       MySqlAudioTrackRow,
       std::vec::Vec<MySqlAudioTrackIndexErrorRow>,
+      std::vec::Vec<MySqlAudioTrackMetadataRow>,
     ) = (&t).into();
     let err_refs: std::vec::Vec<MySqlAudioTrackIndexErrorRowRef<'_>> = errs
       .iter()
       .map(MySqlAudioTrackIndexErrorRow::as_ref)
       .collect();
-    let t2: AudioTrack<Uuid7> = (row.as_ref(), err_refs).try_into().unwrap();
+    let meta_refs: std::vec::Vec<MySqlAudioTrackMetadataRowRef<'_>> = meta
+      .iter()
+      .map(MySqlAudioTrackMetadataRow::as_ref)
+      .collect();
+    let t2: AudioTrack<Uuid7> = (row.as_ref(), err_refs, meta_refs).try_into().unwrap();
     assert_eq!(t, t2);
   }
 

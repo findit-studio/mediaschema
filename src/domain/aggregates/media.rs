@@ -74,9 +74,25 @@ pub struct Media<Id = Uuid7> {
   size: u64,
   duration: Option<MediaTimestamp>,
   kind: MediaKind,
+  /// Verbatim `AVFormatContext.nb_streams` — the total stream count
+  /// from the container probe, *including* data / attachment streams
+  /// the schema may not model per-track. Kept distinct from
+  /// `video_id` / `audio_id` / `subtitle_id` track-count rollups so a
+  /// consumer can detect "ffmpeg saw streams we don't represent".
+  nb_streams: u32,
+  /// Verbatim `AVFormatContext.nb_chapters`. Kept even when
+  /// `chapters.is_empty()` so a probe-without-chapter-fetch still
+  /// carries the count; once the chapter probe completes, the
+  /// invariant `chapters.len() == nb_chapters` should hold
+  /// (application-layer, not enforced here).
+  nb_chapters: u32,
   /// Reverse lookup → this content's [`MediaFile`](super::MediaFile)
   /// copies (the reverse side of `MediaFile.media_id`).
   files: std::vec::Vec<Id>,
+  /// Reverse lookup → this content's [`Chapter`](super::Chapter) rows
+  /// (the reverse side of `Chapter.media_id`). Empty until the chapter
+  /// probe populates it.
+  chapters: std::vec::Vec<Id>,
   /// FK → `Video` facet (`None` = no video stream on this file).
   video_id: Option<Id>,
   /// FK → `Audio` facet (`None` = no audio stream).
@@ -130,7 +146,10 @@ impl Media<Uuid7> {
       size,
       duration: None,
       kind,
+      nb_streams: 0,
+      nb_chapters: 0,
       files: std::vec::Vec::new(),
+      chapters: std::vec::Vec::new(),
       video_id: None,
       audio_id: None,
       subtitle_id: None,
@@ -180,11 +199,29 @@ impl<Id> Media<Id> {
     self.kind
   }
 
+  /// Verbatim `AVFormatContext.nb_streams`.
+  #[inline(always)]
+  pub const fn nb_streams(&self) -> u32 {
+    self.nb_streams
+  }
+
+  /// Verbatim `AVFormatContext.nb_chapters`.
+  #[inline(always)]
+  pub const fn nb_chapters(&self) -> u32 {
+    self.nb_chapters
+  }
+
   /// Reverse lookup → this content's [`MediaFile`](super::MediaFile)
   /// copies (projects the slice, never `&Vec`).
   #[inline(always)]
   pub const fn files_slice(&self) -> &[Id] {
     self.files.as_slice()
+  }
+
+  /// Reverse lookup → this content's [`Chapter`](super::Chapter) rows.
+  #[inline(always)]
+  pub const fn chapters_slice(&self) -> &[Id] {
+    self.chapters.as_slice()
   }
 
   /// FK → `Video` facet.
@@ -254,6 +291,22 @@ impl<Id> Media<Id> {
     Ok(self)
   }
 
+  /// Builder: replace `nb_streams` (verbatim from probe).
+  #[inline(always)]
+  #[must_use]
+  pub const fn with_nb_streams(mut self, n: u32) -> Self {
+    self.nb_streams = n;
+    self
+  }
+
+  /// Builder: replace `nb_chapters` (verbatim from probe).
+  #[inline(always)]
+  #[must_use]
+  pub const fn with_nb_chapters(mut self, n: u32) -> Self {
+    self.nb_chapters = n;
+    self
+  }
+
   /// Builder: replace the whole `files` reverse-lookup list.
   #[inline(always)]
   #[must_use]
@@ -267,6 +320,22 @@ impl<Id> Media<Id> {
   #[must_use]
   pub fn push_file(mut self, file: Id) -> Self {
     self.files.push(file);
+    self
+  }
+
+  /// Builder: replace the whole `chapters` reverse-lookup list.
+  #[inline(always)]
+  #[must_use]
+  pub fn with_chapters(mut self, chapters: std::vec::Vec<Id>) -> Self {
+    self.chapters = chapters;
+    self
+  }
+
+  /// Builder: append one `Chapter` id to the reverse-lookup list.
+  #[inline(always)]
+  #[must_use]
+  pub fn push_chapter(mut self, chapter: Id) -> Self {
+    self.chapters.push(chapter);
     self
   }
 
@@ -358,10 +427,39 @@ impl<Id> Media<Id> {
     Ok(self)
   }
 
+  /// In-place mutator: replace `nb_streams` (verbatim from probe).
+  #[inline(always)]
+  pub const fn set_nb_streams(&mut self, n: u32) -> &mut Self {
+    self.nb_streams = n;
+    self
+  }
+
+  /// In-place mutator: replace `nb_chapters` (verbatim from probe).
+  #[inline(always)]
+  pub const fn set_nb_chapters(&mut self, n: u32) -> &mut Self {
+    self.nb_chapters = n;
+    self
+  }
+
   /// In-place mutator: replace the whole `files` reverse-lookup list.
   #[inline(always)]
   pub fn set_files(&mut self, files: std::vec::Vec<Id>) -> &mut Self {
     self.files = files;
+    self
+  }
+
+  /// In-place mutator: replace the whole `chapters` reverse-lookup list.
+  #[inline(always)]
+  pub fn set_chapters(&mut self, chapters: std::vec::Vec<Id>) -> &mut Self {
+    self.chapters = chapters;
+    self
+  }
+
+  /// In-place mutator: append one `Chapter` id to the reverse-lookup
+  /// list.
+  #[inline(always)]
+  pub fn add_chapter(&mut self, chapter: Id) -> &mut Self {
+    self.chapters.push(chapter);
     self
   }
 
