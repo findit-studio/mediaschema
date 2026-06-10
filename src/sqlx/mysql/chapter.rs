@@ -5,6 +5,8 @@
 //! a reserved word (the column is back-ticked in the DDL but the Rust
 //! field name is plain `key`).
 
+use std::vec::Vec;
+
 use core::num::NonZeroU32;
 
 use indexmap::IndexMap;
@@ -22,8 +24,8 @@ use crate::{
 /// MySQL row for the `chapter` table.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlChapterRow {
-  pub id: std::vec::Vec<u8>,
-  pub media_id: std::vec::Vec<u8>,
+  pub id: Vec<u8>,
+  pub media_id: Vec<u8>,
   /// `chapter_index` in SQL (`index` is reserved in MySQL).
   pub chapter_index: u32,
   pub source_id: i64,
@@ -38,13 +40,13 @@ pub struct MySqlChapterRow {
 /// `ordinal` sequence IS the [`IndexMap`] insertion order.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlChapterMetadataRow {
-  pub chapter_id: std::vec::Vec<u8>,
+  pub chapter_id: Vec<u8>,
   pub ordinal: u32,
   pub key: String,
   pub value: String,
 }
 
-impl From<&Chapter<Uuid7>> for (MySqlChapterRow, std::vec::Vec<MySqlChapterMetadataRow>) {
+impl From<&Chapter<Uuid7>> for (MySqlChapterRow, Vec<MySqlChapterMetadataRow>) {
   fn from(c: &Chapter<Uuid7>) -> Self {
     let id_bytes = c.id_ref().as_bytes().to_vec();
     let row = MySqlChapterRow {
@@ -79,7 +81,7 @@ impl From<&Chapter<Uuid7>> for (MySqlChapterRow, std::vec::Vec<MySqlChapterMetad
 /// recovered.
 pub fn chapter_from_rows(
   row: MySqlChapterRow,
-  mut metadata: std::vec::Vec<MySqlChapterMetadataRow>,
+  mut metadata: Vec<MySqlChapterMetadataRow>,
 ) -> Result<Chapter<Uuid7>, SqlxError> {
   let id = bytes_to_uuid7(&row.id)?;
   let media_id = bytes_to_uuid7(&row.media_id)?;

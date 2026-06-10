@@ -20,6 +20,8 @@
 //! `tracks` Vec to satisfy a derived count). The domain type enforces
 //! only intrinsic single-value invariants (here: non-nil `id`).
 
+use std::vec::Vec;
+
 use derive_more::IsVariant;
 
 use crate::domain::{vo::IndexProgress, Uuid7};
@@ -47,7 +49,7 @@ pub struct Video<Id = Uuid7> {
   id: Id,
   media_id: Id,
   total_scenes: u32,
-  tracks: std::vec::Vec<Id>,
+  tracks: Vec<Id>,
   track_progress: IndexProgress,
 }
 
@@ -72,7 +74,7 @@ impl Video<Uuid7> {
       id,
       media_id,
       total_scenes: 0,
-      tracks: std::vec::Vec::new(),
+      tracks: Vec::new(),
       track_progress: IndexProgress::new(),
     })
   }
@@ -115,7 +117,7 @@ impl<Id> Video<Id> {
   /// Builder: replace the `tracks` id-list.
   #[must_use]
   #[inline(always)]
-  pub fn with_tracks(mut self, tracks: impl Into<std::vec::Vec<Id>>) -> Self {
+  pub fn with_tracks(mut self, tracks: impl Into<Vec<Id>>) -> Self {
     self.tracks = tracks.into();
     self
   }
@@ -138,7 +140,7 @@ impl<Id> Video<Id> {
 
   /// In-place mutator for `tracks`.
   #[inline(always)]
-  pub fn set_tracks(&mut self, tracks: impl Into<std::vec::Vec<Id>>) -> &mut Self {
+  pub fn set_tracks(&mut self, tracks: impl Into<Vec<Id>>) -> &mut Self {
     self.tracks = tracks.into();
     self
   }
@@ -231,7 +233,7 @@ mod tests {
 
     let mut v = v;
     v.set_total_scenes(0);
-    v.set_tracks(std::vec::Vec::<Uuid7>::new());
+    v.set_tracks(Vec::<Uuid7>::new());
     v.set_track_progress(IndexProgress::new());
     assert_eq!(v.total_scenes(), 0);
     assert!(v.tracks_slice().is_empty());

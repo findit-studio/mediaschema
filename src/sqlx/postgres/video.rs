@@ -21,6 +21,8 @@
 //! fields (`Video::tracks`, `VideoTrack::scenes`, `Scene::keyframes`)
 //! are NOT stored — they are derived by querying the child table's FK.
 
+use std::vec::Vec;
+
 use bytes::Bytes;
 use indexmap::IndexMap;
 use mediaframe::{
@@ -255,8 +257,8 @@ pub struct PgVideoTrackMetadataRow {
 impl From<&VideoTrack<Uuid7>>
   for (
     PgVideoTrackRow,
-    std::vec::Vec<PgVideoTrackIndexErrorRow>,
-    std::vec::Vec<PgVideoTrackMetadataRow>,
+    Vec<PgVideoTrackIndexErrorRow>,
+    Vec<PgVideoTrackMetadataRow>,
   )
 {
   fn from(t: &VideoTrack<Uuid7>) -> Self {
@@ -376,8 +378,8 @@ impl From<&VideoTrack<Uuid7>>
 impl
   TryFrom<(
     PgVideoTrackRow,
-    std::vec::Vec<PgVideoTrackIndexErrorRow>,
-    std::vec::Vec<PgVideoTrackMetadataRow>,
+    Vec<PgVideoTrackIndexErrorRow>,
+    Vec<PgVideoTrackMetadataRow>,
   )> for VideoTrack<Uuid7>
 {
   type Error = SqlxError;
@@ -385,8 +387,8 @@ impl
   fn try_from(
     (r, errors, metadata): (
       PgVideoTrackRow,
-      std::vec::Vec<PgVideoTrackIndexErrorRow>,
-      std::vec::Vec<PgVideoTrackMetadataRow>,
+      Vec<PgVideoTrackIndexErrorRow>,
+      Vec<PgVideoTrackMetadataRow>,
     ),
   ) -> Result<Self, Self::Error> {
     video_track_from_rows(r, errors, metadata)
@@ -399,8 +401,8 @@ impl
 /// `IndexMap` ordering is recovered.
 pub fn video_track_from_rows(
   r: PgVideoTrackRow,
-  mut errors: std::vec::Vec<PgVideoTrackIndexErrorRow>,
-  mut metadata: std::vec::Vec<PgVideoTrackMetadataRow>,
+  mut errors: Vec<PgVideoTrackIndexErrorRow>,
+  mut metadata: Vec<PgVideoTrackMetadataRow>,
 ) -> Result<VideoTrack<Uuid7>, SqlxError> {
   {
     let id = uuid_to_uuid7(r.id)?;
@@ -643,7 +645,7 @@ pub fn video_track_from_rows(
       )?));
 
     errors.sort_by_key(|e| e.ordinal);
-    let mut infos = std::vec::Vec::with_capacity(errors.len());
+    let mut infos = Vec::with_capacity(errors.len());
     for e in errors {
       let code = u32_from_i32(e.code, "VideoTrack.index_error.code")?;
       infos.push(ErrorInfo::new(ErrorCode::from_u32(code), e.message));
@@ -743,7 +745,7 @@ pub struct PgKeyframeRow {
   pub id: Uuid,
   pub scene_id: Uuid,
   pub pts: i64,
-  pub data: std::vec::Vec<u8>,
+  pub data: Vec<u8>,
   pub mime: String,
   pub width: i64,
   pub height: i64,
@@ -978,7 +980,7 @@ pub struct PgKeyframeMaskRow {
   pub instance_index: Option<i64>,
   pub width: i64,
   pub height: i64,
-  pub data: std::vec::Vec<u8>,
+  pub data: Vec<u8>,
 }
 
 /// `keyframe_face_landmarks` — bbox + confidence header for a
@@ -1035,26 +1037,26 @@ pub struct PgKeyframeVlmLabelRow {
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct PgKeyframeRows {
   pub keyframe: Option<PgKeyframeRow>,
-  pub classifications: std::vec::Vec<PgKeyframeClassificationRow>,
-  pub objects: std::vec::Vec<PgKeyframeObjectRow>,
-  pub actions: std::vec::Vec<PgKeyframeActionRow>,
-  pub text_detections: std::vec::Vec<PgKeyframeTextDetectionRow>,
-  pub barcodes: std::vec::Vec<PgKeyframeBarcodeRow>,
-  pub saliencies: std::vec::Vec<PgKeyframeSaliencyRow>,
-  pub document_segments: std::vec::Vec<PgKeyframeDocumentSegmentRow>,
-  pub colors: std::vec::Vec<PgKeyframeColorRow>,
-  pub subjects: std::vec::Vec<PgKeyframeSubjectRow>,
-  pub faces: std::vec::Vec<PgKeyframeFaceRow>,
-  pub body_poses: std::vec::Vec<PgKeyframeBodyPoseRow>,
-  pub body_pose_joints: std::vec::Vec<PgKeyframeBodyPoseJointRow>,
-  pub hand_poses: std::vec::Vec<PgKeyframeHandPoseRow>,
-  pub body_poses_3d: std::vec::Vec<PgKeyframeBodyPose3DRow>,
-  pub body_pose_3d_joints: std::vec::Vec<PgKeyframeBodyPose3DJointRow>,
-  pub masks: std::vec::Vec<PgKeyframeMaskRow>,
-  pub face_landmarks: std::vec::Vec<PgKeyframeFaceLandmarksRow>,
-  pub face_landmark_regions: std::vec::Vec<PgKeyframeFaceLandmarkRegionRow>,
-  pub face_landmark_points: std::vec::Vec<PgKeyframeFaceLandmarkPointRow>,
-  pub vlm_labels: std::vec::Vec<PgKeyframeVlmLabelRow>,
+  pub classifications: Vec<PgKeyframeClassificationRow>,
+  pub objects: Vec<PgKeyframeObjectRow>,
+  pub actions: Vec<PgKeyframeActionRow>,
+  pub text_detections: Vec<PgKeyframeTextDetectionRow>,
+  pub barcodes: Vec<PgKeyframeBarcodeRow>,
+  pub saliencies: Vec<PgKeyframeSaliencyRow>,
+  pub document_segments: Vec<PgKeyframeDocumentSegmentRow>,
+  pub colors: Vec<PgKeyframeColorRow>,
+  pub subjects: Vec<PgKeyframeSubjectRow>,
+  pub faces: Vec<PgKeyframeFaceRow>,
+  pub body_poses: Vec<PgKeyframeBodyPoseRow>,
+  pub body_pose_joints: Vec<PgKeyframeBodyPoseJointRow>,
+  pub hand_poses: Vec<PgKeyframeHandPoseRow>,
+  pub body_poses_3d: Vec<PgKeyframeBodyPose3DRow>,
+  pub body_pose_3d_joints: Vec<PgKeyframeBodyPose3DJointRow>,
+  pub masks: Vec<PgKeyframeMaskRow>,
+  pub face_landmarks: Vec<PgKeyframeFaceLandmarksRow>,
+  pub face_landmark_regions: Vec<PgKeyframeFaceLandmarkRegionRow>,
+  pub face_landmark_points: Vec<PgKeyframeFaceLandmarkPointRow>,
+  pub vlm_labels: Vec<PgKeyframeVlmLabelRow>,
 }
 
 impl From<&Keyframe<Uuid7>> for PgKeyframeRows {
@@ -1376,7 +1378,7 @@ pub fn keyframe_from_rows(
 
     // classifications
     let mut classifications = sort_by_ordinal(rows.classifications, |r| r.ordinal);
-    let mut built = std::vec::Vec::with_capacity(classifications.len());
+    let mut built = Vec::with_capacity(classifications.len());
     for r in classifications.drain(..) {
       built.push(Detection::try_new(r.label, r.confidence).map_err(detection_err)?);
     }
@@ -1384,7 +1386,7 @@ pub fn keyframe_from_rows(
 
     // objects
     let mut objects = sort_by_ordinal(rows.objects, |r| r.ordinal);
-    let mut built = std::vec::Vec::with_capacity(objects.len());
+    let mut built = Vec::with_capacity(objects.len());
     for r in objects.drain(..) {
       let det = Detection::try_new(r.label, r.confidence).map_err(detection_err)?;
       let bbox = if r.has_bbox {
@@ -1406,7 +1408,7 @@ pub fn keyframe_from_rows(
 
     // actions
     let mut actions = sort_by_ordinal(rows.actions, |r| r.ordinal);
-    let mut built = std::vec::Vec::with_capacity(actions.len());
+    let mut built = Vec::with_capacity(actions.len());
     for r in actions.drain(..) {
       let det = Detection::try_new(r.label, r.confidence).map_err(detection_err)?;
       built.push(ActionDetection::new(det));
@@ -1415,7 +1417,7 @@ pub fn keyframe_from_rows(
 
     // text_detections
     let mut texts = sort_by_ordinal(rows.text_detections, |r| r.ordinal);
-    let mut built = std::vec::Vec::with_capacity(texts.len());
+    let mut built = Vec::with_capacity(texts.len());
     for r in texts.drain(..) {
       let bb =
         BoundingBox::try_new(r.bbox_x, r.bbox_y, r.bbox_w, r.bbox_h).map_err(detection_err)?;
@@ -1425,7 +1427,7 @@ pub fn keyframe_from_rows(
 
     // barcodes
     let mut barcodes = sort_by_ordinal(rows.barcodes, |r| r.ordinal);
-    let mut built = std::vec::Vec::with_capacity(barcodes.len());
+    let mut built = Vec::with_capacity(barcodes.len());
     for r in barcodes.drain(..) {
       let bb =
         BoundingBox::try_new(r.bbox_x, r.bbox_y, r.bbox_w, r.bbox_h).map_err(detection_err)?;
@@ -1437,8 +1439,8 @@ pub fn keyframe_from_rows(
     kf = kf.with_barcodes(built);
 
     // saliencies — split by kind (0 = attention, 1 = objectness).
-    let mut attention = std::vec::Vec::new();
-    let mut objectness = std::vec::Vec::new();
+    let mut attention = Vec::new();
+    let mut objectness = Vec::new();
     let mut saliencies = rows.saliencies;
     saliencies.sort_by_key(|r| (r.kind, r.ordinal));
     for r in saliencies {
@@ -1461,7 +1463,7 @@ pub fn keyframe_from_rows(
 
     // document_segments
     let mut docs = sort_by_ordinal(rows.document_segments, |r| r.ordinal);
-    let mut built = std::vec::Vec::with_capacity(docs.len());
+    let mut built = Vec::with_capacity(docs.len());
     for r in docs.drain(..) {
       built.push(
         DocumentSegment::try_new(
@@ -1478,7 +1480,7 @@ pub fn keyframe_from_rows(
 
     // colors
     let mut colors = sort_by_ordinal(rows.colors, |r| r.ordinal);
-    let mut built = std::vec::Vec::with_capacity(colors.len());
+    let mut built = Vec::with_capacity(colors.len());
     for r in colors.drain(..) {
       let rgb = Rgba::from_bits(u32_from_i64(r.rgba, "keyframe_color.rgba")?);
       let population = u32_from_i64(r.population, "keyframe_color.population")?;
@@ -1651,7 +1653,7 @@ fn height_estimation_from_i16(n: i16) -> Result<BodyPose3DHeightEstimation, Sqlx
 }
 
 fn push_saliency(
-  out: &mut std::vec::Vec<PgKeyframeSaliencyRow>,
+  out: &mut Vec<PgKeyframeSaliencyRow>,
   keyframe_id: Uuid,
   kind: i16,
   ordinal: usize,
@@ -1671,7 +1673,7 @@ fn push_saliency(
 }
 
 fn push_subject(
-  out: &mut std::vec::Vec<PgKeyframeSubjectRow>,
+  out: &mut Vec<PgKeyframeSubjectRow>,
   keyframe_id: Uuid,
   scope: i16,
   ordinal: usize,
@@ -1692,7 +1694,7 @@ fn push_subject(
 }
 
 fn push_face(
-  out: &mut std::vec::Vec<PgKeyframeFaceRow>,
+  out: &mut Vec<PgKeyframeFaceRow>,
   keyframe_id: Uuid,
   kind: i16,
   ordinal: usize,
@@ -1716,8 +1718,8 @@ fn push_face(
 }
 
 fn push_body_pose(
-  rows: &mut std::vec::Vec<PgKeyframeBodyPoseRow>,
-  joint_rows: &mut std::vec::Vec<PgKeyframeBodyPoseJointRow>,
+  rows: &mut Vec<PgKeyframeBodyPoseRow>,
+  joint_rows: &mut Vec<PgKeyframeBodyPoseJointRow>,
   keyframe_id: Uuid,
   scope: i16,
   ordinal: usize,
@@ -1749,7 +1751,7 @@ fn push_body_pose(
 }
 
 fn push_vlm(
-  out: &mut std::vec::Vec<PgKeyframeVlmLabelRow>,
+  out: &mut Vec<PgKeyframeVlmLabelRow>,
   keyframe_id: Uuid,
   kind: i16,
   labels: &[LocalizedText],
@@ -1765,7 +1767,7 @@ fn push_vlm(
   }
 }
 
-fn sort_by_ordinal<T, F>(mut v: std::vec::Vec<T>, key: F) -> std::vec::Vec<T>
+fn sort_by_ordinal<T, F>(mut v: Vec<T>, key: F) -> Vec<T>
 where
   F: FnMut(&T) -> i32,
 {
@@ -1775,9 +1777,9 @@ where
 }
 
 fn group_joints_by_scope(
-  rows: std::vec::Vec<PgKeyframeBodyPoseJointRow>,
-) -> std::collections::HashMap<i16, std::vec::Vec<PgKeyframeBodyPoseJointRow>> {
-  let mut out: std::collections::HashMap<i16, std::vec::Vec<PgKeyframeBodyPoseJointRow>> =
+  rows: Vec<PgKeyframeBodyPoseJointRow>,
+) -> std::collections::HashMap<i16, Vec<PgKeyframeBodyPoseJointRow>> {
+  let mut out: std::collections::HashMap<i16, Vec<PgKeyframeBodyPoseJointRow>> =
     std::collections::HashMap::new();
   for r in rows {
     out.entry(r.scope).or_default().push(r);
@@ -1786,16 +1788,10 @@ fn group_joints_by_scope(
 }
 
 fn build_subjects(
-  rows: std::vec::Vec<PgKeyframeSubjectRow>,
-) -> Result<
-  (
-    std::vec::Vec<SubjectDetection>,
-    std::vec::Vec<SubjectDetection>,
-  ),
-  SqlxError,
-> {
-  let mut humans = std::vec::Vec::new();
-  let mut animals = std::vec::Vec::new();
+  rows: Vec<PgKeyframeSubjectRow>,
+) -> Result<(Vec<SubjectDetection>, Vec<SubjectDetection>), SqlxError> {
+  let mut humans = Vec::new();
+  let mut animals = Vec::new();
   let mut rows = rows;
   rows.sort_by_key(|r| (r.scope, r.ordinal));
   for r in rows {
@@ -1816,10 +1812,10 @@ fn build_subjects(
 }
 
 fn build_faces(
-  rows: std::vec::Vec<PgKeyframeFaceRow>,
-) -> Result<(std::vec::Vec<FaceDetection>, std::vec::Vec<FaceDetection>), SqlxError> {
-  let mut faces = std::vec::Vec::new();
-  let mut face_rects = std::vec::Vec::new();
+  rows: Vec<PgKeyframeFaceRow>,
+) -> Result<(Vec<FaceDetection>, Vec<FaceDetection>), SqlxError> {
+  let mut faces = Vec::new();
+  let mut face_rects = Vec::new();
   let mut rows = rows;
   rows.sort_by_key(|r| (r.kind, r.ordinal));
   for r in rows {
@@ -1840,17 +1836,11 @@ fn build_faces(
 }
 
 fn build_body_poses(
-  rows: std::vec::Vec<PgKeyframeBodyPoseRow>,
-  joints_by_scope: &mut std::collections::HashMap<i16, std::vec::Vec<PgKeyframeBodyPoseJointRow>>,
-) -> Result<
-  (
-    std::vec::Vec<BodyPoseDetection>,
-    std::vec::Vec<BodyPoseDetection>,
-  ),
-  SqlxError,
-> {
-  let mut humans = std::vec::Vec::new();
-  let mut animals = std::vec::Vec::new();
+  rows: Vec<PgKeyframeBodyPoseRow>,
+  joints_by_scope: &mut std::collections::HashMap<i16, Vec<PgKeyframeBodyPoseJointRow>>,
+) -> Result<(Vec<BodyPoseDetection>, Vec<BodyPoseDetection>), SqlxError> {
+  let mut humans = Vec::new();
+  let mut animals = Vec::new();
   let mut rows = rows;
   rows.sort_by_key(|r| (r.scope, r.ordinal));
 
@@ -1883,9 +1873,9 @@ fn build_body_poses(
 }
 
 fn joints_lookup(
-  rows: std::vec::Vec<PgKeyframeBodyPoseJointRow>,
-) -> std::collections::HashMap<i32, std::vec::Vec<PgKeyframeBodyPoseJointRow>> {
-  let mut out: std::collections::HashMap<i32, std::vec::Vec<PgKeyframeBodyPoseJointRow>> =
+  rows: Vec<PgKeyframeBodyPoseJointRow>,
+) -> std::collections::HashMap<i32, Vec<PgKeyframeBodyPoseJointRow>> {
+  let mut out: std::collections::HashMap<i32, Vec<PgKeyframeBodyPoseJointRow>> =
     std::collections::HashMap::new();
   for r in rows {
     out.entry(r.parent_ordinal).or_default().push(r);
@@ -1896,10 +1886,8 @@ fn joints_lookup(
   out
 }
 
-fn build_joints(
-  rows: std::vec::Vec<PgKeyframeBodyPoseJointRow>,
-) -> Result<std::vec::Vec<BodyPoseJoint>, SqlxError> {
-  let mut out = std::vec::Vec::with_capacity(rows.len());
+fn build_joints(rows: Vec<PgKeyframeBodyPoseJointRow>) -> Result<Vec<BodyPoseJoint>, SqlxError> {
+  let mut out = Vec::with_capacity(rows.len());
   for r in rows {
     out.push(BodyPoseJoint::try_new(r.name, r.x, r.y, r.confidence).map_err(detection_err)?);
   }
@@ -1907,13 +1895,13 @@ fn build_joints(
 }
 
 fn build_hand_poses(
-  rows: std::vec::Vec<PgKeyframeHandPoseRow>,
-  joints: std::vec::Vec<PgKeyframeBodyPoseJointRow>,
-) -> Result<std::vec::Vec<HandPoseDetection>, SqlxError> {
+  rows: Vec<PgKeyframeHandPoseRow>,
+  joints: Vec<PgKeyframeBodyPoseJointRow>,
+) -> Result<Vec<HandPoseDetection>, SqlxError> {
   let joint_lookup = joints_lookup(joints);
   let mut rows = rows;
   rows.sort_by_key(|r| r.ordinal);
-  let mut out = std::vec::Vec::with_capacity(rows.len());
+  let mut out = Vec::with_capacity(rows.len());
   for r in rows {
     let bb = BoundingBox::try_new(r.bbox_x, r.bbox_y, r.bbox_w, r.bbox_h).map_err(detection_err)?;
     let chirality = hand_chirality_from_i16(r.chirality)?;
@@ -1926,13 +1914,11 @@ fn build_hand_poses(
 }
 
 fn build_body_poses_3d(
-  rows: std::vec::Vec<PgKeyframeBodyPose3DRow>,
-  joints: std::vec::Vec<PgKeyframeBodyPose3DJointRow>,
-) -> Result<std::vec::Vec<BodyPose3DDetection>, SqlxError> {
-  let mut joint_lookup: std::collections::HashMap<
-    i32,
-    std::vec::Vec<PgKeyframeBodyPose3DJointRow>,
-  > = std::collections::HashMap::new();
+  rows: Vec<PgKeyframeBodyPose3DRow>,
+  joints: Vec<PgKeyframeBodyPose3DJointRow>,
+) -> Result<Vec<BodyPose3DDetection>, SqlxError> {
+  let mut joint_lookup: std::collections::HashMap<i32, Vec<PgKeyframeBodyPose3DJointRow>> =
+    std::collections::HashMap::new();
   for r in joints {
     joint_lookup.entry(r.parent_ordinal).or_default().push(r);
   }
@@ -1941,11 +1927,11 @@ fn build_body_poses_3d(
   }
   let mut rows = rows;
   rows.sort_by_key(|r| r.ordinal);
-  let mut out = std::vec::Vec::with_capacity(rows.len());
+  let mut out = Vec::with_capacity(rows.len());
   for r in rows {
     let height = height_estimation_from_i16(r.height_estimation)?;
     let joints = joint_lookup.remove(&r.ordinal).unwrap_or_default();
-    let mut built = std::vec::Vec::with_capacity(joints.len());
+    let mut built = Vec::with_capacity(joints.len());
     for j in joints {
       built.push(
         BodyPose3DJoint::try_new(j.name, j.x, j.y, j.z, j.confidence).map_err(detection_err)?,
@@ -1960,16 +1946,16 @@ fn build_body_poses_3d(
 }
 
 fn build_masks(
-  rows: std::vec::Vec<PgKeyframeMaskRow>,
+  rows: Vec<PgKeyframeMaskRow>,
 ) -> Result<
   (
-    std::vec::Vec<PersonInstanceMaskDetection>,
-    std::vec::Vec<PersonSegmentationMask>,
+    Vec<PersonInstanceMaskDetection>,
+    Vec<PersonSegmentationMask>,
   ),
   SqlxError,
 > {
-  let mut instance = std::vec::Vec::new();
-  let mut whole = std::vec::Vec::new();
+  let mut instance = Vec::new();
+  let mut whole = Vec::new();
   let mut rows = rows;
   rows.sort_by_key(|r| (r.kind, r.ordinal));
   for r in rows {
@@ -2010,15 +1996,13 @@ fn build_masks(
 }
 
 fn build_face_landmarks(
-  rows: std::vec::Vec<PgKeyframeFaceLandmarksRow>,
-  regions: std::vec::Vec<PgKeyframeFaceLandmarkRegionRow>,
-  points: std::vec::Vec<PgKeyframeFaceLandmarkPointRow>,
-) -> Result<std::vec::Vec<FaceLandmarksDetection>, SqlxError> {
+  rows: Vec<PgKeyframeFaceLandmarksRow>,
+  regions: Vec<PgKeyframeFaceLandmarkRegionRow>,
+  points: Vec<PgKeyframeFaceLandmarkPointRow>,
+) -> Result<Vec<FaceLandmarksDetection>, SqlxError> {
   // Bucket regions per face-landmark ordinal.
-  let mut regions_by_parent: std::collections::HashMap<
-    i32,
-    std::vec::Vec<PgKeyframeFaceLandmarkRegionRow>,
-  > = std::collections::HashMap::new();
+  let mut regions_by_parent: std::collections::HashMap<i32, Vec<PgKeyframeFaceLandmarkRegionRow>> =
+    std::collections::HashMap::new();
   for r in regions {
     regions_by_parent
       .entry(r.parent_ordinal)
@@ -2032,7 +2016,7 @@ fn build_face_landmarks(
   // Bucket points per (face-landmark ordinal, region ordinal).
   let mut points_by_region: std::collections::HashMap<
     (i32, i32),
-    std::vec::Vec<PgKeyframeFaceLandmarkPointRow>,
+    Vec<PgKeyframeFaceLandmarkPointRow>,
   > = std::collections::HashMap::new();
   for p in points {
     points_by_region
@@ -2046,16 +2030,16 @@ fn build_face_landmarks(
 
   let mut rows = rows;
   rows.sort_by_key(|r| r.ordinal);
-  let mut out = std::vec::Vec::with_capacity(rows.len());
+  let mut out = Vec::with_capacity(rows.len());
   for r in rows {
     let bb = BoundingBox::try_new(r.bbox_x, r.bbox_y, r.bbox_w, r.bbox_h).map_err(detection_err)?;
     let region_rows = regions_by_parent.remove(&r.ordinal).unwrap_or_default();
-    let mut built_regions = std::vec::Vec::with_capacity(region_rows.len());
+    let mut built_regions = Vec::with_capacity(region_rows.len());
     for region in region_rows {
       let pts = points_by_region
         .remove(&(r.ordinal, region.ordinal))
         .unwrap_or_default();
-      let pt_iter: std::vec::Vec<(f32, f32)> = pts.into_iter().map(|p| (p.x, p.y)).collect();
+      let pt_iter: Vec<(f32, f32)> = pts.into_iter().map(|p| (p.x, p.y)).collect();
       built_regions.push(FaceLandmarkRegion::try_new(region.name, pt_iter).map_err(detection_err)?);
     }
     out.push(
@@ -2067,23 +2051,23 @@ fn build_face_landmarks(
 
 #[allow(clippy::type_complexity)]
 fn group_vlm_by_kind(
-  rows: std::vec::Vec<PgKeyframeVlmLabelRow>,
+  rows: Vec<PgKeyframeVlmLabelRow>,
 ) -> (
-  std::vec::Vec<LocalizedText>,
-  std::vec::Vec<LocalizedText>,
-  std::vec::Vec<LocalizedText>,
-  std::vec::Vec<LocalizedText>,
-  std::vec::Vec<LocalizedText>,
-  std::vec::Vec<LocalizedText>,
-  std::vec::Vec<LocalizedText>,
+  Vec<LocalizedText>,
+  Vec<LocalizedText>,
+  Vec<LocalizedText>,
+  Vec<LocalizedText>,
+  Vec<LocalizedText>,
+  Vec<LocalizedText>,
+  Vec<LocalizedText>,
 ) {
-  let mut buckets: [std::vec::Vec<PgKeyframeVlmLabelRow>; 7] = Default::default();
+  let mut buckets: [Vec<PgKeyframeVlmLabelRow>; 7] = Default::default();
   for r in rows {
     if (0..7).contains(&(r.kind as i32)) {
       buckets[r.kind as usize].push(r);
     }
   }
-  let mut out: [std::vec::Vec<LocalizedText>; 7] = Default::default();
+  let mut out: [Vec<LocalizedText>; 7] = Default::default();
   for (i, bucket) in buckets.iter_mut().enumerate() {
     bucket.sort_by_key(|r| r.ordinal);
     out[i] = bucket
@@ -2361,8 +2345,8 @@ impl PgVideoTrackMetadataRow {
 impl<'r>
   TryFrom<(
     PgVideoTrackRowRef<'r>,
-    std::vec::Vec<PgVideoTrackIndexErrorRowRef<'r>>,
-    std::vec::Vec<PgVideoTrackMetadataRowRef<'r>>,
+    Vec<PgVideoTrackIndexErrorRowRef<'r>>,
+    Vec<PgVideoTrackMetadataRowRef<'r>>,
   )> for VideoTrack<Uuid7>
 {
   type Error = SqlxError;
@@ -2370,8 +2354,8 @@ impl<'r>
   fn try_from(
     (r, mut errors, mut metadata): (
       PgVideoTrackRowRef<'r>,
-      std::vec::Vec<PgVideoTrackIndexErrorRowRef<'r>>,
-      std::vec::Vec<PgVideoTrackMetadataRowRef<'r>>,
+      Vec<PgVideoTrackIndexErrorRowRef<'r>>,
+      Vec<PgVideoTrackMetadataRowRef<'r>>,
     ),
   ) -> Result<Self, Self::Error> {
     let id = uuid_to_uuid7(r.id)?;
@@ -2602,7 +2586,7 @@ impl<'r>
       )?));
 
     errors.sort_by_key(|e| e.ordinal);
-    let mut infos = std::vec::Vec::with_capacity(errors.len());
+    let mut infos = Vec::with_capacity(errors.len());
     for e in errors {
       let code = u32_from_i32(e.code, "VideoTrack.index_error.code")?;
       infos.push(ErrorInfo::new(ErrorCode::from_u32(code), e.message));
@@ -3057,27 +3041,27 @@ impl PgKeyframeVlmLabelRow {
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct PgKeyframeRowsRef<'r> {
   pub keyframe: Option<PgKeyframeRowRef<'r>>,
-  pub classifications: std::vec::Vec<PgKeyframeClassificationRowRef<'r>>,
-  pub objects: std::vec::Vec<PgKeyframeObjectRowRef<'r>>,
-  pub actions: std::vec::Vec<PgKeyframeActionRowRef<'r>>,
-  pub text_detections: std::vec::Vec<PgKeyframeTextDetectionRowRef<'r>>,
-  pub barcodes: std::vec::Vec<PgKeyframeBarcodeRowRef<'r>>,
+  pub classifications: Vec<PgKeyframeClassificationRowRef<'r>>,
+  pub objects: Vec<PgKeyframeObjectRowRef<'r>>,
+  pub actions: Vec<PgKeyframeActionRowRef<'r>>,
+  pub text_detections: Vec<PgKeyframeTextDetectionRowRef<'r>>,
+  pub barcodes: Vec<PgKeyframeBarcodeRowRef<'r>>,
   // Note: saliencies are all-Copy in pg — borrow the owned row by value.
-  pub saliencies: std::vec::Vec<PgKeyframeSaliencyRow>,
-  pub document_segments: std::vec::Vec<PgKeyframeDocumentSegmentRow>,
-  pub colors: std::vec::Vec<PgKeyframeColorRowRef<'r>>,
-  pub subjects: std::vec::Vec<PgKeyframeSubjectRowRef<'r>>,
-  pub faces: std::vec::Vec<PgKeyframeFaceRow>,
-  pub body_poses: std::vec::Vec<PgKeyframeBodyPoseRow>,
-  pub body_pose_joints: std::vec::Vec<PgKeyframeBodyPoseJointRowRef<'r>>,
-  pub hand_poses: std::vec::Vec<PgKeyframeHandPoseRow>,
-  pub body_poses_3d: std::vec::Vec<PgKeyframeBodyPose3DRow>,
-  pub body_pose_3d_joints: std::vec::Vec<PgKeyframeBodyPose3DJointRowRef<'r>>,
-  pub masks: std::vec::Vec<PgKeyframeMaskRowRef<'r>>,
-  pub face_landmarks: std::vec::Vec<PgKeyframeFaceLandmarksRow>,
-  pub face_landmark_regions: std::vec::Vec<PgKeyframeFaceLandmarkRegionRowRef<'r>>,
-  pub face_landmark_points: std::vec::Vec<PgKeyframeFaceLandmarkPointRow>,
-  pub vlm_labels: std::vec::Vec<PgKeyframeVlmLabelRowRef<'r>>,
+  pub saliencies: Vec<PgKeyframeSaliencyRow>,
+  pub document_segments: Vec<PgKeyframeDocumentSegmentRow>,
+  pub colors: Vec<PgKeyframeColorRowRef<'r>>,
+  pub subjects: Vec<PgKeyframeSubjectRowRef<'r>>,
+  pub faces: Vec<PgKeyframeFaceRow>,
+  pub body_poses: Vec<PgKeyframeBodyPoseRow>,
+  pub body_pose_joints: Vec<PgKeyframeBodyPoseJointRowRef<'r>>,
+  pub hand_poses: Vec<PgKeyframeHandPoseRow>,
+  pub body_poses_3d: Vec<PgKeyframeBodyPose3DRow>,
+  pub body_pose_3d_joints: Vec<PgKeyframeBodyPose3DJointRowRef<'r>>,
+  pub masks: Vec<PgKeyframeMaskRowRef<'r>>,
+  pub face_landmarks: Vec<PgKeyframeFaceLandmarksRow>,
+  pub face_landmark_regions: Vec<PgKeyframeFaceLandmarkRegionRowRef<'r>>,
+  pub face_landmark_points: Vec<PgKeyframeFaceLandmarkPointRow>,
+  pub vlm_labels: Vec<PgKeyframeVlmLabelRowRef<'r>>,
 }
 
 impl PgKeyframeRows {
@@ -3185,7 +3169,7 @@ pub fn keyframe_from_rows_ref<'r>(
 
     let mut classifications = rows.classifications;
     classifications.sort_by_key(|r| r.ordinal);
-    let mut built = std::vec::Vec::with_capacity(classifications.len());
+    let mut built = Vec::with_capacity(classifications.len());
     for r in classifications.drain(..) {
       built.push(Detection::try_new(r.label, r.confidence).map_err(detection_err)?);
     }
@@ -3193,7 +3177,7 @@ pub fn keyframe_from_rows_ref<'r>(
 
     let mut objects = rows.objects;
     objects.sort_by_key(|r| r.ordinal);
-    let mut built = std::vec::Vec::with_capacity(objects.len());
+    let mut built = Vec::with_capacity(objects.len());
     for r in objects.drain(..) {
       let det = Detection::try_new(r.label, r.confidence).map_err(detection_err)?;
       let bbox = if r.has_bbox {
@@ -3215,7 +3199,7 @@ pub fn keyframe_from_rows_ref<'r>(
 
     let mut actions = rows.actions;
     actions.sort_by_key(|r| r.ordinal);
-    let mut built = std::vec::Vec::with_capacity(actions.len());
+    let mut built = Vec::with_capacity(actions.len());
     for r in actions.drain(..) {
       let det = Detection::try_new(r.label, r.confidence).map_err(detection_err)?;
       built.push(ActionDetection::new(det));
@@ -3224,7 +3208,7 @@ pub fn keyframe_from_rows_ref<'r>(
 
     let mut texts = rows.text_detections;
     texts.sort_by_key(|r| r.ordinal);
-    let mut built = std::vec::Vec::with_capacity(texts.len());
+    let mut built = Vec::with_capacity(texts.len());
     for r in texts.drain(..) {
       let bb =
         BoundingBox::try_new(r.bbox_x, r.bbox_y, r.bbox_w, r.bbox_h).map_err(detection_err)?;
@@ -3234,7 +3218,7 @@ pub fn keyframe_from_rows_ref<'r>(
 
     let mut barcodes = rows.barcodes;
     barcodes.sort_by_key(|r| r.ordinal);
-    let mut built = std::vec::Vec::with_capacity(barcodes.len());
+    let mut built = Vec::with_capacity(barcodes.len());
     for r in barcodes.drain(..) {
       let bb =
         BoundingBox::try_new(r.bbox_x, r.bbox_y, r.bbox_w, r.bbox_h).map_err(detection_err)?;
@@ -3245,8 +3229,8 @@ pub fn keyframe_from_rows_ref<'r>(
     }
     kf = kf.with_barcodes(built);
 
-    let mut attention = std::vec::Vec::new();
-    let mut objectness = std::vec::Vec::new();
+    let mut attention = Vec::new();
+    let mut objectness = Vec::new();
     let mut saliencies = rows.saliencies;
     saliencies.sort_by_key(|r| (r.kind, r.ordinal));
     for r in saliencies {
@@ -3269,7 +3253,7 @@ pub fn keyframe_from_rows_ref<'r>(
 
     let mut docs = rows.document_segments;
     docs.sort_by_key(|r| r.ordinal);
-    let mut built = std::vec::Vec::with_capacity(docs.len());
+    let mut built = Vec::with_capacity(docs.len());
     for r in docs.drain(..) {
       built.push(
         DocumentSegment::try_new(
@@ -3286,7 +3270,7 @@ pub fn keyframe_from_rows_ref<'r>(
 
     let mut colors = rows.colors;
     colors.sort_by_key(|r| r.ordinal);
-    let mut built = std::vec::Vec::with_capacity(colors.len());
+    let mut built = Vec::with_capacity(colors.len());
     for r in colors.drain(..) {
       let rgb = Rgba::from_bits(u32_from_i64(r.rgba, "keyframe_color.rgba")?);
       let population = u32_from_i64(r.population, "keyframe_color.population")?;
@@ -3350,16 +3334,10 @@ pub fn keyframe_from_rows_ref<'r>(
 // --- borrowed-row build helpers (mirror the owned-row helpers above) ---
 
 fn build_subjects_ref(
-  rows: std::vec::Vec<PgKeyframeSubjectRowRef<'_>>,
-) -> Result<
-  (
-    std::vec::Vec<SubjectDetection>,
-    std::vec::Vec<SubjectDetection>,
-  ),
-  SqlxError,
-> {
-  let mut humans = std::vec::Vec::new();
-  let mut animals = std::vec::Vec::new();
+  rows: Vec<PgKeyframeSubjectRowRef<'_>>,
+) -> Result<(Vec<SubjectDetection>, Vec<SubjectDetection>), SqlxError> {
+  let mut humans = Vec::new();
+  let mut animals = Vec::new();
   let mut rows = rows;
   rows.sort_by_key(|r| (r.scope, r.ordinal));
   for r in rows {
@@ -3380,9 +3358,9 @@ fn build_subjects_ref(
 }
 
 fn group_joints_by_scope_ref<'r>(
-  rows: std::vec::Vec<PgKeyframeBodyPoseJointRowRef<'r>>,
-) -> std::collections::HashMap<i16, std::vec::Vec<PgKeyframeBodyPoseJointRowRef<'r>>> {
-  let mut out: std::collections::HashMap<i16, std::vec::Vec<PgKeyframeBodyPoseJointRowRef<'r>>> =
+  rows: Vec<PgKeyframeBodyPoseJointRowRef<'r>>,
+) -> std::collections::HashMap<i16, Vec<PgKeyframeBodyPoseJointRowRef<'r>>> {
+  let mut out: std::collections::HashMap<i16, Vec<PgKeyframeBodyPoseJointRowRef<'r>>> =
     std::collections::HashMap::new();
   for r in rows {
     out.entry(r.scope).or_default().push(r);
@@ -3391,9 +3369,9 @@ fn group_joints_by_scope_ref<'r>(
 }
 
 fn joints_lookup_ref<'r>(
-  rows: std::vec::Vec<PgKeyframeBodyPoseJointRowRef<'r>>,
-) -> std::collections::HashMap<i32, std::vec::Vec<PgKeyframeBodyPoseJointRowRef<'r>>> {
-  let mut out: std::collections::HashMap<i32, std::vec::Vec<PgKeyframeBodyPoseJointRowRef<'r>>> =
+  rows: Vec<PgKeyframeBodyPoseJointRowRef<'r>>,
+) -> std::collections::HashMap<i32, Vec<PgKeyframeBodyPoseJointRowRef<'r>>> {
+  let mut out: std::collections::HashMap<i32, Vec<PgKeyframeBodyPoseJointRowRef<'r>>> =
     std::collections::HashMap::new();
   for r in rows {
     out.entry(r.parent_ordinal).or_default().push(r);
@@ -3405,9 +3383,9 @@ fn joints_lookup_ref<'r>(
 }
 
 fn build_joints_ref(
-  rows: std::vec::Vec<PgKeyframeBodyPoseJointRowRef<'_>>,
-) -> Result<std::vec::Vec<BodyPoseJoint>, SqlxError> {
-  let mut out = std::vec::Vec::with_capacity(rows.len());
+  rows: Vec<PgKeyframeBodyPoseJointRowRef<'_>>,
+) -> Result<Vec<BodyPoseJoint>, SqlxError> {
+  let mut out = Vec::with_capacity(rows.len());
   for r in rows {
     out.push(BodyPoseJoint::try_new(r.name, r.x, r.y, r.confidence).map_err(detection_err)?);
   }
@@ -3415,20 +3393,11 @@ fn build_joints_ref(
 }
 
 fn build_body_poses_ref<'r>(
-  rows: std::vec::Vec<PgKeyframeBodyPoseRow>,
-  joints_by_scope: &mut std::collections::HashMap<
-    i16,
-    std::vec::Vec<PgKeyframeBodyPoseJointRowRef<'r>>,
-  >,
-) -> Result<
-  (
-    std::vec::Vec<BodyPoseDetection>,
-    std::vec::Vec<BodyPoseDetection>,
-  ),
-  SqlxError,
-> {
-  let mut humans = std::vec::Vec::new();
-  let mut animals = std::vec::Vec::new();
+  rows: Vec<PgKeyframeBodyPoseRow>,
+  joints_by_scope: &mut std::collections::HashMap<i16, Vec<PgKeyframeBodyPoseJointRowRef<'r>>>,
+) -> Result<(Vec<BodyPoseDetection>, Vec<BodyPoseDetection>), SqlxError> {
+  let mut humans = Vec::new();
+  let mut animals = Vec::new();
   let mut rows = rows;
   rows.sort_by_key(|r| (r.scope, r.ordinal));
 
@@ -3460,13 +3429,13 @@ fn build_body_poses_ref<'r>(
 }
 
 fn build_hand_poses_ref<'r>(
-  rows: std::vec::Vec<PgKeyframeHandPoseRow>,
-  joints: std::vec::Vec<PgKeyframeBodyPoseJointRowRef<'r>>,
-) -> Result<std::vec::Vec<HandPoseDetection>, SqlxError> {
+  rows: Vec<PgKeyframeHandPoseRow>,
+  joints: Vec<PgKeyframeBodyPoseJointRowRef<'r>>,
+) -> Result<Vec<HandPoseDetection>, SqlxError> {
   let joint_lookup = joints_lookup_ref(joints);
   let mut rows = rows;
   rows.sort_by_key(|r| r.ordinal);
-  let mut out = std::vec::Vec::with_capacity(rows.len());
+  let mut out = Vec::with_capacity(rows.len());
   for r in rows {
     let bb = BoundingBox::try_new(r.bbox_x, r.bbox_y, r.bbox_w, r.bbox_h).map_err(detection_err)?;
     let chirality = hand_chirality_from_i16(r.chirality)?;
@@ -3479,13 +3448,11 @@ fn build_hand_poses_ref<'r>(
 }
 
 fn build_body_poses_3d_ref<'r>(
-  rows: std::vec::Vec<PgKeyframeBodyPose3DRow>,
-  joints: std::vec::Vec<PgKeyframeBodyPose3DJointRowRef<'r>>,
-) -> Result<std::vec::Vec<BodyPose3DDetection>, SqlxError> {
-  let mut joint_lookup: std::collections::HashMap<
-    i32,
-    std::vec::Vec<PgKeyframeBodyPose3DJointRowRef<'r>>,
-  > = std::collections::HashMap::new();
+  rows: Vec<PgKeyframeBodyPose3DRow>,
+  joints: Vec<PgKeyframeBodyPose3DJointRowRef<'r>>,
+) -> Result<Vec<BodyPose3DDetection>, SqlxError> {
+  let mut joint_lookup: std::collections::HashMap<i32, Vec<PgKeyframeBodyPose3DJointRowRef<'r>>> =
+    std::collections::HashMap::new();
   for r in joints {
     joint_lookup.entry(r.parent_ordinal).or_default().push(r);
   }
@@ -3494,11 +3461,11 @@ fn build_body_poses_3d_ref<'r>(
   }
   let mut rows = rows;
   rows.sort_by_key(|r| r.ordinal);
-  let mut out = std::vec::Vec::with_capacity(rows.len());
+  let mut out = Vec::with_capacity(rows.len());
   for r in rows {
     let height = height_estimation_from_i16(r.height_estimation)?;
     let joints = joint_lookup.remove(&r.ordinal).unwrap_or_default();
-    let mut built = std::vec::Vec::with_capacity(joints.len());
+    let mut built = Vec::with_capacity(joints.len());
     for j in joints {
       built.push(
         BodyPose3DJoint::try_new(j.name, j.x, j.y, j.z, j.confidence).map_err(detection_err)?,
@@ -3513,16 +3480,16 @@ fn build_body_poses_3d_ref<'r>(
 }
 
 fn build_masks_ref(
-  rows: std::vec::Vec<PgKeyframeMaskRowRef<'_>>,
+  rows: Vec<PgKeyframeMaskRowRef<'_>>,
 ) -> Result<
   (
-    std::vec::Vec<PersonInstanceMaskDetection>,
-    std::vec::Vec<PersonSegmentationMask>,
+    Vec<PersonInstanceMaskDetection>,
+    Vec<PersonSegmentationMask>,
   ),
   SqlxError,
 > {
-  let mut instance = std::vec::Vec::new();
-  let mut whole = std::vec::Vec::new();
+  let mut instance = Vec::new();
+  let mut whole = Vec::new();
   let mut rows = rows;
   rows.sort_by_key(|r| (r.kind, r.ordinal));
   for r in rows {
@@ -3569,13 +3536,13 @@ fn build_masks_ref(
 }
 
 fn build_face_landmarks_ref(
-  rows: std::vec::Vec<PgKeyframeFaceLandmarksRow>,
-  regions: std::vec::Vec<PgKeyframeFaceLandmarkRegionRowRef<'_>>,
-  points: std::vec::Vec<PgKeyframeFaceLandmarkPointRow>,
-) -> Result<std::vec::Vec<FaceLandmarksDetection>, SqlxError> {
+  rows: Vec<PgKeyframeFaceLandmarksRow>,
+  regions: Vec<PgKeyframeFaceLandmarkRegionRowRef<'_>>,
+  points: Vec<PgKeyframeFaceLandmarkPointRow>,
+) -> Result<Vec<FaceLandmarksDetection>, SqlxError> {
   let mut regions_by_parent: std::collections::HashMap<
     i32,
-    std::vec::Vec<PgKeyframeFaceLandmarkRegionRowRef<'_>>,
+    Vec<PgKeyframeFaceLandmarkRegionRowRef<'_>>,
   > = std::collections::HashMap::new();
   for r in regions {
     regions_by_parent
@@ -3589,7 +3556,7 @@ fn build_face_landmarks_ref(
 
   let mut points_by_region: std::collections::HashMap<
     (i32, i32),
-    std::vec::Vec<PgKeyframeFaceLandmarkPointRow>,
+    Vec<PgKeyframeFaceLandmarkPointRow>,
   > = std::collections::HashMap::new();
   for p in points {
     points_by_region
@@ -3603,16 +3570,16 @@ fn build_face_landmarks_ref(
 
   let mut rows = rows;
   rows.sort_by_key(|r| r.ordinal);
-  let mut out = std::vec::Vec::with_capacity(rows.len());
+  let mut out = Vec::with_capacity(rows.len());
   for r in rows {
     let bb = BoundingBox::try_new(r.bbox_x, r.bbox_y, r.bbox_w, r.bbox_h).map_err(detection_err)?;
     let region_rows = regions_by_parent.remove(&r.ordinal).unwrap_or_default();
-    let mut built_regions = std::vec::Vec::with_capacity(region_rows.len());
+    let mut built_regions = Vec::with_capacity(region_rows.len());
     for region in region_rows {
       let pts = points_by_region
         .remove(&(r.ordinal, region.ordinal))
         .unwrap_or_default();
-      let pt_iter: std::vec::Vec<(f32, f32)> = pts.into_iter().map(|p| (p.x, p.y)).collect();
+      let pt_iter: Vec<(f32, f32)> = pts.into_iter().map(|p| (p.x, p.y)).collect();
       built_regions.push(FaceLandmarkRegion::try_new(region.name, pt_iter).map_err(detection_err)?);
     }
     out.push(
@@ -3624,23 +3591,23 @@ fn build_face_landmarks_ref(
 
 #[allow(clippy::type_complexity)]
 fn group_vlm_by_kind_ref<'r>(
-  rows: std::vec::Vec<PgKeyframeVlmLabelRowRef<'r>>,
+  rows: Vec<PgKeyframeVlmLabelRowRef<'r>>,
 ) -> (
-  std::vec::Vec<LocalizedText>,
-  std::vec::Vec<LocalizedText>,
-  std::vec::Vec<LocalizedText>,
-  std::vec::Vec<LocalizedText>,
-  std::vec::Vec<LocalizedText>,
-  std::vec::Vec<LocalizedText>,
-  std::vec::Vec<LocalizedText>,
+  Vec<LocalizedText>,
+  Vec<LocalizedText>,
+  Vec<LocalizedText>,
+  Vec<LocalizedText>,
+  Vec<LocalizedText>,
+  Vec<LocalizedText>,
+  Vec<LocalizedText>,
 ) {
-  let mut buckets: [std::vec::Vec<PgKeyframeVlmLabelRowRef<'r>>; 7] = Default::default();
+  let mut buckets: [Vec<PgKeyframeVlmLabelRowRef<'r>>; 7] = Default::default();
   for r in rows {
     if (0..7).contains(&(r.kind as i32)) {
       buckets[r.kind as usize].push(r);
     }
   }
-  let mut out: [std::vec::Vec<LocalizedText>; 7] = Default::default();
+  let mut out: [Vec<LocalizedText>; 7] = Default::default();
   for (i, bucket) in buckets.iter_mut().enumerate() {
     bucket.sort_by_key(|r| r.ordinal);
     out[i] = bucket
@@ -3684,8 +3651,8 @@ mod tests {
     let t = VideoTrack::try_new(Uuid7::new(), Uuid7::new()).unwrap();
     let tuple: (
       PgVideoTrackRow,
-      std::vec::Vec<PgVideoTrackIndexErrorRow>,
-      std::vec::Vec<PgVideoTrackMetadataRow>,
+      Vec<PgVideoTrackIndexErrorRow>,
+      Vec<PgVideoTrackMetadataRow>,
     ) = (&t).into();
     let t2: VideoTrack<Uuid7> = tuple.try_into().unwrap();
     assert_eq!(t, t2);
@@ -3753,8 +3720,8 @@ mod tests {
       ),]);
     let tuple: (
       PgVideoTrackRow,
-      std::vec::Vec<PgVideoTrackIndexErrorRow>,
-      std::vec::Vec<PgVideoTrackMetadataRow>,
+      Vec<PgVideoTrackIndexErrorRow>,
+      Vec<PgVideoTrackMetadataRow>,
     ) = (&t).into();
     assert_eq!(tuple.1.len(), 1);
     let t2: VideoTrack<Uuid7> = tuple.try_into().unwrap();
@@ -3940,8 +3907,8 @@ mod tests {
       ]);
     let (row, mut errs, meta): (
       PgVideoTrackRow,
-      std::vec::Vec<PgVideoTrackIndexErrorRow>,
-      std::vec::Vec<PgVideoTrackMetadataRow>,
+      Vec<PgVideoTrackIndexErrorRow>,
+      Vec<PgVideoTrackMetadataRow>,
     ) = (&t).into();
     errs.reverse();
     let t2: VideoTrack<Uuid7> = (row, errs, meta).try_into().unwrap();
@@ -3960,13 +3927,13 @@ mod tests {
       .with_metadata(meta);
     let (row, errs, mut metadata): (
       PgVideoTrackRow,
-      std::vec::Vec<PgVideoTrackIndexErrorRow>,
-      std::vec::Vec<PgVideoTrackMetadataRow>,
+      Vec<PgVideoTrackIndexErrorRow>,
+      Vec<PgVideoTrackMetadataRow>,
     ) = (&t).into();
     assert_eq!(metadata.len(), 3);
     metadata.reverse();
     let t2: VideoTrack<Uuid7> = (row, errs, metadata).try_into().unwrap();
-    let keys: std::vec::Vec<&str> = t2.metadata_ref().keys().map(SmolStr::as_str).collect();
+    let keys: Vec<&str> = t2.metadata_ref().keys().map(SmolStr::as_str).collect();
     assert_eq!(keys, std::vec!["comment", "encoder", "language"]);
   }
 
@@ -3999,12 +3966,12 @@ mod tests {
       .with_index_errors(std::vec![ErrorInfo::new(ErrorCode::ProbeCorrupt, "bad")]);
     let (row, errs, meta): (
       PgVideoTrackRow,
-      std::vec::Vec<PgVideoTrackIndexErrorRow>,
-      std::vec::Vec<PgVideoTrackMetadataRow>,
+      Vec<PgVideoTrackIndexErrorRow>,
+      Vec<PgVideoTrackMetadataRow>,
     ) = (&t).into();
-    let err_refs: std::vec::Vec<PgVideoTrackIndexErrorRowRef<'_>> =
+    let err_refs: Vec<PgVideoTrackIndexErrorRowRef<'_>> =
       errs.iter().map(PgVideoTrackIndexErrorRow::as_ref).collect();
-    let meta_refs: std::vec::Vec<PgVideoTrackMetadataRowRef<'_>> =
+    let meta_refs: Vec<PgVideoTrackMetadataRowRef<'_>> =
       meta.iter().map(PgVideoTrackMetadataRow::as_ref).collect();
     let t2: VideoTrack<Uuid7> = (row.as_ref(), err_refs, meta_refs).try_into().unwrap();
     assert_eq!(t, t2);

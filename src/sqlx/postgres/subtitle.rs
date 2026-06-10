@@ -18,6 +18,8 @@
 //! (`Subtitle::tracks`, `SubtitleTrack::cues`) are NOT stored — they are
 //! derived by querying the child table's FK.
 
+use std::vec::Vec;
+
 use indexmap::IndexMap;
 use mediaframe::{
   codec::SubtitleCodec,
@@ -165,7 +167,7 @@ pub struct PgSubtitleTrackRow {
   pub provenance_prompt_version: String,
   pub provenance_indexer_version: String,
   /// `FileChecksum` of the external file (32 bytes); NULL = absent.
-  pub source_checksum: Option<std::vec::Vec<u8>>,
+  pub source_checksum: Option<Vec<u8>>,
   pub character_encoding: String,
   pub bom_present: bool,
   pub is_sdh: bool,
@@ -209,8 +211,8 @@ pub struct PgSubtitleTrackMetadataRow {
 impl From<&SubtitleTrack<Uuid7>>
   for (
     PgSubtitleTrackRow,
-    std::vec::Vec<PgSubtitleTrackIndexErrorRow>,
-    std::vec::Vec<PgSubtitleTrackMetadataRow>,
+    Vec<PgSubtitleTrackIndexErrorRow>,
+    Vec<PgSubtitleTrackMetadataRow>,
   )
 {
   fn from(t: &SubtitleTrack<Uuid7>) -> Self {
@@ -286,8 +288,8 @@ impl From<&SubtitleTrack<Uuid7>>
 impl
   TryFrom<(
     PgSubtitleTrackRow,
-    std::vec::Vec<PgSubtitleTrackIndexErrorRow>,
-    std::vec::Vec<PgSubtitleTrackMetadataRow>,
+    Vec<PgSubtitleTrackIndexErrorRow>,
+    Vec<PgSubtitleTrackMetadataRow>,
   )> for SubtitleTrack<Uuid7>
 {
   type Error = SqlxError;
@@ -295,8 +297,8 @@ impl
   fn try_from(
     (r, errors, metadata): (
       PgSubtitleTrackRow,
-      std::vec::Vec<PgSubtitleTrackIndexErrorRow>,
-      std::vec::Vec<PgSubtitleTrackMetadataRow>,
+      Vec<PgSubtitleTrackIndexErrorRow>,
+      Vec<PgSubtitleTrackMetadataRow>,
     ),
   ) -> Result<Self, Self::Error> {
     subtitle_track_from_rows(r, errors, metadata)
@@ -309,8 +311,8 @@ impl
 /// `IndexMap` ordering is recovered.
 pub fn subtitle_track_from_rows(
   r: PgSubtitleTrackRow,
-  mut errors: std::vec::Vec<PgSubtitleTrackIndexErrorRow>,
-  mut metadata: std::vec::Vec<PgSubtitleTrackMetadataRow>,
+  mut errors: Vec<PgSubtitleTrackIndexErrorRow>,
+  mut metadata: Vec<PgSubtitleTrackMetadataRow>,
 ) -> Result<SubtitleTrack<Uuid7>, SqlxError> {
   {
     let id = uuid_to_uuid7(r.id)?;
@@ -391,7 +393,7 @@ pub fn subtitle_track_from_rows(
     t = t.with_index_status(status);
 
     errors.sort_by_key(|e| e.ordinal);
-    let mut infos = std::vec::Vec::with_capacity(errors.len());
+    let mut infos = Vec::with_capacity(errors.len());
     for e in errors {
       let code = u32_from_i32(e.code, "SubtitleTrack.index_error.code")?;
       infos.push(ErrorInfo::new(ErrorCode::from_u32(code), e.message));
@@ -2768,8 +2770,8 @@ impl PgSubtitleTrackMetadataRow {
 impl<'r>
   TryFrom<(
     PgSubtitleTrackRowRef<'r>,
-    std::vec::Vec<PgSubtitleTrackIndexErrorRowRef<'r>>,
-    std::vec::Vec<PgSubtitleTrackMetadataRowRef<'r>>,
+    Vec<PgSubtitleTrackIndexErrorRowRef<'r>>,
+    Vec<PgSubtitleTrackMetadataRowRef<'r>>,
   )> for SubtitleTrack<Uuid7>
 {
   type Error = SqlxError;
@@ -2777,8 +2779,8 @@ impl<'r>
   fn try_from(
     (r, mut errors, mut metadata): (
       PgSubtitleTrackRowRef<'r>,
-      std::vec::Vec<PgSubtitleTrackIndexErrorRowRef<'r>>,
-      std::vec::Vec<PgSubtitleTrackMetadataRowRef<'r>>,
+      Vec<PgSubtitleTrackIndexErrorRowRef<'r>>,
+      Vec<PgSubtitleTrackMetadataRowRef<'r>>,
     ),
   ) -> Result<Self, Self::Error> {
     let id = uuid_to_uuid7(r.id)?;
@@ -2859,7 +2861,7 @@ impl<'r>
     t = t.with_index_status(status);
 
     errors.sort_by_key(|e| e.ordinal);
-    let mut infos = std::vec::Vec::with_capacity(errors.len());
+    let mut infos = Vec::with_capacity(errors.len());
     for e in errors {
       let code = u32_from_i32(e.code, "SubtitleTrack.index_error.code")?;
       infos.push(ErrorInfo::new(ErrorCode::from_u32(code), e.message));
@@ -2985,8 +2987,8 @@ mod tests {
     let t = SubtitleTrack::try_new(Uuid7::new(), Uuid7::new()).unwrap();
     let tuple: (
       PgSubtitleTrackRow,
-      std::vec::Vec<PgSubtitleTrackIndexErrorRow>,
-      std::vec::Vec<PgSubtitleTrackMetadataRow>,
+      Vec<PgSubtitleTrackIndexErrorRow>,
+      Vec<PgSubtitleTrackMetadataRow>,
     ) = (&t).into();
     let t2: SubtitleTrack<Uuid7> = tuple.try_into().unwrap();
     assert_eq!(t, t2);
@@ -3038,8 +3040,8 @@ mod tests {
       ]);
     let tuple: (
       PgSubtitleTrackRow,
-      std::vec::Vec<PgSubtitleTrackIndexErrorRow>,
-      std::vec::Vec<PgSubtitleTrackMetadataRow>,
+      Vec<PgSubtitleTrackIndexErrorRow>,
+      Vec<PgSubtitleTrackMetadataRow>,
     ) = (&t).into();
     assert_eq!(tuple.1.len(), 2);
     let t2: SubtitleTrack<Uuid7> = tuple.try_into().unwrap();
@@ -3057,8 +3059,8 @@ mod tests {
       ]);
     let (row, mut errs, meta): (
       PgSubtitleTrackRow,
-      std::vec::Vec<PgSubtitleTrackIndexErrorRow>,
-      std::vec::Vec<PgSubtitleTrackMetadataRow>,
+      Vec<PgSubtitleTrackIndexErrorRow>,
+      Vec<PgSubtitleTrackMetadataRow>,
     ) = (&t).into();
     errs.reverse();
     let t2: SubtitleTrack<Uuid7> = (row, errs, meta).try_into().unwrap();
@@ -3077,13 +3079,13 @@ mod tests {
       .with_metadata(meta);
     let (row, errs, mut metadata): (
       PgSubtitleTrackRow,
-      std::vec::Vec<PgSubtitleTrackIndexErrorRow>,
-      std::vec::Vec<PgSubtitleTrackMetadataRow>,
+      Vec<PgSubtitleTrackIndexErrorRow>,
+      Vec<PgSubtitleTrackMetadataRow>,
     ) = (&t).into();
     assert_eq!(metadata.len(), 2);
     metadata.reverse();
     let t2: SubtitleTrack<Uuid7> = (row, errs, metadata).try_into().unwrap();
-    let keys: std::vec::Vec<&str> = t2.metadata_ref().keys().map(SmolStr::as_str).collect();
+    let keys: Vec<&str> = t2.metadata_ref().keys().map(SmolStr::as_str).collect();
     assert_eq!(keys, std::vec!["language_alt", "encoding_origin"]);
   }
 
@@ -3237,8 +3239,8 @@ mod tests {
     let t = SubtitleTrack::try_new(Uuid7::new(), Uuid7::new()).unwrap();
     let (mut row, errs, meta): (
       PgSubtitleTrackRow,
-      std::vec::Vec<PgSubtitleTrackIndexErrorRow>,
-      std::vec::Vec<PgSubtitleTrackMetadataRow>,
+      Vec<PgSubtitleTrackIndexErrorRow>,
+      Vec<PgSubtitleTrackMetadataRow>,
     ) = (&t).into();
     row.id = Uuid::nil();
     assert!(SubtitleTrack::<Uuid7>::try_from((row, errs, meta))
@@ -3292,14 +3294,14 @@ mod tests {
       ]);
     let (row, errs, meta): (
       PgSubtitleTrackRow,
-      std::vec::Vec<PgSubtitleTrackIndexErrorRow>,
-      std::vec::Vec<PgSubtitleTrackMetadataRow>,
+      Vec<PgSubtitleTrackIndexErrorRow>,
+      Vec<PgSubtitleTrackMetadataRow>,
     ) = (&t).into();
-    let err_refs: std::vec::Vec<PgSubtitleTrackIndexErrorRowRef<'_>> = errs
+    let err_refs: Vec<PgSubtitleTrackIndexErrorRowRef<'_>> = errs
       .iter()
       .map(PgSubtitleTrackIndexErrorRow::as_ref)
       .collect();
-    let meta_refs: std::vec::Vec<PgSubtitleTrackMetadataRowRef<'_>> = meta
+    let meta_refs: Vec<PgSubtitleTrackMetadataRowRef<'_>> = meta
       .iter()
       .map(PgSubtitleTrackMetadataRow::as_ref)
       .collect();

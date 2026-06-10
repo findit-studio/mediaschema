@@ -23,6 +23,8 @@
 //! `tracks` Vec to satisfy a derived count). The domain type enforces
 //! only intrinsic single-value invariants (here: non-nil `id`).
 
+use std::vec::Vec;
+
 use derive_more::IsVariant;
 
 use crate::domain::{vo::IndexProgress, Uuid7};
@@ -45,7 +47,7 @@ use crate::domain::{vo::IndexProgress, Uuid7};
 pub struct Audio<Id = Uuid7> {
   id: Id,
   media_id: Id,
-  tracks: std::vec::Vec<Id>,
+  tracks: Vec<Id>,
   total_segments: u32,
   track_progress: IndexProgress,
 }
@@ -69,7 +71,7 @@ impl Audio<Uuid7> {
     Ok(Self {
       id,
       media_id,
-      tracks: std::vec::Vec::new(),
+      tracks: Vec::new(),
       total_segments: 0,
       track_progress: IndexProgress::new(),
     })
@@ -112,7 +114,7 @@ impl<Id> Audio<Id> {
   /// Builder: replace `tracks`.
   #[inline(always)]
   #[must_use]
-  pub fn with_tracks(mut self, tracks: impl Into<std::vec::Vec<Id>>) -> Self {
+  pub fn with_tracks(mut self, tracks: impl Into<Vec<Id>>) -> Self {
     self.tracks = tracks.into();
     self
   }
@@ -135,7 +137,7 @@ impl<Id> Audio<Id> {
 
   /// In-place mutator for `tracks`.
   #[inline(always)]
-  pub fn set_tracks(&mut self, tracks: impl Into<std::vec::Vec<Id>>) -> &mut Self {
+  pub fn set_tracks(&mut self, tracks: impl Into<Vec<Id>>) -> &mut Self {
     self.tracks = tracks.into();
     self
   }

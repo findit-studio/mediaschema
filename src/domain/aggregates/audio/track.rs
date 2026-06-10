@@ -16,6 +16,8 @@
 //! `audio::Fingerprint`, `audio::Tags`, `audio::CoverArt`) likewise live
 //! in `mediaframe`. These are wired through directly.
 
+use std::vec::Vec;
+
 use derive_more::IsVariant;
 use indexmap::IndexMap;
 use mediaframe::{
@@ -185,10 +187,10 @@ pub struct AudioTrack<Id = Uuid7> {
   isrc: SmolStr,
   acoustid: SmolStr,
   musicbrainz_recording_id: SmolStr,
-  speakers: std::vec::Vec<Id>,
+  speakers: Vec<Id>,
   tags: Option<Tags>,
   cover_art: Option<CoverArt>,
-  segments: std::vec::Vec<Id>,
+  segments: Vec<Id>,
   /// AVDictionary entries from the container's stream metadata, with
   /// any "title" / "language" / "artist" / "album" / "genre" / "comment"
   /// keys (and the rest of the `Tags`-hoisted set) **already consumed**
@@ -197,7 +199,7 @@ pub struct AudioTrack<Id = Uuid7> {
   metadata: IndexMap<SmolStr, SmolStr>,
   provenance: Provenance,
   index_status: AudioIndexStatus,
-  index_errors: std::vec::Vec<ErrorInfo>,
+  index_errors: Vec<ErrorInfo>,
 }
 
 impl AudioTrack<Uuid7> {
@@ -245,14 +247,14 @@ impl AudioTrack<Uuid7> {
       isrc: SmolStr::default(),
       acoustid: SmolStr::default(),
       musicbrainz_recording_id: SmolStr::default(),
-      speakers: std::vec::Vec::new(),
+      speakers: Vec::new(),
       tags: None,
       cover_art: None,
-      segments: std::vec::Vec::new(),
+      segments: Vec::new(),
       metadata: IndexMap::new(),
       provenance: Provenance::new(),
       index_status: AudioIndexStatus::empty(),
-      index_errors: std::vec::Vec::new(),
+      index_errors: Vec::new(),
     })
   }
 }
@@ -810,7 +812,7 @@ impl<Id> AudioTrack<Id> {
   /// Builder: replace the diarized `speakers` set.
   #[inline(always)]
   #[must_use]
-  pub fn with_speakers(mut self, v: impl Into<std::vec::Vec<Id>>) -> Self {
+  pub fn with_speakers(mut self, v: impl Into<Vec<Id>>) -> Self {
     self.speakers = v.into();
     self
   }
@@ -818,7 +820,7 @@ impl<Id> AudioTrack<Id> {
   /// Builder: replace `segments`.
   #[inline(always)]
   #[must_use]
-  pub fn with_segments(mut self, v: impl Into<std::vec::Vec<Id>>) -> Self {
+  pub fn with_segments(mut self, v: impl Into<Vec<Id>>) -> Self {
     self.segments = v.into();
     self
   }
@@ -860,7 +862,7 @@ impl<Id> AudioTrack<Id> {
   /// Builder: replace `index_errors`.
   #[inline(always)]
   #[must_use]
-  pub fn with_index_errors(mut self, v: impl Into<std::vec::Vec<ErrorInfo>>) -> Self {
+  pub fn with_index_errors(mut self, v: impl Into<Vec<ErrorInfo>>) -> Self {
     self.index_errors = v.into();
     self
   }
@@ -1099,14 +1101,14 @@ impl<Id> AudioTrack<Id> {
 
   /// In-place mutator for the diarized `speakers` set.
   #[inline(always)]
-  pub fn set_speakers(&mut self, v: impl Into<std::vec::Vec<Id>>) -> &mut Self {
+  pub fn set_speakers(&mut self, v: impl Into<Vec<Id>>) -> &mut Self {
     self.speakers = v.into();
     self
   }
 
   /// In-place mutator for `segments`.
   #[inline(always)]
-  pub fn set_segments(&mut self, v: impl Into<std::vec::Vec<Id>>) -> &mut Self {
+  pub fn set_segments(&mut self, v: impl Into<Vec<Id>>) -> &mut Self {
     self.segments = v.into();
     self
   }
@@ -1142,7 +1144,7 @@ impl<Id> AudioTrack<Id> {
 
   /// In-place mutator for `index_errors`.
   #[inline(always)]
-  pub fn set_index_errors(&mut self, v: impl Into<std::vec::Vec<ErrorInfo>>) -> &mut Self {
+  pub fn set_index_errors(&mut self, v: impl Into<Vec<ErrorInfo>>) -> &mut Self {
     self.index_errors = v.into();
     self
   }

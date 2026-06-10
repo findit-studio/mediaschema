@@ -56,21 +56,21 @@ pub struct Keyframe<Id = Uuid7> {
   extractor: KeyframeExtractor,
 
   // --- apple-vision structured detections ---
-  classifications: std::vec::Vec<Detection>,
-  objects: std::vec::Vec<ObjectDetection>,
+  classifications: Vec<Detection>,
+  objects: Vec<ObjectDetection>,
   humans: HumanAnalysis,
   animals: AnimalAnalysis,
-  actions: std::vec::Vec<ActionDetection>,
-  text_detections: std::vec::Vec<TextDetection>,
-  barcodes: std::vec::Vec<BarcodeDetection>,
-  attention_saliency: std::vec::Vec<SaliencyRegion>,
-  objectness_saliency: std::vec::Vec<SaliencyRegion>,
+  actions: Vec<ActionDetection>,
+  text_detections: Vec<TextDetection>,
+  barcodes: Vec<BarcodeDetection>,
+  attention_saliency: Vec<SaliencyRegion>,
+  objectness_saliency: Vec<SaliencyRegion>,
   horizon: HorizonInfo,
-  document_segments: std::vec::Vec<DocumentSegment>,
+  document_segments: Vec<DocumentSegment>,
   aesthetics: Aesthetics,
 
   // --- colorthief ---
-  colors: std::vec::Vec<DominantColor>,
+  colors: Vec<DominantColor>,
 
   // --- VLM ---
   vlm: VlmAnalysis,
@@ -113,21 +113,21 @@ impl Keyframe<Uuid7> {
       mime: SmolStr::default(),
       dimensions,
       extractor,
-      classifications: std::vec::Vec::new(),
-      objects: std::vec::Vec::new(),
+      classifications: Vec::new(),
+      objects: Vec::new(),
       humans: HumanAnalysis::new(),
       animals: AnimalAnalysis::new(),
-      actions: std::vec::Vec::new(),
-      text_detections: std::vec::Vec::new(),
-      barcodes: std::vec::Vec::new(),
-      attention_saliency: std::vec::Vec::new(),
-      objectness_saliency: std::vec::Vec::new(),
+      actions: Vec::new(),
+      text_detections: Vec::new(),
+      barcodes: Vec::new(),
+      attention_saliency: Vec::new(),
+      objectness_saliency: Vec::new(),
       // 0.0 is trivially finite and in `0.0..=1.0` — this `try_new`
       // cannot fail.
       horizon: HorizonInfo::try_new(0.0, 0.0).expect("0.0 confidence is within range"),
-      document_segments: std::vec::Vec::new(),
+      document_segments: Vec::new(),
       aesthetics: Aesthetics::new(0.0, false),
-      colors: std::vec::Vec::new(),
+      colors: Vec::new(),
       vlm: VlmAnalysis::new(),
     })
   }
@@ -308,23 +308,23 @@ impl<Id> Keyframe<Id> {
   // --- apple-vision ---
   #[must_use]
   #[inline(always)]
-  pub fn with_classifications(mut self, v: impl Into<std::vec::Vec<Detection>>) -> Self {
+  pub fn with_classifications(mut self, v: impl Into<Vec<Detection>>) -> Self {
     self.classifications = v.into();
     self
   }
   #[inline(always)]
-  pub fn set_classifications(&mut self, v: impl Into<std::vec::Vec<Detection>>) -> &mut Self {
+  pub fn set_classifications(&mut self, v: impl Into<Vec<Detection>>) -> &mut Self {
     self.classifications = v.into();
     self
   }
   #[must_use]
   #[inline(always)]
-  pub fn with_objects(mut self, v: impl Into<std::vec::Vec<ObjectDetection>>) -> Self {
+  pub fn with_objects(mut self, v: impl Into<Vec<ObjectDetection>>) -> Self {
     self.objects = v.into();
     self
   }
   #[inline(always)]
-  pub fn set_objects(&mut self, v: impl Into<std::vec::Vec<ObjectDetection>>) -> &mut Self {
+  pub fn set_objects(&mut self, v: impl Into<Vec<ObjectDetection>>) -> &mut Self {
     self.objects = v.into();
     self
   }
@@ -352,62 +352,56 @@ impl<Id> Keyframe<Id> {
   }
   #[must_use]
   #[inline(always)]
-  pub fn with_actions(mut self, v: impl Into<std::vec::Vec<ActionDetection>>) -> Self {
+  pub fn with_actions(mut self, v: impl Into<Vec<ActionDetection>>) -> Self {
     self.actions = v.into();
     self
   }
   #[inline(always)]
-  pub fn set_actions(&mut self, v: impl Into<std::vec::Vec<ActionDetection>>) -> &mut Self {
+  pub fn set_actions(&mut self, v: impl Into<Vec<ActionDetection>>) -> &mut Self {
     self.actions = v.into();
     self
   }
   #[must_use]
   #[inline(always)]
-  pub fn with_text_detections(mut self, v: impl Into<std::vec::Vec<TextDetection>>) -> Self {
+  pub fn with_text_detections(mut self, v: impl Into<Vec<TextDetection>>) -> Self {
     self.text_detections = v.into();
     self
   }
   #[inline(always)]
-  pub fn set_text_detections(&mut self, v: impl Into<std::vec::Vec<TextDetection>>) -> &mut Self {
+  pub fn set_text_detections(&mut self, v: impl Into<Vec<TextDetection>>) -> &mut Self {
     self.text_detections = v.into();
     self
   }
   #[must_use]
   #[inline(always)]
-  pub fn with_barcodes(mut self, v: impl Into<std::vec::Vec<BarcodeDetection>>) -> Self {
+  pub fn with_barcodes(mut self, v: impl Into<Vec<BarcodeDetection>>) -> Self {
     self.barcodes = v.into();
     self
   }
   #[inline(always)]
-  pub fn set_barcodes(&mut self, v: impl Into<std::vec::Vec<BarcodeDetection>>) -> &mut Self {
+  pub fn set_barcodes(&mut self, v: impl Into<Vec<BarcodeDetection>>) -> &mut Self {
     self.barcodes = v.into();
     self
   }
   #[must_use]
   #[inline(always)]
-  pub fn with_attention_saliency(mut self, v: impl Into<std::vec::Vec<SaliencyRegion>>) -> Self {
+  pub fn with_attention_saliency(mut self, v: impl Into<Vec<SaliencyRegion>>) -> Self {
     self.attention_saliency = v.into();
     self
   }
   #[inline(always)]
-  pub fn set_attention_saliency(
-    &mut self,
-    v: impl Into<std::vec::Vec<SaliencyRegion>>,
-  ) -> &mut Self {
+  pub fn set_attention_saliency(&mut self, v: impl Into<Vec<SaliencyRegion>>) -> &mut Self {
     self.attention_saliency = v.into();
     self
   }
   #[must_use]
   #[inline(always)]
-  pub fn with_objectness_saliency(mut self, v: impl Into<std::vec::Vec<SaliencyRegion>>) -> Self {
+  pub fn with_objectness_saliency(mut self, v: impl Into<Vec<SaliencyRegion>>) -> Self {
     self.objectness_saliency = v.into();
     self
   }
   #[inline(always)]
-  pub fn set_objectness_saliency(
-    &mut self,
-    v: impl Into<std::vec::Vec<SaliencyRegion>>,
-  ) -> &mut Self {
+  pub fn set_objectness_saliency(&mut self, v: impl Into<Vec<SaliencyRegion>>) -> &mut Self {
     self.objectness_saliency = v.into();
     self
   }
@@ -424,15 +418,12 @@ impl<Id> Keyframe<Id> {
   }
   #[must_use]
   #[inline(always)]
-  pub fn with_document_segments(mut self, v: impl Into<std::vec::Vec<DocumentSegment>>) -> Self {
+  pub fn with_document_segments(mut self, v: impl Into<Vec<DocumentSegment>>) -> Self {
     self.document_segments = v.into();
     self
   }
   #[inline(always)]
-  pub fn set_document_segments(
-    &mut self,
-    v: impl Into<std::vec::Vec<DocumentSegment>>,
-  ) -> &mut Self {
+  pub fn set_document_segments(&mut self, v: impl Into<Vec<DocumentSegment>>) -> &mut Self {
     self.document_segments = v.into();
     self
   }
@@ -451,12 +442,12 @@ impl<Id> Keyframe<Id> {
   // --- colorthief ---
   #[must_use]
   #[inline(always)]
-  pub fn with_colors(mut self, v: impl Into<std::vec::Vec<DominantColor>>) -> Self {
+  pub fn with_colors(mut self, v: impl Into<Vec<DominantColor>>) -> Self {
     self.colors = v.into();
     self
   }
   #[inline(always)]
-  pub fn set_colors(&mut self, v: impl Into<std::vec::Vec<DominantColor>>) -> &mut Self {
+  pub fn set_colors(&mut self, v: impl Into<Vec<DominantColor>>) -> &mut Self {
     self.colors = v.into();
     self
   }

@@ -22,6 +22,8 @@
 //! - **`core::error::Error`**, not `std::error::Error` — stable since
 //!   1.81, MSRV is 1.85.
 
+use std::vec::Vec;
+
 use core::{fmt, str::FromStr};
 
 use derive_more::{IsVariant, TryUnwrap, Unwrap};
@@ -395,7 +397,7 @@ pub enum LocationError {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LocalLocation<Id = Uuid7> {
   volume: Id,
-  components: std::vec::Vec<SmolStr>,
+  components: Vec<SmolStr>,
 }
 
 #[cfg(any(feature = "std", feature = "alloc"))]
@@ -498,7 +500,7 @@ impl<Id> Location<Id> {
     I: IntoIterator<Item = S>,
     S: Into<SmolStr>,
   {
-    let components: std::vec::Vec<SmolStr> = components.into_iter().map(Into::into).collect();
+    let components: Vec<SmolStr> = components.into_iter().map(Into::into).collect();
     if components.is_empty() {
       return Err(LocationError::EmptyPath);
     }
@@ -519,7 +521,7 @@ impl Location<Uuid7> {
     if volume.is_nil() {
       return Err(LocationError::NilVolume);
     }
-    let components: std::vec::Vec<SmolStr> = components.into_iter().map(Into::into).collect();
+    let components: Vec<SmolStr> = components.into_iter().map(Into::into).collect();
     if components.is_empty() {
       return Err(LocationError::EmptyPath);
     }

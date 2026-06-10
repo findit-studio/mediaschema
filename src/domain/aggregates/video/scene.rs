@@ -6,6 +6,8 @@
 //! `VideoTrack` in rev 7; every `Scene` inside a `VideoTrack` shares
 //! the track's `Provenance`.
 
+use std::vec::Vec;
+
 use derive_more::IsVariant;
 use mediatime::TimeRange;
 use smol_str::SmolStr;
@@ -29,7 +31,7 @@ pub struct Scene<Id = Uuid7> {
   index: u32,
   span: TimeRange,
   detector: SceneDetector,
-  keyframes: std::vec::Vec<Id>,
+  keyframes: Vec<Id>,
   description: SmolStr,
 }
 
@@ -68,7 +70,7 @@ impl Scene<Uuid7> {
       index,
       span,
       detector,
-      keyframes: std::vec::Vec::new(),
+      keyframes: Vec::new(),
       description: SmolStr::default(),
     })
   }
@@ -76,14 +78,14 @@ impl Scene<Uuid7> {
   /// Builder: replace the `keyframes` child-ref id-list.
   #[must_use]
   #[inline(always)]
-  pub fn with_keyframes(mut self, kfs: impl Into<std::vec::Vec<Uuid7>>) -> Self {
+  pub fn with_keyframes(mut self, kfs: impl Into<Vec<Uuid7>>) -> Self {
     self.keyframes = kfs.into();
     self
   }
 
   /// In-place mutator for the `keyframes` child-ref id-list.
   #[inline(always)]
-  pub fn set_keyframes(&mut self, kfs: impl Into<std::vec::Vec<Uuid7>>) -> &mut Self {
+  pub fn set_keyframes(&mut self, kfs: impl Into<Vec<Uuid7>>) -> &mut Self {
     self.keyframes = kfs.into();
     self
   }
@@ -359,7 +361,7 @@ mod tests {
     let mut s = s;
     s.set_index(0);
     s.set_description("");
-    s.set_keyframes(std::vec::Vec::<Uuid7>::new());
+    s.set_keyframes(Vec::<Uuid7>::new());
     s.set_detector(SceneDetector::Manual);
     assert_eq!(s.index(), 0);
     assert!(s.description().is_empty());

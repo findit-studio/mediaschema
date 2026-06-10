@@ -14,6 +14,8 @@
 //! an `ordinal` order column. The `Vec<Id>` reverse-FK fields
 //! (`Subtitle::tracks`, `SubtitleTrack::cues`) are NOT stored.
 
+use std::vec::Vec;
+
 use indexmap::IndexMap;
 use mediaframe::{
   codec::SubtitleCodec,
@@ -75,8 +77,8 @@ fn kind_from_i16(n: i16) -> Result<SubtitleKind, SqlxError> {
 /// MySQL row shape for the [`Subtitle`] facet.
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct MySqlSubtitleRow {
-  pub id: std::vec::Vec<u8>,
-  pub media_id: std::vec::Vec<u8>,
+  pub id: Vec<u8>,
+  pub media_id: Vec<u8>,
   pub track_progress_total: i64,
   pub track_progress_indexed: i64,
   pub track_progress_failed: i64,
@@ -119,8 +121,8 @@ impl TryFrom<MySqlSubtitleRow> for Subtitle<Uuid7> {
 /// MySQL row shape for [`SubtitleTrack`].
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlSubtitleTrackRow {
-  pub id: std::vec::Vec<u8>,
-  pub subtitle_id: std::vec::Vec<u8>,
+  pub id: Vec<u8>,
+  pub subtitle_id: Vec<u8>,
   pub stream_index: Option<i64>,
   pub container_track_id: Option<i64>,
   pub codec: String,
@@ -139,7 +141,7 @@ pub struct MySqlSubtitleTrackRow {
   pub provenance_model_version: String,
   pub provenance_prompt_version: String,
   pub provenance_indexer_version: String,
-  pub source_checksum: Option<std::vec::Vec<u8>>,
+  pub source_checksum: Option<Vec<u8>>,
   pub character_encoding: String,
   pub bom_present: bool,
   pub is_sdh: bool,
@@ -160,7 +162,7 @@ pub struct MySqlSubtitleTrackRow {
 /// One `subtitle_track_index_error` child row.
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct MySqlSubtitleTrackIndexErrorRow {
-  pub subtitle_track_id: std::vec::Vec<u8>,
+  pub subtitle_track_id: Vec<u8>,
   pub ordinal: i32,
   pub code: i32,
   pub message: String,
@@ -171,7 +173,7 @@ pub struct MySqlSubtitleTrackIndexErrorRow {
 /// order. `subtitle_track_from_rows` sorts by `ordinal` on decode.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlSubtitleTrackMetadataRow {
-  pub subtitle_track_id: std::vec::Vec<u8>,
+  pub subtitle_track_id: Vec<u8>,
   pub ordinal: i32,
   pub key: String,
   pub value: String,
@@ -180,8 +182,8 @@ pub struct MySqlSubtitleTrackMetadataRow {
 impl From<&SubtitleTrack<Uuid7>>
   for (
     MySqlSubtitleTrackRow,
-    std::vec::Vec<MySqlSubtitleTrackIndexErrorRow>,
-    std::vec::Vec<MySqlSubtitleTrackMetadataRow>,
+    Vec<MySqlSubtitleTrackIndexErrorRow>,
+    Vec<MySqlSubtitleTrackMetadataRow>,
   )
 {
   fn from(t: &SubtitleTrack<Uuid7>) -> Self {
@@ -257,8 +259,8 @@ impl From<&SubtitleTrack<Uuid7>>
 impl
   TryFrom<(
     MySqlSubtitleTrackRow,
-    std::vec::Vec<MySqlSubtitleTrackIndexErrorRow>,
-    std::vec::Vec<MySqlSubtitleTrackMetadataRow>,
+    Vec<MySqlSubtitleTrackIndexErrorRow>,
+    Vec<MySqlSubtitleTrackMetadataRow>,
   )> for SubtitleTrack<Uuid7>
 {
   type Error = SqlxError;
@@ -266,8 +268,8 @@ impl
   fn try_from(
     (r, errors, metadata): (
       MySqlSubtitleTrackRow,
-      std::vec::Vec<MySqlSubtitleTrackIndexErrorRow>,
-      std::vec::Vec<MySqlSubtitleTrackMetadataRow>,
+      Vec<MySqlSubtitleTrackIndexErrorRow>,
+      Vec<MySqlSubtitleTrackMetadataRow>,
     ),
   ) -> Result<Self, Self::Error> {
     subtitle_track_from_rows(r, errors, metadata)
@@ -278,8 +280,8 @@ impl
 /// and `metadata` rows.
 pub fn subtitle_track_from_rows(
   r: MySqlSubtitleTrackRow,
-  mut errors: std::vec::Vec<MySqlSubtitleTrackIndexErrorRow>,
-  mut metadata: std::vec::Vec<MySqlSubtitleTrackMetadataRow>,
+  mut errors: Vec<MySqlSubtitleTrackIndexErrorRow>,
+  mut metadata: Vec<MySqlSubtitleTrackMetadataRow>,
 ) -> Result<SubtitleTrack<Uuid7>, SqlxError> {
   {
     let id = bytes_to_uuid7(&r.id)?;
@@ -360,7 +362,7 @@ pub fn subtitle_track_from_rows(
     t = t.with_index_status(status);
 
     errors.sort_by_key(|e| e.ordinal);
-    let mut infos = std::vec::Vec::with_capacity(errors.len());
+    let mut infos = Vec::with_capacity(errors.len());
     for e in errors {
       let code = u32_from_i32(e.code, "SubtitleTrack.index_error.code")?;
       infos.push(ErrorInfo::new(ErrorCode::from_u32(code), e.message));
@@ -391,8 +393,8 @@ pub fn subtitle_track_from_rows(
 /// MySQL row shape for the base [`SubtitleCue`] table.
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct MySqlSubtitleCueBaseRow {
-  pub id: std::vec::Vec<u8>,
-  pub subtitle_track_id: std::vec::Vec<u8>,
+  pub id: Vec<u8>,
+  pub subtitle_track_id: Vec<u8>,
   pub ordinal: i64,
   pub span_start_pts: i64,
   pub span_end_pts: i64,
@@ -487,7 +489,7 @@ pub fn srt_cue_from_row(
 /// MySQL detail row for a WebVTT cue.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlSubtitleCueVttRow {
-  pub id: std::vec::Vec<u8>,
+  pub id: Vec<u8>,
   pub cue_identifier: String,
   pub vertical: Option<i64>,
   pub line_value: String,
@@ -496,7 +498,7 @@ pub struct MySqlSubtitleCueVttRow {
   pub position_align: Option<i64>,
   pub size_value: Option<f32>,
   pub text_align: Option<i64>,
-  pub region_id: Option<std::vec::Vec<u8>>,
+  pub region_id: Option<Vec<u8>>,
   pub voice: String,
   pub styled_text: String,
 }
@@ -585,9 +587,9 @@ pub fn vtt_cue_from_rows(
 /// MySQL detail row for an ASS/SSA cue.
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct MySqlSubtitleCueAssRow {
-  pub id: std::vec::Vec<u8>,
+  pub id: Vec<u8>,
   pub layer: i64,
-  pub style_id: std::vec::Vec<u8>,
+  pub style_id: Vec<u8>,
   pub name: String,
   pub margin_l: i64,
   pub margin_r: i64,
@@ -649,7 +651,7 @@ pub fn ass_cue_from_rows(
 /// MySQL detail row for an LRC cue.
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct MySqlSubtitleCueLrcRow {
-  pub id: std::vec::Vec<u8>,
+  pub id: Vec<u8>,
   pub has_word_timing: bool,
 }
 
@@ -686,7 +688,7 @@ pub fn lrc_cue_from_rows(
 
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct MySqlSubtitleCueLrcWordRow {
-  pub subtitle_cue_id: std::vec::Vec<u8>,
+  pub subtitle_cue_id: Vec<u8>,
   pub ordinal: i64,
   pub text: String,
   pub start_pts: i64,
@@ -714,7 +716,7 @@ pub fn lrc_word_from_row(r: MySqlSubtitleCueLrcWordRow) -> Result<LrcWord<Uuid7>
 
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct MySqlSubtitleCueMicroDvdRow {
-  pub id: std::vec::Vec<u8>,
+  pub id: Vec<u8>,
   pub styled_text: String,
 }
 
@@ -750,7 +752,7 @@ pub fn micro_dvd_cue_from_rows(
 
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct MySqlSubtitleCueSubViewerRow {
-  pub id: std::vec::Vec<u8>,
+  pub id: Vec<u8>,
   pub styled_text: String,
 }
 
@@ -786,7 +788,7 @@ pub fn sub_viewer_cue_from_rows(
 
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct MySqlSubtitleCueSbvRow {
-  pub id: std::vec::Vec<u8>,
+  pub id: Vec<u8>,
 }
 
 impl From<&SbvCue<Uuid7>> for (MySqlSubtitleCueBaseRow, MySqlSubtitleCueSbvRow) {
@@ -819,9 +821,9 @@ pub fn sbv_cue_from_rows(
 
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct MySqlSubtitleCueTtmlRow {
-  pub id: std::vec::Vec<u8>,
-  pub region_id: Option<std::vec::Vec<u8>>,
-  pub style_id: Option<std::vec::Vec<u8>>,
+  pub id: Vec<u8>,
+  pub region_id: Option<Vec<u8>>,
+  pub style_id: Option<Vec<u8>>,
   pub xml_id: String,
   pub styled_text: String,
 }
@@ -874,7 +876,7 @@ pub fn ttml_cue_from_rows(
 
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct MySqlSubtitleCueSamiRow {
-  pub id: std::vec::Vec<u8>,
+  pub id: Vec<u8>,
   pub class_name: String,
   pub styled_text: String,
 }
@@ -915,9 +917,9 @@ pub fn sami_cue_from_rows(
 
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct MySqlSubtitleCueVobSubRow {
-  pub id: std::vec::Vec<u8>,
-  pub palette_id: std::vec::Vec<u8>,
-  pub bitmap: std::vec::Vec<u8>,
+  pub id: Vec<u8>,
+  pub palette_id: Vec<u8>,
+  pub bitmap: Vec<u8>,
   pub width: i64,
   pub height: i64,
   pub pos_x: i32,
@@ -983,13 +985,13 @@ pub fn vob_sub_cue_from_rows(
 
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct MySqlSubtitleCuePgsRow {
-  pub id: std::vec::Vec<u8>,
-  pub bitmap: std::vec::Vec<u8>,
+  pub id: Vec<u8>,
+  pub bitmap: Vec<u8>,
   pub width: i64,
   pub height: i64,
   pub pos_x: i32,
   pub pos_y: i32,
-  pub palette_bytes: std::vec::Vec<u8>,
+  pub palette_bytes: Vec<u8>,
   pub composition_state: i16,
 }
 
@@ -1040,7 +1042,7 @@ pub fn pgs_cue_from_rows(
 
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct MySqlSubtitleCueCea608Row {
-  pub id: std::vec::Vec<u8>,
+  pub id: Vec<u8>,
   pub channel: i16,
   pub pac_byte_pair: i64,
   pub styled_text: String,
@@ -1088,7 +1090,7 @@ pub fn cea_608_cue_from_rows(
 
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct MySqlSubtitleCueEbuStlRow {
-  pub id: std::vec::Vec<u8>,
+  pub id: Vec<u8>,
   pub subtitle_number: i64,
   pub cumulative: bool,
   pub vertical_pos: i32,
@@ -1143,8 +1145,8 @@ pub fn ebu_stl_cue_from_rows(
 
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlSubtitleTrackVttRegionRow {
-  pub id: std::vec::Vec<u8>,
-  pub subtitle_track_id: std::vec::Vec<u8>,
+  pub id: Vec<u8>,
+  pub subtitle_track_id: Vec<u8>,
   pub name: String,
   pub width: f32,
   pub lines: i64,
@@ -1190,8 +1192,8 @@ pub fn vtt_region_from_row(
 
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct MySqlSubtitleTrackVttStyleRow {
-  pub id: std::vec::Vec<u8>,
-  pub subtitle_track_id: std::vec::Vec<u8>,
+  pub id: Vec<u8>,
+  pub subtitle_track_id: Vec<u8>,
   pub ordinal: i64,
   pub css_text: String,
 }
@@ -1219,8 +1221,8 @@ pub fn vtt_style_from_row(
 
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlSubtitleTrackAssStyleRow {
-  pub id: std::vec::Vec<u8>,
-  pub subtitle_track_id: std::vec::Vec<u8>,
+  pub id: Vec<u8>,
+  pub subtitle_track_id: Vec<u8>,
   pub name: String,
   pub fontname: String,
   pub fontsize: f32,
@@ -1319,7 +1321,7 @@ pub fn ass_style_from_row(r: MySqlSubtitleTrackAssStyleRow) -> Result<AssStyle<U
 
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct MySqlSubtitleTrackLrcMetadataRow {
-  pub subtitle_track_id: std::vec::Vec<u8>,
+  pub subtitle_track_id: Vec<u8>,
   pub title: String,
   pub artist: String,
   pub album: String,
@@ -1365,8 +1367,8 @@ pub fn lrc_metadata_from_row(
 /// MySQL row for a [`TtmlRegion`].
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct MySqlSubtitleTrackTtmlRegionRow {
-  pub id: std::vec::Vec<u8>,
-  pub subtitle_track_id: std::vec::Vec<u8>,
+  pub id: Vec<u8>,
+  pub subtitle_track_id: Vec<u8>,
   pub xml_id: String,
   pub xml_attrs: String,
 }
@@ -1397,8 +1399,8 @@ pub fn ttml_region_from_row(
 /// MySQL row for a [`TtmlStyle`].
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct MySqlSubtitleTrackTtmlStyleRow {
-  pub id: std::vec::Vec<u8>,
-  pub subtitle_track_id: std::vec::Vec<u8>,
+  pub id: Vec<u8>,
+  pub subtitle_track_id: Vec<u8>,
   pub xml_id: String,
   pub xml_attrs: String,
 }
@@ -1429,8 +1431,8 @@ pub fn ttml_style_from_row(
 /// MySQL row for a [`SamiStyle`].
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct MySqlSubtitleTrackSamiStyleRow {
-  pub id: std::vec::Vec<u8>,
-  pub subtitle_track_id: std::vec::Vec<u8>,
+  pub id: Vec<u8>,
+  pub subtitle_track_id: Vec<u8>,
   pub class_name: String,
   pub css_text: String,
 }
@@ -1463,8 +1465,8 @@ pub fn sami_style_from_row(
 /// columns (`entry00 … entry15`). Each holds one `0x00RRGGBB` u32.
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct MySqlSubtitleTrackVobSubPaletteRow {
-  pub id: std::vec::Vec<u8>,
-  pub subtitle_track_id: std::vec::Vec<u8>,
+  pub id: Vec<u8>,
+  pub subtitle_track_id: Vec<u8>,
   pub entry00: i64,
   pub entry01: i64,
   pub entry02: i64,
@@ -2797,8 +2799,8 @@ impl<'r> TryFrom<MySqlSubtitleRowRef<'r>> for Subtitle<Uuid7> {
 impl<'r>
   TryFrom<(
     MySqlSubtitleTrackRowRef<'r>,
-    std::vec::Vec<MySqlSubtitleTrackIndexErrorRowRef<'r>>,
-    std::vec::Vec<MySqlSubtitleTrackMetadataRowRef<'r>>,
+    Vec<MySqlSubtitleTrackIndexErrorRowRef<'r>>,
+    Vec<MySqlSubtitleTrackMetadataRowRef<'r>>,
   )> for SubtitleTrack<Uuid7>
 {
   type Error = SqlxError;
@@ -2806,8 +2808,8 @@ impl<'r>
   fn try_from(
     (r, mut errors, mut metadata): (
       MySqlSubtitleTrackRowRef<'r>,
-      std::vec::Vec<MySqlSubtitleTrackIndexErrorRowRef<'r>>,
-      std::vec::Vec<MySqlSubtitleTrackMetadataRowRef<'r>>,
+      Vec<MySqlSubtitleTrackIndexErrorRowRef<'r>>,
+      Vec<MySqlSubtitleTrackMetadataRowRef<'r>>,
     ),
   ) -> Result<Self, Self::Error> {
     let id = bytes_to_uuid7(r.id)?;
@@ -2888,7 +2890,7 @@ impl<'r>
     t = t.with_index_status(status);
 
     errors.sort_by_key(|e| e.ordinal);
-    let mut infos = std::vec::Vec::with_capacity(errors.len());
+    let mut infos = Vec::with_capacity(errors.len());
     for e in errors {
       let code = u32_from_i32(e.code, "SubtitleTrack.index_error.code")?;
       infos.push(ErrorInfo::new(ErrorCode::from_u32(code), e.message));
@@ -3001,8 +3003,8 @@ mod tests {
     let t = SubtitleTrack::try_new(Uuid7::new(), Uuid7::new()).unwrap();
     let tuple: (
       MySqlSubtitleTrackRow,
-      std::vec::Vec<MySqlSubtitleTrackIndexErrorRow>,
-      std::vec::Vec<MySqlSubtitleTrackMetadataRow>,
+      Vec<MySqlSubtitleTrackIndexErrorRow>,
+      Vec<MySqlSubtitleTrackMetadataRow>,
     ) = (&t).into();
     let t2: SubtitleTrack<Uuid7> = tuple.try_into().unwrap();
     assert_eq!(t, t2);
@@ -3018,13 +3020,13 @@ mod tests {
       .with_metadata(meta);
     let (row, errs, mut metadata): (
       MySqlSubtitleTrackRow,
-      std::vec::Vec<MySqlSubtitleTrackIndexErrorRow>,
-      std::vec::Vec<MySqlSubtitleTrackMetadataRow>,
+      Vec<MySqlSubtitleTrackIndexErrorRow>,
+      Vec<MySqlSubtitleTrackMetadataRow>,
     ) = (&t).into();
     assert_eq!(metadata.len(), 2);
     metadata.reverse();
     let t2: SubtitleTrack<Uuid7> = (row, errs, metadata).try_into().unwrap();
-    let keys: std::vec::Vec<&str> = t2.metadata_ref().keys().map(SmolStr::as_str).collect();
+    let keys: Vec<&str> = t2.metadata_ref().keys().map(SmolStr::as_str).collect();
     assert_eq!(keys, std::vec!["language_alt", "encoding_origin"]);
   }
 
@@ -3067,8 +3069,8 @@ mod tests {
       .with_index_errors(std::vec![ErrorInfo::new(ErrorCode::ProbeCorrupt, "bad")]);
     let tuple: (
       MySqlSubtitleTrackRow,
-      std::vec::Vec<MySqlSubtitleTrackIndexErrorRow>,
-      std::vec::Vec<MySqlSubtitleTrackMetadataRow>,
+      Vec<MySqlSubtitleTrackIndexErrorRow>,
+      Vec<MySqlSubtitleTrackMetadataRow>,
     ) = (&t).into();
     let t2: SubtitleTrack<Uuid7> = tuple.try_into().unwrap();
     assert_eq!(t, t2);
@@ -3084,8 +3086,8 @@ mod tests {
       ]);
     let (row, mut errs, meta): (
       MySqlSubtitleTrackRow,
-      std::vec::Vec<MySqlSubtitleTrackIndexErrorRow>,
-      std::vec::Vec<MySqlSubtitleTrackMetadataRow>,
+      Vec<MySqlSubtitleTrackIndexErrorRow>,
+      Vec<MySqlSubtitleTrackMetadataRow>,
     ) = (&t).into();
     errs.reverse();
     let t2: SubtitleTrack<Uuid7> = (row, errs, meta).try_into().unwrap();
@@ -3274,14 +3276,14 @@ mod tests {
       .with_index_errors(std::vec![ErrorInfo::new(ErrorCode::ProbeCorrupt, "bad")]);
     let (row, errs, meta): (
       MySqlSubtitleTrackRow,
-      std::vec::Vec<MySqlSubtitleTrackIndexErrorRow>,
-      std::vec::Vec<MySqlSubtitleTrackMetadataRow>,
+      Vec<MySqlSubtitleTrackIndexErrorRow>,
+      Vec<MySqlSubtitleTrackMetadataRow>,
     ) = (&t).into();
-    let err_refs: std::vec::Vec<MySqlSubtitleTrackIndexErrorRowRef<'_>> = errs
+    let err_refs: Vec<MySqlSubtitleTrackIndexErrorRowRef<'_>> = errs
       .iter()
       .map(MySqlSubtitleTrackIndexErrorRow::as_ref)
       .collect();
-    let meta_refs: std::vec::Vec<MySqlSubtitleTrackMetadataRowRef<'_>> = meta
+    let meta_refs: Vec<MySqlSubtitleTrackMetadataRowRef<'_>> = meta
       .iter()
       .map(MySqlSubtitleTrackMetadataRow::as_ref)
       .collect();

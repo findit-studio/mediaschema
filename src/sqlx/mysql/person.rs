@@ -7,6 +7,8 @@
 //! (`0 = AutoMatched, 1 = UserConfirmed`). Wall-clock timestamps are
 //! `BIGINT` ms-since-epoch.
 
+use std::vec::Vec;
+
 use crate::{
   domain::{
     vo::{Provenance, VoiceFingerprint},
@@ -20,12 +22,12 @@ use crate::{
 
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlPersonRow {
-  pub id: std::vec::Vec<u8>,
+  pub id: Vec<u8>,
   pub name: String,
   /// `0 = AutoMatched`, `1 = UserConfirmed`.
   pub confidence: i16,
   /// Discriminates presence of the flattened `VoiceFingerprint` VO.
-  pub voiceprint_vector_id: Option<std::vec::Vec<u8>>,
+  pub voiceprint_vector_id: Option<Vec<u8>>,
   pub voiceprint_dimensions: Option<u32>,
   pub voiceprint_extracted_at_ms: Option<i64>,
   pub voiceprint_confidence: Option<f32>,

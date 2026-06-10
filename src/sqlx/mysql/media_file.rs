@@ -16,6 +16,8 @@
 //! The hash carries no domain information — `TryFrom` only verifies its
 //! length (32 bytes).
 
+use std::vec::Vec;
+
 use sha2::{Digest, Sha256};
 
 use crate::{
@@ -28,19 +30,19 @@ use crate::{
 
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct MySqlMediaFileRow {
-  pub id: std::vec::Vec<u8>,
-  pub media_id: std::vec::Vec<u8>,
+  pub id: Vec<u8>,
+  pub media_id: Vec<u8>,
   /// Filesystem creation time, ms-since-epoch; NULL = absent.
   pub created_at_ms: Option<i64>,
   /// `Location::Local` volume identity.
-  pub location_volume: std::vec::Vec<u8>,
+  pub location_volume: Vec<u8>,
   /// `Location::Local` path components joined by `/`.
   pub location_path: String,
   /// SHA-256 of `location_path` (32 bytes); backs the
   /// `UNIQUE (location_volume, location_path_hash)` natural-key index.
-  pub location_path_hash: std::vec::Vec<u8>,
-  pub watched_location_id: std::vec::Vec<u8>,
-  pub watch_volume: std::vec::Vec<u8>,
+  pub location_path_hash: Vec<u8>,
+  pub watched_location_id: Vec<u8>,
+  pub watch_volume: Vec<u8>,
 }
 
 /// Join a `Location`'s path components with `/` for storage.
@@ -50,7 +52,7 @@ fn location_path(location: &Location<Uuid7>) -> String {
       .components_slice()
       .iter()
       .map(AsRef::as_ref)
-      .collect::<std::vec::Vec<&str>>()
+      .collect::<Vec<&str>>()
       .join("/"),
   }
 }

@@ -403,7 +403,7 @@ mod tests {
     bag.insert(SmolStr::from("genre"), SmolStr::from("classical"));
     bag.insert(SmolStr::from("year"), SmolStr::from("1808"));
     let c = c.try_with_metadata(bag).expect("ok");
-    let keys: std::vec::Vec<&str> = c.metadata_ref().keys().map(|k| k.as_str()).collect();
+    let keys: Vec<&str> = c.metadata_ref().keys().map(|k| k.as_str()).collect();
     assert_eq!(keys, std::vec!["artist", "genre", "year"]);
   }
 }

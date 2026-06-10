@@ -5,6 +5,8 @@
 //! Encode emits `(0..)`; decode sorts by `ordinal` before inserting into
 //! the `IndexMap` so the original order is faithfully recovered.
 
+use std::vec::Vec;
+
 use core::num::NonZeroU32;
 
 use indexmap::IndexMap;
@@ -50,7 +52,7 @@ pub struct PgChapterMetadataRow {
   pub value: String,
 }
 
-impl From<&Chapter<Uuid7>> for (PgChapterRow, std::vec::Vec<PgChapterMetadataRow>) {
+impl From<&Chapter<Uuid7>> for (PgChapterRow, Vec<PgChapterMetadataRow>) {
   fn from(c: &Chapter<Uuid7>) -> Self {
     let id = uuid7_to_uuid(*c.id_ref());
     let row = PgChapterRow {
@@ -85,7 +87,7 @@ impl From<&Chapter<Uuid7>> for (PgChapterRow, std::vec::Vec<PgChapterMetadataRow
 /// order is recovered.
 pub fn chapter_from_rows(
   row: PgChapterRow,
-  mut metadata: std::vec::Vec<PgChapterMetadataRow>,
+  mut metadata: Vec<PgChapterMetadataRow>,
 ) -> Result<Chapter<Uuid7>, SqlxError> {
   let id = uuid_to_uuid7(row.id)?;
   let media_id = uuid_to_uuid7(row.media_id)?;

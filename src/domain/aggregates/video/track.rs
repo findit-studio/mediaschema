@@ -8,6 +8,8 @@
 //! `Provenance` (rev 7 hoist — replaces per-`Scene`/per-`Keyframe`
 //! provenance).
 
+use std::vec::Vec;
+
 use derive_more::IsVariant;
 use mediatime::Timestamp;
 use smol_str::SmolStr;
@@ -111,7 +113,7 @@ pub struct VideoTrack<Id = Uuid7> {
   auto_selected: bool,
 
   // --- per-stream segmented refs ---
-  scenes: std::vec::Vec<Id>,
+  scenes: Vec<Id>,
 
   // --- container-level AVDictionary bag ---
   /// Container `AVDictionary` entries from this stream's metadata,
@@ -121,7 +123,7 @@ pub struct VideoTrack<Id = Uuid7> {
 
   // --- indexing state ---
   index_status: VideoIndexStatus,
-  index_errors: std::vec::Vec<ErrorInfo>,
+  index_errors: Vec<ErrorInfo>,
 
   // --- analysis-run reproducibility (rev 7 hoist) ---
   provenance: Provenance,
@@ -178,10 +180,10 @@ impl VideoTrack<Uuid7> {
       disposition: TrackDisposition::empty(),
       is_primary: false,
       auto_selected: false,
-      scenes: std::vec::Vec::new(),
+      scenes: Vec::new(),
       metadata: IndexMap::new(),
       index_status: VideoIndexStatus::empty(),
-      index_errors: std::vec::Vec::new(),
+      index_errors: Vec::new(),
       provenance: Provenance::new(),
     })
   }
@@ -189,14 +191,14 @@ impl VideoTrack<Uuid7> {
   /// Builder: replace the `scenes` child-ref id-list.
   #[must_use]
   #[inline(always)]
-  pub fn with_scenes(mut self, v: impl Into<std::vec::Vec<Uuid7>>) -> Self {
+  pub fn with_scenes(mut self, v: impl Into<Vec<Uuid7>>) -> Self {
     self.scenes = v.into();
     self
   }
 
   /// In-place mutator for the `scenes` child-ref id-list.
   #[inline(always)]
-  pub fn set_scenes(&mut self, v: impl Into<std::vec::Vec<Uuid7>>) -> &mut Self {
+  pub fn set_scenes(&mut self, v: impl Into<Vec<Uuid7>>) -> &mut Self {
     self.scenes = v.into();
     self
   }
@@ -858,12 +860,12 @@ impl<Id> VideoTrack<Id> {
   }
   #[must_use]
   #[inline(always)]
-  pub fn with_index_errors(mut self, v: impl Into<std::vec::Vec<ErrorInfo>>) -> Self {
+  pub fn with_index_errors(mut self, v: impl Into<Vec<ErrorInfo>>) -> Self {
     self.index_errors = v.into();
     self
   }
   #[inline(always)]
-  pub fn set_index_errors(&mut self, v: impl Into<std::vec::Vec<ErrorInfo>>) -> &mut Self {
+  pub fn set_index_errors(&mut self, v: impl Into<Vec<ErrorInfo>>) -> &mut Self {
     self.index_errors = v.into();
     self
   }
@@ -1045,7 +1047,7 @@ mod tests {
     t.try_set_dimensions(Dimensions::new(0, 0)).unwrap();
     t.set_is_primary(false);
     t.set_index_status(VideoIndexStatus::empty());
-    t.set_scenes(std::vec::Vec::<Uuid7>::new());
+    t.set_scenes(Vec::<Uuid7>::new());
     assert_eq!(t.bit_rate(), 0);
     assert_eq!(t.dimensions(), Dimensions::new(0, 0));
     assert!(!t.is_primary());

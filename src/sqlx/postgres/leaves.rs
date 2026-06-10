@@ -6,6 +6,8 @@
 //! join table. Wall-clock timestamps are `BIGINT`
 //! milliseconds-since-epoch.
 
+use std::vec::Vec;
+
 use uuid::Uuid;
 
 use crate::{
@@ -293,12 +295,7 @@ pub struct PgSceneAnnotationUserTagRow {
   pub ordinal: i32,
 }
 
-impl From<&SceneAnnotation<Uuid7>>
-  for (
-    PgSceneAnnotationRow,
-    std::vec::Vec<PgSceneAnnotationUserTagRow>,
-  )
-{
+impl From<&SceneAnnotation<Uuid7>> for (PgSceneAnnotationRow, Vec<PgSceneAnnotationUserTagRow>) {
   fn from(a: &SceneAnnotation<Uuid7>) -> Self {
     let annotation = uuid7_to_uuid(*a.id_ref());
     let joins = a
@@ -323,25 +320,17 @@ impl From<&SceneAnnotation<Uuid7>>
   }
 }
 
-impl
-  TryFrom<(
-    PgSceneAnnotationRow,
-    std::vec::Vec<PgSceneAnnotationUserTagRow>,
-  )> for SceneAnnotation<Uuid7>
-{
+impl TryFrom<(PgSceneAnnotationRow, Vec<PgSceneAnnotationUserTagRow>)> for SceneAnnotation<Uuid7> {
   type Error = SqlxError;
 
   fn try_from(
-    (r, mut joins): (
-      PgSceneAnnotationRow,
-      std::vec::Vec<PgSceneAnnotationUserTagRow>,
-    ),
+    (r, mut joins): (PgSceneAnnotationRow, Vec<PgSceneAnnotationUserTagRow>),
   ) -> Result<Self, Self::Error> {
     let id = uuid_to_uuid7(r.id)?;
     let scene_id = uuid_to_uuid7(r.scene_id)?;
     let updated_at = millis_to_timestamp(r.updated_at_ms)?;
     joins.sort_by_key(|j| j.ordinal);
-    let mut tags = std::vec::Vec::with_capacity(joins.len());
+    let mut tags = Vec::with_capacity(joins.len());
     for j in joins {
       tags.push(uuid_to_uuid7(j.user_tag_id)?);
     }
@@ -395,7 +384,7 @@ impl PgSceneAnnotationRow {
 impl<'r>
   TryFrom<(
     PgSceneAnnotationRowRef<'r>,
-    std::vec::Vec<PgSceneAnnotationUserTagRow>,
+    Vec<PgSceneAnnotationUserTagRow>,
   )> for SceneAnnotation<Uuid7>
 {
   type Error = SqlxError;
@@ -403,14 +392,14 @@ impl<'r>
   fn try_from(
     (r, mut joins): (
       PgSceneAnnotationRowRef<'r>,
-      std::vec::Vec<PgSceneAnnotationUserTagRow>,
+      Vec<PgSceneAnnotationUserTagRow>,
     ),
   ) -> Result<Self, Self::Error> {
     let id = uuid_to_uuid7(r.id)?;
     let scene = uuid_to_uuid7(r.scene_id)?;
     let updated_at = millis_to_timestamp(r.updated_at_ms)?;
     joins.sort_by_key(|j| j.ordinal);
-    let mut tags = std::vec::Vec::with_capacity(joins.len());
+    let mut tags = Vec::with_capacity(joins.len());
     for j in joins {
       tags.push(uuid_to_uuid7(j.user_tag_id)?);
     }
@@ -650,10 +639,7 @@ mod tests {
       .unwrap()
       .with_favorite(true)
       .with_user_tags(std::vec![t1, t2]);
-    let tuple: (
-      PgSceneAnnotationRow,
-      std::vec::Vec<PgSceneAnnotationUserTagRow>,
-    ) = (&a).into();
+    let tuple: (PgSceneAnnotationRow, Vec<PgSceneAnnotationUserTagRow>) = (&a).into();
     assert_eq!(tuple.1.len(), 2);
     let a2: SceneAnnotation<Uuid7> = tuple.try_into().unwrap();
     assert_eq!(a.id_ref(), a2.id_ref());
@@ -669,10 +655,7 @@ mod tests {
     let a = SceneAnnotation::try_new(Uuid7::new(), Uuid7::new(), ts())
       .unwrap()
       .with_user_tags(std::vec![t1, t2, t3]);
-    let (row, mut joins): (
-      PgSceneAnnotationRow,
-      std::vec::Vec<PgSceneAnnotationUserTagRow>,
-    ) = (&a).into();
+    let (row, mut joins): (PgSceneAnnotationRow, Vec<PgSceneAnnotationUserTagRow>) = (&a).into();
     // Shuffle the join rows — TryFrom must sort by ordinal.
     joins.reverse();
     let a2: SceneAnnotation<Uuid7> = (row, joins).try_into().unwrap();
@@ -719,10 +702,7 @@ mod tests {
       .with_favorite(true)
       .with_user_tags(std::vec![t1])
       .with_note("hi");
-    let (row, joins): (
-      PgSceneAnnotationRow,
-      std::vec::Vec<PgSceneAnnotationUserTagRow>,
-    ) = (&a).into();
+    let (row, joins): (PgSceneAnnotationRow, Vec<PgSceneAnnotationUserTagRow>) = (&a).into();
     let a2: SceneAnnotation<Uuid7> = (row.as_ref(), joins).try_into().unwrap();
     assert_eq!(a, a2);
   }
