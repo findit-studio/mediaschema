@@ -10,6 +10,8 @@
 //! fields (locked), everything user-editable lives here. Smart folders
 //! target `Scene` (locked SF-target = scene-level).
 
+use std::vec::Vec;
+
 use derive_more::IsVariant;
 use jiff::Timestamp;
 use smol_str::SmolStr;
@@ -136,7 +138,7 @@ pub struct SceneAnnotation<Id = Uuid7> {
   id: Id,
   scene_id: Id,
   favorite: bool,
-  user_tags: std::vec::Vec<Id>,
+  user_tags: Vec<Id>,
   rating: Option<u8>,
   note: SmolStr,
   updated_at: Timestamp,
@@ -162,7 +164,7 @@ impl SceneAnnotation<Uuid7> {
       id,
       scene_id,
       favorite: false,
-      user_tags: std::vec::Vec::new(),
+      user_tags: Vec::new(),
       rating: None,
       note: SmolStr::default(),
       updated_at,
@@ -228,7 +230,7 @@ impl<Id> SceneAnnotation<Id> {
   /// Builder: replace `user_tags`.
   #[inline(always)]
   #[must_use]
-  pub fn with_user_tags(mut self, tags: impl Into<std::vec::Vec<Id>>) -> Self {
+  pub fn with_user_tags(mut self, tags: impl Into<Vec<Id>>) -> Self {
     self.user_tags = tags.into();
     self
   }
@@ -258,7 +260,7 @@ impl<Id> SceneAnnotation<Id> {
 
   /// In-place mutator for `user_tags`.
   #[inline(always)]
-  pub fn set_user_tags(&mut self, tags: impl Into<std::vec::Vec<Id>>) -> &mut Self {
+  pub fn set_user_tags(&mut self, tags: impl Into<Vec<Id>>) -> &mut Self {
     self.user_tags = tags.into();
     self
   }

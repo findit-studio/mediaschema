@@ -90,11 +90,11 @@ pub struct Media<Id = Uuid7> {
   nb_chapters: u32,
   /// Reverse lookup → this content's [`MediaFile`](super::MediaFile)
   /// copies (the reverse side of `MediaFile.media_id`).
-  files: std::vec::Vec<Id>,
+  files: Vec<Id>,
   /// Reverse lookup → this content's [`Chapter`](super::Chapter) rows
   /// (the reverse side of `Chapter.media_id`). Empty until the chapter
   /// probe populates it.
-  chapters: std::vec::Vec<Id>,
+  chapters: Vec<Id>,
   /// FK → `Video` facet (`None` = no video stream on this file).
   video_id: Option<Id>,
   /// FK → `Audio` facet (`None` = no audio stream).
@@ -150,8 +150,8 @@ impl Media<Uuid7> {
       kind,
       nb_streams: 0,
       nb_chapters: 0,
-      files: std::vec::Vec::new(),
-      chapters: std::vec::Vec::new(),
+      files: Vec::new(),
+      chapters: Vec::new(),
       video_id: None,
       audio_id: None,
       subtitle_id: None,
@@ -312,7 +312,7 @@ impl<Id> Media<Id> {
   /// Builder: replace the whole `files` reverse-lookup list.
   #[inline(always)]
   #[must_use]
-  pub fn with_files(mut self, files: std::vec::Vec<Id>) -> Self {
+  pub fn with_files(mut self, files: Vec<Id>) -> Self {
     self.files = files;
     self
   }
@@ -328,7 +328,7 @@ impl<Id> Media<Id> {
   /// Builder: replace the whole `chapters` reverse-lookup list.
   #[inline(always)]
   #[must_use]
-  pub fn with_chapters(mut self, chapters: std::vec::Vec<Id>) -> Self {
+  pub fn with_chapters(mut self, chapters: Vec<Id>) -> Self {
     self.chapters = chapters;
     self
   }
@@ -445,14 +445,14 @@ impl<Id> Media<Id> {
 
   /// In-place mutator: replace the whole `files` reverse-lookup list.
   #[inline(always)]
-  pub fn set_files(&mut self, files: std::vec::Vec<Id>) -> &mut Self {
+  pub fn set_files(&mut self, files: Vec<Id>) -> &mut Self {
     self.files = files;
     self
   }
 
   /// In-place mutator: replace the whole `chapters` reverse-lookup list.
   #[inline(always)]
-  pub fn set_chapters(&mut self, chapters: std::vec::Vec<Id>) -> &mut Self {
+  pub fn set_chapters(&mut self, chapters: Vec<Id>) -> &mut Self {
     self.chapters = chapters;
     self
   }

@@ -40,6 +40,8 @@
 //! | `temperature: optional float`    | `temperature: Option<f32>`    | unset ⇒ `None`                    |
 //! | `voice_fingerprint: optional VoiceFingerprint` | `voice_fingerprint: Option<VoiceFingerprint<Uuid7>>` | shared helper |
 
+use std::vec::Vec;
+
 use ::buffa::bytes::Bytes;
 use mediaframe::lang::Language;
 use smol_str::SmolStr;
@@ -236,7 +238,7 @@ impl TryFrom<&wire::AudioSegment> for AudioSegment<Uuid7> {
     };
     let text = localized_text_from_wire(&w.text);
     let language = language_from_wire(&w.language)?;
-    let words: std::vec::Vec<Word> = w
+    let words: Vec<Word> = w
       .words
       .iter()
       .map(Word::try_from)

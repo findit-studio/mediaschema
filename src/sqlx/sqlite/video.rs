@@ -21,6 +21,8 @@
 //! fields (`Video::tracks`, `VideoTrack::scenes`, `Scene::keyframes`)
 //! are NOT stored — they are derived by querying the child table's FK.
 
+use std::vec::Vec;
+
 use bytes::Bytes;
 use indexmap::IndexMap;
 use mediaframe::{
@@ -70,8 +72,8 @@ use crate::{
 /// `total_scenes` + the flattened `track_progress` rollup are.
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct SqliteVideoRow {
-  pub id: std::vec::Vec<u8>,
-  pub media_id: std::vec::Vec<u8>,
+  pub id: Vec<u8>,
+  pub media_id: Vec<u8>,
   pub total_scenes: i64,
   pub track_progress_total: i64,
   pub track_progress_indexed: i64,
@@ -129,8 +131,8 @@ impl TryFrom<SqliteVideoRow> for Video<Uuid7> {
 /// `StereoMode::to_u32`; `DolbyVisionConfig` → 5 cols (`dovi_*`).
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteVideoTrackRow {
-  pub id: std::vec::Vec<u8>,
-  pub video_id: std::vec::Vec<u8>,
+  pub id: Vec<u8>,
+  pub video_id: Vec<u8>,
 
   // source locators
   pub stream_index: Option<i64>,
@@ -234,7 +236,7 @@ pub struct SqliteVideoTrackRow {
 /// One `video_track_index_error` child row.
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct SqliteVideoTrackIndexErrorRow {
-  pub video_track_id: std::vec::Vec<u8>,
+  pub video_track_id: Vec<u8>,
   pub ordinal: i64,
   pub code: i64,
   pub message: String,
@@ -245,7 +247,7 @@ pub struct SqliteVideoTrackIndexErrorRow {
 /// order. `video_track_from_rows` sorts by `ordinal` on decode.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteVideoTrackMetadataRow {
-  pub video_track_id: std::vec::Vec<u8>,
+  pub video_track_id: Vec<u8>,
   pub ordinal: i64,
   pub key: String,
   pub value: String,
@@ -254,8 +256,8 @@ pub struct SqliteVideoTrackMetadataRow {
 impl From<&VideoTrack<Uuid7>>
   for (
     SqliteVideoTrackRow,
-    std::vec::Vec<SqliteVideoTrackIndexErrorRow>,
-    std::vec::Vec<SqliteVideoTrackMetadataRow>,
+    Vec<SqliteVideoTrackIndexErrorRow>,
+    Vec<SqliteVideoTrackMetadataRow>,
   )
 {
   fn from(t: &VideoTrack<Uuid7>) -> Self {
@@ -375,8 +377,8 @@ impl From<&VideoTrack<Uuid7>>
 impl
   TryFrom<(
     SqliteVideoTrackRow,
-    std::vec::Vec<SqliteVideoTrackIndexErrorRow>,
-    std::vec::Vec<SqliteVideoTrackMetadataRow>,
+    Vec<SqliteVideoTrackIndexErrorRow>,
+    Vec<SqliteVideoTrackMetadataRow>,
   )> for VideoTrack<Uuid7>
 {
   type Error = SqlxError;
@@ -384,8 +386,8 @@ impl
   fn try_from(
     (r, errors, metadata): (
       SqliteVideoTrackRow,
-      std::vec::Vec<SqliteVideoTrackIndexErrorRow>,
-      std::vec::Vec<SqliteVideoTrackMetadataRow>,
+      Vec<SqliteVideoTrackIndexErrorRow>,
+      Vec<SqliteVideoTrackMetadataRow>,
     ),
   ) -> Result<Self, Self::Error> {
     video_track_from_rows(r, errors, metadata)
@@ -396,8 +398,8 @@ impl
 /// `metadata` rows.
 pub fn video_track_from_rows(
   r: SqliteVideoTrackRow,
-  mut errors: std::vec::Vec<SqliteVideoTrackIndexErrorRow>,
-  mut metadata: std::vec::Vec<SqliteVideoTrackMetadataRow>,
+  mut errors: Vec<SqliteVideoTrackIndexErrorRow>,
+  mut metadata: Vec<SqliteVideoTrackMetadataRow>,
 ) -> Result<VideoTrack<Uuid7>, SqlxError> {
   {
     let id = bytes_to_uuid7(&r.id)?;
@@ -638,7 +640,7 @@ pub fn video_track_from_rows(
       )?));
 
     errors.sort_by_key(|e| e.ordinal);
-    let mut infos = std::vec::Vec::with_capacity(errors.len());
+    let mut infos = Vec::with_capacity(errors.len());
     for e in errors {
       let code = u32_from_i32(e.code, "VideoTrack.index_error.code")?;
       infos.push(ErrorInfo::new(ErrorCode::from_u32(code), e.message));
@@ -672,8 +674,8 @@ pub fn video_track_from_rows(
 /// lives on the parent `video_track`.
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct SqliteSceneRow {
-  pub id: std::vec::Vec<u8>,
-  pub video_track_id: std::vec::Vec<u8>,
+  pub id: Vec<u8>,
+  pub video_track_id: Vec<u8>,
   pub index: i64,
   pub span_start_pts: i64,
   pub span_end_pts: i64,
@@ -731,10 +733,10 @@ pub fn scene_from_row(
 /// parent `video_track`.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeRow {
-  pub id: std::vec::Vec<u8>,
-  pub scene_id: std::vec::Vec<u8>,
+  pub id: Vec<u8>,
+  pub scene_id: Vec<u8>,
   pub pts: i64,
-  pub data: std::vec::Vec<u8>,
+  pub data: Vec<u8>,
   pub mime: String,
   pub width: i64,
   pub height: i64,
@@ -757,7 +759,7 @@ pub struct SqliteKeyframeRow {
 /// `keyframe_classification` — apple-vision `Detection` `{label,confidence}`.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeClassificationRow {
-  pub keyframe_id: std::vec::Vec<u8>,
+  pub keyframe_id: Vec<u8>,
   pub ordinal: i64,
   pub label: String,
   pub confidence: f32,
@@ -766,7 +768,7 @@ pub struct SqliteKeyframeClassificationRow {
 /// `keyframe_object` — `ObjectDetection`: `Detection` + optional bbox.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeObjectRow {
-  pub keyframe_id: std::vec::Vec<u8>,
+  pub keyframe_id: Vec<u8>,
   pub ordinal: i64,
   pub label: String,
   pub confidence: f32,
@@ -780,7 +782,7 @@ pub struct SqliteKeyframeObjectRow {
 /// `keyframe_action` — apple-vision body-pose-derived action `Detection`.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeActionRow {
-  pub keyframe_id: std::vec::Vec<u8>,
+  pub keyframe_id: Vec<u8>,
   pub ordinal: i64,
   pub label: String,
   pub confidence: f32,
@@ -789,7 +791,7 @@ pub struct SqliteKeyframeActionRow {
 /// `keyframe_text_detection` — OCR text + confidence + bbox.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeTextDetectionRow {
-  pub keyframe_id: std::vec::Vec<u8>,
+  pub keyframe_id: Vec<u8>,
   pub ordinal: i64,
   pub text: String,
   pub confidence: f32,
@@ -802,7 +804,7 @@ pub struct SqliteKeyframeTextDetectionRow {
 /// `keyframe_barcode` — payload + symbology + confidence + bbox.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeBarcodeRow {
-  pub keyframe_id: std::vec::Vec<u8>,
+  pub keyframe_id: Vec<u8>,
   pub ordinal: i64,
   pub payload: String,
   pub symbology: String,
@@ -817,7 +819,7 @@ pub struct SqliteKeyframeBarcodeRow {
 /// `0` for attention, `1` for objectness).
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeSaliencyRow {
-  pub keyframe_id: std::vec::Vec<u8>,
+  pub keyframe_id: Vec<u8>,
   pub kind: i64,
   pub ordinal: i64,
   pub bbox_x: f32,
@@ -830,7 +832,7 @@ pub struct SqliteKeyframeSaliencyRow {
 /// `keyframe_document_segment` — 4 normalised corners + confidence.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeDocumentSegmentRow {
-  pub keyframe_id: std::vec::Vec<u8>,
+  pub keyframe_id: Vec<u8>,
   pub ordinal: i64,
   pub tl_x: f32,
   pub tl_y: f32,
@@ -846,7 +848,7 @@ pub struct SqliteKeyframeDocumentSegmentRow {
 /// `keyframe_color` — colorthief dominant colour.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeColorRow {
-  pub keyframe_id: std::vec::Vec<u8>,
+  pub keyframe_id: Vec<u8>,
   pub ordinal: i64,
   pub rgba: i64,
   pub name: String,
@@ -860,7 +862,7 @@ pub struct SqliteKeyframeColorRow {
 /// shape). `scope` = `0` human-subject, `1` animal-subject.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeSubjectRow {
-  pub keyframe_id: std::vec::Vec<u8>,
+  pub keyframe_id: Vec<u8>,
   pub scope: i64,
   pub ordinal: i64,
   pub label: String,
@@ -876,7 +878,7 @@ pub struct SqliteKeyframeSubjectRow {
 /// `face_rectangles`.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeFaceRow {
-  pub keyframe_id: std::vec::Vec<u8>,
+  pub keyframe_id: Vec<u8>,
   pub kind: i64,
   pub ordinal: i64,
   pub bbox_x: f32,
@@ -894,7 +896,7 @@ pub struct SqliteKeyframeFaceRow {
 /// share the shape). `scope` = `0` human, `1` animal.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeBodyPoseRow {
-  pub keyframe_id: std::vec::Vec<u8>,
+  pub keyframe_id: Vec<u8>,
   pub scope: i64,
   pub ordinal: i64,
   pub bbox_x: f32,
@@ -908,7 +910,7 @@ pub struct SqliteKeyframeBodyPoseRow {
 /// `scope` = `0` human-body, `1` animal-body, `2` hand.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeBodyPoseJointRow {
-  pub keyframe_id: std::vec::Vec<u8>,
+  pub keyframe_id: Vec<u8>,
   pub scope: i64,
   pub parent_ordinal: i64,
   pub ordinal: i64,
@@ -921,7 +923,7 @@ pub struct SqliteKeyframeBodyPoseJointRow {
 /// `keyframe_hand_pose` — 2-D hand-pose detection (humans only).
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeHandPoseRow {
-  pub keyframe_id: std::vec::Vec<u8>,
+  pub keyframe_id: Vec<u8>,
   pub ordinal: i64,
   pub bbox_x: f32,
   pub bbox_y: f32,
@@ -934,7 +936,7 @@ pub struct SqliteKeyframeHandPoseRow {
 /// `keyframe_body_pose_3d` — 3-D body-pose detection.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeBodyPose3DRow {
-  pub keyframe_id: std::vec::Vec<u8>,
+  pub keyframe_id: Vec<u8>,
   pub ordinal: i64,
   pub confidence: f32,
   pub body_height: f32,
@@ -944,7 +946,7 @@ pub struct SqliteKeyframeBodyPose3DRow {
 /// `keyframe_body_pose_3d_joint` — joint of a 3-D body-pose row.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeBodyPose3DJointRow {
-  pub keyframe_id: std::vec::Vec<u8>,
+  pub keyframe_id: Vec<u8>,
   pub parent_ordinal: i64,
   pub ordinal: i64,
   pub name: String,
@@ -958,7 +960,7 @@ pub struct SqliteKeyframeBodyPose3DJointRow {
 /// `0` per-person instance mask, `1` whole-frame segmentation mask.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeMaskRow {
-  pub keyframe_id: std::vec::Vec<u8>,
+  pub keyframe_id: Vec<u8>,
   pub kind: i64,
   pub ordinal: i64,
   pub bbox_x: f32,
@@ -969,14 +971,14 @@ pub struct SqliteKeyframeMaskRow {
   pub instance_index: Option<i64>,
   pub width: i64,
   pub height: i64,
-  pub data: std::vec::Vec<u8>,
+  pub data: Vec<u8>,
 }
 
 /// `keyframe_face_landmarks` — bbox + confidence header for a
 /// face-landmark detection.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeFaceLandmarksRow {
-  pub keyframe_id: std::vec::Vec<u8>,
+  pub keyframe_id: Vec<u8>,
   pub ordinal: i64,
   pub bbox_x: f32,
   pub bbox_y: f32,
@@ -989,7 +991,7 @@ pub struct SqliteKeyframeFaceLandmarksRow {
 /// face-landmarks row.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeFaceLandmarkRegionRow {
-  pub keyframe_id: std::vec::Vec<u8>,
+  pub keyframe_id: Vec<u8>,
   pub parent_ordinal: i64,
   pub ordinal: i64,
   pub name: String,
@@ -998,7 +1000,7 @@ pub struct SqliteKeyframeFaceLandmarkRegionRow {
 /// `keyframe_face_landmark_point` — a normalised point inside a region.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteKeyframeFaceLandmarkPointRow {
-  pub keyframe_id: std::vec::Vec<u8>,
+  pub keyframe_id: Vec<u8>,
   pub parent_ordinal: i64,
   pub region_ordinal: i64,
   pub ordinal: i64,
@@ -1012,7 +1014,7 @@ pub struct SqliteKeyframeFaceLandmarkPointRow {
 /// `4` = mood, `5` = emotion, `6` = lighting.
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct SqliteKeyframeVlmLabelRow {
-  pub keyframe_id: std::vec::Vec<u8>,
+  pub keyframe_id: Vec<u8>,
   pub kind: i64,
   pub ordinal: i64,
   pub src: String,
@@ -1026,26 +1028,26 @@ pub struct SqliteKeyframeVlmLabelRow {
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct SqliteKeyframeRows {
   pub keyframe: Option<SqliteKeyframeRow>,
-  pub classifications: std::vec::Vec<SqliteKeyframeClassificationRow>,
-  pub objects: std::vec::Vec<SqliteKeyframeObjectRow>,
-  pub actions: std::vec::Vec<SqliteKeyframeActionRow>,
-  pub text_detections: std::vec::Vec<SqliteKeyframeTextDetectionRow>,
-  pub barcodes: std::vec::Vec<SqliteKeyframeBarcodeRow>,
-  pub saliencies: std::vec::Vec<SqliteKeyframeSaliencyRow>,
-  pub document_segments: std::vec::Vec<SqliteKeyframeDocumentSegmentRow>,
-  pub colors: std::vec::Vec<SqliteKeyframeColorRow>,
-  pub subjects: std::vec::Vec<SqliteKeyframeSubjectRow>,
-  pub faces: std::vec::Vec<SqliteKeyframeFaceRow>,
-  pub body_poses: std::vec::Vec<SqliteKeyframeBodyPoseRow>,
-  pub body_pose_joints: std::vec::Vec<SqliteKeyframeBodyPoseJointRow>,
-  pub hand_poses: std::vec::Vec<SqliteKeyframeHandPoseRow>,
-  pub body_poses_3d: std::vec::Vec<SqliteKeyframeBodyPose3DRow>,
-  pub body_pose_3d_joints: std::vec::Vec<SqliteKeyframeBodyPose3DJointRow>,
-  pub masks: std::vec::Vec<SqliteKeyframeMaskRow>,
-  pub face_landmarks: std::vec::Vec<SqliteKeyframeFaceLandmarksRow>,
-  pub face_landmark_regions: std::vec::Vec<SqliteKeyframeFaceLandmarkRegionRow>,
-  pub face_landmark_points: std::vec::Vec<SqliteKeyframeFaceLandmarkPointRow>,
-  pub vlm_labels: std::vec::Vec<SqliteKeyframeVlmLabelRow>,
+  pub classifications: Vec<SqliteKeyframeClassificationRow>,
+  pub objects: Vec<SqliteKeyframeObjectRow>,
+  pub actions: Vec<SqliteKeyframeActionRow>,
+  pub text_detections: Vec<SqliteKeyframeTextDetectionRow>,
+  pub barcodes: Vec<SqliteKeyframeBarcodeRow>,
+  pub saliencies: Vec<SqliteKeyframeSaliencyRow>,
+  pub document_segments: Vec<SqliteKeyframeDocumentSegmentRow>,
+  pub colors: Vec<SqliteKeyframeColorRow>,
+  pub subjects: Vec<SqliteKeyframeSubjectRow>,
+  pub faces: Vec<SqliteKeyframeFaceRow>,
+  pub body_poses: Vec<SqliteKeyframeBodyPoseRow>,
+  pub body_pose_joints: Vec<SqliteKeyframeBodyPoseJointRow>,
+  pub hand_poses: Vec<SqliteKeyframeHandPoseRow>,
+  pub body_poses_3d: Vec<SqliteKeyframeBodyPose3DRow>,
+  pub body_pose_3d_joints: Vec<SqliteKeyframeBodyPose3DJointRow>,
+  pub masks: Vec<SqliteKeyframeMaskRow>,
+  pub face_landmarks: Vec<SqliteKeyframeFaceLandmarksRow>,
+  pub face_landmark_regions: Vec<SqliteKeyframeFaceLandmarkRegionRow>,
+  pub face_landmark_points: Vec<SqliteKeyframeFaceLandmarkPointRow>,
+  pub vlm_labels: Vec<SqliteKeyframeVlmLabelRow>,
 }
 
 impl From<&Keyframe<Uuid7>> for SqliteKeyframeRows {
@@ -1370,7 +1372,7 @@ pub fn keyframe_from_rows(
 
     // classifications
     let mut classifications = sort_by_ordinal(rows.classifications, |r| r.ordinal);
-    let mut built = std::vec::Vec::with_capacity(classifications.len());
+    let mut built = Vec::with_capacity(classifications.len());
     for r in classifications.drain(..) {
       built.push(Detection::try_new(r.label, r.confidence).map_err(detection_err)?);
     }
@@ -1378,7 +1380,7 @@ pub fn keyframe_from_rows(
 
     // objects
     let mut objects = sort_by_ordinal(rows.objects, |r| r.ordinal);
-    let mut built = std::vec::Vec::with_capacity(objects.len());
+    let mut built = Vec::with_capacity(objects.len());
     for r in objects.drain(..) {
       let det = Detection::try_new(r.label, r.confidence).map_err(detection_err)?;
       let bbox = if bool_from_i64(r.has_bbox) {
@@ -1400,7 +1402,7 @@ pub fn keyframe_from_rows(
 
     // actions
     let mut actions = sort_by_ordinal(rows.actions, |r| r.ordinal);
-    let mut built = std::vec::Vec::with_capacity(actions.len());
+    let mut built = Vec::with_capacity(actions.len());
     for r in actions.drain(..) {
       let det = Detection::try_new(r.label, r.confidence).map_err(detection_err)?;
       built.push(ActionDetection::new(det));
@@ -1409,7 +1411,7 @@ pub fn keyframe_from_rows(
 
     // text_detections
     let mut texts = sort_by_ordinal(rows.text_detections, |r| r.ordinal);
-    let mut built = std::vec::Vec::with_capacity(texts.len());
+    let mut built = Vec::with_capacity(texts.len());
     for r in texts.drain(..) {
       let bb =
         BoundingBox::try_new(r.bbox_x, r.bbox_y, r.bbox_w, r.bbox_h).map_err(detection_err)?;
@@ -1419,7 +1421,7 @@ pub fn keyframe_from_rows(
 
     // barcodes
     let mut barcodes = sort_by_ordinal(rows.barcodes, |r| r.ordinal);
-    let mut built = std::vec::Vec::with_capacity(barcodes.len());
+    let mut built = Vec::with_capacity(barcodes.len());
     for r in barcodes.drain(..) {
       let bb =
         BoundingBox::try_new(r.bbox_x, r.bbox_y, r.bbox_w, r.bbox_h).map_err(detection_err)?;
@@ -1431,8 +1433,8 @@ pub fn keyframe_from_rows(
     kf = kf.with_barcodes(built);
 
     // saliencies — split by kind (0 = attention, 1 = objectness).
-    let mut attention = std::vec::Vec::new();
-    let mut objectness = std::vec::Vec::new();
+    let mut attention = Vec::new();
+    let mut objectness = Vec::new();
     let mut saliencies = rows.saliencies;
     saliencies.sort_by_key(|r| (r.kind, r.ordinal));
     for r in saliencies {
@@ -1455,7 +1457,7 @@ pub fn keyframe_from_rows(
 
     // document_segments
     let mut docs = sort_by_ordinal(rows.document_segments, |r| r.ordinal);
-    let mut built = std::vec::Vec::with_capacity(docs.len());
+    let mut built = Vec::with_capacity(docs.len());
     for r in docs.drain(..) {
       built.push(
         DocumentSegment::try_new(
@@ -1472,7 +1474,7 @@ pub fn keyframe_from_rows(
 
     // colors
     let mut colors = sort_by_ordinal(rows.colors, |r| r.ordinal);
-    let mut built = std::vec::Vec::with_capacity(colors.len());
+    let mut built = Vec::with_capacity(colors.len());
     for r in colors.drain(..) {
       let rgb = Rgba::from_bits(u32_from_i64(r.rgba, "keyframe_color.rgba")?);
       let population = u32_from_i64(r.population, "keyframe_color.population")?;
@@ -1645,7 +1647,7 @@ fn height_estimation_from_i16(n: i16) -> Result<BodyPose3DHeightEstimation, Sqlx
 }
 
 fn push_saliency(
-  out: &mut std::vec::Vec<SqliteKeyframeSaliencyRow>,
+  out: &mut Vec<SqliteKeyframeSaliencyRow>,
   keyframe_id: &[u8],
   kind: i64,
   ordinal: usize,
@@ -1665,7 +1667,7 @@ fn push_saliency(
 }
 
 fn push_subject(
-  out: &mut std::vec::Vec<SqliteKeyframeSubjectRow>,
+  out: &mut Vec<SqliteKeyframeSubjectRow>,
   keyframe_id: &[u8],
   scope: i64,
   ordinal: usize,
@@ -1686,7 +1688,7 @@ fn push_subject(
 }
 
 fn push_face(
-  out: &mut std::vec::Vec<SqliteKeyframeFaceRow>,
+  out: &mut Vec<SqliteKeyframeFaceRow>,
   keyframe_id: &[u8],
   kind: i64,
   ordinal: usize,
@@ -1710,8 +1712,8 @@ fn push_face(
 }
 
 fn push_body_pose(
-  rows: &mut std::vec::Vec<SqliteKeyframeBodyPoseRow>,
-  joint_rows: &mut std::vec::Vec<SqliteKeyframeBodyPoseJointRow>,
+  rows: &mut Vec<SqliteKeyframeBodyPoseRow>,
+  joint_rows: &mut Vec<SqliteKeyframeBodyPoseJointRow>,
   keyframe_id: &[u8],
   scope: i64,
   ordinal: usize,
@@ -1743,7 +1745,7 @@ fn push_body_pose(
 }
 
 fn push_vlm(
-  out: &mut std::vec::Vec<SqliteKeyframeVlmLabelRow>,
+  out: &mut Vec<SqliteKeyframeVlmLabelRow>,
   keyframe_id: &[u8],
   kind: i64,
   labels: &[LocalizedText],
@@ -1759,7 +1761,7 @@ fn push_vlm(
   }
 }
 
-fn sort_by_ordinal<T, F>(mut v: std::vec::Vec<T>, key: F) -> std::vec::Vec<T>
+fn sort_by_ordinal<T, F>(mut v: Vec<T>, key: F) -> Vec<T>
 where
   F: FnMut(&T) -> i64,
 {
@@ -1769,9 +1771,9 @@ where
 }
 
 fn group_joints_by_scope(
-  rows: std::vec::Vec<SqliteKeyframeBodyPoseJointRow>,
-) -> std::collections::HashMap<i64, std::vec::Vec<SqliteKeyframeBodyPoseJointRow>> {
-  let mut out: std::collections::HashMap<i64, std::vec::Vec<SqliteKeyframeBodyPoseJointRow>> =
+  rows: Vec<SqliteKeyframeBodyPoseJointRow>,
+) -> std::collections::HashMap<i64, Vec<SqliteKeyframeBodyPoseJointRow>> {
+  let mut out: std::collections::HashMap<i64, Vec<SqliteKeyframeBodyPoseJointRow>> =
     std::collections::HashMap::new();
   for r in rows {
     out.entry(r.scope).or_default().push(r);
@@ -1780,16 +1782,10 @@ fn group_joints_by_scope(
 }
 
 fn build_subjects(
-  rows: std::vec::Vec<SqliteKeyframeSubjectRow>,
-) -> Result<
-  (
-    std::vec::Vec<SubjectDetection>,
-    std::vec::Vec<SubjectDetection>,
-  ),
-  SqlxError,
-> {
-  let mut humans = std::vec::Vec::new();
-  let mut animals = std::vec::Vec::new();
+  rows: Vec<SqliteKeyframeSubjectRow>,
+) -> Result<(Vec<SubjectDetection>, Vec<SubjectDetection>), SqlxError> {
+  let mut humans = Vec::new();
+  let mut animals = Vec::new();
   let mut rows = rows;
   rows.sort_by_key(|r| (r.scope, r.ordinal));
   for r in rows {
@@ -1810,10 +1806,10 @@ fn build_subjects(
 }
 
 fn build_faces(
-  rows: std::vec::Vec<SqliteKeyframeFaceRow>,
-) -> Result<(std::vec::Vec<FaceDetection>, std::vec::Vec<FaceDetection>), SqlxError> {
-  let mut faces = std::vec::Vec::new();
-  let mut face_rects = std::vec::Vec::new();
+  rows: Vec<SqliteKeyframeFaceRow>,
+) -> Result<(Vec<FaceDetection>, Vec<FaceDetection>), SqlxError> {
+  let mut faces = Vec::new();
+  let mut face_rects = Vec::new();
   let mut rows = rows;
   rows.sort_by_key(|r| (r.kind, r.ordinal));
   for r in rows {
@@ -1834,20 +1830,11 @@ fn build_faces(
 }
 
 fn build_body_poses(
-  rows: std::vec::Vec<SqliteKeyframeBodyPoseRow>,
-  joints_by_scope: &mut std::collections::HashMap<
-    i64,
-    std::vec::Vec<SqliteKeyframeBodyPoseJointRow>,
-  >,
-) -> Result<
-  (
-    std::vec::Vec<BodyPoseDetection>,
-    std::vec::Vec<BodyPoseDetection>,
-  ),
-  SqlxError,
-> {
-  let mut humans = std::vec::Vec::new();
-  let mut animals = std::vec::Vec::new();
+  rows: Vec<SqliteKeyframeBodyPoseRow>,
+  joints_by_scope: &mut std::collections::HashMap<i64, Vec<SqliteKeyframeBodyPoseJointRow>>,
+) -> Result<(Vec<BodyPoseDetection>, Vec<BodyPoseDetection>), SqlxError> {
+  let mut humans = Vec::new();
+  let mut animals = Vec::new();
   let mut rows = rows;
   rows.sort_by_key(|r| (r.scope, r.ordinal));
 
@@ -1880,9 +1867,9 @@ fn build_body_poses(
 }
 
 fn joints_lookup(
-  rows: std::vec::Vec<SqliteKeyframeBodyPoseJointRow>,
-) -> std::collections::HashMap<i64, std::vec::Vec<SqliteKeyframeBodyPoseJointRow>> {
-  let mut out: std::collections::HashMap<i64, std::vec::Vec<SqliteKeyframeBodyPoseJointRow>> =
+  rows: Vec<SqliteKeyframeBodyPoseJointRow>,
+) -> std::collections::HashMap<i64, Vec<SqliteKeyframeBodyPoseJointRow>> {
+  let mut out: std::collections::HashMap<i64, Vec<SqliteKeyframeBodyPoseJointRow>> =
     std::collections::HashMap::new();
   for r in rows {
     out.entry(r.parent_ordinal).or_default().push(r);
@@ -1894,9 +1881,9 @@ fn joints_lookup(
 }
 
 fn build_joints(
-  rows: std::vec::Vec<SqliteKeyframeBodyPoseJointRow>,
-) -> Result<std::vec::Vec<BodyPoseJoint>, SqlxError> {
-  let mut out = std::vec::Vec::with_capacity(rows.len());
+  rows: Vec<SqliteKeyframeBodyPoseJointRow>,
+) -> Result<Vec<BodyPoseJoint>, SqlxError> {
+  let mut out = Vec::with_capacity(rows.len());
   for r in rows {
     out.push(BodyPoseJoint::try_new(r.name, r.x, r.y, r.confidence).map_err(detection_err)?);
   }
@@ -1904,13 +1891,13 @@ fn build_joints(
 }
 
 fn build_hand_poses(
-  rows: std::vec::Vec<SqliteKeyframeHandPoseRow>,
-  joints: std::vec::Vec<SqliteKeyframeBodyPoseJointRow>,
-) -> Result<std::vec::Vec<HandPoseDetection>, SqlxError> {
+  rows: Vec<SqliteKeyframeHandPoseRow>,
+  joints: Vec<SqliteKeyframeBodyPoseJointRow>,
+) -> Result<Vec<HandPoseDetection>, SqlxError> {
   let joint_lookup = joints_lookup(joints);
   let mut rows = rows;
   rows.sort_by_key(|r| r.ordinal);
-  let mut out = std::vec::Vec::with_capacity(rows.len());
+  let mut out = Vec::with_capacity(rows.len());
   for r in rows {
     let bb = BoundingBox::try_new(r.bbox_x, r.bbox_y, r.bbox_w, r.bbox_h).map_err(detection_err)?;
     let chirality = hand_chirality_from_i16(r.chirality as i16)?;
@@ -1923,13 +1910,11 @@ fn build_hand_poses(
 }
 
 fn build_body_poses_3d(
-  rows: std::vec::Vec<SqliteKeyframeBodyPose3DRow>,
-  joints: std::vec::Vec<SqliteKeyframeBodyPose3DJointRow>,
-) -> Result<std::vec::Vec<BodyPose3DDetection>, SqlxError> {
-  let mut joint_lookup: std::collections::HashMap<
-    i64,
-    std::vec::Vec<SqliteKeyframeBodyPose3DJointRow>,
-  > = std::collections::HashMap::new();
+  rows: Vec<SqliteKeyframeBodyPose3DRow>,
+  joints: Vec<SqliteKeyframeBodyPose3DJointRow>,
+) -> Result<Vec<BodyPose3DDetection>, SqlxError> {
+  let mut joint_lookup: std::collections::HashMap<i64, Vec<SqliteKeyframeBodyPose3DJointRow>> =
+    std::collections::HashMap::new();
   for r in joints {
     joint_lookup.entry(r.parent_ordinal).or_default().push(r);
   }
@@ -1938,11 +1923,11 @@ fn build_body_poses_3d(
   }
   let mut rows = rows;
   rows.sort_by_key(|r| r.ordinal);
-  let mut out = std::vec::Vec::with_capacity(rows.len());
+  let mut out = Vec::with_capacity(rows.len());
   for r in rows {
     let height = height_estimation_from_i16(r.height_estimation as i16)?;
     let joints = joint_lookup.remove(&r.ordinal).unwrap_or_default();
-    let mut built = std::vec::Vec::with_capacity(joints.len());
+    let mut built = Vec::with_capacity(joints.len());
     for j in joints {
       built.push(
         BodyPose3DJoint::try_new(j.name, j.x, j.y, j.z, j.confidence).map_err(detection_err)?,
@@ -1957,16 +1942,16 @@ fn build_body_poses_3d(
 }
 
 fn build_masks(
-  rows: std::vec::Vec<SqliteKeyframeMaskRow>,
+  rows: Vec<SqliteKeyframeMaskRow>,
 ) -> Result<
   (
-    std::vec::Vec<PersonInstanceMaskDetection>,
-    std::vec::Vec<PersonSegmentationMask>,
+    Vec<PersonInstanceMaskDetection>,
+    Vec<PersonSegmentationMask>,
   ),
   SqlxError,
 > {
-  let mut instance = std::vec::Vec::new();
-  let mut whole = std::vec::Vec::new();
+  let mut instance = Vec::new();
+  let mut whole = Vec::new();
   let mut rows = rows;
   rows.sort_by_key(|r| (r.kind, r.ordinal));
   for r in rows {
@@ -2007,14 +1992,14 @@ fn build_masks(
 }
 
 fn build_face_landmarks(
-  rows: std::vec::Vec<SqliteKeyframeFaceLandmarksRow>,
-  regions: std::vec::Vec<SqliteKeyframeFaceLandmarkRegionRow>,
-  points: std::vec::Vec<SqliteKeyframeFaceLandmarkPointRow>,
-) -> Result<std::vec::Vec<FaceLandmarksDetection>, SqlxError> {
+  rows: Vec<SqliteKeyframeFaceLandmarksRow>,
+  regions: Vec<SqliteKeyframeFaceLandmarkRegionRow>,
+  points: Vec<SqliteKeyframeFaceLandmarkPointRow>,
+) -> Result<Vec<FaceLandmarksDetection>, SqlxError> {
   // Bucket regions per face-landmark ordinal.
   let mut regions_by_parent: std::collections::HashMap<
     i64,
-    std::vec::Vec<SqliteKeyframeFaceLandmarkRegionRow>,
+    Vec<SqliteKeyframeFaceLandmarkRegionRow>,
   > = std::collections::HashMap::new();
   for r in regions {
     regions_by_parent
@@ -2029,7 +2014,7 @@ fn build_face_landmarks(
   // Bucket points per (face-landmark ordinal, region ordinal).
   let mut points_by_region: std::collections::HashMap<
     (i64, i64),
-    std::vec::Vec<SqliteKeyframeFaceLandmarkPointRow>,
+    Vec<SqliteKeyframeFaceLandmarkPointRow>,
   > = std::collections::HashMap::new();
   for p in points {
     points_by_region
@@ -2043,16 +2028,16 @@ fn build_face_landmarks(
 
   let mut rows = rows;
   rows.sort_by_key(|r| r.ordinal);
-  let mut out = std::vec::Vec::with_capacity(rows.len());
+  let mut out = Vec::with_capacity(rows.len());
   for r in rows {
     let bb = BoundingBox::try_new(r.bbox_x, r.bbox_y, r.bbox_w, r.bbox_h).map_err(detection_err)?;
     let region_rows = regions_by_parent.remove(&r.ordinal).unwrap_or_default();
-    let mut built_regions = std::vec::Vec::with_capacity(region_rows.len());
+    let mut built_regions = Vec::with_capacity(region_rows.len());
     for region in region_rows {
       let pts = points_by_region
         .remove(&(r.ordinal, region.ordinal))
         .unwrap_or_default();
-      let pt_iter: std::vec::Vec<(f32, f32)> = pts.into_iter().map(|p| (p.x, p.y)).collect();
+      let pt_iter: Vec<(f32, f32)> = pts.into_iter().map(|p| (p.x, p.y)).collect();
       built_regions.push(FaceLandmarkRegion::try_new(region.name, pt_iter).map_err(detection_err)?);
     }
     out.push(
@@ -2064,23 +2049,23 @@ fn build_face_landmarks(
 
 #[allow(clippy::type_complexity)]
 fn group_vlm_by_kind(
-  rows: std::vec::Vec<SqliteKeyframeVlmLabelRow>,
+  rows: Vec<SqliteKeyframeVlmLabelRow>,
 ) -> (
-  std::vec::Vec<LocalizedText>,
-  std::vec::Vec<LocalizedText>,
-  std::vec::Vec<LocalizedText>,
-  std::vec::Vec<LocalizedText>,
-  std::vec::Vec<LocalizedText>,
-  std::vec::Vec<LocalizedText>,
-  std::vec::Vec<LocalizedText>,
+  Vec<LocalizedText>,
+  Vec<LocalizedText>,
+  Vec<LocalizedText>,
+  Vec<LocalizedText>,
+  Vec<LocalizedText>,
+  Vec<LocalizedText>,
+  Vec<LocalizedText>,
 ) {
-  let mut buckets: [std::vec::Vec<SqliteKeyframeVlmLabelRow>; 7] = Default::default();
+  let mut buckets: [Vec<SqliteKeyframeVlmLabelRow>; 7] = Default::default();
   for r in rows {
     if (0..7).contains(&(r.kind as i32)) {
       buckets[r.kind as usize].push(r);
     }
   }
-  let mut out: [std::vec::Vec<LocalizedText>; 7] = Default::default();
+  let mut out: [Vec<LocalizedText>; 7] = Default::default();
   for (i, bucket) in buckets.iter_mut().enumerate() {
     bucket.sort_by_key(|r| r.ordinal);
     out[i] = bucket
@@ -2150,7 +2135,7 @@ fn require_timebase(
 // Borrowed-view siblings (`*RowRef<'r>`) — zero-copy decode from `&'r Row`.
 //
 // Every row type has a `Ref` sibling: Uuid identity columns ride as
-// `std::vec::Vec<u8>` in the owned rows, so even otherwise-`Copy` rows
+// `Vec<u8>` in the owned rows, so even otherwise-`Copy` rows
 // carry at least one variable-length field worth borrowing.
 // ===========================================================================
 
@@ -2400,8 +2385,8 @@ impl SqliteVideoTrackMetadataRow {
 impl<'r>
   TryFrom<(
     SqliteVideoTrackRowRef<'r>,
-    std::vec::Vec<SqliteVideoTrackIndexErrorRowRef<'r>>,
-    std::vec::Vec<SqliteVideoTrackMetadataRowRef<'r>>,
+    Vec<SqliteVideoTrackIndexErrorRowRef<'r>>,
+    Vec<SqliteVideoTrackMetadataRowRef<'r>>,
   )> for VideoTrack<Uuid7>
 {
   type Error = SqlxError;
@@ -2409,8 +2394,8 @@ impl<'r>
   fn try_from(
     (r, mut errors, mut metadata): (
       SqliteVideoTrackRowRef<'r>,
-      std::vec::Vec<SqliteVideoTrackIndexErrorRowRef<'r>>,
-      std::vec::Vec<SqliteVideoTrackMetadataRowRef<'r>>,
+      Vec<SqliteVideoTrackIndexErrorRowRef<'r>>,
+      Vec<SqliteVideoTrackMetadataRowRef<'r>>,
     ),
   ) -> Result<Self, Self::Error> {
     let id = bytes_to_uuid7(r.id)?;
@@ -2641,7 +2626,7 @@ impl<'r>
       )?));
 
     errors.sort_by_key(|e| e.ordinal);
-    let mut infos = std::vec::Vec::with_capacity(errors.len());
+    let mut infos = Vec::with_capacity(errors.len());
     for e in errors {
       let code = u32_from_i32(e.code, "VideoTrack.index_error.code")?;
       infos.push(ErrorInfo::new(ErrorCode::from_u32(code), e.message));
@@ -3325,26 +3310,26 @@ impl SqliteKeyframeVlmLabelRow {
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct SqliteKeyframeRowsRef<'r> {
   pub keyframe: Option<SqliteKeyframeRowRef<'r>>,
-  pub classifications: std::vec::Vec<SqliteKeyframeClassificationRowRef<'r>>,
-  pub objects: std::vec::Vec<SqliteKeyframeObjectRowRef<'r>>,
-  pub actions: std::vec::Vec<SqliteKeyframeActionRowRef<'r>>,
-  pub text_detections: std::vec::Vec<SqliteKeyframeTextDetectionRowRef<'r>>,
-  pub barcodes: std::vec::Vec<SqliteKeyframeBarcodeRowRef<'r>>,
-  pub saliencies: std::vec::Vec<SqliteKeyframeSaliencyRowRef<'r>>,
-  pub document_segments: std::vec::Vec<SqliteKeyframeDocumentSegmentRowRef<'r>>,
-  pub colors: std::vec::Vec<SqliteKeyframeColorRowRef<'r>>,
-  pub subjects: std::vec::Vec<SqliteKeyframeSubjectRowRef<'r>>,
-  pub faces: std::vec::Vec<SqliteKeyframeFaceRowRef<'r>>,
-  pub body_poses: std::vec::Vec<SqliteKeyframeBodyPoseRowRef<'r>>,
-  pub body_pose_joints: std::vec::Vec<SqliteKeyframeBodyPoseJointRowRef<'r>>,
-  pub hand_poses: std::vec::Vec<SqliteKeyframeHandPoseRowRef<'r>>,
-  pub body_poses_3d: std::vec::Vec<SqliteKeyframeBodyPose3DRowRef<'r>>,
-  pub body_pose_3d_joints: std::vec::Vec<SqliteKeyframeBodyPose3DJointRowRef<'r>>,
-  pub masks: std::vec::Vec<SqliteKeyframeMaskRowRef<'r>>,
-  pub face_landmarks: std::vec::Vec<SqliteKeyframeFaceLandmarksRowRef<'r>>,
-  pub face_landmark_regions: std::vec::Vec<SqliteKeyframeFaceLandmarkRegionRowRef<'r>>,
-  pub face_landmark_points: std::vec::Vec<SqliteKeyframeFaceLandmarkPointRowRef<'r>>,
-  pub vlm_labels: std::vec::Vec<SqliteKeyframeVlmLabelRowRef<'r>>,
+  pub classifications: Vec<SqliteKeyframeClassificationRowRef<'r>>,
+  pub objects: Vec<SqliteKeyframeObjectRowRef<'r>>,
+  pub actions: Vec<SqliteKeyframeActionRowRef<'r>>,
+  pub text_detections: Vec<SqliteKeyframeTextDetectionRowRef<'r>>,
+  pub barcodes: Vec<SqliteKeyframeBarcodeRowRef<'r>>,
+  pub saliencies: Vec<SqliteKeyframeSaliencyRowRef<'r>>,
+  pub document_segments: Vec<SqliteKeyframeDocumentSegmentRowRef<'r>>,
+  pub colors: Vec<SqliteKeyframeColorRowRef<'r>>,
+  pub subjects: Vec<SqliteKeyframeSubjectRowRef<'r>>,
+  pub faces: Vec<SqliteKeyframeFaceRowRef<'r>>,
+  pub body_poses: Vec<SqliteKeyframeBodyPoseRowRef<'r>>,
+  pub body_pose_joints: Vec<SqliteKeyframeBodyPoseJointRowRef<'r>>,
+  pub hand_poses: Vec<SqliteKeyframeHandPoseRowRef<'r>>,
+  pub body_poses_3d: Vec<SqliteKeyframeBodyPose3DRowRef<'r>>,
+  pub body_pose_3d_joints: Vec<SqliteKeyframeBodyPose3DJointRowRef<'r>>,
+  pub masks: Vec<SqliteKeyframeMaskRowRef<'r>>,
+  pub face_landmarks: Vec<SqliteKeyframeFaceLandmarksRowRef<'r>>,
+  pub face_landmark_regions: Vec<SqliteKeyframeFaceLandmarkRegionRowRef<'r>>,
+  pub face_landmark_points: Vec<SqliteKeyframeFaceLandmarkPointRowRef<'r>>,
+  pub vlm_labels: Vec<SqliteKeyframeVlmLabelRowRef<'r>>,
 }
 
 impl SqliteKeyframeRows {
@@ -3489,7 +3474,7 @@ pub fn keyframe_from_rows_ref<'r>(
 
     let mut classifications = rows.classifications;
     classifications.sort_by_key(|r| r.ordinal);
-    let mut built = std::vec::Vec::with_capacity(classifications.len());
+    let mut built = Vec::with_capacity(classifications.len());
     for r in classifications.drain(..) {
       built.push(Detection::try_new(r.label, r.confidence).map_err(detection_err)?);
     }
@@ -3497,7 +3482,7 @@ pub fn keyframe_from_rows_ref<'r>(
 
     let mut objects = rows.objects;
     objects.sort_by_key(|r| r.ordinal);
-    let mut built = std::vec::Vec::with_capacity(objects.len());
+    let mut built = Vec::with_capacity(objects.len());
     for r in objects.drain(..) {
       let det = Detection::try_new(r.label, r.confidence).map_err(detection_err)?;
       let bbox = if bool_from_i64(r.has_bbox) {
@@ -3519,7 +3504,7 @@ pub fn keyframe_from_rows_ref<'r>(
 
     let mut actions = rows.actions;
     actions.sort_by_key(|r| r.ordinal);
-    let mut built = std::vec::Vec::with_capacity(actions.len());
+    let mut built = Vec::with_capacity(actions.len());
     for r in actions.drain(..) {
       let det = Detection::try_new(r.label, r.confidence).map_err(detection_err)?;
       built.push(ActionDetection::new(det));
@@ -3528,7 +3513,7 @@ pub fn keyframe_from_rows_ref<'r>(
 
     let mut texts = rows.text_detections;
     texts.sort_by_key(|r| r.ordinal);
-    let mut built = std::vec::Vec::with_capacity(texts.len());
+    let mut built = Vec::with_capacity(texts.len());
     for r in texts.drain(..) {
       let bb =
         BoundingBox::try_new(r.bbox_x, r.bbox_y, r.bbox_w, r.bbox_h).map_err(detection_err)?;
@@ -3538,7 +3523,7 @@ pub fn keyframe_from_rows_ref<'r>(
 
     let mut barcodes = rows.barcodes;
     barcodes.sort_by_key(|r| r.ordinal);
-    let mut built = std::vec::Vec::with_capacity(barcodes.len());
+    let mut built = Vec::with_capacity(barcodes.len());
     for r in barcodes.drain(..) {
       let bb =
         BoundingBox::try_new(r.bbox_x, r.bbox_y, r.bbox_w, r.bbox_h).map_err(detection_err)?;
@@ -3549,8 +3534,8 @@ pub fn keyframe_from_rows_ref<'r>(
     }
     kf = kf.with_barcodes(built);
 
-    let mut attention = std::vec::Vec::new();
-    let mut objectness = std::vec::Vec::new();
+    let mut attention = Vec::new();
+    let mut objectness = Vec::new();
     let mut saliencies = rows.saliencies;
     saliencies.sort_by_key(|r| (r.kind, r.ordinal));
     for r in saliencies {
@@ -3573,7 +3558,7 @@ pub fn keyframe_from_rows_ref<'r>(
 
     let mut docs = rows.document_segments;
     docs.sort_by_key(|r| r.ordinal);
-    let mut built = std::vec::Vec::with_capacity(docs.len());
+    let mut built = Vec::with_capacity(docs.len());
     for r in docs.drain(..) {
       built.push(
         DocumentSegment::try_new(
@@ -3590,7 +3575,7 @@ pub fn keyframe_from_rows_ref<'r>(
 
     let mut colors = rows.colors;
     colors.sort_by_key(|r| r.ordinal);
-    let mut built = std::vec::Vec::with_capacity(colors.len());
+    let mut built = Vec::with_capacity(colors.len());
     for r in colors.drain(..) {
       let rgb = Rgba::from_bits(u32_from_i64(r.rgba, "keyframe_color.rgba")?);
       let population = u32_from_i64(r.population, "keyframe_color.population")?;
@@ -3654,16 +3639,10 @@ pub fn keyframe_from_rows_ref<'r>(
 // --- borrowed-row build helpers ---
 
 fn build_subjects_ref(
-  rows: std::vec::Vec<SqliteKeyframeSubjectRowRef<'_>>,
-) -> Result<
-  (
-    std::vec::Vec<SubjectDetection>,
-    std::vec::Vec<SubjectDetection>,
-  ),
-  SqlxError,
-> {
-  let mut humans = std::vec::Vec::new();
-  let mut animals = std::vec::Vec::new();
+  rows: Vec<SqliteKeyframeSubjectRowRef<'_>>,
+) -> Result<(Vec<SubjectDetection>, Vec<SubjectDetection>), SqlxError> {
+  let mut humans = Vec::new();
+  let mut animals = Vec::new();
   let mut rows = rows;
   rows.sort_by_key(|r| (r.scope, r.ordinal));
   for r in rows {
@@ -3684,10 +3663,10 @@ fn build_subjects_ref(
 }
 
 fn build_faces_ref(
-  rows: std::vec::Vec<SqliteKeyframeFaceRowRef<'_>>,
-) -> Result<(std::vec::Vec<FaceDetection>, std::vec::Vec<FaceDetection>), SqlxError> {
-  let mut faces = std::vec::Vec::new();
-  let mut face_rects = std::vec::Vec::new();
+  rows: Vec<SqliteKeyframeFaceRowRef<'_>>,
+) -> Result<(Vec<FaceDetection>, Vec<FaceDetection>), SqlxError> {
+  let mut faces = Vec::new();
+  let mut face_rects = Vec::new();
   let mut rows = rows;
   rows.sort_by_key(|r| (r.kind, r.ordinal));
   for r in rows {
@@ -3708,12 +3687,10 @@ fn build_faces_ref(
 }
 
 fn group_joints_by_scope_ref<'r>(
-  rows: std::vec::Vec<SqliteKeyframeBodyPoseJointRowRef<'r>>,
-) -> std::collections::HashMap<i64, std::vec::Vec<SqliteKeyframeBodyPoseJointRowRef<'r>>> {
-  let mut out: std::collections::HashMap<
-    i64,
-    std::vec::Vec<SqliteKeyframeBodyPoseJointRowRef<'r>>,
-  > = std::collections::HashMap::new();
+  rows: Vec<SqliteKeyframeBodyPoseJointRowRef<'r>>,
+) -> std::collections::HashMap<i64, Vec<SqliteKeyframeBodyPoseJointRowRef<'r>>> {
+  let mut out: std::collections::HashMap<i64, Vec<SqliteKeyframeBodyPoseJointRowRef<'r>>> =
+    std::collections::HashMap::new();
   for r in rows {
     out.entry(r.scope).or_default().push(r);
   }
@@ -3721,12 +3698,10 @@ fn group_joints_by_scope_ref<'r>(
 }
 
 fn joints_lookup_ref<'r>(
-  rows: std::vec::Vec<SqliteKeyframeBodyPoseJointRowRef<'r>>,
-) -> std::collections::HashMap<i64, std::vec::Vec<SqliteKeyframeBodyPoseJointRowRef<'r>>> {
-  let mut out: std::collections::HashMap<
-    i64,
-    std::vec::Vec<SqliteKeyframeBodyPoseJointRowRef<'r>>,
-  > = std::collections::HashMap::new();
+  rows: Vec<SqliteKeyframeBodyPoseJointRowRef<'r>>,
+) -> std::collections::HashMap<i64, Vec<SqliteKeyframeBodyPoseJointRowRef<'r>>> {
+  let mut out: std::collections::HashMap<i64, Vec<SqliteKeyframeBodyPoseJointRowRef<'r>>> =
+    std::collections::HashMap::new();
   for r in rows {
     out.entry(r.parent_ordinal).or_default().push(r);
   }
@@ -3737,9 +3712,9 @@ fn joints_lookup_ref<'r>(
 }
 
 fn build_joints_ref(
-  rows: std::vec::Vec<SqliteKeyframeBodyPoseJointRowRef<'_>>,
-) -> Result<std::vec::Vec<BodyPoseJoint>, SqlxError> {
-  let mut out = std::vec::Vec::with_capacity(rows.len());
+  rows: Vec<SqliteKeyframeBodyPoseJointRowRef<'_>>,
+) -> Result<Vec<BodyPoseJoint>, SqlxError> {
+  let mut out = Vec::with_capacity(rows.len());
   for r in rows {
     out.push(BodyPoseJoint::try_new(r.name, r.x, r.y, r.confidence).map_err(detection_err)?);
   }
@@ -3747,20 +3722,11 @@ fn build_joints_ref(
 }
 
 fn build_body_poses_ref<'r>(
-  rows: std::vec::Vec<SqliteKeyframeBodyPoseRowRef<'_>>,
-  joints_by_scope: &mut std::collections::HashMap<
-    i64,
-    std::vec::Vec<SqliteKeyframeBodyPoseJointRowRef<'r>>,
-  >,
-) -> Result<
-  (
-    std::vec::Vec<BodyPoseDetection>,
-    std::vec::Vec<BodyPoseDetection>,
-  ),
-  SqlxError,
-> {
-  let mut humans = std::vec::Vec::new();
-  let mut animals = std::vec::Vec::new();
+  rows: Vec<SqliteKeyframeBodyPoseRowRef<'_>>,
+  joints_by_scope: &mut std::collections::HashMap<i64, Vec<SqliteKeyframeBodyPoseJointRowRef<'r>>>,
+) -> Result<(Vec<BodyPoseDetection>, Vec<BodyPoseDetection>), SqlxError> {
+  let mut humans = Vec::new();
+  let mut animals = Vec::new();
   let mut rows = rows;
   rows.sort_by_key(|r| (r.scope, r.ordinal));
 
@@ -3792,13 +3758,13 @@ fn build_body_poses_ref<'r>(
 }
 
 fn build_hand_poses_ref<'r>(
-  rows: std::vec::Vec<SqliteKeyframeHandPoseRowRef<'_>>,
-  joints: std::vec::Vec<SqliteKeyframeBodyPoseJointRowRef<'r>>,
-) -> Result<std::vec::Vec<HandPoseDetection>, SqlxError> {
+  rows: Vec<SqliteKeyframeHandPoseRowRef<'_>>,
+  joints: Vec<SqliteKeyframeBodyPoseJointRowRef<'r>>,
+) -> Result<Vec<HandPoseDetection>, SqlxError> {
   let joint_lookup = joints_lookup_ref(joints);
   let mut rows = rows;
   rows.sort_by_key(|r| r.ordinal);
-  let mut out = std::vec::Vec::with_capacity(rows.len());
+  let mut out = Vec::with_capacity(rows.len());
   for r in rows {
     let bb = BoundingBox::try_new(r.bbox_x, r.bbox_y, r.bbox_w, r.bbox_h).map_err(detection_err)?;
     let chirality = hand_chirality_from_i16(r.chirality as i16)?;
@@ -3811,12 +3777,12 @@ fn build_hand_poses_ref<'r>(
 }
 
 fn build_body_poses_3d_ref<'r>(
-  rows: std::vec::Vec<SqliteKeyframeBodyPose3DRowRef<'_>>,
-  joints: std::vec::Vec<SqliteKeyframeBodyPose3DJointRowRef<'r>>,
-) -> Result<std::vec::Vec<BodyPose3DDetection>, SqlxError> {
+  rows: Vec<SqliteKeyframeBodyPose3DRowRef<'_>>,
+  joints: Vec<SqliteKeyframeBodyPose3DJointRowRef<'r>>,
+) -> Result<Vec<BodyPose3DDetection>, SqlxError> {
   let mut joint_lookup: std::collections::HashMap<
     i64,
-    std::vec::Vec<SqliteKeyframeBodyPose3DJointRowRef<'r>>,
+    Vec<SqliteKeyframeBodyPose3DJointRowRef<'r>>,
   > = std::collections::HashMap::new();
   for r in joints {
     joint_lookup.entry(r.parent_ordinal).or_default().push(r);
@@ -3826,11 +3792,11 @@ fn build_body_poses_3d_ref<'r>(
   }
   let mut rows = rows;
   rows.sort_by_key(|r| r.ordinal);
-  let mut out = std::vec::Vec::with_capacity(rows.len());
+  let mut out = Vec::with_capacity(rows.len());
   for r in rows {
     let height = height_estimation_from_i16(r.height_estimation as i16)?;
     let joints = joint_lookup.remove(&r.ordinal).unwrap_or_default();
-    let mut built = std::vec::Vec::with_capacity(joints.len());
+    let mut built = Vec::with_capacity(joints.len());
     for j in joints {
       built.push(
         BodyPose3DJoint::try_new(j.name, j.x, j.y, j.z, j.confidence).map_err(detection_err)?,
@@ -3845,16 +3811,16 @@ fn build_body_poses_3d_ref<'r>(
 }
 
 fn build_masks_ref(
-  rows: std::vec::Vec<SqliteKeyframeMaskRowRef<'_>>,
+  rows: Vec<SqliteKeyframeMaskRowRef<'_>>,
 ) -> Result<
   (
-    std::vec::Vec<PersonInstanceMaskDetection>,
-    std::vec::Vec<PersonSegmentationMask>,
+    Vec<PersonInstanceMaskDetection>,
+    Vec<PersonSegmentationMask>,
   ),
   SqlxError,
 > {
-  let mut instance = std::vec::Vec::new();
-  let mut whole = std::vec::Vec::new();
+  let mut instance = Vec::new();
+  let mut whole = Vec::new();
   let mut rows = rows;
   rows.sort_by_key(|r| (r.kind, r.ordinal));
   for r in rows {
@@ -3901,13 +3867,13 @@ fn build_masks_ref(
 }
 
 fn build_face_landmarks_ref<'r>(
-  rows: std::vec::Vec<SqliteKeyframeFaceLandmarksRowRef<'r>>,
-  regions: std::vec::Vec<SqliteKeyframeFaceLandmarkRegionRowRef<'r>>,
-  points: std::vec::Vec<SqliteKeyframeFaceLandmarkPointRowRef<'r>>,
-) -> Result<std::vec::Vec<FaceLandmarksDetection>, SqlxError> {
+  rows: Vec<SqliteKeyframeFaceLandmarksRowRef<'r>>,
+  regions: Vec<SqliteKeyframeFaceLandmarkRegionRowRef<'r>>,
+  points: Vec<SqliteKeyframeFaceLandmarkPointRowRef<'r>>,
+) -> Result<Vec<FaceLandmarksDetection>, SqlxError> {
   let mut regions_by_parent: std::collections::HashMap<
     i64,
-    std::vec::Vec<SqliteKeyframeFaceLandmarkRegionRowRef<'r>>,
+    Vec<SqliteKeyframeFaceLandmarkRegionRowRef<'r>>,
   > = std::collections::HashMap::new();
   for r in regions {
     regions_by_parent
@@ -3921,7 +3887,7 @@ fn build_face_landmarks_ref<'r>(
 
   let mut points_by_region: std::collections::HashMap<
     (i64, i64),
-    std::vec::Vec<SqliteKeyframeFaceLandmarkPointRowRef<'r>>,
+    Vec<SqliteKeyframeFaceLandmarkPointRowRef<'r>>,
   > = std::collections::HashMap::new();
   for p in points {
     points_by_region
@@ -3935,16 +3901,16 @@ fn build_face_landmarks_ref<'r>(
 
   let mut rows = rows;
   rows.sort_by_key(|r| r.ordinal);
-  let mut out = std::vec::Vec::with_capacity(rows.len());
+  let mut out = Vec::with_capacity(rows.len());
   for r in rows {
     let bb = BoundingBox::try_new(r.bbox_x, r.bbox_y, r.bbox_w, r.bbox_h).map_err(detection_err)?;
     let region_rows = regions_by_parent.remove(&r.ordinal).unwrap_or_default();
-    let mut built_regions = std::vec::Vec::with_capacity(region_rows.len());
+    let mut built_regions = Vec::with_capacity(region_rows.len());
     for region in region_rows {
       let pts = points_by_region
         .remove(&(r.ordinal, region.ordinal))
         .unwrap_or_default();
-      let pt_iter: std::vec::Vec<(f32, f32)> = pts.into_iter().map(|p| (p.x, p.y)).collect();
+      let pt_iter: Vec<(f32, f32)> = pts.into_iter().map(|p| (p.x, p.y)).collect();
       built_regions.push(FaceLandmarkRegion::try_new(region.name, pt_iter).map_err(detection_err)?);
     }
     out.push(
@@ -3956,23 +3922,23 @@ fn build_face_landmarks_ref<'r>(
 
 #[allow(clippy::type_complexity)]
 fn group_vlm_by_kind_ref<'r>(
-  rows: std::vec::Vec<SqliteKeyframeVlmLabelRowRef<'r>>,
+  rows: Vec<SqliteKeyframeVlmLabelRowRef<'r>>,
 ) -> (
-  std::vec::Vec<LocalizedText>,
-  std::vec::Vec<LocalizedText>,
-  std::vec::Vec<LocalizedText>,
-  std::vec::Vec<LocalizedText>,
-  std::vec::Vec<LocalizedText>,
-  std::vec::Vec<LocalizedText>,
-  std::vec::Vec<LocalizedText>,
+  Vec<LocalizedText>,
+  Vec<LocalizedText>,
+  Vec<LocalizedText>,
+  Vec<LocalizedText>,
+  Vec<LocalizedText>,
+  Vec<LocalizedText>,
+  Vec<LocalizedText>,
 ) {
-  let mut buckets: [std::vec::Vec<SqliteKeyframeVlmLabelRowRef<'r>>; 7] = Default::default();
+  let mut buckets: [Vec<SqliteKeyframeVlmLabelRowRef<'r>>; 7] = Default::default();
   for r in rows {
     if (0..7).contains(&r.kind) {
       buckets[r.kind as usize].push(r);
     }
   }
-  let mut out: [std::vec::Vec<LocalizedText>; 7] = Default::default();
+  let mut out: [Vec<LocalizedText>; 7] = Default::default();
   for (i, bucket) in buckets.iter_mut().enumerate() {
     bucket.sort_by_key(|r| r.ordinal);
     out[i] = bucket
@@ -4016,8 +3982,8 @@ mod tests {
     let t = VideoTrack::try_new(Uuid7::new(), Uuid7::new()).unwrap();
     let tuple: (
       SqliteVideoTrackRow,
-      std::vec::Vec<SqliteVideoTrackIndexErrorRow>,
-      std::vec::Vec<SqliteVideoTrackMetadataRow>,
+      Vec<SqliteVideoTrackIndexErrorRow>,
+      Vec<SqliteVideoTrackMetadataRow>,
     ) = (&t).into();
     let t2: VideoTrack<Uuid7> = tuple.try_into().unwrap();
     assert_eq!(t, t2);
@@ -4085,8 +4051,8 @@ mod tests {
       ),]);
     let tuple: (
       SqliteVideoTrackRow,
-      std::vec::Vec<SqliteVideoTrackIndexErrorRow>,
-      std::vec::Vec<SqliteVideoTrackMetadataRow>,
+      Vec<SqliteVideoTrackIndexErrorRow>,
+      Vec<SqliteVideoTrackMetadataRow>,
     ) = (&t).into();
     assert_eq!(tuple.1.len(), 1);
     let t2: VideoTrack<Uuid7> = tuple.try_into().unwrap();
@@ -4272,8 +4238,8 @@ mod tests {
       ]);
     let (row, mut errs, meta): (
       SqliteVideoTrackRow,
-      std::vec::Vec<SqliteVideoTrackIndexErrorRow>,
-      std::vec::Vec<SqliteVideoTrackMetadataRow>,
+      Vec<SqliteVideoTrackIndexErrorRow>,
+      Vec<SqliteVideoTrackMetadataRow>,
     ) = (&t).into();
     errs.reverse();
     let t2: VideoTrack<Uuid7> = (row, errs, meta).try_into().unwrap();
@@ -4291,13 +4257,13 @@ mod tests {
       .with_metadata(meta);
     let (row, errs, mut metadata): (
       SqliteVideoTrackRow,
-      std::vec::Vec<SqliteVideoTrackIndexErrorRow>,
-      std::vec::Vec<SqliteVideoTrackMetadataRow>,
+      Vec<SqliteVideoTrackIndexErrorRow>,
+      Vec<SqliteVideoTrackMetadataRow>,
     ) = (&t).into();
     assert_eq!(metadata.len(), 2);
     metadata.reverse();
     let t2: VideoTrack<Uuid7> = (row, errs, metadata).try_into().unwrap();
-    let keys: std::vec::Vec<&str> = t2.metadata_ref().keys().map(SmolStr::as_str).collect();
+    let keys: Vec<&str> = t2.metadata_ref().keys().map(SmolStr::as_str).collect();
     assert_eq!(keys, std::vec!["encoder", "language"]);
   }
 
@@ -4344,14 +4310,14 @@ mod tests {
       .with_index_errors(std::vec![ErrorInfo::new(ErrorCode::ProbeCorrupt, "bad")]);
     let (row, errs, meta): (
       SqliteVideoTrackRow,
-      std::vec::Vec<SqliteVideoTrackIndexErrorRow>,
-      std::vec::Vec<SqliteVideoTrackMetadataRow>,
+      Vec<SqliteVideoTrackIndexErrorRow>,
+      Vec<SqliteVideoTrackMetadataRow>,
     ) = (&t).into();
-    let err_refs: std::vec::Vec<SqliteVideoTrackIndexErrorRowRef<'_>> = errs
+    let err_refs: Vec<SqliteVideoTrackIndexErrorRowRef<'_>> = errs
       .iter()
       .map(SqliteVideoTrackIndexErrorRow::as_ref)
       .collect();
-    let meta_refs: std::vec::Vec<SqliteVideoTrackMetadataRowRef<'_>> = meta
+    let meta_refs: Vec<SqliteVideoTrackMetadataRowRef<'_>> = meta
       .iter()
       .map(SqliteVideoTrackMetadataRow::as_ref)
       .collect();

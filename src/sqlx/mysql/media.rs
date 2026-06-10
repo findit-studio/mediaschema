@@ -1,5 +1,7 @@
 //! MySQL row shape for the root `Media` aggregate.
 
+use std::vec::Vec;
+
 use mediaframe::{
   capture::{Device, GeoLocation},
   container::Format,
@@ -17,8 +19,8 @@ use crate::{
 
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlMediaRow {
-  pub id: std::vec::Vec<u8>,
-  pub checksum: std::vec::Vec<u8>,
+  pub id: Vec<u8>,
+  pub checksum: Vec<u8>,
   pub format: String,
   pub size: u64,
   pub duration_raw: Option<i64>,
@@ -27,9 +29,9 @@ pub struct MySqlMediaRow {
   pub nb_streams: u32,
   /// Verbatim `AVFormatContext.nb_chapters` (rev 11).
   pub nb_chapters: u32,
-  pub video_id: Option<std::vec::Vec<u8>>,
-  pub audio_id: Option<std::vec::Vec<u8>>,
-  pub subtitle_id: Option<std::vec::Vec<u8>>,
+  pub video_id: Option<Vec<u8>>,
+  pub audio_id: Option<Vec<u8>>,
+  pub subtitle_id: Option<Vec<u8>>,
   pub error_flags: u16,
   /// `ErrorInfo.code` as the verified `u32` wire value; NULL = no probe
   /// error. Discriminates presence of the flattened `ErrorInfo` VO.
@@ -334,7 +336,7 @@ mod tests {
   fn media_row_rejects_zero_checksum() {
     let row = MySqlMediaRow {
       id: Uuid7::new().as_bytes().to_vec(),
-      checksum: std::vec::Vec::from([0u8; 32]),
+      checksum: Vec::from([0u8; 32]),
       format: String::new(),
       size: 0,
       duration_raw: None,

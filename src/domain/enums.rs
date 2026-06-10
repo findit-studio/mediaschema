@@ -911,7 +911,7 @@ mod tests {
 
   /// One stale `ProbeCorrupt` error that should be filtered by the
   /// live-error check once `PROBED` succeeds.
-  fn probe_error() -> std::vec::Vec<ErrorInfo> {
+  fn probe_error() -> Vec<ErrorInfo> {
     std::vec![ErrorInfo::code_only(ErrorCode::ProbeCorrupt)]
   }
 

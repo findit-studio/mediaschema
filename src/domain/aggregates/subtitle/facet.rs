@@ -11,6 +11,8 @@
 //! (`schema/README.md` "Indexing model-correction") is the canonical
 //! definition in [`crate::domain::vo`], reused here by every facet.
 
+use std::vec::Vec;
+
 use derive_more::IsVariant;
 
 use crate::domain::{vo::IndexProgress, Uuid7};
@@ -25,7 +27,7 @@ use crate::domain::{vo::IndexProgress, Uuid7};
 pub struct Subtitle<Id = Uuid7> {
   id: Id,
   media_id: Id,
-  tracks: std::vec::Vec<Id>,
+  tracks: Vec<Id>,
   track_progress: IndexProgress,
 }
 
@@ -47,7 +49,7 @@ impl Subtitle<Uuid7> {
     Ok(Self {
       id,
       media_id,
-      tracks: std::vec::Vec::new(),
+      tracks: Vec::new(),
       track_progress: IndexProgress::new(),
     })
   }
@@ -82,7 +84,7 @@ impl<Id> Subtitle<Id> {
   /// Builder: replace `tracks`.
   #[must_use]
   #[inline(always)]
-  pub fn with_tracks(mut self, tracks: impl Into<std::vec::Vec<Id>>) -> Self {
+  pub fn with_tracks(mut self, tracks: impl Into<Vec<Id>>) -> Self {
     self.tracks = tracks.into();
     self
   }
@@ -97,7 +99,7 @@ impl<Id> Subtitle<Id> {
 
   /// In-place mutator for `tracks`.
   #[inline(always)]
-  pub fn set_tracks(&mut self, tracks: impl Into<std::vec::Vec<Id>>) -> &mut Self {
+  pub fn set_tracks(&mut self, tracks: impl Into<Vec<Id>>) -> &mut Self {
     self.tracks = tracks.into();
     self
   }

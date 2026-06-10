@@ -21,6 +21,8 @@
 //! fields (`Video::tracks`, `VideoTrack::scenes`, `Scene::keyframes`)
 //! are NOT stored — they are derived by querying the child table's FK.
 
+use std::vec::Vec;
+
 use bytes::Bytes;
 use indexmap::IndexMap;
 use mediaframe::{
@@ -70,8 +72,8 @@ use crate::{
 /// `total_scenes` + the flattened `track_progress` rollup are.
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct MySqlVideoRow {
-  pub id: std::vec::Vec<u8>,
-  pub media_id: std::vec::Vec<u8>,
+  pub id: Vec<u8>,
+  pub media_id: Vec<u8>,
   pub total_scenes: i64,
   pub track_progress_total: i64,
   pub track_progress_indexed: i64,
@@ -129,8 +131,8 @@ impl TryFrom<MySqlVideoRow> for Video<Uuid7> {
 /// `StereoMode::to_u32`; `DolbyVisionConfig` → 5 cols (`dovi_*`).
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlVideoTrackRow {
-  pub id: std::vec::Vec<u8>,
-  pub video_id: std::vec::Vec<u8>,
+  pub id: Vec<u8>,
+  pub video_id: Vec<u8>,
 
   // source locators
   pub stream_index: Option<i64>,
@@ -234,7 +236,7 @@ pub struct MySqlVideoTrackRow {
 /// One `video_track_index_error` child row.
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct MySqlVideoTrackIndexErrorRow {
-  pub video_track_id: std::vec::Vec<u8>,
+  pub video_track_id: Vec<u8>,
   pub ordinal: i32,
   pub code: i32,
   pub message: String,
@@ -245,7 +247,7 @@ pub struct MySqlVideoTrackIndexErrorRow {
 /// order. `video_track_from_rows` sorts by `ordinal` on decode.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlVideoTrackMetadataRow {
-  pub video_track_id: std::vec::Vec<u8>,
+  pub video_track_id: Vec<u8>,
   pub ordinal: i32,
   pub key: String,
   pub value: String,
@@ -254,8 +256,8 @@ pub struct MySqlVideoTrackMetadataRow {
 impl From<&VideoTrack<Uuid7>>
   for (
     MySqlVideoTrackRow,
-    std::vec::Vec<MySqlVideoTrackIndexErrorRow>,
-    std::vec::Vec<MySqlVideoTrackMetadataRow>,
+    Vec<MySqlVideoTrackIndexErrorRow>,
+    Vec<MySqlVideoTrackMetadataRow>,
   )
 {
   fn from(t: &VideoTrack<Uuid7>) -> Self {
@@ -375,8 +377,8 @@ impl From<&VideoTrack<Uuid7>>
 impl
   TryFrom<(
     MySqlVideoTrackRow,
-    std::vec::Vec<MySqlVideoTrackIndexErrorRow>,
-    std::vec::Vec<MySqlVideoTrackMetadataRow>,
+    Vec<MySqlVideoTrackIndexErrorRow>,
+    Vec<MySqlVideoTrackMetadataRow>,
   )> for VideoTrack<Uuid7>
 {
   type Error = SqlxError;
@@ -384,8 +386,8 @@ impl
   fn try_from(
     (r, errors, metadata): (
       MySqlVideoTrackRow,
-      std::vec::Vec<MySqlVideoTrackIndexErrorRow>,
-      std::vec::Vec<MySqlVideoTrackMetadataRow>,
+      Vec<MySqlVideoTrackIndexErrorRow>,
+      Vec<MySqlVideoTrackMetadataRow>,
     ),
   ) -> Result<Self, Self::Error> {
     video_track_from_rows(r, errors, metadata)
@@ -398,8 +400,8 @@ impl
 /// `IndexMap` ordering is recovered.
 pub fn video_track_from_rows(
   r: MySqlVideoTrackRow,
-  mut errors: std::vec::Vec<MySqlVideoTrackIndexErrorRow>,
-  mut metadata: std::vec::Vec<MySqlVideoTrackMetadataRow>,
+  mut errors: Vec<MySqlVideoTrackIndexErrorRow>,
+  mut metadata: Vec<MySqlVideoTrackMetadataRow>,
 ) -> Result<VideoTrack<Uuid7>, SqlxError> {
   {
     let id = bytes_to_uuid7(&r.id)?;
@@ -640,7 +642,7 @@ pub fn video_track_from_rows(
       )?));
 
     errors.sort_by_key(|e| e.ordinal);
-    let mut infos = std::vec::Vec::with_capacity(errors.len());
+    let mut infos = Vec::with_capacity(errors.len());
     for e in errors {
       let code = u32_from_i32(e.code, "VideoTrack.index_error.code")?;
       infos.push(ErrorInfo::new(ErrorCode::from_u32(code), e.message));
@@ -674,8 +676,8 @@ pub fn video_track_from_rows(
 /// lives on the parent `video_track`.
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct MySqlSceneRow {
-  pub id: std::vec::Vec<u8>,
-  pub video_track_id: std::vec::Vec<u8>,
+  pub id: Vec<u8>,
+  pub video_track_id: Vec<u8>,
   pub index: i64,
   pub span_start_pts: i64,
   pub span_end_pts: i64,
@@ -733,10 +735,10 @@ pub fn scene_from_row(
 /// parent `video_track`.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeRow {
-  pub id: std::vec::Vec<u8>,
-  pub scene_id: std::vec::Vec<u8>,
+  pub id: Vec<u8>,
+  pub scene_id: Vec<u8>,
   pub pts: i64,
-  pub data: std::vec::Vec<u8>,
+  pub data: Vec<u8>,
   pub mime: String,
   pub width: i64,
   pub height: i64,
@@ -759,7 +761,7 @@ pub struct MySqlKeyframeRow {
 /// `keyframe_classification` — apple-vision `Detection` `{label,confidence}`.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeClassificationRow {
-  pub keyframe_id: std::vec::Vec<u8>,
+  pub keyframe_id: Vec<u8>,
   pub ordinal: i32,
   pub label: String,
   pub confidence: f32,
@@ -768,7 +770,7 @@ pub struct MySqlKeyframeClassificationRow {
 /// `keyframe_object` — `ObjectDetection`: `Detection` + optional bbox.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeObjectRow {
-  pub keyframe_id: std::vec::Vec<u8>,
+  pub keyframe_id: Vec<u8>,
   pub ordinal: i32,
   pub label: String,
   pub confidence: f32,
@@ -782,7 +784,7 @@ pub struct MySqlKeyframeObjectRow {
 /// `keyframe_action` — apple-vision body-pose-derived action `Detection`.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeActionRow {
-  pub keyframe_id: std::vec::Vec<u8>,
+  pub keyframe_id: Vec<u8>,
   pub ordinal: i32,
   pub label: String,
   pub confidence: f32,
@@ -791,7 +793,7 @@ pub struct MySqlKeyframeActionRow {
 /// `keyframe_text_detection` — OCR text + confidence + bbox.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeTextDetectionRow {
-  pub keyframe_id: std::vec::Vec<u8>,
+  pub keyframe_id: Vec<u8>,
   pub ordinal: i32,
   pub text: String,
   pub confidence: f32,
@@ -804,7 +806,7 @@ pub struct MySqlKeyframeTextDetectionRow {
 /// `keyframe_barcode` — payload + symbology + confidence + bbox.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeBarcodeRow {
-  pub keyframe_id: std::vec::Vec<u8>,
+  pub keyframe_id: Vec<u8>,
   pub ordinal: i32,
   pub payload: String,
   pub symbology: String,
@@ -819,7 +821,7 @@ pub struct MySqlKeyframeBarcodeRow {
 /// `0` for attention, `1` for objectness).
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeSaliencyRow {
-  pub keyframe_id: std::vec::Vec<u8>,
+  pub keyframe_id: Vec<u8>,
   pub kind: i16,
   pub ordinal: i32,
   pub bbox_x: f32,
@@ -832,7 +834,7 @@ pub struct MySqlKeyframeSaliencyRow {
 /// `keyframe_document_segment` — 4 normalised corners + confidence.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeDocumentSegmentRow {
-  pub keyframe_id: std::vec::Vec<u8>,
+  pub keyframe_id: Vec<u8>,
   pub ordinal: i32,
   pub tl_x: f32,
   pub tl_y: f32,
@@ -848,7 +850,7 @@ pub struct MySqlKeyframeDocumentSegmentRow {
 /// `keyframe_color` — colorthief dominant colour.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeColorRow {
-  pub keyframe_id: std::vec::Vec<u8>,
+  pub keyframe_id: Vec<u8>,
   pub ordinal: i32,
   pub rgba: i64,
   pub name: String,
@@ -862,7 +864,7 @@ pub struct MySqlKeyframeColorRow {
 /// shape). `scope` = `0` human-subject, `1` animal-subject.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeSubjectRow {
-  pub keyframe_id: std::vec::Vec<u8>,
+  pub keyframe_id: Vec<u8>,
   pub scope: i16,
   pub ordinal: i32,
   pub label: String,
@@ -878,7 +880,7 @@ pub struct MySqlKeyframeSubjectRow {
 /// `face_rectangles`.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeFaceRow {
-  pub keyframe_id: std::vec::Vec<u8>,
+  pub keyframe_id: Vec<u8>,
   pub kind: i16,
   pub ordinal: i32,
   pub bbox_x: f32,
@@ -896,7 +898,7 @@ pub struct MySqlKeyframeFaceRow {
 /// share the shape). `scope` = `0` human, `1` animal.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeBodyPoseRow {
-  pub keyframe_id: std::vec::Vec<u8>,
+  pub keyframe_id: Vec<u8>,
   pub scope: i16,
   pub ordinal: i32,
   pub bbox_x: f32,
@@ -910,7 +912,7 @@ pub struct MySqlKeyframeBodyPoseRow {
 /// `scope` = `0` human-body, `1` animal-body, `2` hand.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeBodyPoseJointRow {
-  pub keyframe_id: std::vec::Vec<u8>,
+  pub keyframe_id: Vec<u8>,
   pub scope: i16,
   pub parent_ordinal: i32,
   pub ordinal: i32,
@@ -923,7 +925,7 @@ pub struct MySqlKeyframeBodyPoseJointRow {
 /// `keyframe_hand_pose` — 2-D hand-pose detection (humans only).
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeHandPoseRow {
-  pub keyframe_id: std::vec::Vec<u8>,
+  pub keyframe_id: Vec<u8>,
   pub ordinal: i32,
   pub bbox_x: f32,
   pub bbox_y: f32,
@@ -936,7 +938,7 @@ pub struct MySqlKeyframeHandPoseRow {
 /// `keyframe_body_pose_3d` — 3-D body-pose detection.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeBodyPose3DRow {
-  pub keyframe_id: std::vec::Vec<u8>,
+  pub keyframe_id: Vec<u8>,
   pub ordinal: i32,
   pub confidence: f32,
   pub body_height: f32,
@@ -946,7 +948,7 @@ pub struct MySqlKeyframeBodyPose3DRow {
 /// `keyframe_body_pose_3d_joint` — joint of a 3-D body-pose row.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeBodyPose3DJointRow {
-  pub keyframe_id: std::vec::Vec<u8>,
+  pub keyframe_id: Vec<u8>,
   pub parent_ordinal: i32,
   pub ordinal: i32,
   pub name: String,
@@ -960,7 +962,7 @@ pub struct MySqlKeyframeBodyPose3DJointRow {
 /// `0` per-person instance mask, `1` whole-frame segmentation mask.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeMaskRow {
-  pub keyframe_id: std::vec::Vec<u8>,
+  pub keyframe_id: Vec<u8>,
   pub kind: i16,
   pub ordinal: i32,
   pub bbox_x: f32,
@@ -971,14 +973,14 @@ pub struct MySqlKeyframeMaskRow {
   pub instance_index: Option<i64>,
   pub width: i64,
   pub height: i64,
-  pub data: std::vec::Vec<u8>,
+  pub data: Vec<u8>,
 }
 
 /// `keyframe_face_landmarks` — bbox + confidence header for a
 /// face-landmark detection.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeFaceLandmarksRow {
-  pub keyframe_id: std::vec::Vec<u8>,
+  pub keyframe_id: Vec<u8>,
   pub ordinal: i32,
   pub bbox_x: f32,
   pub bbox_y: f32,
@@ -991,7 +993,7 @@ pub struct MySqlKeyframeFaceLandmarksRow {
 /// face-landmarks row.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeFaceLandmarkRegionRow {
-  pub keyframe_id: std::vec::Vec<u8>,
+  pub keyframe_id: Vec<u8>,
   pub parent_ordinal: i32,
   pub ordinal: i32,
   pub name: String,
@@ -1000,7 +1002,7 @@ pub struct MySqlKeyframeFaceLandmarkRegionRow {
 /// `keyframe_face_landmark_point` — a normalised point inside a region.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeFaceLandmarkPointRow {
-  pub keyframe_id: std::vec::Vec<u8>,
+  pub keyframe_id: Vec<u8>,
   pub parent_ordinal: i32,
   pub region_ordinal: i32,
   pub ordinal: i32,
@@ -1014,7 +1016,7 @@ pub struct MySqlKeyframeFaceLandmarkPointRow {
 /// `4` = mood, `5` = emotion, `6` = lighting.
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct MySqlKeyframeVlmLabelRow {
-  pub keyframe_id: std::vec::Vec<u8>,
+  pub keyframe_id: Vec<u8>,
   pub kind: i16,
   pub ordinal: i32,
   pub src: String,
@@ -1028,26 +1030,26 @@ pub struct MySqlKeyframeVlmLabelRow {
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct MySqlKeyframeRows {
   pub keyframe: Option<MySqlKeyframeRow>,
-  pub classifications: std::vec::Vec<MySqlKeyframeClassificationRow>,
-  pub objects: std::vec::Vec<MySqlKeyframeObjectRow>,
-  pub actions: std::vec::Vec<MySqlKeyframeActionRow>,
-  pub text_detections: std::vec::Vec<MySqlKeyframeTextDetectionRow>,
-  pub barcodes: std::vec::Vec<MySqlKeyframeBarcodeRow>,
-  pub saliencies: std::vec::Vec<MySqlKeyframeSaliencyRow>,
-  pub document_segments: std::vec::Vec<MySqlKeyframeDocumentSegmentRow>,
-  pub colors: std::vec::Vec<MySqlKeyframeColorRow>,
-  pub subjects: std::vec::Vec<MySqlKeyframeSubjectRow>,
-  pub faces: std::vec::Vec<MySqlKeyframeFaceRow>,
-  pub body_poses: std::vec::Vec<MySqlKeyframeBodyPoseRow>,
-  pub body_pose_joints: std::vec::Vec<MySqlKeyframeBodyPoseJointRow>,
-  pub hand_poses: std::vec::Vec<MySqlKeyframeHandPoseRow>,
-  pub body_poses_3d: std::vec::Vec<MySqlKeyframeBodyPose3DRow>,
-  pub body_pose_3d_joints: std::vec::Vec<MySqlKeyframeBodyPose3DJointRow>,
-  pub masks: std::vec::Vec<MySqlKeyframeMaskRow>,
-  pub face_landmarks: std::vec::Vec<MySqlKeyframeFaceLandmarksRow>,
-  pub face_landmark_regions: std::vec::Vec<MySqlKeyframeFaceLandmarkRegionRow>,
-  pub face_landmark_points: std::vec::Vec<MySqlKeyframeFaceLandmarkPointRow>,
-  pub vlm_labels: std::vec::Vec<MySqlKeyframeVlmLabelRow>,
+  pub classifications: Vec<MySqlKeyframeClassificationRow>,
+  pub objects: Vec<MySqlKeyframeObjectRow>,
+  pub actions: Vec<MySqlKeyframeActionRow>,
+  pub text_detections: Vec<MySqlKeyframeTextDetectionRow>,
+  pub barcodes: Vec<MySqlKeyframeBarcodeRow>,
+  pub saliencies: Vec<MySqlKeyframeSaliencyRow>,
+  pub document_segments: Vec<MySqlKeyframeDocumentSegmentRow>,
+  pub colors: Vec<MySqlKeyframeColorRow>,
+  pub subjects: Vec<MySqlKeyframeSubjectRow>,
+  pub faces: Vec<MySqlKeyframeFaceRow>,
+  pub body_poses: Vec<MySqlKeyframeBodyPoseRow>,
+  pub body_pose_joints: Vec<MySqlKeyframeBodyPoseJointRow>,
+  pub hand_poses: Vec<MySqlKeyframeHandPoseRow>,
+  pub body_poses_3d: Vec<MySqlKeyframeBodyPose3DRow>,
+  pub body_pose_3d_joints: Vec<MySqlKeyframeBodyPose3DJointRow>,
+  pub masks: Vec<MySqlKeyframeMaskRow>,
+  pub face_landmarks: Vec<MySqlKeyframeFaceLandmarksRow>,
+  pub face_landmark_regions: Vec<MySqlKeyframeFaceLandmarkRegionRow>,
+  pub face_landmark_points: Vec<MySqlKeyframeFaceLandmarkPointRow>,
+  pub vlm_labels: Vec<MySqlKeyframeVlmLabelRow>,
 }
 
 impl From<&Keyframe<Uuid7>> for MySqlKeyframeRows {
@@ -1370,7 +1372,7 @@ pub fn keyframe_from_rows(
 
     // classifications
     let mut classifications = sort_by_ordinal(rows.classifications, |r| r.ordinal);
-    let mut built = std::vec::Vec::with_capacity(classifications.len());
+    let mut built = Vec::with_capacity(classifications.len());
     for r in classifications.drain(..) {
       built.push(Detection::try_new(r.label, r.confidence).map_err(detection_err)?);
     }
@@ -1378,7 +1380,7 @@ pub fn keyframe_from_rows(
 
     // objects
     let mut objects = sort_by_ordinal(rows.objects, |r| r.ordinal);
-    let mut built = std::vec::Vec::with_capacity(objects.len());
+    let mut built = Vec::with_capacity(objects.len());
     for r in objects.drain(..) {
       let det = Detection::try_new(r.label, r.confidence).map_err(detection_err)?;
       let bbox = if r.has_bbox {
@@ -1400,7 +1402,7 @@ pub fn keyframe_from_rows(
 
     // actions
     let mut actions = sort_by_ordinal(rows.actions, |r| r.ordinal);
-    let mut built = std::vec::Vec::with_capacity(actions.len());
+    let mut built = Vec::with_capacity(actions.len());
     for r in actions.drain(..) {
       let det = Detection::try_new(r.label, r.confidence).map_err(detection_err)?;
       built.push(ActionDetection::new(det));
@@ -1409,7 +1411,7 @@ pub fn keyframe_from_rows(
 
     // text_detections
     let mut texts = sort_by_ordinal(rows.text_detections, |r| r.ordinal);
-    let mut built = std::vec::Vec::with_capacity(texts.len());
+    let mut built = Vec::with_capacity(texts.len());
     for r in texts.drain(..) {
       let bb =
         BoundingBox::try_new(r.bbox_x, r.bbox_y, r.bbox_w, r.bbox_h).map_err(detection_err)?;
@@ -1419,7 +1421,7 @@ pub fn keyframe_from_rows(
 
     // barcodes
     let mut barcodes = sort_by_ordinal(rows.barcodes, |r| r.ordinal);
-    let mut built = std::vec::Vec::with_capacity(barcodes.len());
+    let mut built = Vec::with_capacity(barcodes.len());
     for r in barcodes.drain(..) {
       let bb =
         BoundingBox::try_new(r.bbox_x, r.bbox_y, r.bbox_w, r.bbox_h).map_err(detection_err)?;
@@ -1431,8 +1433,8 @@ pub fn keyframe_from_rows(
     kf = kf.with_barcodes(built);
 
     // saliencies — split by kind (0 = attention, 1 = objectness).
-    let mut attention = std::vec::Vec::new();
-    let mut objectness = std::vec::Vec::new();
+    let mut attention = Vec::new();
+    let mut objectness = Vec::new();
     let mut saliencies = rows.saliencies;
     saliencies.sort_by_key(|r| (r.kind, r.ordinal));
     for r in saliencies {
@@ -1455,7 +1457,7 @@ pub fn keyframe_from_rows(
 
     // document_segments
     let mut docs = sort_by_ordinal(rows.document_segments, |r| r.ordinal);
-    let mut built = std::vec::Vec::with_capacity(docs.len());
+    let mut built = Vec::with_capacity(docs.len());
     for r in docs.drain(..) {
       built.push(
         DocumentSegment::try_new(
@@ -1472,7 +1474,7 @@ pub fn keyframe_from_rows(
 
     // colors
     let mut colors = sort_by_ordinal(rows.colors, |r| r.ordinal);
-    let mut built = std::vec::Vec::with_capacity(colors.len());
+    let mut built = Vec::with_capacity(colors.len());
     for r in colors.drain(..) {
       let rgb = Rgba::from_bits(u32_from_i64(r.rgba, "keyframe_color.rgba")?);
       let population = u32_from_i64(r.population, "keyframe_color.population")?;
@@ -1645,7 +1647,7 @@ fn height_estimation_from_i16(n: i16) -> Result<BodyPose3DHeightEstimation, Sqlx
 }
 
 fn push_saliency(
-  out: &mut std::vec::Vec<MySqlKeyframeSaliencyRow>,
+  out: &mut Vec<MySqlKeyframeSaliencyRow>,
   keyframe_id: &[u8],
   kind: i16,
   ordinal: usize,
@@ -1665,7 +1667,7 @@ fn push_saliency(
 }
 
 fn push_subject(
-  out: &mut std::vec::Vec<MySqlKeyframeSubjectRow>,
+  out: &mut Vec<MySqlKeyframeSubjectRow>,
   keyframe_id: &[u8],
   scope: i16,
   ordinal: usize,
@@ -1686,7 +1688,7 @@ fn push_subject(
 }
 
 fn push_face(
-  out: &mut std::vec::Vec<MySqlKeyframeFaceRow>,
+  out: &mut Vec<MySqlKeyframeFaceRow>,
   keyframe_id: &[u8],
   kind: i16,
   ordinal: usize,
@@ -1710,8 +1712,8 @@ fn push_face(
 }
 
 fn push_body_pose(
-  rows: &mut std::vec::Vec<MySqlKeyframeBodyPoseRow>,
-  joint_rows: &mut std::vec::Vec<MySqlKeyframeBodyPoseJointRow>,
+  rows: &mut Vec<MySqlKeyframeBodyPoseRow>,
+  joint_rows: &mut Vec<MySqlKeyframeBodyPoseJointRow>,
   keyframe_id: &[u8],
   scope: i16,
   ordinal: usize,
@@ -1743,7 +1745,7 @@ fn push_body_pose(
 }
 
 fn push_vlm(
-  out: &mut std::vec::Vec<MySqlKeyframeVlmLabelRow>,
+  out: &mut Vec<MySqlKeyframeVlmLabelRow>,
   keyframe_id: &[u8],
   kind: i16,
   labels: &[LocalizedText],
@@ -1759,7 +1761,7 @@ fn push_vlm(
   }
 }
 
-fn sort_by_ordinal<T, F>(mut v: std::vec::Vec<T>, key: F) -> std::vec::Vec<T>
+fn sort_by_ordinal<T, F>(mut v: Vec<T>, key: F) -> Vec<T>
 where
   F: FnMut(&T) -> i32,
 {
@@ -1769,9 +1771,9 @@ where
 }
 
 fn group_joints_by_scope(
-  rows: std::vec::Vec<MySqlKeyframeBodyPoseJointRow>,
-) -> std::collections::HashMap<i16, std::vec::Vec<MySqlKeyframeBodyPoseJointRow>> {
-  let mut out: std::collections::HashMap<i16, std::vec::Vec<MySqlKeyframeBodyPoseJointRow>> =
+  rows: Vec<MySqlKeyframeBodyPoseJointRow>,
+) -> std::collections::HashMap<i16, Vec<MySqlKeyframeBodyPoseJointRow>> {
+  let mut out: std::collections::HashMap<i16, Vec<MySqlKeyframeBodyPoseJointRow>> =
     std::collections::HashMap::new();
   for r in rows {
     out.entry(r.scope).or_default().push(r);
@@ -1780,16 +1782,10 @@ fn group_joints_by_scope(
 }
 
 fn build_subjects(
-  rows: std::vec::Vec<MySqlKeyframeSubjectRow>,
-) -> Result<
-  (
-    std::vec::Vec<SubjectDetection>,
-    std::vec::Vec<SubjectDetection>,
-  ),
-  SqlxError,
-> {
-  let mut humans = std::vec::Vec::new();
-  let mut animals = std::vec::Vec::new();
+  rows: Vec<MySqlKeyframeSubjectRow>,
+) -> Result<(Vec<SubjectDetection>, Vec<SubjectDetection>), SqlxError> {
+  let mut humans = Vec::new();
+  let mut animals = Vec::new();
   let mut rows = rows;
   rows.sort_by_key(|r| (r.scope, r.ordinal));
   for r in rows {
@@ -1810,10 +1806,10 @@ fn build_subjects(
 }
 
 fn build_faces(
-  rows: std::vec::Vec<MySqlKeyframeFaceRow>,
-) -> Result<(std::vec::Vec<FaceDetection>, std::vec::Vec<FaceDetection>), SqlxError> {
-  let mut faces = std::vec::Vec::new();
-  let mut face_rects = std::vec::Vec::new();
+  rows: Vec<MySqlKeyframeFaceRow>,
+) -> Result<(Vec<FaceDetection>, Vec<FaceDetection>), SqlxError> {
+  let mut faces = Vec::new();
+  let mut face_rects = Vec::new();
   let mut rows = rows;
   rows.sort_by_key(|r| (r.kind, r.ordinal));
   for r in rows {
@@ -1834,20 +1830,11 @@ fn build_faces(
 }
 
 fn build_body_poses(
-  rows: std::vec::Vec<MySqlKeyframeBodyPoseRow>,
-  joints_by_scope: &mut std::collections::HashMap<
-    i16,
-    std::vec::Vec<MySqlKeyframeBodyPoseJointRow>,
-  >,
-) -> Result<
-  (
-    std::vec::Vec<BodyPoseDetection>,
-    std::vec::Vec<BodyPoseDetection>,
-  ),
-  SqlxError,
-> {
-  let mut humans = std::vec::Vec::new();
-  let mut animals = std::vec::Vec::new();
+  rows: Vec<MySqlKeyframeBodyPoseRow>,
+  joints_by_scope: &mut std::collections::HashMap<i16, Vec<MySqlKeyframeBodyPoseJointRow>>,
+) -> Result<(Vec<BodyPoseDetection>, Vec<BodyPoseDetection>), SqlxError> {
+  let mut humans = Vec::new();
+  let mut animals = Vec::new();
   let mut rows = rows;
   rows.sort_by_key(|r| (r.scope, r.ordinal));
 
@@ -1880,9 +1867,9 @@ fn build_body_poses(
 }
 
 fn joints_lookup(
-  rows: std::vec::Vec<MySqlKeyframeBodyPoseJointRow>,
-) -> std::collections::HashMap<i32, std::vec::Vec<MySqlKeyframeBodyPoseJointRow>> {
-  let mut out: std::collections::HashMap<i32, std::vec::Vec<MySqlKeyframeBodyPoseJointRow>> =
+  rows: Vec<MySqlKeyframeBodyPoseJointRow>,
+) -> std::collections::HashMap<i32, Vec<MySqlKeyframeBodyPoseJointRow>> {
+  let mut out: std::collections::HashMap<i32, Vec<MySqlKeyframeBodyPoseJointRow>> =
     std::collections::HashMap::new();
   for r in rows {
     out.entry(r.parent_ordinal).or_default().push(r);
@@ -1893,10 +1880,8 @@ fn joints_lookup(
   out
 }
 
-fn build_joints(
-  rows: std::vec::Vec<MySqlKeyframeBodyPoseJointRow>,
-) -> Result<std::vec::Vec<BodyPoseJoint>, SqlxError> {
-  let mut out = std::vec::Vec::with_capacity(rows.len());
+fn build_joints(rows: Vec<MySqlKeyframeBodyPoseJointRow>) -> Result<Vec<BodyPoseJoint>, SqlxError> {
+  let mut out = Vec::with_capacity(rows.len());
   for r in rows {
     out.push(BodyPoseJoint::try_new(r.name, r.x, r.y, r.confidence).map_err(detection_err)?);
   }
@@ -1904,13 +1889,13 @@ fn build_joints(
 }
 
 fn build_hand_poses(
-  rows: std::vec::Vec<MySqlKeyframeHandPoseRow>,
-  joints: std::vec::Vec<MySqlKeyframeBodyPoseJointRow>,
-) -> Result<std::vec::Vec<HandPoseDetection>, SqlxError> {
+  rows: Vec<MySqlKeyframeHandPoseRow>,
+  joints: Vec<MySqlKeyframeBodyPoseJointRow>,
+) -> Result<Vec<HandPoseDetection>, SqlxError> {
   let joint_lookup = joints_lookup(joints);
   let mut rows = rows;
   rows.sort_by_key(|r| r.ordinal);
-  let mut out = std::vec::Vec::with_capacity(rows.len());
+  let mut out = Vec::with_capacity(rows.len());
   for r in rows {
     let bb = BoundingBox::try_new(r.bbox_x, r.bbox_y, r.bbox_w, r.bbox_h).map_err(detection_err)?;
     let chirality = hand_chirality_from_i16(r.chirality)?;
@@ -1923,13 +1908,11 @@ fn build_hand_poses(
 }
 
 fn build_body_poses_3d(
-  rows: std::vec::Vec<MySqlKeyframeBodyPose3DRow>,
-  joints: std::vec::Vec<MySqlKeyframeBodyPose3DJointRow>,
-) -> Result<std::vec::Vec<BodyPose3DDetection>, SqlxError> {
-  let mut joint_lookup: std::collections::HashMap<
-    i32,
-    std::vec::Vec<MySqlKeyframeBodyPose3DJointRow>,
-  > = std::collections::HashMap::new();
+  rows: Vec<MySqlKeyframeBodyPose3DRow>,
+  joints: Vec<MySqlKeyframeBodyPose3DJointRow>,
+) -> Result<Vec<BodyPose3DDetection>, SqlxError> {
+  let mut joint_lookup: std::collections::HashMap<i32, Vec<MySqlKeyframeBodyPose3DJointRow>> =
+    std::collections::HashMap::new();
   for r in joints {
     joint_lookup.entry(r.parent_ordinal).or_default().push(r);
   }
@@ -1938,11 +1921,11 @@ fn build_body_poses_3d(
   }
   let mut rows = rows;
   rows.sort_by_key(|r| r.ordinal);
-  let mut out = std::vec::Vec::with_capacity(rows.len());
+  let mut out = Vec::with_capacity(rows.len());
   for r in rows {
     let height = height_estimation_from_i16(r.height_estimation)?;
     let joints = joint_lookup.remove(&r.ordinal).unwrap_or_default();
-    let mut built = std::vec::Vec::with_capacity(joints.len());
+    let mut built = Vec::with_capacity(joints.len());
     for j in joints {
       built.push(
         BodyPose3DJoint::try_new(j.name, j.x, j.y, j.z, j.confidence).map_err(detection_err)?,
@@ -1957,16 +1940,16 @@ fn build_body_poses_3d(
 }
 
 fn build_masks(
-  rows: std::vec::Vec<MySqlKeyframeMaskRow>,
+  rows: Vec<MySqlKeyframeMaskRow>,
 ) -> Result<
   (
-    std::vec::Vec<PersonInstanceMaskDetection>,
-    std::vec::Vec<PersonSegmentationMask>,
+    Vec<PersonInstanceMaskDetection>,
+    Vec<PersonSegmentationMask>,
   ),
   SqlxError,
 > {
-  let mut instance = std::vec::Vec::new();
-  let mut whole = std::vec::Vec::new();
+  let mut instance = Vec::new();
+  let mut whole = Vec::new();
   let mut rows = rows;
   rows.sort_by_key(|r| (r.kind, r.ordinal));
   for r in rows {
@@ -2007,14 +1990,14 @@ fn build_masks(
 }
 
 fn build_face_landmarks(
-  rows: std::vec::Vec<MySqlKeyframeFaceLandmarksRow>,
-  regions: std::vec::Vec<MySqlKeyframeFaceLandmarkRegionRow>,
-  points: std::vec::Vec<MySqlKeyframeFaceLandmarkPointRow>,
-) -> Result<std::vec::Vec<FaceLandmarksDetection>, SqlxError> {
+  rows: Vec<MySqlKeyframeFaceLandmarksRow>,
+  regions: Vec<MySqlKeyframeFaceLandmarkRegionRow>,
+  points: Vec<MySqlKeyframeFaceLandmarkPointRow>,
+) -> Result<Vec<FaceLandmarksDetection>, SqlxError> {
   // Bucket regions per face-landmark ordinal.
   let mut regions_by_parent: std::collections::HashMap<
     i32,
-    std::vec::Vec<MySqlKeyframeFaceLandmarkRegionRow>,
+    Vec<MySqlKeyframeFaceLandmarkRegionRow>,
   > = std::collections::HashMap::new();
   for r in regions {
     regions_by_parent
@@ -2029,7 +2012,7 @@ fn build_face_landmarks(
   // Bucket points per (face-landmark ordinal, region ordinal).
   let mut points_by_region: std::collections::HashMap<
     (i32, i32),
-    std::vec::Vec<MySqlKeyframeFaceLandmarkPointRow>,
+    Vec<MySqlKeyframeFaceLandmarkPointRow>,
   > = std::collections::HashMap::new();
   for p in points {
     points_by_region
@@ -2043,16 +2026,16 @@ fn build_face_landmarks(
 
   let mut rows = rows;
   rows.sort_by_key(|r| r.ordinal);
-  let mut out = std::vec::Vec::with_capacity(rows.len());
+  let mut out = Vec::with_capacity(rows.len());
   for r in rows {
     let bb = BoundingBox::try_new(r.bbox_x, r.bbox_y, r.bbox_w, r.bbox_h).map_err(detection_err)?;
     let region_rows = regions_by_parent.remove(&r.ordinal).unwrap_or_default();
-    let mut built_regions = std::vec::Vec::with_capacity(region_rows.len());
+    let mut built_regions = Vec::with_capacity(region_rows.len());
     for region in region_rows {
       let pts = points_by_region
         .remove(&(r.ordinal, region.ordinal))
         .unwrap_or_default();
-      let pt_iter: std::vec::Vec<(f32, f32)> = pts.into_iter().map(|p| (p.x, p.y)).collect();
+      let pt_iter: Vec<(f32, f32)> = pts.into_iter().map(|p| (p.x, p.y)).collect();
       built_regions.push(FaceLandmarkRegion::try_new(region.name, pt_iter).map_err(detection_err)?);
     }
     out.push(
@@ -2064,23 +2047,23 @@ fn build_face_landmarks(
 
 #[allow(clippy::type_complexity)]
 fn group_vlm_by_kind(
-  rows: std::vec::Vec<MySqlKeyframeVlmLabelRow>,
+  rows: Vec<MySqlKeyframeVlmLabelRow>,
 ) -> (
-  std::vec::Vec<LocalizedText>,
-  std::vec::Vec<LocalizedText>,
-  std::vec::Vec<LocalizedText>,
-  std::vec::Vec<LocalizedText>,
-  std::vec::Vec<LocalizedText>,
-  std::vec::Vec<LocalizedText>,
-  std::vec::Vec<LocalizedText>,
+  Vec<LocalizedText>,
+  Vec<LocalizedText>,
+  Vec<LocalizedText>,
+  Vec<LocalizedText>,
+  Vec<LocalizedText>,
+  Vec<LocalizedText>,
+  Vec<LocalizedText>,
 ) {
-  let mut buckets: [std::vec::Vec<MySqlKeyframeVlmLabelRow>; 7] = Default::default();
+  let mut buckets: [Vec<MySqlKeyframeVlmLabelRow>; 7] = Default::default();
   for r in rows {
     if (0..7).contains(&(r.kind as i32)) {
       buckets[r.kind as usize].push(r);
     }
   }
-  let mut out: [std::vec::Vec<LocalizedText>; 7] = Default::default();
+  let mut out: [Vec<LocalizedText>; 7] = Default::default();
   for (i, bucket) in buckets.iter_mut().enumerate() {
     bucket.sort_by_key(|r| r.ordinal);
     out[i] = bucket
@@ -2146,7 +2129,7 @@ fn require_timebase(
 // Borrowed-view siblings (`*RowRef<'r>`) — zero-copy decode from `&'r Row`.
 //
 // Every row type has a `Ref` sibling: Uuid identity columns ride as
-// `std::vec::Vec<u8>` in the owned rows, so even otherwise-`Copy` rows
+// `Vec<u8>` in the owned rows, so even otherwise-`Copy` rows
 // (saliencies, doc segments, faces, body-poses, hand poses, body-pose-3d,
 // face-landmarks, face-landmark-points) carry at least one variable-length
 // field worth borrowing.
@@ -2398,8 +2381,8 @@ impl MySqlVideoTrackMetadataRow {
 impl<'r>
   TryFrom<(
     MySqlVideoTrackRowRef<'r>,
-    std::vec::Vec<MySqlVideoTrackIndexErrorRowRef<'r>>,
-    std::vec::Vec<MySqlVideoTrackMetadataRowRef<'r>>,
+    Vec<MySqlVideoTrackIndexErrorRowRef<'r>>,
+    Vec<MySqlVideoTrackMetadataRowRef<'r>>,
   )> for VideoTrack<Uuid7>
 {
   type Error = SqlxError;
@@ -2407,8 +2390,8 @@ impl<'r>
   fn try_from(
     (r, mut errors, mut metadata): (
       MySqlVideoTrackRowRef<'r>,
-      std::vec::Vec<MySqlVideoTrackIndexErrorRowRef<'r>>,
-      std::vec::Vec<MySqlVideoTrackMetadataRowRef<'r>>,
+      Vec<MySqlVideoTrackIndexErrorRowRef<'r>>,
+      Vec<MySqlVideoTrackMetadataRowRef<'r>>,
     ),
   ) -> Result<Self, Self::Error> {
     let id = bytes_to_uuid7(r.id)?;
@@ -2639,7 +2622,7 @@ impl<'r>
       )?));
 
     errors.sort_by_key(|e| e.ordinal);
-    let mut infos = std::vec::Vec::with_capacity(errors.len());
+    let mut infos = Vec::with_capacity(errors.len());
     for e in errors {
       let code = u32_from_i32(e.code, "VideoTrack.index_error.code")?;
       infos.push(ErrorInfo::new(ErrorCode::from_u32(code), e.message));
@@ -3324,26 +3307,26 @@ impl MySqlKeyframeVlmLabelRow {
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct MySqlKeyframeRowsRef<'r> {
   pub keyframe: Option<MySqlKeyframeRowRef<'r>>,
-  pub classifications: std::vec::Vec<MySqlKeyframeClassificationRowRef<'r>>,
-  pub objects: std::vec::Vec<MySqlKeyframeObjectRowRef<'r>>,
-  pub actions: std::vec::Vec<MySqlKeyframeActionRowRef<'r>>,
-  pub text_detections: std::vec::Vec<MySqlKeyframeTextDetectionRowRef<'r>>,
-  pub barcodes: std::vec::Vec<MySqlKeyframeBarcodeRowRef<'r>>,
-  pub saliencies: std::vec::Vec<MySqlKeyframeSaliencyRowRef<'r>>,
-  pub document_segments: std::vec::Vec<MySqlKeyframeDocumentSegmentRowRef<'r>>,
-  pub colors: std::vec::Vec<MySqlKeyframeColorRowRef<'r>>,
-  pub subjects: std::vec::Vec<MySqlKeyframeSubjectRowRef<'r>>,
-  pub faces: std::vec::Vec<MySqlKeyframeFaceRowRef<'r>>,
-  pub body_poses: std::vec::Vec<MySqlKeyframeBodyPoseRowRef<'r>>,
-  pub body_pose_joints: std::vec::Vec<MySqlKeyframeBodyPoseJointRowRef<'r>>,
-  pub hand_poses: std::vec::Vec<MySqlKeyframeHandPoseRowRef<'r>>,
-  pub body_poses_3d: std::vec::Vec<MySqlKeyframeBodyPose3DRowRef<'r>>,
-  pub body_pose_3d_joints: std::vec::Vec<MySqlKeyframeBodyPose3DJointRowRef<'r>>,
-  pub masks: std::vec::Vec<MySqlKeyframeMaskRowRef<'r>>,
-  pub face_landmarks: std::vec::Vec<MySqlKeyframeFaceLandmarksRowRef<'r>>,
-  pub face_landmark_regions: std::vec::Vec<MySqlKeyframeFaceLandmarkRegionRowRef<'r>>,
-  pub face_landmark_points: std::vec::Vec<MySqlKeyframeFaceLandmarkPointRowRef<'r>>,
-  pub vlm_labels: std::vec::Vec<MySqlKeyframeVlmLabelRowRef<'r>>,
+  pub classifications: Vec<MySqlKeyframeClassificationRowRef<'r>>,
+  pub objects: Vec<MySqlKeyframeObjectRowRef<'r>>,
+  pub actions: Vec<MySqlKeyframeActionRowRef<'r>>,
+  pub text_detections: Vec<MySqlKeyframeTextDetectionRowRef<'r>>,
+  pub barcodes: Vec<MySqlKeyframeBarcodeRowRef<'r>>,
+  pub saliencies: Vec<MySqlKeyframeSaliencyRowRef<'r>>,
+  pub document_segments: Vec<MySqlKeyframeDocumentSegmentRowRef<'r>>,
+  pub colors: Vec<MySqlKeyframeColorRowRef<'r>>,
+  pub subjects: Vec<MySqlKeyframeSubjectRowRef<'r>>,
+  pub faces: Vec<MySqlKeyframeFaceRowRef<'r>>,
+  pub body_poses: Vec<MySqlKeyframeBodyPoseRowRef<'r>>,
+  pub body_pose_joints: Vec<MySqlKeyframeBodyPoseJointRowRef<'r>>,
+  pub hand_poses: Vec<MySqlKeyframeHandPoseRowRef<'r>>,
+  pub body_poses_3d: Vec<MySqlKeyframeBodyPose3DRowRef<'r>>,
+  pub body_pose_3d_joints: Vec<MySqlKeyframeBodyPose3DJointRowRef<'r>>,
+  pub masks: Vec<MySqlKeyframeMaskRowRef<'r>>,
+  pub face_landmarks: Vec<MySqlKeyframeFaceLandmarksRowRef<'r>>,
+  pub face_landmark_regions: Vec<MySqlKeyframeFaceLandmarkRegionRowRef<'r>>,
+  pub face_landmark_points: Vec<MySqlKeyframeFaceLandmarkPointRowRef<'r>>,
+  pub vlm_labels: Vec<MySqlKeyframeVlmLabelRowRef<'r>>,
 }
 
 impl MySqlKeyframeRows {
@@ -3488,7 +3471,7 @@ pub fn keyframe_from_rows_ref<'r>(
 
     let mut classifications = rows.classifications;
     classifications.sort_by_key(|r| r.ordinal);
-    let mut built = std::vec::Vec::with_capacity(classifications.len());
+    let mut built = Vec::with_capacity(classifications.len());
     for r in classifications.drain(..) {
       built.push(Detection::try_new(r.label, r.confidence).map_err(detection_err)?);
     }
@@ -3496,7 +3479,7 @@ pub fn keyframe_from_rows_ref<'r>(
 
     let mut objects = rows.objects;
     objects.sort_by_key(|r| r.ordinal);
-    let mut built = std::vec::Vec::with_capacity(objects.len());
+    let mut built = Vec::with_capacity(objects.len());
     for r in objects.drain(..) {
       let det = Detection::try_new(r.label, r.confidence).map_err(detection_err)?;
       let bbox = if r.has_bbox {
@@ -3518,7 +3501,7 @@ pub fn keyframe_from_rows_ref<'r>(
 
     let mut actions = rows.actions;
     actions.sort_by_key(|r| r.ordinal);
-    let mut built = std::vec::Vec::with_capacity(actions.len());
+    let mut built = Vec::with_capacity(actions.len());
     for r in actions.drain(..) {
       let det = Detection::try_new(r.label, r.confidence).map_err(detection_err)?;
       built.push(ActionDetection::new(det));
@@ -3527,7 +3510,7 @@ pub fn keyframe_from_rows_ref<'r>(
 
     let mut texts = rows.text_detections;
     texts.sort_by_key(|r| r.ordinal);
-    let mut built = std::vec::Vec::with_capacity(texts.len());
+    let mut built = Vec::with_capacity(texts.len());
     for r in texts.drain(..) {
       let bb =
         BoundingBox::try_new(r.bbox_x, r.bbox_y, r.bbox_w, r.bbox_h).map_err(detection_err)?;
@@ -3537,7 +3520,7 @@ pub fn keyframe_from_rows_ref<'r>(
 
     let mut barcodes = rows.barcodes;
     barcodes.sort_by_key(|r| r.ordinal);
-    let mut built = std::vec::Vec::with_capacity(barcodes.len());
+    let mut built = Vec::with_capacity(barcodes.len());
     for r in barcodes.drain(..) {
       let bb =
         BoundingBox::try_new(r.bbox_x, r.bbox_y, r.bbox_w, r.bbox_h).map_err(detection_err)?;
@@ -3548,8 +3531,8 @@ pub fn keyframe_from_rows_ref<'r>(
     }
     kf = kf.with_barcodes(built);
 
-    let mut attention = std::vec::Vec::new();
-    let mut objectness = std::vec::Vec::new();
+    let mut attention = Vec::new();
+    let mut objectness = Vec::new();
     let mut saliencies = rows.saliencies;
     saliencies.sort_by_key(|r| (r.kind, r.ordinal));
     for r in saliencies {
@@ -3572,7 +3555,7 @@ pub fn keyframe_from_rows_ref<'r>(
 
     let mut docs = rows.document_segments;
     docs.sort_by_key(|r| r.ordinal);
-    let mut built = std::vec::Vec::with_capacity(docs.len());
+    let mut built = Vec::with_capacity(docs.len());
     for r in docs.drain(..) {
       built.push(
         DocumentSegment::try_new(
@@ -3589,7 +3572,7 @@ pub fn keyframe_from_rows_ref<'r>(
 
     let mut colors = rows.colors;
     colors.sort_by_key(|r| r.ordinal);
-    let mut built = std::vec::Vec::with_capacity(colors.len());
+    let mut built = Vec::with_capacity(colors.len());
     for r in colors.drain(..) {
       let rgb = Rgba::from_bits(u32_from_i64(r.rgba, "keyframe_color.rgba")?);
       let population = u32_from_i64(r.population, "keyframe_color.population")?;
@@ -3653,16 +3636,10 @@ pub fn keyframe_from_rows_ref<'r>(
 // --- borrowed-row build helpers ---
 
 fn build_subjects_ref(
-  rows: std::vec::Vec<MySqlKeyframeSubjectRowRef<'_>>,
-) -> Result<
-  (
-    std::vec::Vec<SubjectDetection>,
-    std::vec::Vec<SubjectDetection>,
-  ),
-  SqlxError,
-> {
-  let mut humans = std::vec::Vec::new();
-  let mut animals = std::vec::Vec::new();
+  rows: Vec<MySqlKeyframeSubjectRowRef<'_>>,
+) -> Result<(Vec<SubjectDetection>, Vec<SubjectDetection>), SqlxError> {
+  let mut humans = Vec::new();
+  let mut animals = Vec::new();
   let mut rows = rows;
   rows.sort_by_key(|r| (r.scope, r.ordinal));
   for r in rows {
@@ -3683,10 +3660,10 @@ fn build_subjects_ref(
 }
 
 fn build_faces_ref(
-  rows: std::vec::Vec<MySqlKeyframeFaceRowRef<'_>>,
-) -> Result<(std::vec::Vec<FaceDetection>, std::vec::Vec<FaceDetection>), SqlxError> {
-  let mut faces = std::vec::Vec::new();
-  let mut face_rects = std::vec::Vec::new();
+  rows: Vec<MySqlKeyframeFaceRowRef<'_>>,
+) -> Result<(Vec<FaceDetection>, Vec<FaceDetection>), SqlxError> {
+  let mut faces = Vec::new();
+  let mut face_rects = Vec::new();
   let mut rows = rows;
   rows.sort_by_key(|r| (r.kind, r.ordinal));
   for r in rows {
@@ -3707,9 +3684,9 @@ fn build_faces_ref(
 }
 
 fn group_joints_by_scope_ref<'r>(
-  rows: std::vec::Vec<MySqlKeyframeBodyPoseJointRowRef<'r>>,
-) -> std::collections::HashMap<i16, std::vec::Vec<MySqlKeyframeBodyPoseJointRowRef<'r>>> {
-  let mut out: std::collections::HashMap<i16, std::vec::Vec<MySqlKeyframeBodyPoseJointRowRef<'r>>> =
+  rows: Vec<MySqlKeyframeBodyPoseJointRowRef<'r>>,
+) -> std::collections::HashMap<i16, Vec<MySqlKeyframeBodyPoseJointRowRef<'r>>> {
+  let mut out: std::collections::HashMap<i16, Vec<MySqlKeyframeBodyPoseJointRowRef<'r>>> =
     std::collections::HashMap::new();
   for r in rows {
     out.entry(r.scope).or_default().push(r);
@@ -3718,9 +3695,9 @@ fn group_joints_by_scope_ref<'r>(
 }
 
 fn joints_lookup_ref<'r>(
-  rows: std::vec::Vec<MySqlKeyframeBodyPoseJointRowRef<'r>>,
-) -> std::collections::HashMap<i32, std::vec::Vec<MySqlKeyframeBodyPoseJointRowRef<'r>>> {
-  let mut out: std::collections::HashMap<i32, std::vec::Vec<MySqlKeyframeBodyPoseJointRowRef<'r>>> =
+  rows: Vec<MySqlKeyframeBodyPoseJointRowRef<'r>>,
+) -> std::collections::HashMap<i32, Vec<MySqlKeyframeBodyPoseJointRowRef<'r>>> {
+  let mut out: std::collections::HashMap<i32, Vec<MySqlKeyframeBodyPoseJointRowRef<'r>>> =
     std::collections::HashMap::new();
   for r in rows {
     out.entry(r.parent_ordinal).or_default().push(r);
@@ -3732,9 +3709,9 @@ fn joints_lookup_ref<'r>(
 }
 
 fn build_joints_ref(
-  rows: std::vec::Vec<MySqlKeyframeBodyPoseJointRowRef<'_>>,
-) -> Result<std::vec::Vec<BodyPoseJoint>, SqlxError> {
-  let mut out = std::vec::Vec::with_capacity(rows.len());
+  rows: Vec<MySqlKeyframeBodyPoseJointRowRef<'_>>,
+) -> Result<Vec<BodyPoseJoint>, SqlxError> {
+  let mut out = Vec::with_capacity(rows.len());
   for r in rows {
     out.push(BodyPoseJoint::try_new(r.name, r.x, r.y, r.confidence).map_err(detection_err)?);
   }
@@ -3742,20 +3719,11 @@ fn build_joints_ref(
 }
 
 fn build_body_poses_ref<'r>(
-  rows: std::vec::Vec<MySqlKeyframeBodyPoseRowRef<'_>>,
-  joints_by_scope: &mut std::collections::HashMap<
-    i16,
-    std::vec::Vec<MySqlKeyframeBodyPoseJointRowRef<'r>>,
-  >,
-) -> Result<
-  (
-    std::vec::Vec<BodyPoseDetection>,
-    std::vec::Vec<BodyPoseDetection>,
-  ),
-  SqlxError,
-> {
-  let mut humans = std::vec::Vec::new();
-  let mut animals = std::vec::Vec::new();
+  rows: Vec<MySqlKeyframeBodyPoseRowRef<'_>>,
+  joints_by_scope: &mut std::collections::HashMap<i16, Vec<MySqlKeyframeBodyPoseJointRowRef<'r>>>,
+) -> Result<(Vec<BodyPoseDetection>, Vec<BodyPoseDetection>), SqlxError> {
+  let mut humans = Vec::new();
+  let mut animals = Vec::new();
   let mut rows = rows;
   rows.sort_by_key(|r| (r.scope, r.ordinal));
 
@@ -3787,13 +3755,13 @@ fn build_body_poses_ref<'r>(
 }
 
 fn build_hand_poses_ref<'r>(
-  rows: std::vec::Vec<MySqlKeyframeHandPoseRowRef<'_>>,
-  joints: std::vec::Vec<MySqlKeyframeBodyPoseJointRowRef<'r>>,
-) -> Result<std::vec::Vec<HandPoseDetection>, SqlxError> {
+  rows: Vec<MySqlKeyframeHandPoseRowRef<'_>>,
+  joints: Vec<MySqlKeyframeBodyPoseJointRowRef<'r>>,
+) -> Result<Vec<HandPoseDetection>, SqlxError> {
   let joint_lookup = joints_lookup_ref(joints);
   let mut rows = rows;
   rows.sort_by_key(|r| r.ordinal);
-  let mut out = std::vec::Vec::with_capacity(rows.len());
+  let mut out = Vec::with_capacity(rows.len());
   for r in rows {
     let bb = BoundingBox::try_new(r.bbox_x, r.bbox_y, r.bbox_w, r.bbox_h).map_err(detection_err)?;
     let chirality = hand_chirality_from_i16(r.chirality)?;
@@ -3806,12 +3774,12 @@ fn build_hand_poses_ref<'r>(
 }
 
 fn build_body_poses_3d_ref<'r>(
-  rows: std::vec::Vec<MySqlKeyframeBodyPose3DRowRef<'_>>,
-  joints: std::vec::Vec<MySqlKeyframeBodyPose3DJointRowRef<'r>>,
-) -> Result<std::vec::Vec<BodyPose3DDetection>, SqlxError> {
+  rows: Vec<MySqlKeyframeBodyPose3DRowRef<'_>>,
+  joints: Vec<MySqlKeyframeBodyPose3DJointRowRef<'r>>,
+) -> Result<Vec<BodyPose3DDetection>, SqlxError> {
   let mut joint_lookup: std::collections::HashMap<
     i32,
-    std::vec::Vec<MySqlKeyframeBodyPose3DJointRowRef<'r>>,
+    Vec<MySqlKeyframeBodyPose3DJointRowRef<'r>>,
   > = std::collections::HashMap::new();
   for r in joints {
     joint_lookup.entry(r.parent_ordinal).or_default().push(r);
@@ -3821,11 +3789,11 @@ fn build_body_poses_3d_ref<'r>(
   }
   let mut rows = rows;
   rows.sort_by_key(|r| r.ordinal);
-  let mut out = std::vec::Vec::with_capacity(rows.len());
+  let mut out = Vec::with_capacity(rows.len());
   for r in rows {
     let height = height_estimation_from_i16(r.height_estimation)?;
     let joints = joint_lookup.remove(&r.ordinal).unwrap_or_default();
-    let mut built = std::vec::Vec::with_capacity(joints.len());
+    let mut built = Vec::with_capacity(joints.len());
     for j in joints {
       built.push(
         BodyPose3DJoint::try_new(j.name, j.x, j.y, j.z, j.confidence).map_err(detection_err)?,
@@ -3840,16 +3808,16 @@ fn build_body_poses_3d_ref<'r>(
 }
 
 fn build_masks_ref(
-  rows: std::vec::Vec<MySqlKeyframeMaskRowRef<'_>>,
+  rows: Vec<MySqlKeyframeMaskRowRef<'_>>,
 ) -> Result<
   (
-    std::vec::Vec<PersonInstanceMaskDetection>,
-    std::vec::Vec<PersonSegmentationMask>,
+    Vec<PersonInstanceMaskDetection>,
+    Vec<PersonSegmentationMask>,
   ),
   SqlxError,
 > {
-  let mut instance = std::vec::Vec::new();
-  let mut whole = std::vec::Vec::new();
+  let mut instance = Vec::new();
+  let mut whole = Vec::new();
   let mut rows = rows;
   rows.sort_by_key(|r| (r.kind, r.ordinal));
   for r in rows {
@@ -3896,13 +3864,13 @@ fn build_masks_ref(
 }
 
 fn build_face_landmarks_ref<'r>(
-  rows: std::vec::Vec<MySqlKeyframeFaceLandmarksRowRef<'r>>,
-  regions: std::vec::Vec<MySqlKeyframeFaceLandmarkRegionRowRef<'r>>,
-  points: std::vec::Vec<MySqlKeyframeFaceLandmarkPointRowRef<'r>>,
-) -> Result<std::vec::Vec<FaceLandmarksDetection>, SqlxError> {
+  rows: Vec<MySqlKeyframeFaceLandmarksRowRef<'r>>,
+  regions: Vec<MySqlKeyframeFaceLandmarkRegionRowRef<'r>>,
+  points: Vec<MySqlKeyframeFaceLandmarkPointRowRef<'r>>,
+) -> Result<Vec<FaceLandmarksDetection>, SqlxError> {
   let mut regions_by_parent: std::collections::HashMap<
     i32,
-    std::vec::Vec<MySqlKeyframeFaceLandmarkRegionRowRef<'r>>,
+    Vec<MySqlKeyframeFaceLandmarkRegionRowRef<'r>>,
   > = std::collections::HashMap::new();
   for r in regions {
     regions_by_parent
@@ -3916,7 +3884,7 @@ fn build_face_landmarks_ref<'r>(
 
   let mut points_by_region: std::collections::HashMap<
     (i32, i32),
-    std::vec::Vec<MySqlKeyframeFaceLandmarkPointRowRef<'r>>,
+    Vec<MySqlKeyframeFaceLandmarkPointRowRef<'r>>,
   > = std::collections::HashMap::new();
   for p in points {
     points_by_region
@@ -3930,16 +3898,16 @@ fn build_face_landmarks_ref<'r>(
 
   let mut rows = rows;
   rows.sort_by_key(|r| r.ordinal);
-  let mut out = std::vec::Vec::with_capacity(rows.len());
+  let mut out = Vec::with_capacity(rows.len());
   for r in rows {
     let bb = BoundingBox::try_new(r.bbox_x, r.bbox_y, r.bbox_w, r.bbox_h).map_err(detection_err)?;
     let region_rows = regions_by_parent.remove(&r.ordinal).unwrap_or_default();
-    let mut built_regions = std::vec::Vec::with_capacity(region_rows.len());
+    let mut built_regions = Vec::with_capacity(region_rows.len());
     for region in region_rows {
       let pts = points_by_region
         .remove(&(r.ordinal, region.ordinal))
         .unwrap_or_default();
-      let pt_iter: std::vec::Vec<(f32, f32)> = pts.into_iter().map(|p| (p.x, p.y)).collect();
+      let pt_iter: Vec<(f32, f32)> = pts.into_iter().map(|p| (p.x, p.y)).collect();
       built_regions.push(FaceLandmarkRegion::try_new(region.name, pt_iter).map_err(detection_err)?);
     }
     out.push(
@@ -3951,23 +3919,23 @@ fn build_face_landmarks_ref<'r>(
 
 #[allow(clippy::type_complexity)]
 fn group_vlm_by_kind_ref<'r>(
-  rows: std::vec::Vec<MySqlKeyframeVlmLabelRowRef<'r>>,
+  rows: Vec<MySqlKeyframeVlmLabelRowRef<'r>>,
 ) -> (
-  std::vec::Vec<LocalizedText>,
-  std::vec::Vec<LocalizedText>,
-  std::vec::Vec<LocalizedText>,
-  std::vec::Vec<LocalizedText>,
-  std::vec::Vec<LocalizedText>,
-  std::vec::Vec<LocalizedText>,
-  std::vec::Vec<LocalizedText>,
+  Vec<LocalizedText>,
+  Vec<LocalizedText>,
+  Vec<LocalizedText>,
+  Vec<LocalizedText>,
+  Vec<LocalizedText>,
+  Vec<LocalizedText>,
+  Vec<LocalizedText>,
 ) {
-  let mut buckets: [std::vec::Vec<MySqlKeyframeVlmLabelRowRef<'r>>; 7] = Default::default();
+  let mut buckets: [Vec<MySqlKeyframeVlmLabelRowRef<'r>>; 7] = Default::default();
   for r in rows {
     if (0..7).contains(&(r.kind as i32)) {
       buckets[r.kind as usize].push(r);
     }
   }
-  let mut out: [std::vec::Vec<LocalizedText>; 7] = Default::default();
+  let mut out: [Vec<LocalizedText>; 7] = Default::default();
   for (i, bucket) in buckets.iter_mut().enumerate() {
     bucket.sort_by_key(|r| r.ordinal);
     out[i] = bucket
@@ -4011,8 +3979,8 @@ mod tests {
     let t = VideoTrack::try_new(Uuid7::new(), Uuid7::new()).unwrap();
     let tuple: (
       MySqlVideoTrackRow,
-      std::vec::Vec<MySqlVideoTrackIndexErrorRow>,
-      std::vec::Vec<MySqlVideoTrackMetadataRow>,
+      Vec<MySqlVideoTrackIndexErrorRow>,
+      Vec<MySqlVideoTrackMetadataRow>,
     ) = (&t).into();
     let t2: VideoTrack<Uuid7> = tuple.try_into().unwrap();
     assert_eq!(t, t2);
@@ -4080,8 +4048,8 @@ mod tests {
       ),]);
     let tuple: (
       MySqlVideoTrackRow,
-      std::vec::Vec<MySqlVideoTrackIndexErrorRow>,
-      std::vec::Vec<MySqlVideoTrackMetadataRow>,
+      Vec<MySqlVideoTrackIndexErrorRow>,
+      Vec<MySqlVideoTrackMetadataRow>,
     ) = (&t).into();
     assert_eq!(tuple.1.len(), 1);
     let t2: VideoTrack<Uuid7> = tuple.try_into().unwrap();
@@ -4267,8 +4235,8 @@ mod tests {
       ]);
     let (row, mut errs, meta): (
       MySqlVideoTrackRow,
-      std::vec::Vec<MySqlVideoTrackIndexErrorRow>,
-      std::vec::Vec<MySqlVideoTrackMetadataRow>,
+      Vec<MySqlVideoTrackIndexErrorRow>,
+      Vec<MySqlVideoTrackMetadataRow>,
     ) = (&t).into();
     errs.reverse();
     let t2: VideoTrack<Uuid7> = (row, errs, meta).try_into().unwrap();
@@ -4286,13 +4254,13 @@ mod tests {
       .with_metadata(meta);
     let (row, errs, mut metadata): (
       MySqlVideoTrackRow,
-      std::vec::Vec<MySqlVideoTrackIndexErrorRow>,
-      std::vec::Vec<MySqlVideoTrackMetadataRow>,
+      Vec<MySqlVideoTrackIndexErrorRow>,
+      Vec<MySqlVideoTrackMetadataRow>,
     ) = (&t).into();
     assert_eq!(metadata.len(), 2);
     metadata.reverse();
     let t2: VideoTrack<Uuid7> = (row, errs, metadata).try_into().unwrap();
-    let keys: std::vec::Vec<&str> = t2.metadata_ref().keys().map(SmolStr::as_str).collect();
+    let keys: Vec<&str> = t2.metadata_ref().keys().map(SmolStr::as_str).collect();
     assert_eq!(keys, std::vec!["encoder", "language"]);
   }
 
@@ -4339,14 +4307,14 @@ mod tests {
       .with_index_errors(std::vec![ErrorInfo::new(ErrorCode::ProbeCorrupt, "bad")]);
     let (row, errs, meta): (
       MySqlVideoTrackRow,
-      std::vec::Vec<MySqlVideoTrackIndexErrorRow>,
-      std::vec::Vec<MySqlVideoTrackMetadataRow>,
+      Vec<MySqlVideoTrackIndexErrorRow>,
+      Vec<MySqlVideoTrackMetadataRow>,
     ) = (&t).into();
-    let err_refs: std::vec::Vec<MySqlVideoTrackIndexErrorRowRef<'_>> = errs
+    let err_refs: Vec<MySqlVideoTrackIndexErrorRowRef<'_>> = errs
       .iter()
       .map(MySqlVideoTrackIndexErrorRow::as_ref)
       .collect();
-    let meta_refs: std::vec::Vec<MySqlVideoTrackMetadataRowRef<'_>> = meta
+    let meta_refs: Vec<MySqlVideoTrackMetadataRowRef<'_>> = meta
       .iter()
       .map(MySqlVideoTrackMetadataRow::as_ref)
       .collect();

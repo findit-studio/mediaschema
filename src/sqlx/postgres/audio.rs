@@ -18,6 +18,8 @@
 //! `AudioTrack::segments`) are NOT stored — they are derived by querying
 //! the child table's FK.
 
+use std::vec::Vec;
+
 use indexmap::IndexMap;
 use mediaframe::{
   audio::{
@@ -195,7 +197,7 @@ pub struct PgAudioTrackRow {
   pub replay_gain_album_peak: Option<f32>,
   /// `Fingerprint` VO — `fingerprint_algo` NULL discriminates absence.
   pub fingerprint_algo: Option<String>,
-  pub fingerprint_value: Option<std::vec::Vec<u8>>,
+  pub fingerprint_value: Option<Vec<u8>>,
   pub isrc: String,
   pub acoustid: String,
   pub musicbrainz_recording_id: String,
@@ -216,7 +218,7 @@ pub struct PgAudioTrackRow {
   pub tags_language: Option<String>,
   /// `CoverArt` VO — `cover_art_mime` NULL discriminates absence.
   pub cover_art_mime: Option<String>,
-  pub cover_art_data: Option<std::vec::Vec<u8>>,
+  pub cover_art_data: Option<Vec<u8>>,
   /// `Provenance` shared VO (`""` = absent per field).
   pub provenance_model_name: String,
   pub provenance_model_version: String,
@@ -250,8 +252,8 @@ pub struct PgAudioTrackMetadataRow {
 impl From<&AudioTrack<Uuid7>>
   for (
     PgAudioTrackRow,
-    std::vec::Vec<PgAudioTrackIndexErrorRow>,
-    std::vec::Vec<PgAudioTrackMetadataRow>,
+    Vec<PgAudioTrackIndexErrorRow>,
+    Vec<PgAudioTrackMetadataRow>,
   )
 {
   fn from(t: &AudioTrack<Uuid7>) -> Self {
@@ -359,8 +361,8 @@ impl From<&AudioTrack<Uuid7>>
 impl
   TryFrom<(
     PgAudioTrackRow,
-    std::vec::Vec<PgAudioTrackIndexErrorRow>,
-    std::vec::Vec<PgAudioTrackMetadataRow>,
+    Vec<PgAudioTrackIndexErrorRow>,
+    Vec<PgAudioTrackMetadataRow>,
   )> for AudioTrack<Uuid7>
 {
   type Error = SqlxError;
@@ -368,8 +370,8 @@ impl
   fn try_from(
     (r, errors, metadata): (
       PgAudioTrackRow,
-      std::vec::Vec<PgAudioTrackIndexErrorRow>,
-      std::vec::Vec<PgAudioTrackMetadataRow>,
+      Vec<PgAudioTrackIndexErrorRow>,
+      Vec<PgAudioTrackMetadataRow>,
     ),
   ) -> Result<Self, Self::Error> {
     audio_track_from_rows(r, errors, metadata)
@@ -382,8 +384,8 @@ impl
 /// `IndexMap` ordering is recovered.
 pub fn audio_track_from_rows(
   r: PgAudioTrackRow,
-  mut errors: std::vec::Vec<PgAudioTrackIndexErrorRow>,
-  mut metadata: std::vec::Vec<PgAudioTrackMetadataRow>,
+  mut errors: Vec<PgAudioTrackIndexErrorRow>,
+  mut metadata: Vec<PgAudioTrackMetadataRow>,
 ) -> Result<AudioTrack<Uuid7>, SqlxError> {
   {
     let id = uuid_to_uuid7(r.id)?;
@@ -525,7 +527,7 @@ pub fn audio_track_from_rows(
     t = t.try_with_index_status(status).map_err(track_err)?;
 
     errors.sort_by_key(|e| e.ordinal);
-    let mut infos = std::vec::Vec::with_capacity(errors.len());
+    let mut infos = Vec::with_capacity(errors.len());
     for e in errors {
       let code = u32_from_i32(e.code, "AudioTrack.index_error.code")?;
       infos.push(ErrorInfo::new(ErrorCode::from_u32(code), e.message));
@@ -603,7 +605,7 @@ pub struct PgAudioSegmentWordRow {
   pub language: Option<String>,
 }
 
-impl From<&AudioSegment<Uuid7>> for (PgAudioSegmentRow, std::vec::Vec<PgAudioSegmentWordRow>) {
+impl From<&AudioSegment<Uuid7>> for (PgAudioSegmentRow, Vec<PgAudioSegmentWordRow>) {
   fn from(s: &AudioSegment<Uuid7>) -> Self {
     let id = uuid7_to_uuid(*s.id_ref());
     let span = s.span_ref();
@@ -661,7 +663,7 @@ impl From<&AudioSegment<Uuid7>> for (PgAudioSegmentRow, std::vec::Vec<PgAudioSeg
 /// timebase.
 pub fn audio_segment_from_rows(
   r: PgAudioSegmentRow,
-  mut words: std::vec::Vec<PgAudioSegmentWordRow>,
+  mut words: Vec<PgAudioSegmentWordRow>,
   parent_timebase: mediatime::Timebase,
 ) -> Result<AudioSegment<Uuid7>, SqlxError> {
   let id = uuid_to_uuid7(r.id)?;
@@ -719,7 +721,7 @@ pub fn audio_segment_from_rows(
     .map_err(seg_err)?;
 
   words.sort_by_key(|w| w.ordinal);
-  let mut built = std::vec::Vec::with_capacity(words.len());
+  let mut built = Vec::with_capacity(words.len());
   for w in words {
     let wspan = mediatime::TimeRange::try_new(w.span_start_pts, w.span_end_pts, parent_timebase)
       .ok_or_else(|| {
@@ -939,8 +941,8 @@ impl PgAudioTrackMetadataRow {
 impl<'r>
   TryFrom<(
     PgAudioTrackRowRef<'r>,
-    std::vec::Vec<PgAudioTrackIndexErrorRowRef<'r>>,
-    std::vec::Vec<PgAudioTrackMetadataRowRef<'r>>,
+    Vec<PgAudioTrackIndexErrorRowRef<'r>>,
+    Vec<PgAudioTrackMetadataRowRef<'r>>,
   )> for AudioTrack<Uuid7>
 {
   type Error = SqlxError;
@@ -948,8 +950,8 @@ impl<'r>
   fn try_from(
     (r, mut errors, mut metadata): (
       PgAudioTrackRowRef<'r>,
-      std::vec::Vec<PgAudioTrackIndexErrorRowRef<'r>>,
-      std::vec::Vec<PgAudioTrackMetadataRowRef<'r>>,
+      Vec<PgAudioTrackIndexErrorRowRef<'r>>,
+      Vec<PgAudioTrackMetadataRowRef<'r>>,
     ),
   ) -> Result<Self, Self::Error> {
     let id = uuid_to_uuid7(r.id)?;
@@ -1085,7 +1087,7 @@ impl<'r>
     t = t.try_with_index_status(status).map_err(track_err)?;
 
     errors.sort_by_key(|e| e.ordinal);
-    let mut infos = std::vec::Vec::with_capacity(errors.len());
+    let mut infos = Vec::with_capacity(errors.len());
     for e in errors {
       let code = u32_from_i32(e.code, "AudioTrack.index_error.code")?;
       infos.push(ErrorInfo::new(ErrorCode::from_u32(code), e.message));
@@ -1203,7 +1205,7 @@ impl PgAudioSegmentWordRow {
 /// owned counterpart.
 pub fn audio_segment_from_row_refs<'r>(
   r: PgAudioSegmentRowRef<'r>,
-  mut words: std::vec::Vec<PgAudioSegmentWordRowRef<'r>>,
+  mut words: Vec<PgAudioSegmentWordRowRef<'r>>,
   parent_timebase: mediatime::Timebase,
 ) -> Result<AudioSegment<Uuid7>, SqlxError> {
   let id = uuid_to_uuid7(r.id)?;
@@ -1261,7 +1263,7 @@ pub fn audio_segment_from_row_refs<'r>(
     .map_err(seg_err)?;
 
   words.sort_by_key(|w| w.ordinal);
-  let mut built = std::vec::Vec::with_capacity(words.len());
+  let mut built = Vec::with_capacity(words.len());
   for w in words {
     let wspan = mediatime::TimeRange::try_new(w.span_start_pts, w.span_end_pts, parent_timebase)
       .ok_or_else(|| {
@@ -1393,8 +1395,8 @@ mod tests {
     let t = AudioTrack::try_new(Uuid7::new(), Uuid7::new()).unwrap();
     let tuple: (
       PgAudioTrackRow,
-      std::vec::Vec<PgAudioTrackIndexErrorRow>,
-      std::vec::Vec<PgAudioTrackMetadataRow>,
+      Vec<PgAudioTrackIndexErrorRow>,
+      Vec<PgAudioTrackMetadataRow>,
     ) = (&t).into();
     let t2: AudioTrack<Uuid7> = tuple.try_into().unwrap();
     assert_eq!(t, t2);
@@ -1457,8 +1459,8 @@ mod tests {
       ]);
     let tuple: (
       PgAudioTrackRow,
-      std::vec::Vec<PgAudioTrackIndexErrorRow>,
-      std::vec::Vec<PgAudioTrackMetadataRow>,
+      Vec<PgAudioTrackIndexErrorRow>,
+      Vec<PgAudioTrackMetadataRow>,
     ) = (&t).into();
     assert_eq!(tuple.1.len(), 2);
     let t2: AudioTrack<Uuid7> = tuple.try_into().unwrap();
@@ -1476,8 +1478,8 @@ mod tests {
       ]);
     let (row, mut errs, meta): (
       PgAudioTrackRow,
-      std::vec::Vec<PgAudioTrackIndexErrorRow>,
-      std::vec::Vec<PgAudioTrackMetadataRow>,
+      Vec<PgAudioTrackIndexErrorRow>,
+      Vec<PgAudioTrackMetadataRow>,
     ) = (&t).into();
     errs.reverse();
     let t2: AudioTrack<Uuid7> = (row, errs, meta).try_into().unwrap();
@@ -1497,14 +1499,14 @@ mod tests {
       .with_sample_format(SampleFormat::Fltp);
     let (row, errs, mut metadata): (
       PgAudioTrackRow,
-      std::vec::Vec<PgAudioTrackIndexErrorRow>,
-      std::vec::Vec<PgAudioTrackMetadataRow>,
+      Vec<PgAudioTrackIndexErrorRow>,
+      Vec<PgAudioTrackMetadataRow>,
     ) = (&t).into();
     assert_eq!(metadata.len(), 2);
     assert_eq!(row.sample_format, i64::from(SampleFormat::Fltp.to_u32()));
     metadata.reverse();
     let t2: AudioTrack<Uuid7> = (row, errs, metadata).try_into().unwrap();
-    let keys: std::vec::Vec<&str> = t2.metadata_ref().keys().map(SmolStr::as_str).collect();
+    let keys: Vec<&str> = t2.metadata_ref().keys().map(SmolStr::as_str).collect();
     assert_eq!(keys, std::vec!["encoder", "compatible_brands"]);
     assert_eq!(t2.sample_format_ref(), &SampleFormat::Fltp);
   }
@@ -1513,7 +1515,7 @@ mod tests {
   fn audio_segment_roundtrip_minimal() {
     let s =
       AudioSegment::try_new(Uuid7::new(), Uuid7::new(), 0, TimeRange::new(0, 1500, tb())).unwrap();
-    let (row, words): (PgAudioSegmentRow, std::vec::Vec<PgAudioSegmentWordRow>) = (&s).into();
+    let (row, words): (PgAudioSegmentRow, Vec<PgAudioSegmentWordRow>) = (&s).into();
     let s2 = audio_segment_from_rows(row, words, tb()).unwrap();
     assert_eq!(s, s2);
   }
@@ -1537,7 +1539,7 @@ mod tests {
       .with_temperature(Some(0.0))
       .try_with_words(std::vec![w1, w2])
       .unwrap();
-    let (row, words): (PgAudioSegmentRow, std::vec::Vec<PgAudioSegmentWordRow>) = (&s).into();
+    let (row, words): (PgAudioSegmentRow, Vec<PgAudioSegmentWordRow>) = (&s).into();
     assert_eq!(words.len(), 2);
     let s2 = audio_segment_from_rows(row, words, tb()).unwrap();
     assert_eq!(s, s2);
@@ -1556,7 +1558,7 @@ mod tests {
     let s = AudioSegment::try_new(Uuid7::new(), Uuid7::new(), 0, TimeRange::new(0, 1000, tb()))
       .unwrap()
       .with_voice_fingerprint(Some(vfp.clone()));
-    let (row, words): (PgAudioSegmentRow, std::vec::Vec<PgAudioSegmentWordRow>) = (&s).into();
+    let (row, words): (PgAudioSegmentRow, Vec<PgAudioSegmentWordRow>) = (&s).into();
     assert!(row.voice_fingerprint_vector_id.is_some());
     let s2 = audio_segment_from_rows(row, words, tb()).unwrap();
     assert_eq!(s2.voice_fingerprint_ref(), Some(&vfp));
@@ -1571,7 +1573,7 @@ mod tests {
       .unwrap()
       .try_with_words(std::vec![w1, w2, w3])
       .unwrap();
-    let (row, mut words): (PgAudioSegmentRow, std::vec::Vec<PgAudioSegmentWordRow>) = (&s).into();
+    let (row, mut words): (PgAudioSegmentRow, Vec<PgAudioSegmentWordRow>) = (&s).into();
     words.reverse();
     let s2 = audio_segment_from_rows(row, words, tb()).unwrap();
     assert_eq!(s2.words_slice()[0].text(), "a");
@@ -1609,12 +1611,12 @@ mod tests {
       .with_index_errors(std::vec![ErrorInfo::new(ErrorCode::ProbeCorrupt, "bad")]);
     let (row, errs, meta): (
       PgAudioTrackRow,
-      std::vec::Vec<PgAudioTrackIndexErrorRow>,
-      std::vec::Vec<PgAudioTrackMetadataRow>,
+      Vec<PgAudioTrackIndexErrorRow>,
+      Vec<PgAudioTrackMetadataRow>,
     ) = (&t).into();
-    let err_refs: std::vec::Vec<PgAudioTrackIndexErrorRowRef<'_>> =
+    let err_refs: Vec<PgAudioTrackIndexErrorRowRef<'_>> =
       errs.iter().map(PgAudioTrackIndexErrorRow::as_ref).collect();
-    let meta_refs: std::vec::Vec<PgAudioTrackMetadataRowRef<'_>> =
+    let meta_refs: Vec<PgAudioTrackMetadataRowRef<'_>> =
       meta.iter().map(PgAudioTrackMetadataRow::as_ref).collect();
     let t2: AudioTrack<Uuid7> = (row.as_ref(), err_refs, meta_refs).try_into().unwrap();
     assert_eq!(t, t2);
@@ -1638,8 +1640,8 @@ mod tests {
       .with_avg_logprob(Some(-0.3))
       .try_with_words(std::vec![w1, w2])
       .unwrap();
-    let (row, words): (PgAudioSegmentRow, std::vec::Vec<PgAudioSegmentWordRow>) = (&s).into();
-    let word_refs: std::vec::Vec<PgAudioSegmentWordRowRef<'_>> =
+    let (row, words): (PgAudioSegmentRow, Vec<PgAudioSegmentWordRow>) = (&s).into();
+    let word_refs: Vec<PgAudioSegmentWordRowRef<'_>> =
       words.iter().map(PgAudioSegmentWordRow::as_ref).collect();
     let s2 = audio_segment_from_row_refs(row.as_ref(), word_refs, tb()).unwrap();
     assert_eq!(s, s2);
@@ -1650,8 +1652,8 @@ mod tests {
     let t = AudioTrack::try_new(Uuid7::new(), Uuid7::new()).unwrap();
     let (mut row, errs, meta): (
       PgAudioTrackRow,
-      std::vec::Vec<PgAudioTrackIndexErrorRow>,
-      std::vec::Vec<PgAudioTrackMetadataRow>,
+      Vec<PgAudioTrackIndexErrorRow>,
+      Vec<PgAudioTrackMetadataRow>,
     ) = (&t).into();
     row.id = Uuid::nil();
     assert!(AudioTrack::<Uuid7>::try_from((row, errs, meta))

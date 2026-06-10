@@ -11,6 +11,8 @@
 //! directly on the path column — postgres UNIQUE-indexes `TEXT` natively
 //! and needs no fixed-width hash sidecar (the mysql dialect carries one).
 
+use std::vec::Vec;
+
 use uuid::Uuid;
 
 use crate::{
@@ -42,7 +44,7 @@ fn location_path(location: &Location<Uuid7>) -> String {
       .components_slice()
       .iter()
       .map(AsRef::as_ref)
-      .collect::<std::vec::Vec<&str>>()
+      .collect::<Vec<&str>>()
       .join("/"),
   }
 }

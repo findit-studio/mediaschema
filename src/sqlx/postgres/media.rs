@@ -1,5 +1,7 @@
 //! PostgreSQL row shape for the root `Media` aggregate.
 
+use std::vec::Vec;
+
 use mediaframe::{
   capture::{Device, GeoLocation},
   container::Format,
@@ -21,7 +23,7 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct PgMediaRow {
   pub id: Uuid,
-  pub checksum: std::vec::Vec<u8>,
+  pub checksum: Vec<u8>,
   pub format: String,
   pub size: i64,
   pub duration_raw: Option<i64>,

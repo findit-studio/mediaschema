@@ -13,6 +13,8 @@
 //! `mediatime::TrackTime` (per-track time) → `mediatime::Timestamp`
 //! (same path used by the locked `Speaker`) until that type exists.
 
+use std::vec::Vec;
+
 use derive_more::IsVariant;
 use indexmap::IndexMap;
 use mediaframe::{
@@ -70,7 +72,7 @@ pub struct SubtitleTrack<Id = Uuid7> {
 
   // Rollups / forward refs.
   cue_count: u32,
-  cues: std::vec::Vec<Id>,
+  cues: Vec<Id>,
 
   // Shared per-track Provenance VO (PR #12 locked).
   provenance: Provenance,
@@ -102,7 +104,7 @@ pub struct SubtitleTrack<Id = Uuid7> {
 
   // Per-kind indexing.
   index_status: SubtitleIndexStatus,
-  index_errors: std::vec::Vec<ErrorInfo>,
+  index_errors: Vec<ErrorInfo>,
 }
 
 impl SubtitleTrack<Uuid7> {
@@ -136,7 +138,7 @@ impl SubtitleTrack<Uuid7> {
       auto_selected: false,
       duration: None,
       cue_count: 0,
-      cues: std::vec::Vec::new(),
+      cues: Vec::new(),
       provenance: Provenance::new(),
       source_checksum: None,
       character_encoding: SmolStr::default(),
@@ -151,7 +153,7 @@ impl SubtitleTrack<Uuid7> {
       last_cue: None,
       metadata: IndexMap::new(),
       index_status: SubtitleIndexStatus::new(),
-      index_errors: std::vec::Vec::new(),
+      index_errors: Vec::new(),
     })
   }
 }
@@ -516,7 +518,7 @@ impl<Id> SubtitleTrack<Id> {
   /// Builder: replace `cues`.
   #[must_use]
   #[inline(always)]
-  pub fn with_cues(mut self, v: impl Into<std::vec::Vec<Id>>) -> Self {
+  pub fn with_cues(mut self, v: impl Into<Vec<Id>>) -> Self {
     self.cues = v.into();
     self
   }
@@ -643,7 +645,7 @@ impl<Id> SubtitleTrack<Id> {
   /// Builder: replace `index_errors`.
   #[must_use]
   #[inline(always)]
-  pub fn with_index_errors(mut self, v: impl Into<std::vec::Vec<ErrorInfo>>) -> Self {
+  pub fn with_index_errors(mut self, v: impl Into<Vec<ErrorInfo>>) -> Self {
     self.index_errors = v.into();
     self
   }
@@ -738,7 +740,7 @@ impl<Id> SubtitleTrack<Id> {
 
   /// In-place mutator for `cues`.
   #[inline(always)]
-  pub fn set_cues(&mut self, v: impl Into<std::vec::Vec<Id>>) -> &mut Self {
+  pub fn set_cues(&mut self, v: impl Into<Vec<Id>>) -> &mut Self {
     self.cues = v.into();
     self
   }
@@ -836,7 +838,7 @@ impl<Id> SubtitleTrack<Id> {
 
   /// In-place mutator for `index_errors`.
   #[inline(always)]
-  pub fn set_index_errors(&mut self, v: impl Into<std::vec::Vec<ErrorInfo>>) -> &mut Self {
+  pub fn set_index_errors(&mut self, v: impl Into<Vec<ErrorInfo>>) -> &mut Self {
     self.index_errors = v.into();
     self
   }

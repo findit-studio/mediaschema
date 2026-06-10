@@ -4,6 +4,8 @@
 //! for identity / FK columns and only has `INTEGER` for numeric types,
 //! so timebase + ordinal ride as `i64`.
 
+use std::vec::Vec;
+
 use core::num::NonZeroU32;
 
 use indexmap::IndexMap;
@@ -21,8 +23,8 @@ use crate::{
 /// SQLite row for the `chapter` table.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteChapterRow {
-  pub id: std::vec::Vec<u8>,
-  pub media_id: std::vec::Vec<u8>,
+  pub id: Vec<u8>,
+  pub media_id: Vec<u8>,
   pub chapter_index: i64,
   pub source_id: i64,
   pub start_pts: i64,
@@ -36,13 +38,13 @@ pub struct SqliteChapterRow {
 /// `ordinal` sequence IS the [`IndexMap`] insertion order.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteChapterMetadataRow {
-  pub chapter_id: std::vec::Vec<u8>,
+  pub chapter_id: Vec<u8>,
   pub ordinal: i64,
   pub key: String,
   pub value: String,
 }
 
-impl From<&Chapter<Uuid7>> for (SqliteChapterRow, std::vec::Vec<SqliteChapterMetadataRow>) {
+impl From<&Chapter<Uuid7>> for (SqliteChapterRow, Vec<SqliteChapterMetadataRow>) {
   fn from(c: &Chapter<Uuid7>) -> Self {
     let id_bytes = c.id_ref().as_bytes().to_vec();
     let row = SqliteChapterRow {
@@ -77,7 +79,7 @@ impl From<&Chapter<Uuid7>> for (SqliteChapterRow, std::vec::Vec<SqliteChapterMet
 /// recovered.
 pub fn chapter_from_rows(
   row: SqliteChapterRow,
-  mut metadata: std::vec::Vec<SqliteChapterMetadataRow>,
+  mut metadata: Vec<SqliteChapterMetadataRow>,
 ) -> Result<Chapter<Uuid7>, SqlxError> {
   let id = bytes_to_uuid7(&row.id)?;
   let media_id = bytes_to_uuid7(&row.media_id)?;

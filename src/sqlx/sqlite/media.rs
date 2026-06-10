@@ -1,5 +1,7 @@
 //! SQLite row shape for the root `Media` aggregate.
 
+use std::vec::Vec;
+
 use mediaframe::{
   capture::{Device, GeoLocation},
   container::Format,
@@ -22,8 +24,8 @@ use crate::{
 /// (`device` / `gps` / `probe_error`) are flattened into real columns.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteMediaRow {
-  pub id: std::vec::Vec<u8>,
-  pub checksum: std::vec::Vec<u8>,
+  pub id: Vec<u8>,
+  pub checksum: Vec<u8>,
   pub format: String,
   pub size: i64,
   /// `mediatime::Timestamp` is currently stored as raw `i64` nanoseconds
@@ -36,9 +38,9 @@ pub struct SqliteMediaRow {
   pub nb_streams: i64,
   /// Verbatim `AVFormatContext.nb_chapters` (rev 11).
   pub nb_chapters: i64,
-  pub video_id: Option<std::vec::Vec<u8>>,
-  pub audio_id: Option<std::vec::Vec<u8>>,
-  pub subtitle_id: Option<std::vec::Vec<u8>>,
+  pub video_id: Option<Vec<u8>>,
+  pub audio_id: Option<Vec<u8>>,
+  pub subtitle_id: Option<Vec<u8>>,
   pub error_flags: i64,
   /// `ErrorInfo.code` as the verified `u32` wire value; NULL = no probe
   /// error. Discriminates presence of the flattened `ErrorInfo` VO.
@@ -429,7 +431,7 @@ mod tests {
   fn media_row_rejects_zero_checksum() {
     let row = SqliteMediaRow {
       id: Uuid7::new().as_bytes().to_vec(),
-      checksum: std::vec::Vec::from([0u8; 32]),
+      checksum: Vec::from([0u8; 32]),
       format: "mp4".to_owned(),
       size: 0,
       duration_raw: None,
@@ -456,7 +458,7 @@ mod tests {
   #[test]
   fn media_row_rejects_nil_id() {
     let row = SqliteMediaRow {
-      id: std::vec::Vec::from([0u8; 16]),
+      id: Vec::from([0u8; 16]),
       checksum: fake_checksum().as_bytes().to_vec(),
       format: "mp4".to_owned(),
       size: 0,

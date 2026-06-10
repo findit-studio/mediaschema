@@ -13,6 +13,8 @@
 //! `audio_track_index_error`) with an `ordinal` order column. The
 //! `Vec<Id>` reverse-FK fields are NOT stored.
 
+use std::vec::Vec;
+
 use indexmap::IndexMap;
 use mediaframe::{
   audio::{
@@ -69,8 +71,8 @@ fn content_kind_from_i16(n: i16) -> Result<AudioContentKind, SqlxError> {
 /// MySQL row shape for the [`Audio`] facet.
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct MySqlAudioRow {
-  pub id: std::vec::Vec<u8>,
-  pub media_id: std::vec::Vec<u8>,
+  pub id: Vec<u8>,
+  pub media_id: Vec<u8>,
   pub total_segments: i64,
   pub track_progress_total: i64,
   pub track_progress_indexed: i64,
@@ -125,8 +127,8 @@ fn restore_rollups(a: Audio<Uuid7>, total_segments: u32, progress: IndexProgress
 /// MySQL row shape for [`AudioTrack`].
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlAudioTrackRow {
-  pub id: std::vec::Vec<u8>,
-  pub audio_id: std::vec::Vec<u8>,
+  pub id: Vec<u8>,
+  pub audio_id: Vec<u8>,
   pub stream_index: Option<i64>,
   pub container_track_id: Option<i64>,
   pub codec: String,
@@ -166,7 +168,7 @@ pub struct MySqlAudioTrackRow {
   pub replay_gain_album_gain_db: Option<f32>,
   pub replay_gain_album_peak: Option<f32>,
   pub fingerprint_algo: Option<String>,
-  pub fingerprint_value: Option<std::vec::Vec<u8>>,
+  pub fingerprint_value: Option<Vec<u8>>,
   pub isrc: String,
   pub acoustid: String,
   pub musicbrainz_recording_id: String,
@@ -185,7 +187,7 @@ pub struct MySqlAudioTrackRow {
   pub tags_disc_total: Option<i32>,
   pub tags_language: Option<String>,
   pub cover_art_mime: Option<String>,
-  pub cover_art_data: Option<std::vec::Vec<u8>>,
+  pub cover_art_data: Option<Vec<u8>>,
   pub provenance_model_name: String,
   pub provenance_model_version: String,
   pub provenance_prompt_version: String,
@@ -196,7 +198,7 @@ pub struct MySqlAudioTrackRow {
 /// One `audio_track_index_error` child row.
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct MySqlAudioTrackIndexErrorRow {
-  pub audio_track_id: std::vec::Vec<u8>,
+  pub audio_track_id: Vec<u8>,
   pub ordinal: i32,
   pub code: i32,
   pub message: String,
@@ -207,7 +209,7 @@ pub struct MySqlAudioTrackIndexErrorRow {
 /// order. `audio_track_from_rows` sorts by `ordinal` on decode.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlAudioTrackMetadataRow {
-  pub audio_track_id: std::vec::Vec<u8>,
+  pub audio_track_id: Vec<u8>,
   pub ordinal: i32,
   pub key: String,
   pub value: String,
@@ -216,8 +218,8 @@ pub struct MySqlAudioTrackMetadataRow {
 impl From<&AudioTrack<Uuid7>>
   for (
     MySqlAudioTrackRow,
-    std::vec::Vec<MySqlAudioTrackIndexErrorRow>,
-    std::vec::Vec<MySqlAudioTrackMetadataRow>,
+    Vec<MySqlAudioTrackIndexErrorRow>,
+    Vec<MySqlAudioTrackMetadataRow>,
   )
 {
   fn from(t: &AudioTrack<Uuid7>) -> Self {
@@ -325,8 +327,8 @@ impl From<&AudioTrack<Uuid7>>
 impl
   TryFrom<(
     MySqlAudioTrackRow,
-    std::vec::Vec<MySqlAudioTrackIndexErrorRow>,
-    std::vec::Vec<MySqlAudioTrackMetadataRow>,
+    Vec<MySqlAudioTrackIndexErrorRow>,
+    Vec<MySqlAudioTrackMetadataRow>,
   )> for AudioTrack<Uuid7>
 {
   type Error = SqlxError;
@@ -334,8 +336,8 @@ impl
   fn try_from(
     (r, errors, metadata): (
       MySqlAudioTrackRow,
-      std::vec::Vec<MySqlAudioTrackIndexErrorRow>,
-      std::vec::Vec<MySqlAudioTrackMetadataRow>,
+      Vec<MySqlAudioTrackIndexErrorRow>,
+      Vec<MySqlAudioTrackMetadataRow>,
     ),
   ) -> Result<Self, Self::Error> {
     audio_track_from_rows(r, errors, metadata)
@@ -346,8 +348,8 @@ impl
 /// `metadata` rows.
 pub fn audio_track_from_rows(
   r: MySqlAudioTrackRow,
-  mut errors: std::vec::Vec<MySqlAudioTrackIndexErrorRow>,
-  mut metadata: std::vec::Vec<MySqlAudioTrackMetadataRow>,
+  mut errors: Vec<MySqlAudioTrackIndexErrorRow>,
+  mut metadata: Vec<MySqlAudioTrackMetadataRow>,
 ) -> Result<AudioTrack<Uuid7>, SqlxError> {
   {
     let id = bytes_to_uuid7(&r.id)?;
@@ -483,7 +485,7 @@ pub fn audio_track_from_rows(
     t = t.try_with_index_status(status).map_err(track_err)?;
 
     errors.sort_by_key(|e| e.ordinal);
-    let mut infos = std::vec::Vec::with_capacity(errors.len());
+    let mut infos = Vec::with_capacity(errors.len());
     for e in errors {
       let code = u32_from_i32(e.code, "AudioTrack.index_error.code")?;
       infos.push(ErrorInfo::new(ErrorCode::from_u32(code), e.message));
@@ -517,12 +519,12 @@ pub fn audio_track_from_rows(
 /// all of its segments + words).
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlAudioSegmentRow {
-  pub id: std::vec::Vec<u8>,
-  pub audio_track_id: std::vec::Vec<u8>,
+  pub id: Vec<u8>,
+  pub audio_track_id: Vec<u8>,
   pub index: i64,
   pub span_start_pts: i64,
   pub span_end_pts: i64,
-  pub speaker_id: Option<std::vec::Vec<u8>>,
+  pub speaker_id: Option<Vec<u8>>,
   pub text_src: String,
   pub text_translated: String,
   pub language: Option<String>,
@@ -531,7 +533,7 @@ pub struct MySqlAudioSegmentRow {
   pub temperature: Option<f32>,
   /// Per-segment voice embedding — discriminator for the flattened
   /// `VoiceFingerprint` VO (`Some` = present; `None` = all NULL).
-  pub voice_fingerprint_vector_id: Option<std::vec::Vec<u8>>,
+  pub voice_fingerprint_vector_id: Option<Vec<u8>>,
   pub voice_fingerprint_dimensions: Option<u32>,
   pub voice_fingerprint_extracted_at_ms: Option<i64>,
   pub voice_fingerprint_confidence: Option<f32>,
@@ -545,7 +547,7 @@ pub struct MySqlAudioSegmentRow {
 /// is inherited from `audio_track` and is not stored per word.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlAudioSegmentWordRow {
-  pub audio_segment_id: std::vec::Vec<u8>,
+  pub audio_segment_id: Vec<u8>,
   pub ordinal: i32,
   pub text: String,
   pub span_start_pts: i64,
@@ -554,12 +556,7 @@ pub struct MySqlAudioSegmentWordRow {
   pub language: Option<String>,
 }
 
-impl From<&AudioSegment<Uuid7>>
-  for (
-    MySqlAudioSegmentRow,
-    std::vec::Vec<MySqlAudioSegmentWordRow>,
-  )
-{
+impl From<&AudioSegment<Uuid7>> for (MySqlAudioSegmentRow, Vec<MySqlAudioSegmentWordRow>) {
   fn from(s: &AudioSegment<Uuid7>) -> Self {
     let id = s.id_ref().as_bytes().to_vec();
     let span = s.span_ref();
@@ -617,7 +614,7 @@ impl From<&AudioSegment<Uuid7>>
 /// timebase.
 pub fn audio_segment_from_rows(
   r: MySqlAudioSegmentRow,
-  mut words: std::vec::Vec<MySqlAudioSegmentWordRow>,
+  mut words: Vec<MySqlAudioSegmentWordRow>,
   parent_timebase: mediatime::Timebase,
 ) -> Result<AudioSegment<Uuid7>, SqlxError> {
   let id = bytes_to_uuid7(&r.id)?;
@@ -673,7 +670,7 @@ pub fn audio_segment_from_rows(
     .map_err(seg_err)?;
 
   words.sort_by_key(|w| w.ordinal);
-  let mut built = std::vec::Vec::with_capacity(words.len());
+  let mut built = Vec::with_capacity(words.len());
   for w in words {
     let wspan = mediatime::TimeRange::try_new(w.span_start_pts, w.span_end_pts, parent_timebase)
       .ok_or_else(|| {
@@ -929,8 +926,8 @@ impl MySqlAudioTrackMetadataRow {
 impl<'r>
   TryFrom<(
     MySqlAudioTrackRowRef<'r>,
-    std::vec::Vec<MySqlAudioTrackIndexErrorRowRef<'r>>,
-    std::vec::Vec<MySqlAudioTrackMetadataRowRef<'r>>,
+    Vec<MySqlAudioTrackIndexErrorRowRef<'r>>,
+    Vec<MySqlAudioTrackMetadataRowRef<'r>>,
   )> for AudioTrack<Uuid7>
 {
   type Error = SqlxError;
@@ -938,8 +935,8 @@ impl<'r>
   fn try_from(
     (r, mut errors, mut metadata): (
       MySqlAudioTrackRowRef<'r>,
-      std::vec::Vec<MySqlAudioTrackIndexErrorRowRef<'r>>,
-      std::vec::Vec<MySqlAudioTrackMetadataRowRef<'r>>,
+      Vec<MySqlAudioTrackIndexErrorRowRef<'r>>,
+      Vec<MySqlAudioTrackMetadataRowRef<'r>>,
     ),
   ) -> Result<Self, Self::Error> {
     let id = bytes_to_uuid7(r.id)?;
@@ -1075,7 +1072,7 @@ impl<'r>
     t = t.try_with_index_status(status).map_err(track_err)?;
 
     errors.sort_by_key(|e| e.ordinal);
-    let mut infos = std::vec::Vec::with_capacity(errors.len());
+    let mut infos = Vec::with_capacity(errors.len());
     for e in errors {
       let code = u32_from_i32(e.code, "AudioTrack.index_error.code")?;
       infos.push(ErrorInfo::new(ErrorCode::from_u32(code), e.message));
@@ -1192,7 +1189,7 @@ impl MySqlAudioSegmentWordRow {
 /// owned counterpart.
 pub fn audio_segment_from_row_refs<'r>(
   r: MySqlAudioSegmentRowRef<'r>,
-  mut words: std::vec::Vec<MySqlAudioSegmentWordRowRef<'r>>,
+  mut words: Vec<MySqlAudioSegmentWordRowRef<'r>>,
   parent_timebase: mediatime::Timebase,
 ) -> Result<AudioSegment<Uuid7>, SqlxError> {
   let id = bytes_to_uuid7(r.id)?;
@@ -1248,7 +1245,7 @@ pub fn audio_segment_from_row_refs<'r>(
     .map_err(seg_err)?;
 
   words.sort_by_key(|w| w.ordinal);
-  let mut built = std::vec::Vec::with_capacity(words.len());
+  let mut built = Vec::with_capacity(words.len());
   for w in words {
     let wspan = mediatime::TimeRange::try_new(w.span_start_pts, w.span_end_pts, parent_timebase)
       .ok_or_else(|| {
@@ -1377,8 +1374,8 @@ mod tests {
     let t = AudioTrack::try_new(Uuid7::new(), Uuid7::new()).unwrap();
     let tuple: (
       MySqlAudioTrackRow,
-      std::vec::Vec<MySqlAudioTrackIndexErrorRow>,
-      std::vec::Vec<MySqlAudioTrackMetadataRow>,
+      Vec<MySqlAudioTrackIndexErrorRow>,
+      Vec<MySqlAudioTrackMetadataRow>,
     ) = (&t).into();
     let t2: AudioTrack<Uuid7> = tuple.try_into().unwrap();
     assert_eq!(t, t2);
@@ -1395,14 +1392,14 @@ mod tests {
       .with_sample_format(SampleFormat::Fltp);
     let (row, errs, mut metadata): (
       MySqlAudioTrackRow,
-      std::vec::Vec<MySqlAudioTrackIndexErrorRow>,
-      std::vec::Vec<MySqlAudioTrackMetadataRow>,
+      Vec<MySqlAudioTrackIndexErrorRow>,
+      Vec<MySqlAudioTrackMetadataRow>,
     ) = (&t).into();
     assert_eq!(metadata.len(), 2);
     assert_eq!(row.sample_format, i64::from(SampleFormat::Fltp.to_u32()));
     metadata.reverse();
     let t2: AudioTrack<Uuid7> = (row, errs, metadata).try_into().unwrap();
-    let keys: std::vec::Vec<&str> = t2.metadata_ref().keys().map(SmolStr::as_str).collect();
+    let keys: Vec<&str> = t2.metadata_ref().keys().map(SmolStr::as_str).collect();
     assert_eq!(keys, std::vec!["encoder", "compatible_brands"]);
     assert_eq!(t2.sample_format_ref(), &SampleFormat::Fltp);
   }
@@ -1452,8 +1449,8 @@ mod tests {
       .with_index_errors(std::vec![ErrorInfo::new(ErrorCode::ProbeCorrupt, "bad")]);
     let tuple: (
       MySqlAudioTrackRow,
-      std::vec::Vec<MySqlAudioTrackIndexErrorRow>,
-      std::vec::Vec<MySqlAudioTrackMetadataRow>,
+      Vec<MySqlAudioTrackIndexErrorRow>,
+      Vec<MySqlAudioTrackMetadataRow>,
     ) = (&t).into();
     let t2: AudioTrack<Uuid7> = tuple.try_into().unwrap();
     assert_eq!(t, t2);
@@ -1477,10 +1474,7 @@ mod tests {
       .with_avg_logprob(Some(-0.3))
       .try_with_words(std::vec![w1, w2])
       .unwrap();
-    let (row, words): (
-      MySqlAudioSegmentRow,
-      std::vec::Vec<MySqlAudioSegmentWordRow>,
-    ) = (&s).into();
+    let (row, words): (MySqlAudioSegmentRow, Vec<MySqlAudioSegmentWordRow>) = (&s).into();
     assert_eq!(words.len(), 2);
     let s2 = audio_segment_from_rows(row, words, tb()).unwrap();
     assert_eq!(s, s2);
@@ -1499,10 +1493,7 @@ mod tests {
     let s = AudioSegment::try_new(Uuid7::new(), Uuid7::new(), 0, TimeRange::new(0, 1000, tb()))
       .unwrap()
       .with_voice_fingerprint(Some(vfp.clone()));
-    let (row, words): (
-      MySqlAudioSegmentRow,
-      std::vec::Vec<MySqlAudioSegmentWordRow>,
-    ) = (&s).into();
+    let (row, words): (MySqlAudioSegmentRow, Vec<MySqlAudioSegmentWordRow>) = (&s).into();
     assert!(row.voice_fingerprint_vector_id.is_some());
     let s2 = audio_segment_from_rows(row, words, tb()).unwrap();
     assert_eq!(s2.voice_fingerprint_ref(), Some(&vfp));
@@ -1516,10 +1507,7 @@ mod tests {
       .unwrap()
       .try_with_words(std::vec![w1, w2])
       .unwrap();
-    let (row, mut words): (
-      MySqlAudioSegmentRow,
-      std::vec::Vec<MySqlAudioSegmentWordRow>,
-    ) = (&s).into();
+    let (row, mut words): (MySqlAudioSegmentRow, Vec<MySqlAudioSegmentWordRow>) = (&s).into();
     words.reverse();
     let s2 = audio_segment_from_rows(row, words, tb()).unwrap();
     assert_eq!(s2.words_slice()[0].text(), "a");
@@ -1570,14 +1558,14 @@ mod tests {
       .with_index_errors(std::vec![ErrorInfo::new(ErrorCode::ProbeCorrupt, "bad")]);
     let (row, errs, meta): (
       MySqlAudioTrackRow,
-      std::vec::Vec<MySqlAudioTrackIndexErrorRow>,
-      std::vec::Vec<MySqlAudioTrackMetadataRow>,
+      Vec<MySqlAudioTrackIndexErrorRow>,
+      Vec<MySqlAudioTrackMetadataRow>,
     ) = (&t).into();
-    let err_refs: std::vec::Vec<MySqlAudioTrackIndexErrorRowRef<'_>> = errs
+    let err_refs: Vec<MySqlAudioTrackIndexErrorRowRef<'_>> = errs
       .iter()
       .map(MySqlAudioTrackIndexErrorRow::as_ref)
       .collect();
-    let meta_refs: std::vec::Vec<MySqlAudioTrackMetadataRowRef<'_>> = meta
+    let meta_refs: Vec<MySqlAudioTrackMetadataRowRef<'_>> = meta
       .iter()
       .map(MySqlAudioTrackMetadataRow::as_ref)
       .collect();
@@ -1603,11 +1591,8 @@ mod tests {
       .with_avg_logprob(Some(-0.3))
       .try_with_words(std::vec![w1, w2])
       .unwrap();
-    let (row, words): (
-      MySqlAudioSegmentRow,
-      std::vec::Vec<MySqlAudioSegmentWordRow>,
-    ) = (&s).into();
-    let word_refs: std::vec::Vec<MySqlAudioSegmentWordRowRef<'_>> =
+    let (row, words): (MySqlAudioSegmentRow, Vec<MySqlAudioSegmentWordRow>) = (&s).into();
+    let word_refs: Vec<MySqlAudioSegmentWordRowRef<'_>> =
       words.iter().map(MySqlAudioSegmentWordRow::as_ref).collect();
     let s2 = audio_segment_from_row_refs(row.as_ref(), word_refs, tb()).unwrap();
     assert_eq!(s, s2);

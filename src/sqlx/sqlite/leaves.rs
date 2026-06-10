@@ -6,6 +6,8 @@
 //! in the `scene_annotation_user_tag` join table. Wall-clock timestamps
 //! ride as `INTEGER` milliseconds-since-epoch.
 
+use std::vec::Vec;
+
 use crate::{
   domain::{
     aggregates::{
@@ -35,14 +37,14 @@ use crate::{
 /// `voiceprint_vector_id IS NOT NULL` discriminates the VO's presence.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct SqliteSpeakerRow {
-  pub id: std::vec::Vec<u8>,
-  pub audio_track_id: std::vec::Vec<u8>,
+  pub id: Vec<u8>,
+  pub audio_track_id: Vec<u8>,
   pub cluster_id: i64,
   pub name: String,
   pub speech_duration_ms: Option<i64>,
   /// Per-track aggregated voiceprint — discriminator for the flattened
   /// `VoiceFingerprint` VO (`Some` = present; `None` = all NULL).
-  pub voiceprint_vector_id: Option<std::vec::Vec<u8>>,
+  pub voiceprint_vector_id: Option<Vec<u8>>,
   pub voiceprint_dimensions: Option<i64>,
   pub voiceprint_extracted_at_ms: Option<i64>,
   pub voiceprint_confidence: Option<f32>,
@@ -51,7 +53,7 @@ pub struct SqliteSpeakerRow {
   pub voiceprint_provenance_prompt_version: Option<String>,
   pub voiceprint_provenance_indexer_version: Option<String>,
   /// Cross-track identity FK → `person.id`; NULL = not yet identified.
-  pub person_id: Option<std::vec::Vec<u8>>,
+  pub person_id: Option<Vec<u8>>,
 }
 
 impl From<&Speaker<Uuid7>> for SqliteSpeakerRow {
@@ -203,7 +205,7 @@ impl<'r> TryFrom<SqliteSpeakerRowRef<'r>> for Speaker<Uuid7> {
 /// SQLite row shape for [`crate::domain::UserTag`].
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct SqliteUserTagRow {
-  pub id: std::vec::Vec<u8>,
+  pub id: Vec<u8>,
   pub name: String,
   /// Packed `0xRRGGBBAA` `Rgba::bits()`; NULL = no colour set.
   pub color_rgba: Option<i64>,
@@ -285,8 +287,8 @@ impl<'r> TryFrom<SqliteUserTagRowRef<'r>> for UserTag<Uuid7> {
 /// columns only — `user_tags` lives in `scene_annotation_user_tag`).
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct SqliteSceneAnnotationRow {
-  pub id: std::vec::Vec<u8>,
-  pub scene_id: std::vec::Vec<u8>,
+  pub id: Vec<u8>,
+  pub scene_id: Vec<u8>,
   pub favorite: i64,
   pub rating: Option<i64>,
   pub note: String,
@@ -297,15 +299,15 @@ pub struct SqliteSceneAnnotationRow {
 /// edge with the tag's `ordinal` position in `SceneAnnotation::user_tags`.
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct SqliteSceneAnnotationUserTagRow {
-  pub scene_annotation_id: std::vec::Vec<u8>,
-  pub user_tag_id: std::vec::Vec<u8>,
+  pub scene_annotation_id: Vec<u8>,
+  pub user_tag_id: Vec<u8>,
   pub ordinal: i64,
 }
 
 impl From<&SceneAnnotation<Uuid7>>
   for (
     SqliteSceneAnnotationRow,
-    std::vec::Vec<SqliteSceneAnnotationUserTagRow>,
+    Vec<SqliteSceneAnnotationUserTagRow>,
   )
 {
   fn from(a: &SceneAnnotation<Uuid7>) -> Self {
@@ -335,7 +337,7 @@ impl From<&SceneAnnotation<Uuid7>>
 impl
   TryFrom<(
     SqliteSceneAnnotationRow,
-    std::vec::Vec<SqliteSceneAnnotationUserTagRow>,
+    Vec<SqliteSceneAnnotationUserTagRow>,
   )> for SceneAnnotation<Uuid7>
 {
   type Error = SqlxError;
@@ -343,14 +345,14 @@ impl
   fn try_from(
     (r, mut joins): (
       SqliteSceneAnnotationRow,
-      std::vec::Vec<SqliteSceneAnnotationUserTagRow>,
+      Vec<SqliteSceneAnnotationUserTagRow>,
     ),
   ) -> Result<Self, Self::Error> {
     let id = bytes_to_uuid7(&r.id)?;
     let scene_id = bytes_to_uuid7(&r.scene_id)?;
     let updated_at = millis_to_timestamp(r.updated_at_ms)?;
     joins.sort_by_key(|j| j.ordinal);
-    let mut tags = std::vec::Vec::with_capacity(joins.len());
+    let mut tags = Vec::with_capacity(joins.len());
     for j in joins {
       tags.push(bytes_to_uuid7(&j.user_tag_id)?);
     }
@@ -418,7 +420,7 @@ impl SqliteSceneAnnotationUserTagRow {
 impl<'r>
   TryFrom<(
     SqliteSceneAnnotationRowRef<'r>,
-    std::vec::Vec<SqliteSceneAnnotationUserTagRowRef<'r>>,
+    Vec<SqliteSceneAnnotationUserTagRowRef<'r>>,
   )> for SceneAnnotation<Uuid7>
 {
   type Error = SqlxError;
@@ -426,14 +428,14 @@ impl<'r>
   fn try_from(
     (r, mut joins): (
       SqliteSceneAnnotationRowRef<'r>,
-      std::vec::Vec<SqliteSceneAnnotationUserTagRowRef<'r>>,
+      Vec<SqliteSceneAnnotationUserTagRowRef<'r>>,
     ),
   ) -> Result<Self, Self::Error> {
     let id = bytes_to_uuid7(r.id)?;
     let scene = bytes_to_uuid7(r.scene_id)?;
     let updated_at = millis_to_timestamp(r.updated_at_ms)?;
     joins.sort_by_key(|j| j.ordinal);
-    let mut tags = std::vec::Vec::with_capacity(joins.len());
+    let mut tags = Vec::with_capacity(joins.len());
     for j in joins {
       tags.push(bytes_to_uuid7(j.user_tag_id)?);
     }
@@ -461,9 +463,9 @@ impl<'r>
 /// SQLite row shape for [`crate::domain::WatchedLocation`].
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct SqliteWatchedLocationRow {
-  pub id: std::vec::Vec<u8>,
+  pub id: Vec<u8>,
   /// Stable id of the monitored storage volume (16-byte UUID).
-  pub volume: std::vec::Vec<u8>,
+  pub volume: Vec<u8>,
   pub recursive: i64,
   pub enabled: i64,
   pub is_ejectable: i64,
@@ -691,9 +693,9 @@ mod tests {
       .with_note("nice");
     let (row, joins): (
       SqliteSceneAnnotationRow,
-      std::vec::Vec<SqliteSceneAnnotationUserTagRow>,
+      Vec<SqliteSceneAnnotationUserTagRow>,
     ) = (&a).into();
-    let join_refs: std::vec::Vec<SqliteSceneAnnotationUserTagRowRef<'_>> = joins
+    let join_refs: Vec<SqliteSceneAnnotationUserTagRowRef<'_>> = joins
       .iter()
       .map(SqliteSceneAnnotationUserTagRow::as_ref)
       .collect();
@@ -722,8 +724,8 @@ mod tests {
   #[test]
   fn speaker_row_with_nil_id_is_rejected() {
     let row = SqliteSpeakerRow {
-      id: std::vec::Vec::from([0u8; 16]),
-      audio_track_id: std::vec::Vec::from([0u8; 16]),
+      id: Vec::from([0u8; 16]),
+      audio_track_id: Vec::from([0u8; 16]),
       cluster_id: 0,
       name: String::new(),
       speech_duration_ms: None,
@@ -760,7 +762,7 @@ mod tests {
   #[test]
   fn user_tag_row_malformed_uuid_rejected() {
     let row = SqliteUserTagRow {
-      id: std::vec::Vec::from([0u8; 8]),
+      id: Vec::from([0u8; 8]),
       name: "x".to_owned(),
       color_rgba: None,
       created_at_ms: 0,
@@ -782,7 +784,7 @@ mod tests {
       .with_note("nice");
     let tuple: (
       SqliteSceneAnnotationRow,
-      std::vec::Vec<SqliteSceneAnnotationUserTagRow>,
+      Vec<SqliteSceneAnnotationUserTagRow>,
     ) = (&a).into();
     assert_eq!(tuple.1.len(), 2);
     let a2: SceneAnnotation<Uuid7> = tuple.try_into().unwrap();
@@ -804,7 +806,7 @@ mod tests {
       .with_user_tags(std::vec![t1, t2, t3]);
     let (row, mut joins): (
       SqliteSceneAnnotationRow,
-      std::vec::Vec<SqliteSceneAnnotationUserTagRow>,
+      Vec<SqliteSceneAnnotationUserTagRow>,
     ) = (&a).into();
     joins.reverse();
     let a2: SceneAnnotation<Uuid7> = (row, joins).try_into().unwrap();
@@ -816,7 +818,7 @@ mod tests {
     let a = SceneAnnotation::try_new(Uuid7::new(), Uuid7::new(), ts()).unwrap();
     let (row, joins): (
       SqliteSceneAnnotationRow,
-      std::vec::Vec<SqliteSceneAnnotationUserTagRow>,
+      Vec<SqliteSceneAnnotationUserTagRow>,
     ) = (&a).into();
     assert!(joins.is_empty());
     let a2: SceneAnnotation<Uuid7> = (row, joins).try_into().unwrap();

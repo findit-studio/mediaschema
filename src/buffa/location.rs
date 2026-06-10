@@ -7,6 +7,8 @@
 //! value; the bridge therefore goes through `Option<domain::Location>`
 //! on the wire→domain side.
 
+use std::vec::Vec;
+
 use crate::{
   buffa::error::BuffaError,
   domain::{primitives::LocalLocation, Location, Uuid7},
@@ -168,7 +170,7 @@ mod tests {
     let vol = Uuid7::new();
     let w = wire::Local {
       volume: ::buffa::MessageField::some(wire::Id::from(&vol)),
-      components: std::vec::Vec::new(),
+      components: Vec::new(),
       __buffa_unknown_fields: Default::default(),
     };
     let err = Location::try_from(&w).unwrap_err();

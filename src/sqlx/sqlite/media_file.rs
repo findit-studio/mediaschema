@@ -11,6 +11,8 @@
 //! directly on the path column — SQLite UNIQUE-indexes `TEXT` natively
 //! and needs no fixed-width hash sidecar (the mysql dialect carries one).
 
+use std::vec::Vec;
+
 use crate::{
   domain::{Location, MediaFile, Uuid7},
   sqlx::{
@@ -21,16 +23,16 @@ use crate::{
 
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct SqliteMediaFileRow {
-  pub id: std::vec::Vec<u8>,
-  pub media_id: std::vec::Vec<u8>,
+  pub id: Vec<u8>,
+  pub media_id: Vec<u8>,
   /// Filesystem creation time, ms-since-epoch; NULL = absent.
   pub created_at_ms: Option<i64>,
   /// `Location::Local` volume identity.
-  pub location_volume: std::vec::Vec<u8>,
+  pub location_volume: Vec<u8>,
   /// `Location::Local` path components joined by `/`.
   pub location_path: String,
-  pub watched_location_id: std::vec::Vec<u8>,
-  pub watch_volume: std::vec::Vec<u8>,
+  pub watched_location_id: Vec<u8>,
+  pub watch_volume: Vec<u8>,
 }
 
 /// Join a `Location`'s path components with `/` for storage.
@@ -40,7 +42,7 @@ fn location_path(location: &Location<Uuid7>) -> String {
       .components_slice()
       .iter()
       .map(AsRef::as_ref)
-      .collect::<std::vec::Vec<&str>>()
+      .collect::<Vec<&str>>()
       .join("/"),
   }
 }

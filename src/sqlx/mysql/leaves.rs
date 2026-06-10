@@ -5,6 +5,8 @@
 //! `SceneAnnotation::user_tags` rides in the `scene_annotation_user_tag`
 //! join table. Wall-clock timestamps are `BIGINT` ms-since-epoch (`i64`).
 
+use std::vec::Vec;
+
 use crate::{
   domain::{
     aggregates::{
@@ -28,14 +30,14 @@ use crate::{
 
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlSpeakerRow {
-  pub id: std::vec::Vec<u8>,
-  pub audio_track_id: std::vec::Vec<u8>,
+  pub id: Vec<u8>,
+  pub audio_track_id: Vec<u8>,
   pub cluster_id: u32,
   pub name: String,
   pub speech_duration_ms: Option<i64>,
   /// Per-track aggregated voiceprint — discriminator for the flattened
   /// `VoiceFingerprint` VO (`Some` = present; `None` = all NULL).
-  pub voiceprint_vector_id: Option<std::vec::Vec<u8>>,
+  pub voiceprint_vector_id: Option<Vec<u8>>,
   pub voiceprint_dimensions: Option<u32>,
   pub voiceprint_extracted_at_ms: Option<i64>,
   pub voiceprint_confidence: Option<f32>,
@@ -44,7 +46,7 @@ pub struct MySqlSpeakerRow {
   pub voiceprint_provenance_prompt_version: Option<String>,
   pub voiceprint_provenance_indexer_version: Option<String>,
   /// Cross-track identity FK → `person.id`; NULL = not yet identified.
-  pub person_id: Option<std::vec::Vec<u8>>,
+  pub person_id: Option<Vec<u8>>,
 }
 
 impl From<&Speaker<Uuid7>> for MySqlSpeakerRow {
@@ -183,7 +185,7 @@ impl<'r> TryFrom<MySqlSpeakerRowRef<'r>> for Speaker<Uuid7> {
 
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct MySqlUserTagRow {
-  pub id: std::vec::Vec<u8>,
+  pub id: Vec<u8>,
   pub name: String,
   pub color_rgba: Option<u32>,
   pub created_at_ms: i64,
@@ -257,8 +259,8 @@ impl<'r> TryFrom<MySqlUserTagRowRef<'r>> for UserTag<Uuid7> {
 
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct MySqlSceneAnnotationRow {
-  pub id: std::vec::Vec<u8>,
-  pub scene_id: std::vec::Vec<u8>,
+  pub id: Vec<u8>,
+  pub scene_id: Vec<u8>,
   pub favorite: i8,
   pub rating: Option<u8>,
   pub note: String,
@@ -269,16 +271,13 @@ pub struct MySqlSceneAnnotationRow {
 /// edge with the tag's `ordinal` position in `SceneAnnotation::user_tags`.
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct MySqlSceneAnnotationUserTagRow {
-  pub scene_annotation_id: std::vec::Vec<u8>,
-  pub user_tag_id: std::vec::Vec<u8>,
+  pub scene_annotation_id: Vec<u8>,
+  pub user_tag_id: Vec<u8>,
   pub ordinal: i32,
 }
 
 impl From<&SceneAnnotation<Uuid7>>
-  for (
-    MySqlSceneAnnotationRow,
-    std::vec::Vec<MySqlSceneAnnotationUserTagRow>,
-  )
+  for (MySqlSceneAnnotationRow, Vec<MySqlSceneAnnotationUserTagRow>)
 {
   fn from(a: &SceneAnnotation<Uuid7>) -> Self {
     let annotation = a.id_ref().as_bytes().to_vec();
@@ -304,25 +303,19 @@ impl From<&SceneAnnotation<Uuid7>>
   }
 }
 
-impl
-  TryFrom<(
-    MySqlSceneAnnotationRow,
-    std::vec::Vec<MySqlSceneAnnotationUserTagRow>,
-  )> for SceneAnnotation<Uuid7>
+impl TryFrom<(MySqlSceneAnnotationRow, Vec<MySqlSceneAnnotationUserTagRow>)>
+  for SceneAnnotation<Uuid7>
 {
   type Error = SqlxError;
 
   fn try_from(
-    (r, mut joins): (
-      MySqlSceneAnnotationRow,
-      std::vec::Vec<MySqlSceneAnnotationUserTagRow>,
-    ),
+    (r, mut joins): (MySqlSceneAnnotationRow, Vec<MySqlSceneAnnotationUserTagRow>),
   ) -> Result<Self, Self::Error> {
     let id = bytes_to_uuid7(&r.id)?;
     let scene_id = bytes_to_uuid7(&r.scene_id)?;
     let updated_at = millis_to_timestamp(r.updated_at_ms)?;
     joins.sort_by_key(|j| j.ordinal);
-    let mut tags = std::vec::Vec::with_capacity(joins.len());
+    let mut tags = Vec::with_capacity(joins.len());
     for j in joins {
       tags.push(bytes_to_uuid7(&j.user_tag_id)?);
     }
@@ -383,7 +376,7 @@ impl MySqlSceneAnnotationUserTagRow {
 impl<'r>
   TryFrom<(
     MySqlSceneAnnotationRowRef<'r>,
-    std::vec::Vec<MySqlSceneAnnotationUserTagRowRef<'r>>,
+    Vec<MySqlSceneAnnotationUserTagRowRef<'r>>,
   )> for SceneAnnotation<Uuid7>
 {
   type Error = SqlxError;
@@ -391,14 +384,14 @@ impl<'r>
   fn try_from(
     (r, mut joins): (
       MySqlSceneAnnotationRowRef<'r>,
-      std::vec::Vec<MySqlSceneAnnotationUserTagRowRef<'r>>,
+      Vec<MySqlSceneAnnotationUserTagRowRef<'r>>,
     ),
   ) -> Result<Self, Self::Error> {
     let id = bytes_to_uuid7(r.id)?;
     let scene = bytes_to_uuid7(r.scene_id)?;
     let updated_at = millis_to_timestamp(r.updated_at_ms)?;
     joins.sort_by_key(|j| j.ordinal);
-    let mut tags = std::vec::Vec::with_capacity(joins.len());
+    let mut tags = Vec::with_capacity(joins.len());
     for j in joins {
       tags.push(bytes_to_uuid7(j.user_tag_id)?);
     }
@@ -418,8 +411,8 @@ impl<'r>
 
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct MySqlWatchedLocationRow {
-  pub id: std::vec::Vec<u8>,
-  pub volume: std::vec::Vec<u8>,
+  pub id: Vec<u8>,
+  pub volume: Vec<u8>,
   pub recursive: i8,
   pub enabled: i8,
   pub is_ejectable: i8,
@@ -636,10 +629,7 @@ mod tests {
       .with_favorite(true)
       .with_user_tags(std::vec![t1])
       .with_rating(Some(5));
-    let tuple: (
-      MySqlSceneAnnotationRow,
-      std::vec::Vec<MySqlSceneAnnotationUserTagRow>,
-    ) = (&a).into();
+    let tuple: (MySqlSceneAnnotationRow, Vec<MySqlSceneAnnotationUserTagRow>) = (&a).into();
     assert_eq!(tuple.1.len(), 1);
     let a2: SceneAnnotation<Uuid7> = tuple.try_into().unwrap();
     assert_eq!(a2.user_tags_slice(), &[t1]);
@@ -654,10 +644,8 @@ mod tests {
     let a = SceneAnnotation::try_new(Uuid7::new(), Uuid7::new(), ts())
       .unwrap()
       .with_user_tags(std::vec![t1, t2]);
-    let (row, mut joins): (
-      MySqlSceneAnnotationRow,
-      std::vec::Vec<MySqlSceneAnnotationUserTagRow>,
-    ) = (&a).into();
+    let (row, mut joins): (MySqlSceneAnnotationRow, Vec<MySqlSceneAnnotationUserTagRow>) =
+      (&a).into();
     joins.reverse();
     let a2: SceneAnnotation<Uuid7> = (row, joins).try_into().unwrap();
     assert_eq!(a2.user_tags_slice(), &[t1, t2]);
@@ -707,11 +695,8 @@ mod tests {
       .with_user_tags(std::vec![t1])
       .with_rating(Some(5))
       .with_note("ok");
-    let (row, joins): (
-      MySqlSceneAnnotationRow,
-      std::vec::Vec<MySqlSceneAnnotationUserTagRow>,
-    ) = (&a).into();
-    let join_refs: std::vec::Vec<MySqlSceneAnnotationUserTagRowRef<'_>> = joins
+    let (row, joins): (MySqlSceneAnnotationRow, Vec<MySqlSceneAnnotationUserTagRow>) = (&a).into();
+    let join_refs: Vec<MySqlSceneAnnotationUserTagRowRef<'_>> = joins
       .iter()
       .map(MySqlSceneAnnotationUserTagRow::as_ref)
       .collect();
@@ -733,7 +718,7 @@ mod tests {
   #[test]
   fn speaker_row_with_nil_uuid_rejected() {
     let row = MySqlSpeakerRow {
-      id: std::vec::Vec::from([0u8; 16]),
+      id: Vec::from([0u8; 16]),
       audio_track_id: Uuid7::new().as_bytes().to_vec(),
       cluster_id: 0,
       name: String::new(),

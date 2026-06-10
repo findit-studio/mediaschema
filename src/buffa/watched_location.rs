@@ -50,6 +50,8 @@
 //!   all default to `None` on wire→domain (the legacy wire had no
 //!   reconcile-state fields).
 
+use std::vec::Vec;
+
 use jiff::Timestamp as JiffTimestamp;
 use smol_str::SmolStr;
 
@@ -117,7 +119,7 @@ impl From<&WatchedLocation<Uuid7>> for wire::WatchedLocation {
       kind: Some(wire::location::Kind::Local(
         ::buffa::alloc::boxed::Box::new(wire::Local {
           volume: ::buffa::MessageField::some(wire::Id::from(d.volume_ref())),
-          components: std::vec::Vec::new(),
+          components: Vec::new(),
           __buffa_unknown_fields: Default::default(),
         }),
       )),
@@ -247,7 +249,7 @@ mod tests {
       kind: Some(wire::location::Kind::Local(
         ::buffa::alloc::boxed::Box::new(wire::Local {
           volume: ::buffa::MessageField::some(wire::Id::from(volume)),
-          components: std::vec::Vec::new(),
+          components: Vec::new(),
           __buffa_unknown_fields: Default::default(),
         }),
       )),

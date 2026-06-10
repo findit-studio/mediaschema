@@ -9,6 +9,8 @@
 //!
 //! `Provenance` is per-track (on `AudioTrack`), not per segment.
 
+use std::vec::Vec;
+
 use derive_more::IsVariant;
 use mediaframe::lang::Language;
 use mediatime::TimeRange;
@@ -191,7 +193,7 @@ pub struct AudioSegment<Id = Uuid7> {
   speaker_id: Option<Id>,
   text: LocalizedText,
   language: Option<Language>,
-  words: std::vec::Vec<Word>,
+  words: Vec<Word>,
   no_speech_prob: Option<f32>,
   avg_logprob: Option<f32>,
   temperature: Option<f32>,
@@ -237,7 +239,7 @@ impl AudioSegment<Uuid7> {
       speaker_id: None,
       text: LocalizedText::new(),
       language: None,
-      words: std::vec::Vec::new(),
+      words: Vec::new(),
       no_speech_prob: None,
       avg_logprob: None,
       temperature: None,
@@ -394,10 +396,7 @@ impl<Id> AudioSegment<Id> {
   /// re-validation is needed here. On rejection `self` is returned
   /// unchanged inside the `Err`.
   #[inline]
-  pub fn try_with_words(
-    mut self,
-    v: impl Into<std::vec::Vec<Word>>,
-  ) -> Result<Self, AudioSegmentError> {
+  pub fn try_with_words(mut self, v: impl Into<Vec<Word>>) -> Result<Self, AudioSegmentError> {
     let words = v.into();
     self.check_words(&words)?;
     self.words = words;
@@ -458,10 +457,7 @@ impl<Id> AudioSegment<Id> {
   /// every word's `span` is contained in `self.span`; on rejection `self`
   /// is left unchanged.
   #[inline]
-  pub fn try_set_words(
-    &mut self,
-    v: impl Into<std::vec::Vec<Word>>,
-  ) -> Result<&mut Self, AudioSegmentError> {
+  pub fn try_set_words(&mut self, v: impl Into<Vec<Word>>) -> Result<&mut Self, AudioSegmentError> {
     let words = v.into();
     self.check_words(&words)?;
     self.words = words;
