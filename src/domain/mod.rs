@@ -47,6 +47,10 @@ pub use aggregates::{Audio, AudioSegment, AudioTrack, Word};
 pub use aggregates::{Keyframe, Scene, Video, VideoTrack};
 #[cfg(all(feature = "std", feature = "subtitle"))]
 pub use aggregates::{Subtitle, SubtitleCue, SubtitleTrack};
+// `Chapter` is medium-independent (container-level) but std-gated like
+// every IndexMap-bearing aggregate.
+#[cfg(feature = "std")]
+pub use aggregates::{Chapter, ChapterError};
 #[cfg(any(feature = "std", feature = "alloc"))]
 pub use primitives::{ErrorInfo, Location};
 #[cfg(any(feature = "std", feature = "alloc"))]
