@@ -152,6 +152,11 @@ impl<Id> Keyframe<Id> {
   pub fn data(&self) -> &[u8] {
     &self.data
   }
+  /// Owned handle to the image bytes — O(1) refcount clone, no copy.
+  #[inline(always)]
+  pub fn data_bytes(&self) -> Bytes {
+    self.data.clone()
+  }
   /// MIME type (`""` = absent).
   #[inline(always)]
   pub fn mime(&self) -> &str {
