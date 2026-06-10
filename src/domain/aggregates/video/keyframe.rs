@@ -10,6 +10,8 @@
 //! Many analysis VOs live in the sibling [`detections`](super::detections)
 //! module to keep this file focused on the aggregate itself.
 
+use std::vec::Vec;
+
 use bytes::Bytes;
 use derive_more::IsVariant;
 use mediaframe::frame::Dimensions;
@@ -151,6 +153,11 @@ impl<Id> Keyframe<Id> {
   #[inline(always)]
   pub fn data(&self) -> &[u8] {
     &self.data
+  }
+  /// Owned handle to the image bytes — O(1) refcount clone, no copy.
+  #[inline(always)]
+  pub fn data_bytes(&self) -> Bytes {
+    self.data.clone()
   }
   /// MIME type (`""` = absent).
   #[inline(always)]
@@ -661,5 +668,151 @@ mod tests {
     // A valid replacement is accepted.
     kf.try_set_dimensions(Dimensions::new(2, 2)).unwrap();
     assert_eq!(kf.dimensions(), Dimensions::new(2, 2));
+  }
+}
+
+/// Exhaustive by-value decomposition of [`Keyframe`] — every stored
+/// field.
+///
+/// Public-field data-transfer struct (the conversion-boundary exception
+/// to the encapsulation rule): cross-suite conversions (`crate::graph`)
+/// destructure it exhaustively, so adding a field breaks them at compile
+/// time instead of silently dropping data.
+#[derive(Debug, Clone, PartialEq)]
+pub struct KeyframeParts<Id = Uuid7> {
+  pub id: Id,
+  pub scene_id: Id,
+  pub pts: Timestamp,
+  pub data: Bytes,
+  pub mime: SmolStr,
+  pub dimensions: Dimensions,
+  pub extractor: KeyframeExtractor,
+  pub classifications: Vec<Detection>,
+  pub objects: Vec<ObjectDetection>,
+  pub humans: HumanAnalysis,
+  pub animals: AnimalAnalysis,
+  pub actions: Vec<ActionDetection>,
+  pub text_detections: Vec<TextDetection>,
+  pub barcodes: Vec<BarcodeDetection>,
+  pub attention_saliency: Vec<SaliencyRegion>,
+  pub objectness_saliency: Vec<SaliencyRegion>,
+  pub horizon: HorizonInfo,
+  pub document_segments: Vec<DocumentSegment>,
+  pub aesthetics: Aesthetics,
+  pub colors: Vec<DominantColor>,
+  pub vlm: VlmAnalysis,
+}
+
+impl<Id> Keyframe<Id> {
+  /// Decompose into [`KeyframeParts`] — exhaustive, by value.
+  #[inline(always)]
+  pub fn into_parts(self) -> KeyframeParts<Id> {
+    let Self {
+      id,
+      scene_id,
+      pts,
+      data,
+      mime,
+      dimensions,
+      extractor,
+      classifications,
+      objects,
+      humans,
+      animals,
+      actions,
+      text_detections,
+      barcodes,
+      attention_saliency,
+      objectness_saliency,
+      horizon,
+      document_segments,
+      aesthetics,
+      colors,
+      vlm,
+    } = self;
+    KeyframeParts {
+      id,
+      scene_id,
+      pts,
+      data,
+      mime,
+      dimensions,
+      extractor,
+      classifications,
+      objects,
+      humans,
+      animals,
+      actions,
+      text_detections,
+      barcodes,
+      attention_saliency,
+      objectness_saliency,
+      horizon,
+      document_segments,
+      aesthetics,
+      colors,
+      vlm,
+    }
+  }
+}
+
+impl<Id> Keyframe<Id> {
+  /// Invariant-carrying constructor from [`KeyframeParts`] —
+  /// `pub(crate)`, reserved for in-crate conversions from
+  /// already-validated values (`crate::graph`).
+  #[cfg(all(
+    feature = "std",
+    feature = "video",
+    feature = "audio",
+    feature = "subtitle"
+  ))]
+  #[inline(always)]
+  pub(crate) fn rehydrate(parts: KeyframeParts<Id>) -> Self {
+    let KeyframeParts {
+      id,
+      scene_id,
+      pts,
+      data,
+      mime,
+      dimensions,
+      extractor,
+      classifications,
+      objects,
+      humans,
+      animals,
+      actions,
+      text_detections,
+      barcodes,
+      attention_saliency,
+      objectness_saliency,
+      horizon,
+      document_segments,
+      aesthetics,
+      colors,
+      vlm,
+    } = parts;
+    Self {
+      id,
+      scene_id,
+      pts,
+      data,
+      mime,
+      dimensions,
+      extractor,
+      classifications,
+      objects,
+      humans,
+      animals,
+      actions,
+      text_detections,
+      barcodes,
+      attention_saliency,
+      objectness_saliency,
+      horizon,
+      document_segments,
+      aesthetics,
+      colors,
+      vlm,
+    }
   }
 }

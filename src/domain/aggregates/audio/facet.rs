@@ -281,3 +281,68 @@ mod tests {
     assert!(some.has_failures());
   }
 }
+
+/// Exhaustive by-value decomposition of [`Audio`] — every stored field.
+///
+/// Public-field data-transfer struct (the conversion-boundary exception
+/// to the encapsulation rule): cross-suite conversions (`crate::graph`)
+/// destructure it exhaustively, so adding a field breaks them at compile
+/// time instead of silently dropping data.
+#[derive(Debug, Clone, PartialEq)]
+pub struct AudioParts<Id = Uuid7> {
+  pub id: Id,
+  pub media_id: Id,
+  pub tracks: Vec<Id>,
+  pub total_segments: u32,
+  pub track_progress: IndexProgress,
+}
+
+impl<Id> Audio<Id> {
+  /// Decompose into [`AudioParts`] — exhaustive, by value.
+  #[inline(always)]
+  pub fn into_parts(self) -> AudioParts<Id> {
+    let Self {
+      id,
+      media_id,
+      tracks,
+      total_segments,
+      track_progress,
+    } = self;
+    AudioParts {
+      id,
+      media_id,
+      tracks,
+      total_segments,
+      track_progress,
+    }
+  }
+}
+
+impl<Id> Audio<Id> {
+  /// Invariant-carrying constructor from [`AudioParts`] — `pub(crate)`,
+  /// reserved for in-crate conversions from already-validated values
+  /// (`crate::graph`).
+  #[cfg(all(
+    feature = "std",
+    feature = "video",
+    feature = "audio",
+    feature = "subtitle"
+  ))]
+  #[inline(always)]
+  pub(crate) fn rehydrate(parts: AudioParts<Id>) -> Self {
+    let AudioParts {
+      id,
+      media_id,
+      tracks,
+      total_segments,
+      track_progress,
+    } = parts;
+    Self {
+      id,
+      media_id,
+      tracks,
+      total_segments,
+      track_progress,
+    }
+  }
+}

@@ -860,3 +860,104 @@ mod tests {
     assert!(s.speaker_id_ref().is_none());
   }
 }
+
+/// Exhaustive by-value decomposition of [`AudioSegment`] — every stored
+/// field.
+///
+/// Public-field data-transfer struct (the conversion-boundary exception
+/// to the encapsulation rule): cross-suite conversions (`crate::graph`)
+/// destructure it exhaustively, so adding a field breaks them at compile
+/// time instead of silently dropping data.
+#[derive(Debug, Clone, PartialEq)]
+pub struct AudioSegmentParts<Id = Uuid7> {
+  pub id: Id,
+  pub audio_track_id: Id,
+  pub index: u32,
+  pub span: TimeRange,
+  pub speaker_id: Option<Id>,
+  pub text: LocalizedText,
+  pub language: Option<Language>,
+  pub words: Vec<Word>,
+  pub no_speech_prob: Option<f32>,
+  pub avg_logprob: Option<f32>,
+  pub temperature: Option<f32>,
+  pub voice_fingerprint: Option<VoiceFingerprint<Id>>,
+}
+
+impl<Id> AudioSegment<Id> {
+  /// Decompose into [`AudioSegmentParts`] — exhaustive, by value.
+  #[inline(always)]
+  pub fn into_parts(self) -> AudioSegmentParts<Id> {
+    let Self {
+      id,
+      audio_track_id,
+      index,
+      span,
+      speaker_id,
+      text,
+      language,
+      words,
+      no_speech_prob,
+      avg_logprob,
+      temperature,
+      voice_fingerprint,
+    } = self;
+    AudioSegmentParts {
+      id,
+      audio_track_id,
+      index,
+      span,
+      speaker_id,
+      text,
+      language,
+      words,
+      no_speech_prob,
+      avg_logprob,
+      temperature,
+      voice_fingerprint,
+    }
+  }
+}
+
+impl<Id> AudioSegment<Id> {
+  /// Invariant-carrying constructor from [`AudioSegmentParts`] —
+  /// `pub(crate)`, reserved for in-crate conversions from
+  /// already-validated values (`crate::graph`).
+  #[cfg(all(
+    feature = "std",
+    feature = "video",
+    feature = "audio",
+    feature = "subtitle"
+  ))]
+  #[inline(always)]
+  pub(crate) fn rehydrate(parts: AudioSegmentParts<Id>) -> Self {
+    let AudioSegmentParts {
+      id,
+      audio_track_id,
+      index,
+      span,
+      speaker_id,
+      text,
+      language,
+      words,
+      no_speech_prob,
+      avg_logprob,
+      temperature,
+      voice_fingerprint,
+    } = parts;
+    Self {
+      id,
+      audio_track_id,
+      index,
+      span,
+      speaker_id,
+      text,
+      language,
+      words,
+      no_speech_prob,
+      avg_logprob,
+      temperature,
+      voice_fingerprint,
+    }
+  }
+}

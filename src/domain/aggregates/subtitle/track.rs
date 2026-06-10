@@ -1096,3 +1096,194 @@ mod tests {
       .contains(SubtitleIndexStatus::CUES_EXTRACTED));
   }
 }
+
+/// Exhaustive by-value decomposition of [`SubtitleTrack`] — every stored
+/// field.
+///
+/// Public-field data-transfer struct (the conversion-boundary exception
+/// to the encapsulation rule): cross-suite conversions (`crate::graph`)
+/// destructure it exhaustively, so adding a field breaks them at compile
+/// time instead of silently dropping data.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SubtitleTrackParts<Id = Uuid7> {
+  pub id: Id,
+  pub subtitle_id: Id,
+  pub stream_index: Option<u32>,
+  pub container_track_id: Option<u64>,
+  pub codec: SubtitleCodec,
+  pub format: Format,
+  pub origin: TrackOrigin,
+  pub language: Language,
+  pub title: SmolStr,
+  pub disposition: TrackDisposition,
+  pub is_primary: bool,
+  pub auto_selected: bool,
+  pub duration: Option<Timestamp>,
+  pub cue_count: u32,
+  pub cues: Vec<Id>,
+  pub provenance: Provenance,
+  pub source_checksum: Option<FileChecksum>,
+  pub character_encoding: SmolStr,
+  pub bom_present: bool,
+  pub is_sdh: bool,
+  pub is_closed_caption: bool,
+  pub is_translation: bool,
+  pub kind: SubtitleKind,
+  pub coverage_ratio: Option<f32>,
+  pub is_empty: bool,
+  pub first_cue: Option<Timestamp>,
+  pub last_cue: Option<Timestamp>,
+  pub metadata: IndexMap<SmolStr, SmolStr>,
+  pub index_status: SubtitleIndexStatus,
+  pub index_errors: Vec<ErrorInfo>,
+}
+
+impl<Id> SubtitleTrack<Id> {
+  /// Decompose into [`SubtitleTrackParts`] — exhaustive, by value.
+  #[inline(always)]
+  pub fn into_parts(self) -> SubtitleTrackParts<Id> {
+    let Self {
+      id,
+      subtitle_id,
+      stream_index,
+      container_track_id,
+      codec,
+      format,
+      origin,
+      language,
+      title,
+      disposition,
+      is_primary,
+      auto_selected,
+      duration,
+      cue_count,
+      cues,
+      provenance,
+      source_checksum,
+      character_encoding,
+      bom_present,
+      is_sdh,
+      is_closed_caption,
+      is_translation,
+      kind,
+      coverage_ratio,
+      is_empty,
+      first_cue,
+      last_cue,
+      metadata,
+      index_status,
+      index_errors,
+    } = self;
+    SubtitleTrackParts {
+      id,
+      subtitle_id,
+      stream_index,
+      container_track_id,
+      codec,
+      format,
+      origin,
+      language,
+      title,
+      disposition,
+      is_primary,
+      auto_selected,
+      duration,
+      cue_count,
+      cues,
+      provenance,
+      source_checksum,
+      character_encoding,
+      bom_present,
+      is_sdh,
+      is_closed_caption,
+      is_translation,
+      kind,
+      coverage_ratio,
+      is_empty,
+      first_cue,
+      last_cue,
+      metadata,
+      index_status,
+      index_errors,
+    }
+  }
+}
+
+impl<Id> SubtitleTrack<Id> {
+  /// Invariant-carrying constructor from [`SubtitleTrackParts`] —
+  /// `pub(crate)`, reserved for in-crate conversions from
+  /// already-validated values (`crate::graph`).
+  #[cfg(all(
+    feature = "std",
+    feature = "video",
+    feature = "audio",
+    feature = "subtitle"
+  ))]
+  #[inline(always)]
+  pub(crate) fn rehydrate(parts: SubtitleTrackParts<Id>) -> Self {
+    let SubtitleTrackParts {
+      id,
+      subtitle_id,
+      stream_index,
+      container_track_id,
+      codec,
+      format,
+      origin,
+      language,
+      title,
+      disposition,
+      is_primary,
+      auto_selected,
+      duration,
+      cue_count,
+      cues,
+      provenance,
+      source_checksum,
+      character_encoding,
+      bom_present,
+      is_sdh,
+      is_closed_caption,
+      is_translation,
+      kind,
+      coverage_ratio,
+      is_empty,
+      first_cue,
+      last_cue,
+      metadata,
+      index_status,
+      index_errors,
+    } = parts;
+    Self {
+      id,
+      subtitle_id,
+      stream_index,
+      container_track_id,
+      codec,
+      format,
+      origin,
+      language,
+      title,
+      disposition,
+      is_primary,
+      auto_selected,
+      duration,
+      cue_count,
+      cues,
+      provenance,
+      source_checksum,
+      character_encoding,
+      bom_present,
+      is_sdh,
+      is_closed_caption,
+      is_translation,
+      kind,
+      coverage_ratio,
+      is_empty,
+      first_cue,
+      last_cue,
+      metadata,
+      index_status,
+      index_errors,
+    }
+  }
+}

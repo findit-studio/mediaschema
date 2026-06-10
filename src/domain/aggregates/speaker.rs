@@ -486,3 +486,79 @@ mod tests {
     assert_eq!(s.speech_duration_ref().unwrap().pts(), 0);
   }
 }
+
+/// Exhaustive by-value decomposition of [`Speaker`] — every stored
+/// field.
+///
+/// Public-field data-transfer struct (the conversion-boundary exception
+/// to the encapsulation rule): cross-suite conversions (`crate::graph`)
+/// destructure it exhaustively, so adding a field breaks them at compile
+/// time instead of silently dropping data.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SpeakerParts<Id = Uuid7> {
+  pub id: Id,
+  pub audio_track_id: Id,
+  pub cluster_id: u32,
+  pub name: SmolStr,
+  pub speech_duration: Option<Timestamp>,
+  pub voiceprint: Option<VoiceFingerprint<Id>>,
+  pub person_id: Option<Id>,
+}
+
+impl<Id> Speaker<Id> {
+  /// Decompose into [`SpeakerParts`] — exhaustive, by value.
+  #[inline(always)]
+  pub fn into_parts(self) -> SpeakerParts<Id> {
+    let Self {
+      id,
+      audio_track_id,
+      cluster_id,
+      name,
+      speech_duration,
+      voiceprint,
+      person_id,
+    } = self;
+    SpeakerParts {
+      id,
+      audio_track_id,
+      cluster_id,
+      name,
+      speech_duration,
+      voiceprint,
+      person_id,
+    }
+  }
+}
+
+impl<Id> Speaker<Id> {
+  /// Invariant-carrying constructor from [`SpeakerParts`] —
+  /// `pub(crate)`, reserved for in-crate conversions from
+  /// already-validated values (`crate::graph`).
+  #[cfg(all(
+    feature = "std",
+    feature = "video",
+    feature = "audio",
+    feature = "subtitle"
+  ))]
+  #[inline(always)]
+  pub(crate) fn rehydrate(parts: SpeakerParts<Id>) -> Self {
+    let SpeakerParts {
+      id,
+      audio_track_id,
+      cluster_id,
+      name,
+      speech_duration,
+      voiceprint,
+      person_id,
+    } = parts;
+    Self {
+      id,
+      audio_track_id,
+      cluster_id,
+      name,
+      speech_duration,
+      voiceprint,
+      person_id,
+    }
+  }
+}

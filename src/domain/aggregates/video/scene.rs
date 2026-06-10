@@ -367,3 +367,78 @@ mod tests {
     assert!(s.detector().is_manual());
   }
 }
+
+/// Exhaustive by-value decomposition of [`Scene`] — every stored field.
+///
+/// Public-field data-transfer struct (the conversion-boundary exception
+/// to the encapsulation rule): cross-suite conversions (`crate::graph`)
+/// destructure it exhaustively, so adding a field breaks them at compile
+/// time instead of silently dropping data.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SceneParts<Id = Uuid7> {
+  pub id: Id,
+  pub video_track_id: Id,
+  pub index: u32,
+  pub span: TimeRange,
+  pub detector: SceneDetector,
+  pub keyframes: Vec<Id>,
+  pub description: SmolStr,
+}
+
+impl<Id> Scene<Id> {
+  /// Decompose into [`SceneParts`] — exhaustive, by value.
+  #[inline(always)]
+  pub fn into_parts(self) -> SceneParts<Id> {
+    let Self {
+      id,
+      video_track_id,
+      index,
+      span,
+      detector,
+      keyframes,
+      description,
+    } = self;
+    SceneParts {
+      id,
+      video_track_id,
+      index,
+      span,
+      detector,
+      keyframes,
+      description,
+    }
+  }
+}
+
+impl<Id> Scene<Id> {
+  /// Invariant-carrying constructor from [`SceneParts`] — `pub(crate)`,
+  /// reserved for in-crate conversions from already-validated values
+  /// (`crate::graph`).
+  #[cfg(all(
+    feature = "std",
+    feature = "video",
+    feature = "audio",
+    feature = "subtitle"
+  ))]
+  #[inline(always)]
+  pub(crate) fn rehydrate(parts: SceneParts<Id>) -> Self {
+    let SceneParts {
+      id,
+      video_track_id,
+      index,
+      span,
+      detector,
+      keyframes,
+      description,
+    } = parts;
+    Self {
+      id,
+      video_track_id,
+      index,
+      span,
+      detector,
+      keyframes,
+      description,
+    }
+  }
+}

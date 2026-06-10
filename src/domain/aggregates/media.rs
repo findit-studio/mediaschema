@@ -41,6 +41,8 @@
 //! `&mut Self` so they chain). `try_new` is the validating constructor;
 //! nil `id` and nil `checksum` are rejected.
 
+use std::vec::Vec;
+
 use derive_more::IsVariant;
 use jiff::Timestamp as JiffTimestamp;
 use mediaframe::{
@@ -796,5 +798,137 @@ mod tests {
       Some(48_000),
       "rejected try_set_duration must not mutate the prior value"
     );
+  }
+}
+
+/// Exhaustive by-value decomposition of [`Media`] — every stored field.
+///
+/// Public-field data-transfer struct (the conversion-boundary exception
+/// to the encapsulation rule): cross-suite conversions (`crate::graph`)
+/// construct and destructure it **exhaustively**, so adding a field to
+/// [`Media`] breaks every conversion at compile time instead of silently
+/// dropping data.
+#[derive(Debug, Clone, PartialEq)]
+pub struct MediaParts<Id = Uuid7> {
+  pub id: Id,
+  pub checksum: FileChecksum,
+  pub format: Format,
+  pub size: u64,
+  pub duration: Option<MediaTimestamp>,
+  pub kind: MediaKind,
+  pub nb_streams: u32,
+  pub nb_chapters: u32,
+  pub files: Vec<Id>,
+  pub chapters: Vec<Id>,
+  pub video_id: Option<Id>,
+  pub audio_id: Option<Id>,
+  pub subtitle_id: Option<Id>,
+  pub error_flags: MediaErrorFlags,
+  pub probe_error: Option<ErrorInfo>,
+  pub capture_date: Option<JiffTimestamp>,
+  pub device: Option<Device>,
+  pub gps: Option<GeoLocation>,
+}
+
+impl<Id> Media<Id> {
+  /// Decompose into [`MediaParts`] — exhaustive, by value.
+  #[inline(always)]
+  pub fn into_parts(self) -> MediaParts<Id> {
+    let Self {
+      id,
+      checksum,
+      format,
+      size,
+      duration,
+      kind,
+      nb_streams,
+      nb_chapters,
+      files,
+      chapters,
+      video_id,
+      audio_id,
+      subtitle_id,
+      error_flags,
+      probe_error,
+      capture_date,
+      device,
+      gps,
+    } = self;
+    MediaParts {
+      id,
+      checksum,
+      format,
+      size,
+      duration,
+      kind,
+      nb_streams,
+      nb_chapters,
+      files,
+      chapters,
+      video_id,
+      audio_id,
+      subtitle_id,
+      error_flags,
+      probe_error,
+      capture_date,
+      device,
+      gps,
+    }
+  }
+}
+
+impl<Id> Media<Id> {
+  /// Invariant-carrying constructor from [`MediaParts`] — `pub(crate)`,
+  /// reserved for in-crate conversions from already-validated values
+  /// (`crate::graph`). Public construction stays validating
+  /// ([`Media::try_new`]).
+  #[cfg(all(
+    feature = "std",
+    feature = "video",
+    feature = "audio",
+    feature = "subtitle"
+  ))]
+  #[inline(always)]
+  pub(crate) fn rehydrate(parts: MediaParts<Id>) -> Self {
+    let MediaParts {
+      id,
+      checksum,
+      format,
+      size,
+      duration,
+      kind,
+      nb_streams,
+      nb_chapters,
+      files,
+      chapters,
+      video_id,
+      audio_id,
+      subtitle_id,
+      error_flags,
+      probe_error,
+      capture_date,
+      device,
+      gps,
+    } = parts;
+    Self {
+      id,
+      checksum,
+      format,
+      size,
+      duration,
+      kind,
+      nb_streams,
+      nb_chapters,
+      files,
+      chapters,
+      video_id,
+      audio_id,
+      subtitle_id,
+      error_flags,
+      probe_error,
+      capture_date,
+      device,
+      gps,
+    }
   }
 }
