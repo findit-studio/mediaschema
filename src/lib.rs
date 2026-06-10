@@ -108,6 +108,30 @@ pub mod domain;
 /// [`domain::Identified`].
 pub use crate::domain::Identified;
 
+/// Standalone object-graph types — the "whole record" programming shape.
+/// One graph type per media-tree aggregate, each owning its full field
+/// set: parent FKs and id-vecs are replaced by the nested children
+/// themselves; lifting from the flat aggregates validates parent-child
+/// id coherence. Requires `std` plus all three medium features: a graph
+/// is a complete record, so partial-medium consumers use the flat
+/// aggregates instead.
+#[cfg(all(
+  feature = "std",
+  feature = "video",
+  feature = "audio",
+  feature = "subtitle"
+))]
+#[cfg_attr(
+  docsrs,
+  doc(cfg(all(
+    feature = "std",
+    feature = "video",
+    feature = "audio",
+    feature = "subtitle"
+  )))
+)]
+pub mod graph;
+
 // Wire ⇄ domain conversion bridge. Requires `feature = "buffa"` (for
 // the wire types themselves) AND a heap tier (`std` or `alloc`) because
 // every domain type the bridge touches that has a wire counterpart
