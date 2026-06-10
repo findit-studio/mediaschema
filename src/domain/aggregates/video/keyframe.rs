@@ -10,6 +10,8 @@
 //! Many analysis VOs live in the sibling [`detections`](super::detections)
 //! module to keep this file focused on the aggregate itself.
 
+use std::vec::Vec;
+
 use bytes::Bytes;
 use derive_more::IsVariant;
 use mediaframe::frame::Dimensions;
@@ -685,19 +687,19 @@ pub struct KeyframeParts<Id = Uuid7> {
   pub mime: SmolStr,
   pub dimensions: Dimensions,
   pub extractor: KeyframeExtractor,
-  pub classifications: std::vec::Vec<Detection>,
-  pub objects: std::vec::Vec<ObjectDetection>,
+  pub classifications: Vec<Detection>,
+  pub objects: Vec<ObjectDetection>,
   pub humans: HumanAnalysis,
   pub animals: AnimalAnalysis,
-  pub actions: std::vec::Vec<ActionDetection>,
-  pub text_detections: std::vec::Vec<TextDetection>,
-  pub barcodes: std::vec::Vec<BarcodeDetection>,
-  pub attention_saliency: std::vec::Vec<SaliencyRegion>,
-  pub objectness_saliency: std::vec::Vec<SaliencyRegion>,
+  pub actions: Vec<ActionDetection>,
+  pub text_detections: Vec<TextDetection>,
+  pub barcodes: Vec<BarcodeDetection>,
+  pub attention_saliency: Vec<SaliencyRegion>,
+  pub objectness_saliency: Vec<SaliencyRegion>,
   pub horizon: HorizonInfo,
-  pub document_segments: std::vec::Vec<DocumentSegment>,
+  pub document_segments: Vec<DocumentSegment>,
   pub aesthetics: Aesthetics,
-  pub colors: std::vec::Vec<DominantColor>,
+  pub colors: Vec<DominantColor>,
   pub vlm: VlmAnalysis,
 }
 
