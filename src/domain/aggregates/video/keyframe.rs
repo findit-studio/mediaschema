@@ -668,3 +668,88 @@ mod tests {
     assert_eq!(kf.dimensions(), Dimensions::new(2, 2));
   }
 }
+
+/// Exhaustive by-value decomposition of [`Keyframe`] — every stored
+/// field.
+///
+/// Public-field data-transfer struct (the conversion-boundary exception
+/// to the encapsulation rule): cross-suite conversions (`crate::graph`)
+/// destructure it exhaustively, so adding a field breaks them at compile
+/// time instead of silently dropping data.
+#[derive(Debug, Clone, PartialEq)]
+pub struct KeyframeParts<Id = Uuid7> {
+  pub id: Id,
+  pub scene_id: Id,
+  pub pts: Timestamp,
+  pub data: Bytes,
+  pub mime: SmolStr,
+  pub dimensions: Dimensions,
+  pub extractor: KeyframeExtractor,
+  pub classifications: std::vec::Vec<Detection>,
+  pub objects: std::vec::Vec<ObjectDetection>,
+  pub humans: HumanAnalysis,
+  pub animals: AnimalAnalysis,
+  pub actions: std::vec::Vec<ActionDetection>,
+  pub text_detections: std::vec::Vec<TextDetection>,
+  pub barcodes: std::vec::Vec<BarcodeDetection>,
+  pub attention_saliency: std::vec::Vec<SaliencyRegion>,
+  pub objectness_saliency: std::vec::Vec<SaliencyRegion>,
+  pub horizon: HorizonInfo,
+  pub document_segments: std::vec::Vec<DocumentSegment>,
+  pub aesthetics: Aesthetics,
+  pub colors: std::vec::Vec<DominantColor>,
+  pub vlm: VlmAnalysis,
+}
+
+impl<Id> Keyframe<Id> {
+  /// Decompose into [`KeyframeParts`] — exhaustive, by value.
+  #[inline(always)]
+  pub fn into_parts(self) -> KeyframeParts<Id> {
+    let Self {
+      id,
+      scene_id,
+      pts,
+      data,
+      mime,
+      dimensions,
+      extractor,
+      classifications,
+      objects,
+      humans,
+      animals,
+      actions,
+      text_detections,
+      barcodes,
+      attention_saliency,
+      objectness_saliency,
+      horizon,
+      document_segments,
+      aesthetics,
+      colors,
+      vlm,
+    } = self;
+    KeyframeParts {
+      id,
+      scene_id,
+      pts,
+      data,
+      mime,
+      dimensions,
+      extractor,
+      classifications,
+      objects,
+      humans,
+      animals,
+      actions,
+      text_detections,
+      barcodes,
+      attention_saliency,
+      objectness_saliency,
+      horizon,
+      document_segments,
+      aesthetics,
+      colors,
+      vlm,
+    }
+  }
+}

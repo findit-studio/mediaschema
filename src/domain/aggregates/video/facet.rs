@@ -290,3 +290,39 @@ mod tests {
     assert!(some.has_failures());
   }
 }
+
+/// Exhaustive by-value decomposition of [`Video`] — every stored field.
+///
+/// Public-field data-transfer struct (the conversion-boundary exception
+/// to the encapsulation rule): cross-suite conversions (`crate::graph`)
+/// destructure it exhaustively, so adding a field breaks them at compile
+/// time instead of silently dropping data.
+#[derive(Debug, Clone, PartialEq)]
+pub struct VideoParts<Id = Uuid7> {
+  pub id: Id,
+  pub media_id: Id,
+  pub total_scenes: u32,
+  pub tracks: Vec<Id>,
+  pub track_progress: IndexProgress,
+}
+
+impl<Id> Video<Id> {
+  /// Decompose into [`VideoParts`] — exhaustive, by value.
+  #[inline(always)]
+  pub fn into_parts(self) -> VideoParts<Id> {
+    let Self {
+      id,
+      media_id,
+      total_scenes,
+      tracks,
+      track_progress,
+    } = self;
+    VideoParts {
+      id,
+      media_id,
+      total_scenes,
+      tracks,
+      track_progress,
+    }
+  }
+}

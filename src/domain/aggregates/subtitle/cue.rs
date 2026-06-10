@@ -3536,3 +3536,43 @@ mod tests {
     assert_eq!(p.entries()[1], 0x0000FF00);
   }
 }
+
+/// Exhaustive by-value decomposition of [`SubtitleCue`] — every stored
+/// field, generic over the per-format payload `D` like the cue itself.
+///
+/// Public-field data-transfer struct (the conversion-boundary exception
+/// to the encapsulation rule): cross-suite conversions (`crate::graph`)
+/// destructure it exhaustively, so adding a field breaks them at compile
+/// time instead of silently dropping data.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SubtitleCueParts<Id, D> {
+  pub id: Id,
+  pub subtitle_track_id: Id,
+  pub ordinal: u32,
+  pub span: TimeRange,
+  pub text: LocalizedText,
+  pub data: D,
+}
+
+impl<Id, D> SubtitleCue<Id, D> {
+  /// Decompose into [`SubtitleCueParts`] — exhaustive, by value.
+  #[inline(always)]
+  pub fn into_parts(self) -> SubtitleCueParts<Id, D> {
+    let Self {
+      id,
+      subtitle_track_id,
+      ordinal,
+      span,
+      text,
+      data,
+    } = self;
+    SubtitleCueParts {
+      id,
+      subtitle_track_id,
+      ordinal,
+      span,
+      text,
+      data,
+    }
+  }
+}

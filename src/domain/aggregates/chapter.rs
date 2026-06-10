@@ -407,3 +407,46 @@ mod tests {
     assert_eq!(keys, std::vec!["artist", "genre", "year"]);
   }
 }
+
+/// Exhaustive by-value decomposition of [`Chapter`] — every stored
+/// field.
+///
+/// Public-field data-transfer struct (the conversion-boundary exception
+/// to the encapsulation rule): cross-suite conversions (`crate::graph`)
+/// destructure it exhaustively, so adding a field breaks them at compile
+/// time instead of silently dropping data.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ChapterParts<Id = Uuid7> {
+  pub id: Id,
+  pub media_id: Id,
+  pub index: u32,
+  pub source_id: i64,
+  pub time_range: TimeRange,
+  pub title: SmolStr,
+  pub metadata: IndexMap<SmolStr, SmolStr>,
+}
+
+impl<Id> Chapter<Id> {
+  /// Decompose into [`ChapterParts`] — exhaustive, by value.
+  #[inline(always)]
+  pub fn into_parts(self) -> ChapterParts<Id> {
+    let Self {
+      id,
+      media_id,
+      index,
+      source_id,
+      time_range,
+      title,
+      metadata,
+    } = self;
+    ChapterParts {
+      id,
+      media_id,
+      index,
+      source_id,
+      time_range,
+      title,
+      metadata,
+    }
+  }
+}

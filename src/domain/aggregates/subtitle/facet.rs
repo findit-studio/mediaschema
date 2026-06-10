@@ -200,3 +200,37 @@ mod tests {
     assert_eq!(p.failed(), 2);
   }
 }
+
+/// Exhaustive by-value decomposition of [`Subtitle`] — every stored
+/// field.
+///
+/// Public-field data-transfer struct (the conversion-boundary exception
+/// to the encapsulation rule): cross-suite conversions (`crate::graph`)
+/// destructure it exhaustively, so adding a field breaks them at compile
+/// time instead of silently dropping data.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SubtitleParts<Id = Uuid7> {
+  pub id: Id,
+  pub media_id: Id,
+  pub tracks: Vec<Id>,
+  pub track_progress: IndexProgress,
+}
+
+impl<Id> Subtitle<Id> {
+  /// Decompose into [`SubtitleParts`] — exhaustive, by value.
+  #[inline(always)]
+  pub fn into_parts(self) -> SubtitleParts<Id> {
+    let Self {
+      id,
+      media_id,
+      tracks,
+      track_progress,
+    } = self;
+    SubtitleParts {
+      id,
+      media_id,
+      tracks,
+      track_progress,
+    }
+  }
+}

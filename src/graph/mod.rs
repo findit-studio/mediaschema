@@ -31,11 +31,12 @@
 //!   ([`GraphError::FacetLinkMismatch`]). The FKs are *consumed* by that
 //!   validation; they do not exist in the graph shape.
 //!
-//! Maintenance coupling (deliberate): a new field on a domain aggregate
-//! must be added to its graph counterpart and its `try_from_flat` copy
-//! list. The planned guard is an exhaustive `into_parts()` on each
-//! domain aggregate (arity change ⇒ compile error here); until then this
-//! comment is the checklist.
+//! Drift guard (compile-time): every lift destructures the flat
+//! aggregate's `*Parts` struct **exhaustively** (no `..`), and each
+//! `into_parts()` destructures its aggregate the same way — so adding a
+//! field to a domain aggregate is a compile error in `into_parts`, in
+//! `*Parts`, and in the lift here, until the graph mirrors it. Lifts
+//! move every field; nothing is cloned.
 //!
 //! The module requires `std` plus all three medium features — a graph is
 //! a complete record; partial-medium consumers use the flat aggregates.
@@ -58,7 +59,11 @@ use mediaframe::{
 use mediatime::{TimeRange, Timestamp as MediaTimestamp};
 use smol_str::SmolStr;
 
-use crate::domain::{self, ErrorInfo, FileChecksum, Location, MediaErrorFlags, MediaKind, Uuid7};
+use crate::domain::{
+  self,
+  aggregates::{chapter::ChapterParts, media::MediaParts, media_file::MediaFileParts},
+  ErrorInfo, FileChecksum, Location, MediaErrorFlags, MediaKind, Uuid7,
+};
 
 /// Which parent-child relation a [`GraphError`] is about.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, IsVariant, Display)]
@@ -219,23 +224,45 @@ impl Media<Uuid7> {
     audio: Option<Audio<Uuid7>>,
     subtitle: Option<Subtitle<Uuid7>>,
   ) -> Result<Self, GraphError> {
-    let id = *media.id_ref();
+    // Exhaustive destructure: a new `Media` field is a compile error
+    // here until the graph mirrors it. The reverse-lookup id vecs are
+    // deliberately discarded — the children carry that information.
+    let MediaParts {
+      id,
+      checksum,
+      format,
+      size,
+      duration,
+      kind,
+      nb_streams,
+      nb_chapters,
+      files: _,
+      chapters: _,
+      video_id,
+      audio_id,
+      subtitle_id,
+      error_flags,
+      probe_error,
+      capture_date,
+      device,
+      gps,
+    } = media.into_parts();
     facet_link_check(
       NodeKind::VideoFacet,
       id,
-      media.video_id_ref(),
+      video_id.as_ref(),
       video.as_ref().map(|v| v.id_ref()),
     )?;
     facet_link_check(
       NodeKind::AudioFacet,
       id,
-      media.audio_id_ref(),
+      audio_id.as_ref(),
       audio.as_ref().map(|a| a.id_ref()),
     )?;
     facet_link_check(
       NodeKind::SubtitleFacet,
       id,
-      media.subtitle_id_ref(),
+      subtitle_id.as_ref(),
       subtitle.as_ref().map(|s| s.id_ref()),
     )?;
     let files = files
@@ -248,23 +275,23 @@ impl Media<Uuid7> {
       .collect::<Result<Vec<_>, _>>()?;
     Ok(Self {
       id,
-      checksum: *media.checksum_ref(),
-      format: media.format_ref().clone(),
-      size: media.size(),
-      duration: media.duration_ref().cloned(),
-      kind: media.kind(),
-      nb_streams: media.nb_streams(),
-      nb_chapters: media.nb_chapters(),
+      checksum,
+      format,
+      size,
+      duration,
+      kind,
+      nb_streams,
+      nb_chapters,
       files,
       chapters,
       video,
       audio,
       subtitle,
-      error_flags: media.error_flags(),
-      probe_error: media.probe_error_ref().cloned(),
-      capture_date: media.capture_date_ref().cloned(),
-      device: media.device_ref().cloned(),
-      gps: media.gps_ref().cloned(),
+      error_flags,
+      probe_error,
+      capture_date,
+      device,
+      gps,
     })
   }
 }
@@ -384,18 +411,21 @@ impl MediaFile<Uuid7> {
     expected_media: &Uuid7,
     file: domain::MediaFile<Uuid7>,
   ) -> Result<Self, GraphError> {
-    parent_check(
-      NodeKind::MediaFile,
-      *file.id_ref(),
-      file.media_id_ref(),
-      expected_media,
-    )?;
+    let MediaFileParts {
+      id,
+      media_id,
+      created_at,
+      location,
+      watched_location_id,
+      watch_volume,
+    } = file.into_parts();
+    parent_check(NodeKind::MediaFile, id, &media_id, expected_media)?;
     Ok(Self {
-      id: *file.id_ref(),
-      created_at: file.created_at_ref().cloned(),
-      location: file.location_ref().clone(),
-      watched_location_id: *file.watched_location_id_ref(),
-      watch_volume: *file.watch_volume_ref(),
+      id,
+      created_at,
+      location,
+      watched_location_id,
+      watch_volume,
     })
   }
 }
@@ -446,19 +476,23 @@ impl Chapter<Uuid7> {
     expected_media: &Uuid7,
     chapter: domain::Chapter<Uuid7>,
   ) -> Result<Self, GraphError> {
-    parent_check(
-      NodeKind::Chapter,
-      *chapter.id_ref(),
-      chapter.media_id_ref(),
-      expected_media,
-    )?;
+    let ChapterParts {
+      id,
+      media_id,
+      index,
+      source_id,
+      time_range,
+      title,
+      metadata,
+    } = chapter.into_parts();
+    parent_check(NodeKind::Chapter, id, &media_id, expected_media)?;
     Ok(Self {
-      id: *chapter.id_ref(),
-      index: chapter.index(),
-      source_id: chapter.source_id(),
-      time_range: *chapter.time_range_ref(),
-      title: chapter.title_ref().clone(),
-      metadata: chapter.metadata_ref().clone(),
+      id,
+      index,
+      source_id,
+      time_range,
+      title,
+      metadata,
     })
   }
 }

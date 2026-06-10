@@ -655,3 +655,43 @@ mod tests {
     assert_eq!(f.location_ref().unwrap_local_ref().volume_ref(), &vol);
   }
 }
+
+/// Exhaustive by-value decomposition of [`MediaFile`] — every stored
+/// field.
+///
+/// Public-field data-transfer struct (the conversion-boundary exception
+/// to the encapsulation rule): cross-suite conversions (`crate::graph`)
+/// destructure it exhaustively, so adding a field breaks them at compile
+/// time instead of silently dropping data.
+#[derive(Debug, Clone, PartialEq)]
+pub struct MediaFileParts<Id = Uuid7> {
+  pub id: Id,
+  pub media_id: Id,
+  pub created_at: Option<JiffTimestamp>,
+  pub location: Location<Id>,
+  pub watched_location_id: Id,
+  pub watch_volume: Id,
+}
+
+impl<Id> MediaFile<Id> {
+  /// Decompose into [`MediaFileParts`] — exhaustive, by value.
+  #[inline(always)]
+  pub fn into_parts(self) -> MediaFileParts<Id> {
+    let Self {
+      id,
+      media_id,
+      created_at,
+      location,
+      watched_location_id,
+      watch_volume,
+    } = self;
+    MediaFileParts {
+      id,
+      media_id,
+      created_at,
+      location,
+      watched_location_id,
+      watch_volume,
+    }
+  }
+}

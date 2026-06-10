@@ -15,8 +15,13 @@ use smol_str::SmolStr;
 
 use super::{parent_check, GraphError, NodeKind};
 use crate::domain::{
-  self, AudioContentKind, AudioIndexStatus, ErrorInfo, IndexProgress, LocalizedText, Provenance,
-  Uuid7, VoiceFingerprint, Word,
+  self,
+  aggregates::{
+    audio::{facet::AudioParts, segment::AudioSegmentParts, track::AudioTrackParts},
+    speaker::SpeakerParts,
+  },
+  AudioContentKind, AudioIndexStatus, ErrorInfo, IndexProgress, LocalizedText, Provenance, Uuid7,
+  VoiceFingerprint, Word,
 };
 
 /// The audio facet with its complete track subtrees.
@@ -36,16 +41,18 @@ impl Audio<Uuid7> {
     facet: domain::Audio<Uuid7>,
     tracks: Vec<AudioTrack<Uuid7>>,
   ) -> Result<Self, GraphError> {
-    parent_check(
-      NodeKind::AudioFacet,
-      *facet.id_ref(),
-      facet.media_id_ref(),
-      expected_media,
-    )?;
+    let AudioParts {
+      id,
+      media_id,
+      tracks: _,
+      total_segments,
+      track_progress,
+    } = facet.into_parts();
+    parent_check(NodeKind::AudioFacet, id, &media_id, expected_media)?;
     Ok(Self {
-      id: *facet.id_ref(),
-      total_segments: facet.total_segments(),
-      track_progress: *facet.track_progress_ref(),
+      id,
+      total_segments,
+      track_progress,
       tracks,
     })
   }
@@ -127,13 +134,47 @@ impl AudioTrack<Uuid7> {
     segments: Vec<domain::AudioSegment<Uuid7>>,
     speakers: Vec<domain::Speaker<Uuid7>>,
   ) -> Result<Self, GraphError> {
-    parent_check(
-      NodeKind::AudioTrack,
-      *track.id_ref(),
-      track.audio_id_ref(),
-      expected_audio,
-    )?;
-    let id = *track.id_ref();
+    let AudioTrackParts {
+      id,
+      audio_id,
+      stream_index,
+      container_track_id,
+      codec,
+      profile,
+      sample_rate,
+      channels,
+      channel_layout,
+      sample_format,
+      bit_rate,
+      bit_rate_mode,
+      bits_per_sample,
+      is_lossless,
+      duration,
+      start_pts,
+      language,
+      detected_language,
+      disposition,
+      is_primary,
+      auto_selected,
+      content,
+      speech_ratio,
+      is_silent,
+      loudness,
+      replay_gain,
+      fingerprint,
+      isrc,
+      acoustid,
+      musicbrainz_recording_id,
+      speakers: _,
+      tags,
+      cover_art,
+      segments: _,
+      metadata,
+      provenance,
+      index_status,
+      index_errors,
+    } = track.into_parts();
+    parent_check(NodeKind::AudioTrack, id, &audio_id, expected_audio)?;
     let segments = segments
       .into_iter()
       .map(|s| AudioSegment::try_from_flat(&id, s))
@@ -144,42 +185,42 @@ impl AudioTrack<Uuid7> {
       .collect::<Result<Vec<_>, _>>()?;
     Ok(Self {
       id,
-      stream_index: track.stream_index(),
-      container_track_id: track.container_track_id(),
-      codec: track.codec_ref().clone(),
-      profile: SmolStr::new(track.profile()),
-      sample_rate: track.sample_rate(),
-      channels: track.channels(),
-      channel_layout: track.channel_layout_ref().clone(),
-      sample_format: track.sample_format_ref().clone(),
-      bit_rate: track.bit_rate(),
-      bit_rate_mode: track.bit_rate_mode(),
-      bits_per_sample: track.bits_per_sample(),
-      is_lossless: track.is_lossless(),
-      duration: track.duration_ref().cloned(),
-      start_pts: track.start_pts_ref().cloned(),
-      language: track.language(),
-      detected_language: track.detected_language(),
-      disposition: track.disposition(),
-      is_primary: track.is_primary(),
-      auto_selected: track.auto_selected(),
-      content: track.content(),
-      speech_ratio: track.speech_ratio(),
-      is_silent: track.is_silent(),
-      loudness: track.loudness_ref().cloned(),
-      replay_gain: track.replay_gain_ref().cloned(),
-      fingerprint: track.fingerprint_ref().cloned(),
-      isrc: SmolStr::new(track.isrc()),
-      acoustid: SmolStr::new(track.acoustid()),
-      musicbrainz_recording_id: SmolStr::new(track.musicbrainz_recording_id()),
+      stream_index,
+      container_track_id,
+      codec,
+      profile,
+      sample_rate,
+      channels,
+      channel_layout,
+      sample_format,
+      bit_rate,
+      bit_rate_mode,
+      bits_per_sample,
+      is_lossless,
+      duration,
+      start_pts,
+      language,
+      detected_language,
+      disposition,
+      is_primary,
+      auto_selected,
+      content,
+      speech_ratio,
+      is_silent,
+      loudness,
+      replay_gain,
+      fingerprint,
+      isrc,
+      acoustid,
+      musicbrainz_recording_id,
       speakers,
-      tags: track.tags_ref().cloned(),
-      cover_art: track.cover_art_ref().cloned(),
+      tags,
+      cover_art,
       segments,
-      metadata: track.metadata_ref().clone(),
-      provenance: track.provenance_ref().clone(),
-      index_status: track.index_status(),
-      index_errors: track.index_errors_slice().to_vec(),
+      metadata,
+      provenance,
+      index_status,
+      index_errors,
     })
   }
 }
@@ -408,24 +449,33 @@ impl AudioSegment<Uuid7> {
     expected_track: &Uuid7,
     segment: domain::AudioSegment<Uuid7>,
   ) -> Result<Self, GraphError> {
-    parent_check(
-      NodeKind::AudioSegment,
-      *segment.id_ref(),
-      segment.audio_track_id_ref(),
-      expected_track,
-    )?;
+    let AudioSegmentParts {
+      id,
+      audio_track_id,
+      index,
+      span,
+      speaker_id,
+      text,
+      language,
+      words,
+      no_speech_prob,
+      avg_logprob,
+      temperature,
+      voice_fingerprint,
+    } = segment.into_parts();
+    parent_check(NodeKind::AudioSegment, id, &audio_track_id, expected_track)?;
     Ok(Self {
-      id: *segment.id_ref(),
-      index: segment.index(),
-      span: *segment.span_ref(),
-      speaker_id: segment.speaker_id_ref().copied(),
-      text: segment.text_ref().clone(),
-      language: segment.language(),
-      words: segment.words_slice().to_vec(),
-      no_speech_prob: segment.no_speech_prob(),
-      avg_logprob: segment.avg_logprob(),
-      temperature: segment.temperature(),
-      voice_fingerprint: segment.voice_fingerprint_ref().cloned(),
+      id,
+      index,
+      span,
+      speaker_id,
+      text,
+      language,
+      words,
+      no_speech_prob,
+      avg_logprob,
+      temperature,
+      voice_fingerprint,
     })
   }
 }
@@ -507,19 +557,23 @@ impl Speaker<Uuid7> {
     expected_track: &Uuid7,
     speaker: domain::Speaker<Uuid7>,
   ) -> Result<Self, GraphError> {
-    parent_check(
-      NodeKind::Speaker,
-      *speaker.id_ref(),
-      speaker.audio_track_id_ref(),
-      expected_track,
-    )?;
+    let SpeakerParts {
+      id,
+      audio_track_id,
+      cluster_id,
+      name,
+      speech_duration,
+      voiceprint,
+      person_id,
+    } = speaker.into_parts();
+    parent_check(NodeKind::Speaker, id, &audio_track_id, expected_track)?;
     Ok(Self {
-      id: *speaker.id_ref(),
-      cluster_id: speaker.cluster_id(),
-      name: SmolStr::new(speaker.name()),
-      speech_duration: speaker.speech_duration_ref().cloned(),
-      voiceprint: speaker.voiceprint_ref().cloned(),
-      person_id: speaker.person_id_ref().copied(),
+      id,
+      cluster_id,
+      name,
+      speech_duration,
+      voiceprint,
+      person_id,
     })
   }
 }

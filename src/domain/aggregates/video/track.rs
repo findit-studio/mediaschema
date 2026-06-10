@@ -1236,3 +1236,130 @@ mod tests {
     assert_eq!(t.visible_rect(), Some(Rect::new(10, 10, 100, 100)));
   }
 }
+
+/// Exhaustive by-value decomposition of [`VideoTrack`] — every stored
+/// field.
+///
+/// Public-field data-transfer struct (the conversion-boundary exception
+/// to the encapsulation rule): cross-suite conversions (`crate::graph`)
+/// destructure it exhaustively, so adding a field breaks them at compile
+/// time instead of silently dropping data.
+#[derive(Debug, Clone, PartialEq)]
+pub struct VideoTrackParts<Id = Uuid7> {
+  pub id: Id,
+  pub video_id: Id,
+  pub stream_index: Option<u32>,
+  pub container_track_id: Option<u64>,
+  pub start_pts: Option<Timestamp>,
+  pub duration: Option<Timestamp>,
+  pub codec: VideoCodec,
+  pub profile: Option<SmolStr>,
+  pub level: Option<u16>,
+  pub bit_rate: u64,
+  pub nb_frames: Option<u64>,
+  pub has_b_frames: bool,
+  pub closed_gop: Option<bool>,
+  pub bits_per_raw_sample: Option<u8>,
+  pub dimensions: Dimensions,
+  pub visible_rect: Option<Rect>,
+  pub sample_aspect_ratio: SampleAspectRatio,
+  pub pixel_format: PixelFormat,
+  pub color: ColorInfo,
+  pub hdr_static: Option<HdrStaticMetadata>,
+  pub rotation: Rotation,
+  pub frame_rate: FrameRate,
+  pub avg_frame_rate: FrameRate,
+  pub field_order: FieldOrder,
+  pub stereo_mode: Option<StereoMode>,
+  pub dovi: Option<DolbyVisionConfig>,
+  pub has_embedded_captions: bool,
+  pub disposition: TrackDisposition,
+  pub is_primary: bool,
+  pub auto_selected: bool,
+  pub scenes: Vec<Id>,
+  pub metadata: IndexMap<SmolStr, SmolStr>,
+  pub index_status: VideoIndexStatus,
+  pub index_errors: Vec<ErrorInfo>,
+  pub provenance: Provenance,
+}
+
+impl<Id> VideoTrack<Id> {
+  /// Decompose into [`VideoTrackParts`] — exhaustive, by value.
+  #[inline(always)]
+  pub fn into_parts(self) -> VideoTrackParts<Id> {
+    let Self {
+      id,
+      video_id,
+      stream_index,
+      container_track_id,
+      start_pts,
+      duration,
+      codec,
+      profile,
+      level,
+      bit_rate,
+      nb_frames,
+      has_b_frames,
+      closed_gop,
+      bits_per_raw_sample,
+      dimensions,
+      visible_rect,
+      sample_aspect_ratio,
+      pixel_format,
+      color,
+      hdr_static,
+      rotation,
+      frame_rate,
+      avg_frame_rate,
+      field_order,
+      stereo_mode,
+      dovi,
+      has_embedded_captions,
+      disposition,
+      is_primary,
+      auto_selected,
+      scenes,
+      metadata,
+      index_status,
+      index_errors,
+      provenance,
+    } = self;
+    VideoTrackParts {
+      id,
+      video_id,
+      stream_index,
+      container_track_id,
+      start_pts,
+      duration,
+      codec,
+      profile,
+      level,
+      bit_rate,
+      nb_frames,
+      has_b_frames,
+      closed_gop,
+      bits_per_raw_sample,
+      dimensions,
+      visible_rect,
+      sample_aspect_ratio,
+      pixel_format,
+      color,
+      hdr_static,
+      rotation,
+      frame_rate,
+      avg_frame_rate,
+      field_order,
+      stereo_mode,
+      dovi,
+      has_embedded_captions,
+      disposition,
+      is_primary,
+      auto_selected,
+      scenes,
+      metadata,
+      index_status,
+      index_errors,
+      provenance,
+    }
+  }
+}

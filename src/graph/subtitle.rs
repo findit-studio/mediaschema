@@ -18,8 +18,12 @@ use smol_str::SmolStr;
 
 use super::{parent_check, GraphError, NodeKind};
 use crate::domain::{
-  self, aggregates::subtitle::SubtitleCueDetails, ErrorInfo, FileChecksum, IndexProgress,
-  LocalizedText, Provenance, SubtitleIndexStatus, SubtitleKind, Uuid7,
+  self,
+  aggregates::subtitle::{
+    cue::SubtitleCueParts, facet::SubtitleParts, track::SubtitleTrackParts, SubtitleCueDetails,
+  },
+  ErrorInfo, FileChecksum, IndexProgress, LocalizedText, Provenance, SubtitleIndexStatus,
+  SubtitleKind, Uuid7,
 };
 
 /// The subtitle facet with its complete track subtrees.
@@ -38,15 +42,16 @@ impl Subtitle<Uuid7> {
     facet: domain::Subtitle<Uuid7>,
     tracks: Vec<SubtitleTrack<Uuid7>>,
   ) -> Result<Self, GraphError> {
-    parent_check(
-      NodeKind::SubtitleFacet,
-      *facet.id_ref(),
-      facet.media_id_ref(),
-      expected_media,
-    )?;
+    let SubtitleParts {
+      id,
+      media_id,
+      tracks: _,
+      track_progress,
+    } = facet.into_parts();
+    parent_check(NodeKind::SubtitleFacet, id, &media_id, expected_media)?;
     Ok(Self {
-      id: *facet.id_ref(),
-      track_progress: *facet.track_progress_ref(),
+      id,
+      track_progress,
       tracks,
     })
   }
@@ -113,47 +118,73 @@ impl SubtitleTrack<Uuid7> {
     track: domain::SubtitleTrack<Uuid7>,
     cues: Vec<domain::SubtitleCue<Uuid7, SubtitleCueDetails<Uuid7>>>,
   ) -> Result<Self, GraphError> {
-    parent_check(
-      NodeKind::SubtitleTrack,
-      *track.id_ref(),
-      track.subtitle_id_ref(),
-      expected_subtitle,
-    )?;
-    let id = *track.id_ref();
+    let SubtitleTrackParts {
+      id,
+      subtitle_id,
+      stream_index,
+      container_track_id,
+      codec,
+      format,
+      origin,
+      language,
+      title,
+      disposition,
+      is_primary,
+      auto_selected,
+      duration,
+      cue_count,
+      cues: _,
+      provenance,
+      source_checksum,
+      character_encoding,
+      bom_present,
+      is_sdh,
+      is_closed_caption,
+      is_translation,
+      kind,
+      coverage_ratio,
+      is_empty,
+      first_cue,
+      last_cue,
+      metadata,
+      index_status,
+      index_errors,
+    } = track.into_parts();
+    parent_check(NodeKind::SubtitleTrack, id, &subtitle_id, expected_subtitle)?;
     let cues = cues
       .into_iter()
       .map(|c| SubtitleCue::try_from_flat(&id, c))
       .collect::<Result<Vec<_>, _>>()?;
     Ok(Self {
       id,
-      stream_index: track.stream_index(),
-      container_track_id: track.container_track_id(),
-      codec: track.codec_ref().clone(),
-      format: track.format_ref().clone(),
-      origin: *track.origin_ref(),
-      language: *track.language_ref(),
-      title: SmolStr::new(track.title()),
-      disposition: track.disposition(),
-      is_primary: track.is_primary(),
-      auto_selected: track.auto_selected(),
-      duration: track.duration_ref().cloned(),
-      cue_count: track.cue_count(),
+      stream_index,
+      container_track_id,
+      codec,
+      format,
+      origin,
+      language,
+      title,
+      disposition,
+      is_primary,
+      auto_selected,
+      duration,
+      cue_count,
       cues,
-      provenance: track.provenance_ref().clone(),
-      source_checksum: track.source_checksum_ref().cloned(),
-      character_encoding: SmolStr::new(track.character_encoding()),
-      bom_present: track.bom_present(),
-      is_sdh: track.is_sdh(),
-      is_closed_caption: track.is_closed_caption(),
-      is_translation: track.is_translation(),
-      kind: track.kind(),
-      coverage_ratio: track.coverage_ratio(),
-      is_empty: track.is_empty(),
-      first_cue: track.first_cue_ref().cloned(),
-      last_cue: track.last_cue_ref().cloned(),
-      metadata: track.metadata_ref().clone(),
-      index_status: track.index_status(),
-      index_errors: track.index_errors_slice().to_vec(),
+      provenance,
+      source_checksum,
+      character_encoding,
+      bom_present,
+      is_sdh,
+      is_closed_caption,
+      is_translation,
+      kind,
+      coverage_ratio,
+      is_empty,
+      first_cue,
+      last_cue,
+      metadata,
+      index_status,
+      index_errors,
     })
   }
 }
@@ -326,18 +357,26 @@ impl SubtitleCue<Uuid7> {
     expected_track: &Uuid7,
     cue: domain::SubtitleCue<Uuid7, SubtitleCueDetails<Uuid7>>,
   ) -> Result<Self, GraphError> {
+    let SubtitleCueParts {
+      id,
+      subtitle_track_id,
+      ordinal,
+      span,
+      text,
+      data,
+    } = cue.into_parts();
     parent_check(
       NodeKind::SubtitleCue,
-      *cue.id_ref(),
-      cue.subtitle_track_id_ref(),
+      id,
+      &subtitle_track_id,
       expected_track,
     )?;
     Ok(Self {
-      id: *cue.id_ref(),
-      ordinal: cue.ordinal(),
-      span: *cue.span_ref(),
-      text: cue.text_ref().clone(),
-      data: cue.data_ref().clone(),
+      id,
+      ordinal,
+      span,
+      text,
+      data,
     })
   }
 }
