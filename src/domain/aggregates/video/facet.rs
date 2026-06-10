@@ -326,3 +326,32 @@ impl<Id> Video<Id> {
     }
   }
 }
+
+impl<Id> Video<Id> {
+  /// Invariant-carrying constructor from [`VideoParts`] — `pub(crate)`,
+  /// reserved for in-crate conversions from already-validated values
+  /// (`crate::graph`).
+  #[cfg(all(
+    feature = "std",
+    feature = "video",
+    feature = "audio",
+    feature = "subtitle"
+  ))]
+  #[inline(always)]
+  pub(crate) fn rehydrate(parts: VideoParts<Id>) -> Self {
+    let VideoParts {
+      id,
+      media_id,
+      total_scenes,
+      tracks,
+      track_progress,
+    } = parts;
+    Self {
+      id,
+      media_id,
+      total_scenes,
+      tracks,
+      track_progress,
+    }
+  }
+}

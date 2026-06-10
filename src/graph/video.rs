@@ -738,3 +738,259 @@ mod tests {
     assert!(g.data().is_empty());
   }
 }
+
+// --- conversion traits: flat ⇄ graph ---------------------------------------
+
+/// Trait form of [`Video::try_from_flat`] — `(expected_media, facet, tracks)`.
+impl TryFrom<(Uuid7, domain::Video<Uuid7>, Vec<VideoTrack<Uuid7>>)> for Video<Uuid7> {
+  type Error = GraphError;
+
+  #[inline(always)]
+  fn try_from(
+    (expected_media, facet, tracks): (Uuid7, domain::Video<Uuid7>, Vec<VideoTrack<Uuid7>>),
+  ) -> Result<Self, Self::Error> {
+    Self::try_from_flat(&expected_media, facet, tracks)
+  }
+}
+
+/// Re-attach to `media_id` and rebuild the flat facet; the track-id vec
+/// is re-derived from the embedded tracks, which are then dropped —
+/// convert them first when persisting the tree.
+impl From<(Uuid7, Video<Uuid7>)> for domain::Video<Uuid7> {
+  fn from((media_id, g): (Uuid7, Video<Uuid7>)) -> Self {
+    let Video {
+      id,
+      total_scenes,
+      track_progress,
+      tracks,
+    } = g;
+    domain::Video::rehydrate(VideoParts {
+      id,
+      media_id,
+      total_scenes,
+      tracks: tracks.iter().map(|t| *t.id_ref()).collect(),
+      track_progress,
+    })
+  }
+}
+
+/// Trait form of [`VideoTrack::try_from_flat`] — `(expected_video, track, scenes)`.
+impl TryFrom<(Uuid7, domain::VideoTrack<Uuid7>, Vec<Scene<Uuid7>>)> for VideoTrack<Uuid7> {
+  type Error = GraphError;
+
+  #[inline(always)]
+  fn try_from(
+    (expected_video, track, scenes): (Uuid7, domain::VideoTrack<Uuid7>, Vec<Scene<Uuid7>>),
+  ) -> Result<Self, Self::Error> {
+    Self::try_from_flat(&expected_video, track, scenes)
+  }
+}
+
+/// Re-attach to `video_id` and rebuild the flat track; the scene-id vec
+/// is re-derived from the embedded scenes, which are then dropped —
+/// convert them first when persisting the tree.
+impl From<(Uuid7, VideoTrack<Uuid7>)> for domain::VideoTrack<Uuid7> {
+  fn from((video_id, g): (Uuid7, VideoTrack<Uuid7>)) -> Self {
+    let VideoTrack {
+      id,
+      stream_index,
+      container_track_id,
+      start_pts,
+      duration,
+      codec,
+      profile,
+      level,
+      bit_rate,
+      nb_frames,
+      has_b_frames,
+      closed_gop,
+      bits_per_raw_sample,
+      dimensions,
+      visible_rect,
+      sample_aspect_ratio,
+      pixel_format,
+      color,
+      hdr_static,
+      rotation,
+      frame_rate,
+      avg_frame_rate,
+      field_order,
+      stereo_mode,
+      dovi,
+      has_embedded_captions,
+      disposition,
+      is_primary,
+      auto_selected,
+      scenes,
+      metadata,
+      index_status,
+      index_errors,
+      provenance,
+    } = g;
+    domain::VideoTrack::rehydrate(VideoTrackParts {
+      id,
+      video_id,
+      stream_index,
+      container_track_id,
+      start_pts,
+      duration,
+      codec,
+      profile,
+      level,
+      bit_rate,
+      nb_frames,
+      has_b_frames,
+      closed_gop,
+      bits_per_raw_sample,
+      dimensions,
+      visible_rect,
+      sample_aspect_ratio,
+      pixel_format,
+      color,
+      hdr_static,
+      rotation,
+      frame_rate,
+      avg_frame_rate,
+      field_order,
+      stereo_mode,
+      dovi,
+      has_embedded_captions,
+      disposition,
+      is_primary,
+      auto_selected,
+      scenes: scenes.iter().map(|s| *s.id_ref()).collect(),
+      metadata,
+      index_status,
+      index_errors,
+      provenance,
+    })
+  }
+}
+
+/// Trait form of [`Scene::try_from_flat`] — `(expected_track, scene, keyframes)`.
+impl TryFrom<(Uuid7, domain::Scene<Uuid7>, Vec<domain::Keyframe<Uuid7>>)> for Scene<Uuid7> {
+  type Error = GraphError;
+
+  #[inline(always)]
+  fn try_from(
+    (expected_track, scene, keyframes): (Uuid7, domain::Scene<Uuid7>, Vec<domain::Keyframe<Uuid7>>),
+  ) -> Result<Self, Self::Error> {
+    Self::try_from_flat(&expected_track, scene, keyframes)
+  }
+}
+
+/// Re-attach to `video_track_id` and rebuild the flat scene; the
+/// keyframe-id vec is re-derived from the embedded keyframes, which are
+/// then dropped — convert them first when persisting the tree.
+impl From<(Uuid7, Scene<Uuid7>)> for domain::Scene<Uuid7> {
+  fn from((video_track_id, g): (Uuid7, Scene<Uuid7>)) -> Self {
+    let Scene {
+      id,
+      index,
+      span,
+      detector,
+      keyframes,
+      description,
+    } = g;
+    domain::Scene::rehydrate(SceneParts {
+      id,
+      video_track_id,
+      index,
+      span,
+      detector,
+      keyframes: keyframes.iter().map(|k| *k.id_ref()).collect(),
+      description,
+    })
+  }
+}
+
+/// Trait form of [`Keyframe::try_from_flat`] — `(expected_scene, flat)`.
+impl TryFrom<(Uuid7, domain::Keyframe<Uuid7>)> for Keyframe<Uuid7> {
+  type Error = GraphError;
+
+  #[inline(always)]
+  fn try_from(
+    (expected_scene, keyframe): (Uuid7, domain::Keyframe<Uuid7>),
+  ) -> Result<Self, Self::Error> {
+    Self::try_from_flat(&expected_scene, keyframe)
+  }
+}
+
+/// Re-attach to `scene_id` and rebuild the flat keyframe.
+impl From<(Uuid7, Keyframe<Uuid7>)> for domain::Keyframe<Uuid7> {
+  fn from((scene_id, g): (Uuid7, Keyframe<Uuid7>)) -> Self {
+    let Keyframe {
+      id,
+      pts,
+      data,
+      mime,
+      dimensions,
+      extractor,
+      classifications,
+      objects,
+      humans,
+      animals,
+      actions,
+      text_detections,
+      barcodes,
+      attention_saliency,
+      objectness_saliency,
+      horizon,
+      document_segments,
+      aesthetics,
+      colors,
+      vlm,
+    } = g;
+    domain::Keyframe::rehydrate(KeyframeParts {
+      id,
+      scene_id,
+      pts,
+      data,
+      mime,
+      dimensions,
+      extractor,
+      classifications,
+      objects,
+      humans,
+      animals,
+      actions,
+      text_detections,
+      barcodes,
+      attention_saliency,
+      objectness_saliency,
+      horizon,
+      document_segments,
+      aesthetics,
+      colors,
+      vlm,
+    })
+  }
+}
+
+#[cfg(test)]
+mod conv_tests {
+  use core::num::NonZeroU32;
+
+  use mediatime::Timebase;
+
+  use super::*;
+
+  #[test]
+  fn scene_round_trips_through_graph() {
+    let track_id = Uuid7::new();
+    let tb = Timebase::new(1, NonZeroU32::new(1000).unwrap());
+    let flat = domain::Scene::try_new(
+      Uuid7::new(),
+      track_id,
+      0,
+      TimeRange::new(0, 1000, tb),
+      SceneDetector::Manual,
+    )
+    .expect("valid scene");
+    let lifted: Scene<Uuid7> = (track_id, flat.clone(), vec![])
+      .try_into()
+      .expect("coherent");
+    let back: domain::Scene<Uuid7> = (track_id, lifted).into();
+    assert_eq!(back, flat);
+  }
+}

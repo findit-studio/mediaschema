@@ -874,3 +874,59 @@ impl<Id> Media<Id> {
     }
   }
 }
+
+impl<Id> Media<Id> {
+  /// Invariant-carrying constructor from [`MediaParts`] — `pub(crate)`,
+  /// reserved for in-crate conversions from already-validated values
+  /// (`crate::graph`). Public construction stays validating
+  /// ([`Media::try_new`]).
+  #[cfg(all(
+    feature = "std",
+    feature = "video",
+    feature = "audio",
+    feature = "subtitle"
+  ))]
+  #[inline(always)]
+  pub(crate) fn rehydrate(parts: MediaParts<Id>) -> Self {
+    let MediaParts {
+      id,
+      checksum,
+      format,
+      size,
+      duration,
+      kind,
+      nb_streams,
+      nb_chapters,
+      files,
+      chapters,
+      video_id,
+      audio_id,
+      subtitle_id,
+      error_flags,
+      probe_error,
+      capture_date,
+      device,
+      gps,
+    } = parts;
+    Self {
+      id,
+      checksum,
+      format,
+      size,
+      duration,
+      kind,
+      nb_streams,
+      nb_chapters,
+      files,
+      chapters,
+      video_id,
+      audio_id,
+      subtitle_id,
+      error_flags,
+      probe_error,
+      capture_date,
+      device,
+      gps,
+    }
+  }
+}

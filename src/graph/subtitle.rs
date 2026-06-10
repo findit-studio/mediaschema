@@ -460,3 +460,193 @@ mod tests {
     ));
   }
 }
+
+// --- conversion traits: flat ⇄ graph ---------------------------------------
+
+/// Trait form of [`Subtitle::try_from_flat`] — `(expected_media, facet, tracks)`.
+impl TryFrom<(Uuid7, domain::Subtitle<Uuid7>, Vec<SubtitleTrack<Uuid7>>)> for Subtitle<Uuid7> {
+  type Error = GraphError;
+
+  #[inline(always)]
+  fn try_from(
+    (expected_media, facet, tracks): (Uuid7, domain::Subtitle<Uuid7>, Vec<SubtitleTrack<Uuid7>>),
+  ) -> Result<Self, Self::Error> {
+    Self::try_from_flat(&expected_media, facet, tracks)
+  }
+}
+
+/// Re-attach to `media_id` and rebuild the flat facet; the track-id vec
+/// is re-derived from the embedded tracks, which are then dropped —
+/// convert them first when persisting the tree.
+impl From<(Uuid7, Subtitle<Uuid7>)> for domain::Subtitle<Uuid7> {
+  fn from((media_id, g): (Uuid7, Subtitle<Uuid7>)) -> Self {
+    let Subtitle {
+      id,
+      track_progress,
+      tracks,
+    } = g;
+    domain::Subtitle::rehydrate(SubtitleParts {
+      id,
+      media_id,
+      tracks: tracks.iter().map(|t| *t.id_ref()).collect(),
+      track_progress,
+    })
+  }
+}
+
+/// Trait form of [`SubtitleTrack::try_from_flat`] —
+/// `(expected_subtitle, track, cues)`.
+impl
+  TryFrom<(
+    Uuid7,
+    domain::SubtitleTrack<Uuid7>,
+    Vec<domain::SubtitleCue<Uuid7, SubtitleCueDetails<Uuid7>>>,
+  )> for SubtitleTrack<Uuid7>
+{
+  type Error = GraphError;
+
+  #[inline(always)]
+  fn try_from(
+    (expected_subtitle, track, cues): (
+      Uuid7,
+      domain::SubtitleTrack<Uuid7>,
+      Vec<domain::SubtitleCue<Uuid7, SubtitleCueDetails<Uuid7>>>,
+    ),
+  ) -> Result<Self, Self::Error> {
+    Self::try_from_flat(&expected_subtitle, track, cues)
+  }
+}
+
+/// Re-attach to `subtitle_id` and rebuild the flat track; the cue-id vec
+/// is re-derived from the embedded cues, which are then dropped —
+/// convert them first when persisting the tree.
+impl From<(Uuid7, SubtitleTrack<Uuid7>)> for domain::SubtitleTrack<Uuid7> {
+  fn from((subtitle_id, g): (Uuid7, SubtitleTrack<Uuid7>)) -> Self {
+    let SubtitleTrack {
+      id,
+      stream_index,
+      container_track_id,
+      codec,
+      format,
+      origin,
+      language,
+      title,
+      disposition,
+      is_primary,
+      auto_selected,
+      duration,
+      cue_count,
+      cues,
+      provenance,
+      source_checksum,
+      character_encoding,
+      bom_present,
+      is_sdh,
+      is_closed_caption,
+      is_translation,
+      kind,
+      coverage_ratio,
+      is_empty,
+      first_cue,
+      last_cue,
+      metadata,
+      index_status,
+      index_errors,
+    } = g;
+    domain::SubtitleTrack::rehydrate(SubtitleTrackParts {
+      id,
+      subtitle_id,
+      stream_index,
+      container_track_id,
+      codec,
+      format,
+      origin,
+      language,
+      title,
+      disposition,
+      is_primary,
+      auto_selected,
+      duration,
+      cue_count,
+      cues: cues.iter().map(|c| *c.id_ref()).collect(),
+      provenance,
+      source_checksum,
+      character_encoding,
+      bom_present,
+      is_sdh,
+      is_closed_caption,
+      is_translation,
+      kind,
+      coverage_ratio,
+      is_empty,
+      first_cue,
+      last_cue,
+      metadata,
+      index_status,
+      index_errors,
+    })
+  }
+}
+
+/// Trait form of [`SubtitleCue::try_from_flat`] — `(expected_track, flat)`.
+impl TryFrom<(Uuid7, domain::SubtitleCue<Uuid7, SubtitleCueDetails<Uuid7>>)>
+  for SubtitleCue<Uuid7>
+{
+  type Error = GraphError;
+
+  #[inline(always)]
+  fn try_from(
+    (expected_track, cue): (Uuid7, domain::SubtitleCue<Uuid7, SubtitleCueDetails<Uuid7>>),
+  ) -> Result<Self, Self::Error> {
+    Self::try_from_flat(&expected_track, cue)
+  }
+}
+
+/// Re-attach to `subtitle_track_id` and rebuild the flat cue.
+impl From<(Uuid7, SubtitleCue<Uuid7>)> for domain::SubtitleCue<Uuid7, SubtitleCueDetails<Uuid7>> {
+  fn from((subtitle_track_id, g): (Uuid7, SubtitleCue<Uuid7>)) -> Self {
+    let SubtitleCue {
+      id,
+      ordinal,
+      span,
+      text,
+      data,
+    } = g;
+    domain::SubtitleCue::rehydrate(SubtitleCueParts {
+      id,
+      subtitle_track_id,
+      ordinal,
+      span,
+      text,
+      data,
+    })
+  }
+}
+
+#[cfg(test)]
+mod conv_tests {
+  use core::num::NonZeroU32;
+
+  use mediatime::Timebase;
+
+  use super::*;
+  use crate::domain::aggregates::SrtData;
+
+  #[test]
+  fn cue_round_trips_through_graph() {
+    let track_id = Uuid7::new();
+    let tb = Timebase::new(1, NonZeroU32::new(1000).unwrap());
+    let flat = domain::SubtitleCue::try_new(
+      Uuid7::new(),
+      track_id,
+      0,
+      TimeRange::new(0, 1000, tb),
+      LocalizedText::new(),
+      SubtitleCueDetails::Srt(SrtData::new()),
+    )
+    .expect("valid cue");
+    let lifted: SubtitleCue<Uuid7> = (track_id, flat.clone()).try_into().expect("coherent");
+    let back: domain::SubtitleCue<Uuid7, SubtitleCueDetails<Uuid7>> = (track_id, lifted).into();
+    assert_eq!(back, flat);
+  }
+}

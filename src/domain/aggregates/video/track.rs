@@ -1363,3 +1363,92 @@ impl<Id> VideoTrack<Id> {
     }
   }
 }
+
+impl<Id> VideoTrack<Id> {
+  /// Invariant-carrying constructor from [`VideoTrackParts`] —
+  /// `pub(crate)`, reserved for in-crate conversions from
+  /// already-validated values (`crate::graph`).
+  #[cfg(all(
+    feature = "std",
+    feature = "video",
+    feature = "audio",
+    feature = "subtitle"
+  ))]
+  #[inline(always)]
+  pub(crate) fn rehydrate(parts: VideoTrackParts<Id>) -> Self {
+    let VideoTrackParts {
+      id,
+      video_id,
+      stream_index,
+      container_track_id,
+      start_pts,
+      duration,
+      codec,
+      profile,
+      level,
+      bit_rate,
+      nb_frames,
+      has_b_frames,
+      closed_gop,
+      bits_per_raw_sample,
+      dimensions,
+      visible_rect,
+      sample_aspect_ratio,
+      pixel_format,
+      color,
+      hdr_static,
+      rotation,
+      frame_rate,
+      avg_frame_rate,
+      field_order,
+      stereo_mode,
+      dovi,
+      has_embedded_captions,
+      disposition,
+      is_primary,
+      auto_selected,
+      scenes,
+      metadata,
+      index_status,
+      index_errors,
+      provenance,
+    } = parts;
+    Self {
+      id,
+      video_id,
+      stream_index,
+      container_track_id,
+      start_pts,
+      duration,
+      codec,
+      profile,
+      level,
+      bit_rate,
+      nb_frames,
+      has_b_frames,
+      closed_gop,
+      bits_per_raw_sample,
+      dimensions,
+      visible_rect,
+      sample_aspect_ratio,
+      pixel_format,
+      color,
+      hdr_static,
+      rotation,
+      frame_rate,
+      avg_frame_rate,
+      field_order,
+      stereo_mode,
+      dovi,
+      has_embedded_captions,
+      disposition,
+      is_primary,
+      auto_selected,
+      scenes,
+      metadata,
+      index_status,
+      index_errors,
+      provenance,
+    }
+  }
+}

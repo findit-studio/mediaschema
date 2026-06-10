@@ -753,3 +753,64 @@ impl<Id> Keyframe<Id> {
     }
   }
 }
+
+impl<Id> Keyframe<Id> {
+  /// Invariant-carrying constructor from [`KeyframeParts`] —
+  /// `pub(crate)`, reserved for in-crate conversions from
+  /// already-validated values (`crate::graph`).
+  #[cfg(all(
+    feature = "std",
+    feature = "video",
+    feature = "audio",
+    feature = "subtitle"
+  ))]
+  #[inline(always)]
+  pub(crate) fn rehydrate(parts: KeyframeParts<Id>) -> Self {
+    let KeyframeParts {
+      id,
+      scene_id,
+      pts,
+      data,
+      mime,
+      dimensions,
+      extractor,
+      classifications,
+      objects,
+      humans,
+      animals,
+      actions,
+      text_detections,
+      barcodes,
+      attention_saliency,
+      objectness_saliency,
+      horizon,
+      document_segments,
+      aesthetics,
+      colors,
+      vlm,
+    } = parts;
+    Self {
+      id,
+      scene_id,
+      pts,
+      data,
+      mime,
+      dimensions,
+      extractor,
+      classifications,
+      objects,
+      humans,
+      animals,
+      actions,
+      text_detections,
+      barcodes,
+      attention_saliency,
+      objectness_saliency,
+      horizon,
+      document_segments,
+      aesthetics,
+      colors,
+      vlm,
+    }
+  }
+}

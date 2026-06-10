@@ -3576,3 +3576,34 @@ impl<Id, D> SubtitleCue<Id, D> {
     }
   }
 }
+
+impl<Id, D> SubtitleCue<Id, D> {
+  /// Invariant-carrying constructor from [`SubtitleCueParts`] —
+  /// `pub(crate)`, reserved for in-crate conversions from
+  /// already-validated values (`crate::graph`).
+  #[cfg(all(
+    feature = "std",
+    feature = "video",
+    feature = "audio",
+    feature = "subtitle"
+  ))]
+  #[inline(always)]
+  pub(crate) fn rehydrate(parts: SubtitleCueParts<Id, D>) -> Self {
+    let SubtitleCueParts {
+      id,
+      subtitle_track_id,
+      ordinal,
+      span,
+      text,
+      data,
+    } = parts;
+    Self {
+      id,
+      subtitle_track_id,
+      ordinal,
+      span,
+      text,
+      data,
+    }
+  }
+}

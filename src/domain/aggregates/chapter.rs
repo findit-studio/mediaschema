@@ -450,3 +450,36 @@ impl<Id> Chapter<Id> {
     }
   }
 }
+
+impl<Id> Chapter<Id> {
+  /// Invariant-carrying constructor from [`ChapterParts`] —
+  /// `pub(crate)`, reserved for in-crate conversions from
+  /// already-validated values (`crate::graph`).
+  #[cfg(all(
+    feature = "std",
+    feature = "video",
+    feature = "audio",
+    feature = "subtitle"
+  ))]
+  #[inline(always)]
+  pub(crate) fn rehydrate(parts: ChapterParts<Id>) -> Self {
+    let ChapterParts {
+      id,
+      media_id,
+      index,
+      source_id,
+      time_range,
+      title,
+      metadata,
+    } = parts;
+    Self {
+      id,
+      media_id,
+      index,
+      source_id,
+      time_range,
+      title,
+      metadata,
+    }
+  }
+}

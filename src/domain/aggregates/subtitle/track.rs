@@ -1208,3 +1208,82 @@ impl<Id> SubtitleTrack<Id> {
     }
   }
 }
+
+impl<Id> SubtitleTrack<Id> {
+  /// Invariant-carrying constructor from [`SubtitleTrackParts`] —
+  /// `pub(crate)`, reserved for in-crate conversions from
+  /// already-validated values (`crate::graph`).
+  #[cfg(all(
+    feature = "std",
+    feature = "video",
+    feature = "audio",
+    feature = "subtitle"
+  ))]
+  #[inline(always)]
+  pub(crate) fn rehydrate(parts: SubtitleTrackParts<Id>) -> Self {
+    let SubtitleTrackParts {
+      id,
+      subtitle_id,
+      stream_index,
+      container_track_id,
+      codec,
+      format,
+      origin,
+      language,
+      title,
+      disposition,
+      is_primary,
+      auto_selected,
+      duration,
+      cue_count,
+      cues,
+      provenance,
+      source_checksum,
+      character_encoding,
+      bom_present,
+      is_sdh,
+      is_closed_caption,
+      is_translation,
+      kind,
+      coverage_ratio,
+      is_empty,
+      first_cue,
+      last_cue,
+      metadata,
+      index_status,
+      index_errors,
+    } = parts;
+    Self {
+      id,
+      subtitle_id,
+      stream_index,
+      container_track_id,
+      codec,
+      format,
+      origin,
+      language,
+      title,
+      disposition,
+      is_primary,
+      auto_selected,
+      duration,
+      cue_count,
+      cues,
+      provenance,
+      source_checksum,
+      character_encoding,
+      bom_present,
+      is_sdh,
+      is_closed_caption,
+      is_translation,
+      kind,
+      coverage_ratio,
+      is_empty,
+      first_cue,
+      last_cue,
+      metadata,
+      index_status,
+      index_errors,
+    }
+  }
+}

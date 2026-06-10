@@ -1839,3 +1839,98 @@ impl<Id> AudioTrack<Id> {
     }
   }
 }
+
+impl<Id> AudioTrack<Id> {
+  /// Invariant-carrying constructor from [`AudioTrackParts`] —
+  /// `pub(crate)`, reserved for in-crate conversions from
+  /// already-validated values (`crate::graph`).
+  #[cfg(all(
+    feature = "std",
+    feature = "video",
+    feature = "audio",
+    feature = "subtitle"
+  ))]
+  #[inline(always)]
+  pub(crate) fn rehydrate(parts: AudioTrackParts<Id>) -> Self {
+    let AudioTrackParts {
+      id,
+      audio_id,
+      stream_index,
+      container_track_id,
+      codec,
+      profile,
+      sample_rate,
+      channels,
+      channel_layout,
+      sample_format,
+      bit_rate,
+      bit_rate_mode,
+      bits_per_sample,
+      is_lossless,
+      duration,
+      start_pts,
+      language,
+      detected_language,
+      disposition,
+      is_primary,
+      auto_selected,
+      content,
+      speech_ratio,
+      is_silent,
+      loudness,
+      replay_gain,
+      fingerprint,
+      isrc,
+      acoustid,
+      musicbrainz_recording_id,
+      speakers,
+      tags,
+      cover_art,
+      segments,
+      metadata,
+      provenance,
+      index_status,
+      index_errors,
+    } = parts;
+    Self {
+      id,
+      audio_id,
+      stream_index,
+      container_track_id,
+      codec,
+      profile,
+      sample_rate,
+      channels,
+      channel_layout,
+      sample_format,
+      bit_rate,
+      bit_rate_mode,
+      bits_per_sample,
+      is_lossless,
+      duration,
+      start_pts,
+      language,
+      detected_language,
+      disposition,
+      is_primary,
+      auto_selected,
+      content,
+      speech_ratio,
+      is_silent,
+      loudness,
+      replay_gain,
+      fingerprint,
+      isrc,
+      acoustid,
+      musicbrainz_recording_id,
+      speakers,
+      tags,
+      cover_art,
+      segments,
+      metadata,
+      provenance,
+      index_status,
+      index_errors,
+    }
+  }
+}

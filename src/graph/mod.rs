@@ -672,3 +672,189 @@ mod tests {
     assert_eq!(NodeKind::SubtitleCue.to_string(), "subtitle_cue");
   }
 }
+
+// --- conversion traits: flat ⇄ graph ---------------------------------------
+
+/// The flat inputs of a [`Media`] lift, as one tuple (trait-form
+/// convenience for [`Media::try_from_flat`]).
+pub type MediaFlat = (
+  domain::Media<Uuid7>,
+  Vec<domain::MediaFile<Uuid7>>,
+  Vec<domain::Chapter<Uuid7>>,
+  Option<Video<Uuid7>>,
+  Option<Audio<Uuid7>>,
+  Option<Subtitle<Uuid7>>,
+);
+
+/// Trait form of [`Media::try_from_flat`].
+impl TryFrom<MediaFlat> for Media<Uuid7> {
+  type Error = GraphError;
+
+  #[inline(always)]
+  fn try_from(
+    (media, files, chapters, video, audio, subtitle): MediaFlat,
+  ) -> Result<Self, GraphError> {
+    Self::try_from_flat(media, files, chapters, video, audio, subtitle)
+  }
+}
+
+/// Root-row projection: rebuilds the flat aggregate with the facet links
+/// and reverse-lookup id vecs re-derived from the embedded children. The
+/// children themselves are dropped — convert them level by level (via
+/// their own `From` impls) when persisting the tree.
+impl From<Media<Uuid7>> for domain::Media<Uuid7> {
+  fn from(g: Media<Uuid7>) -> Self {
+    let Media {
+      id,
+      checksum,
+      format,
+      size,
+      duration,
+      kind,
+      nb_streams,
+      nb_chapters,
+      files,
+      chapters,
+      video,
+      audio,
+      subtitle,
+      error_flags,
+      probe_error,
+      capture_date,
+      device,
+      gps,
+    } = g;
+    domain::Media::rehydrate(MediaParts {
+      id,
+      checksum,
+      format,
+      size,
+      duration,
+      kind,
+      nb_streams,
+      nb_chapters,
+      files: files.iter().map(|f| *f.id_ref()).collect(),
+      chapters: chapters.iter().map(|c| *c.id_ref()).collect(),
+      video_id: video.as_ref().map(|v| *v.id_ref()),
+      audio_id: audio.as_ref().map(|a| *a.id_ref()),
+      subtitle_id: subtitle.as_ref().map(|s| *s.id_ref()),
+      error_flags,
+      probe_error,
+      capture_date,
+      device,
+      gps,
+    })
+  }
+}
+
+/// Trait form of [`MediaFile::try_from_flat`] — `(expected_media, flat)`.
+impl TryFrom<(Uuid7, domain::MediaFile<Uuid7>)> for MediaFile<Uuid7> {
+  type Error = GraphError;
+
+  #[inline(always)]
+  fn try_from(
+    (expected_media, file): (Uuid7, domain::MediaFile<Uuid7>),
+  ) -> Result<Self, Self::Error> {
+    Self::try_from_flat(&expected_media, file)
+  }
+}
+
+/// Re-attach to `media_id` and rebuild the flat aggregate.
+impl From<(Uuid7, MediaFile<Uuid7>)> for domain::MediaFile<Uuid7> {
+  fn from((media_id, g): (Uuid7, MediaFile<Uuid7>)) -> Self {
+    let MediaFile {
+      id,
+      created_at,
+      location,
+      watched_location_id,
+      watch_volume,
+    } = g;
+    domain::MediaFile::rehydrate(MediaFileParts {
+      id,
+      media_id,
+      created_at,
+      location,
+      watched_location_id,
+      watch_volume,
+    })
+  }
+}
+
+/// Trait form of [`Chapter::try_from_flat`] — `(expected_media, flat)`.
+impl TryFrom<(Uuid7, domain::Chapter<Uuid7>)> for Chapter<Uuid7> {
+  type Error = GraphError;
+
+  #[inline(always)]
+  fn try_from(
+    (expected_media, chapter): (Uuid7, domain::Chapter<Uuid7>),
+  ) -> Result<Self, Self::Error> {
+    Self::try_from_flat(&expected_media, chapter)
+  }
+}
+
+/// Re-attach to `media_id` and rebuild the flat aggregate.
+impl From<(Uuid7, Chapter<Uuid7>)> for domain::Chapter<Uuid7> {
+  fn from((media_id, g): (Uuid7, Chapter<Uuid7>)) -> Self {
+    let Chapter {
+      id,
+      index,
+      source_id,
+      time_range,
+      title,
+      metadata,
+    } = g;
+    domain::Chapter::rehydrate(ChapterParts {
+      id,
+      media_id,
+      index,
+      source_id,
+      time_range,
+      title,
+      metadata,
+    })
+  }
+}
+
+#[cfg(test)]
+mod conv_tests {
+  use core::num::NonZeroU32;
+
+  use mediatime::Timebase;
+
+  use super::*;
+
+  #[test]
+  fn chapter_round_trips_through_graph() {
+    let media_id = Uuid7::new();
+    let tb = Timebase::new(1, NonZeroU32::new(1000).unwrap());
+    let flat = domain::Chapter::try_new(Uuid7::new(), media_id, 1, 7, TimeRange::new(0, 500, tb))
+      .expect("valid chapter")
+      .try_with_title("One")
+      .expect("title fits");
+    let lifted: Chapter<Uuid7> = (media_id, flat.clone()).try_into().expect("coherent");
+    let back: domain::Chapter<Uuid7> = (media_id, lifted).into();
+    assert_eq!(back, flat);
+  }
+
+  #[test]
+  fn media_root_round_trips_with_rederived_links() {
+    let id = Uuid7::new();
+    let mut flat = domain::Media::try_new(
+      id,
+      FileChecksum::from_bytes([9u8; 32]),
+      Format::Mp4,
+      2048,
+      MediaKind::Video,
+    )
+    .expect("valid media");
+    let facet = domain::Video::try_new(Uuid7::new(), id).expect("valid facet");
+    let facet_id = *facet.id_ref();
+    flat.set_video_id(Some(facet_id));
+    let video = Video::try_from_flat(&id, facet, vec![]).expect("coherent");
+    let lifted: Media<Uuid7> = (flat.clone(), vec![], vec![], Some(video), None, None)
+      .try_into()
+      .expect("coherent");
+    let back: domain::Media<Uuid7> = lifted.into();
+    assert_eq!(back, flat);
+  }
+}

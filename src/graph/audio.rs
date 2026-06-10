@@ -673,3 +673,251 @@ mod tests {
     ));
   }
 }
+
+// --- conversion traits: flat ⇄ graph ---------------------------------------
+
+/// Trait form of [`Audio::try_from_flat`] — `(expected_media, facet, tracks)`.
+impl TryFrom<(Uuid7, domain::Audio<Uuid7>, Vec<AudioTrack<Uuid7>>)> for Audio<Uuid7> {
+  type Error = GraphError;
+
+  #[inline(always)]
+  fn try_from(
+    (expected_media, facet, tracks): (Uuid7, domain::Audio<Uuid7>, Vec<AudioTrack<Uuid7>>),
+  ) -> Result<Self, Self::Error> {
+    Self::try_from_flat(&expected_media, facet, tracks)
+  }
+}
+
+/// Re-attach to `media_id` and rebuild the flat facet; the track-id vec
+/// is re-derived from the embedded tracks, which are then dropped —
+/// convert them first when persisting the tree.
+impl From<(Uuid7, Audio<Uuid7>)> for domain::Audio<Uuid7> {
+  fn from((media_id, g): (Uuid7, Audio<Uuid7>)) -> Self {
+    let Audio {
+      id,
+      total_segments,
+      track_progress,
+      tracks,
+    } = g;
+    domain::Audio::rehydrate(AudioParts {
+      id,
+      media_id,
+      tracks: tracks.iter().map(|t| *t.id_ref()).collect(),
+      total_segments,
+      track_progress,
+    })
+  }
+}
+
+/// Trait form of [`AudioTrack::try_from_flat`] —
+/// `(expected_audio, track, segments, speakers)`.
+impl
+  TryFrom<(
+    Uuid7,
+    domain::AudioTrack<Uuid7>,
+    Vec<domain::AudioSegment<Uuid7>>,
+    Vec<domain::Speaker<Uuid7>>,
+  )> for AudioTrack<Uuid7>
+{
+  type Error = GraphError;
+
+  #[inline(always)]
+  fn try_from(
+    (expected_audio, track, segments, speakers): (
+      Uuid7,
+      domain::AudioTrack<Uuid7>,
+      Vec<domain::AudioSegment<Uuid7>>,
+      Vec<domain::Speaker<Uuid7>>,
+    ),
+  ) -> Result<Self, Self::Error> {
+    Self::try_from_flat(&expected_audio, track, segments, speakers)
+  }
+}
+
+/// Re-attach to `audio_id` and rebuild the flat track; the segment- and
+/// speaker-id vecs are re-derived from the embedded children, which are
+/// then dropped — convert them first when persisting the tree.
+impl From<(Uuid7, AudioTrack<Uuid7>)> for domain::AudioTrack<Uuid7> {
+  fn from((audio_id, g): (Uuid7, AudioTrack<Uuid7>)) -> Self {
+    let AudioTrack {
+      id,
+      stream_index,
+      container_track_id,
+      codec,
+      profile,
+      sample_rate,
+      channels,
+      channel_layout,
+      sample_format,
+      bit_rate,
+      bit_rate_mode,
+      bits_per_sample,
+      is_lossless,
+      duration,
+      start_pts,
+      language,
+      detected_language,
+      disposition,
+      is_primary,
+      auto_selected,
+      content,
+      speech_ratio,
+      is_silent,
+      loudness,
+      replay_gain,
+      fingerprint,
+      isrc,
+      acoustid,
+      musicbrainz_recording_id,
+      speakers,
+      tags,
+      cover_art,
+      segments,
+      metadata,
+      provenance,
+      index_status,
+      index_errors,
+    } = g;
+    domain::AudioTrack::rehydrate(AudioTrackParts {
+      id,
+      audio_id,
+      stream_index,
+      container_track_id,
+      codec,
+      profile,
+      sample_rate,
+      channels,
+      channel_layout,
+      sample_format,
+      bit_rate,
+      bit_rate_mode,
+      bits_per_sample,
+      is_lossless,
+      duration,
+      start_pts,
+      language,
+      detected_language,
+      disposition,
+      is_primary,
+      auto_selected,
+      content,
+      speech_ratio,
+      is_silent,
+      loudness,
+      replay_gain,
+      fingerprint,
+      isrc,
+      acoustid,
+      musicbrainz_recording_id,
+      speakers: speakers.iter().map(|s| *s.id_ref()).collect(),
+      tags,
+      cover_art,
+      segments: segments.iter().map(|s| *s.id_ref()).collect(),
+      metadata,
+      provenance,
+      index_status,
+      index_errors,
+    })
+  }
+}
+
+/// Trait form of [`AudioSegment::try_from_flat`] — `(expected_track, flat)`.
+impl TryFrom<(Uuid7, domain::AudioSegment<Uuid7>)> for AudioSegment<Uuid7> {
+  type Error = GraphError;
+
+  #[inline(always)]
+  fn try_from(
+    (expected_track, segment): (Uuid7, domain::AudioSegment<Uuid7>),
+  ) -> Result<Self, Self::Error> {
+    Self::try_from_flat(&expected_track, segment)
+  }
+}
+
+/// Re-attach to `audio_track_id` and rebuild the flat segment.
+impl From<(Uuid7, AudioSegment<Uuid7>)> for domain::AudioSegment<Uuid7> {
+  fn from((audio_track_id, g): (Uuid7, AudioSegment<Uuid7>)) -> Self {
+    let AudioSegment {
+      id,
+      index,
+      span,
+      speaker_id,
+      text,
+      language,
+      words,
+      no_speech_prob,
+      avg_logprob,
+      temperature,
+      voice_fingerprint,
+    } = g;
+    domain::AudioSegment::rehydrate(AudioSegmentParts {
+      id,
+      audio_track_id,
+      index,
+      span,
+      speaker_id,
+      text,
+      language,
+      words,
+      no_speech_prob,
+      avg_logprob,
+      temperature,
+      voice_fingerprint,
+    })
+  }
+}
+
+/// Trait form of [`Speaker::try_from_flat`] — `(expected_track, flat)`.
+impl TryFrom<(Uuid7, domain::Speaker<Uuid7>)> for Speaker<Uuid7> {
+  type Error = GraphError;
+
+  #[inline(always)]
+  fn try_from(
+    (expected_track, speaker): (Uuid7, domain::Speaker<Uuid7>),
+  ) -> Result<Self, Self::Error> {
+    Self::try_from_flat(&expected_track, speaker)
+  }
+}
+
+/// Re-attach to `audio_track_id` and rebuild the flat speaker.
+impl From<(Uuid7, Speaker<Uuid7>)> for domain::Speaker<Uuid7> {
+  fn from((audio_track_id, g): (Uuid7, Speaker<Uuid7>)) -> Self {
+    let Speaker {
+      id,
+      cluster_id,
+      name,
+      speech_duration,
+      voiceprint,
+      person_id,
+    } = g;
+    domain::Speaker::rehydrate(SpeakerParts {
+      id,
+      audio_track_id,
+      cluster_id,
+      name,
+      speech_duration,
+      voiceprint,
+      person_id,
+    })
+  }
+}
+
+#[cfg(test)]
+mod conv_tests {
+  use core::num::NonZeroU32;
+
+  use mediatime::Timebase;
+
+  use super::*;
+
+  #[test]
+  fn segment_round_trips_through_graph() {
+    let track_id = Uuid7::new();
+    let tb = Timebase::new(1, NonZeroU32::new(1000).unwrap());
+    let flat =
+      domain::AudioSegment::try_new(Uuid7::new(), track_id, 0, TimeRange::new(0, 1000, tb))
+        .expect("valid segment");
+    let lifted: AudioSegment<Uuid7> = (track_id, flat.clone()).try_into().expect("coherent");
+    let back: domain::AudioSegment<Uuid7> = (track_id, lifted).into();
+    assert_eq!(back, flat);
+  }
+}
