@@ -23,12 +23,12 @@
 //! - **Role** — writes and incremental stage work use the flat
 //!   aggregates (their builder API is the write surface); full-record
 //!   reads and transfers use graphs. Graph types are immutable:
-//!   lift via [`try_from_flat`](Media::try_from_flat), then read.
+//!   lift via `try_from_flat`, then read.
 //! - **Coherence** — every lift validates the flat child's parent FK
 //!   against the parent it is being nested under
-//!   ([`GraphError::ParentMismatch`]), and [`Media`] checks the stored
+//!   (`GraphError::ParentMismatch`), and [`Media`] checks the stored
 //!   facet links against the embedded facets
-//!   ([`GraphError::FacetLinkMismatch`]). The FKs are *consumed* by that
+//!   (`GraphError::FacetLinkMismatch`). The FKs are *consumed* by that
 //!   validation; they do not exist in the graph shape.
 //!
 //! Drift guard (compile-time): every lift destructures the flat
