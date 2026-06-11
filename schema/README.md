@@ -41,7 +41,7 @@ DOMAIN / programming-types   ← application logic programs against THIS
 ## Cross-cutting decisions
 
 - **Genuine nested VOs stay nested; an entity's own `*Meta` is flattened IN.**
-  Meaningful sub-value-objects (`Dimensions`, `TrackTime`, `Device`,
+  Meaningful sub-value-objects (`Dimensions`, `mediatime::Timestamp`, `Device`,
   `GeoLocation`, `AudioTags`, `AudioCoverArt`) stay nested in the domain. But a
   kind/root entity's own `*Meta` is **not** a sub-VO — it *is* the entity, so
   `Media`/`Video`/`Audio`/`Subtitle` are **flat** (no `meta:` wrapper). DB
@@ -74,7 +74,7 @@ DOMAIN / programming-types   ← application logic programs against THIS
   - `mediatime::{Timestamp,TimeRange,Timebase}` are **media-timeline** types
     (`Timestamp = { pts: i64, timebase }` — a presentation timestamp in
     timebase ticks). Used **only** for genuine media-time fields (e.g.
-    `TrackTime`). Stay extern (`::mediatime`), reused, never re-modeled.
+    `Timestamp`). Stay extern (`::mediatime`), reused, never re-modeled.
   - Wall-clock instants (`created_at`, `capture_date`) use **`jiff::Timestamp`**
     (Unix **milliseconds** — matches findit-proto's
     `jiff::Timestamp::now().as_millisecond()`). **Never** `mediatime::Timestamp`.

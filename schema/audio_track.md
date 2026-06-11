@@ -14,7 +14,7 @@ Total redesign parallel to `Video`/`VideoTrack` — the stale
 ## Cross-cutting (locked)
 
 Generic over `Id` (UUIDv7). Wall-clock = `jiff` ms; media-time = `::mediatime`
-(`TrackTime`/`Timestamp`). **`SmolStr` `""`=absent, never `Option`**;
+(`mediatime::Timestamp`). **`SmolStr` `""`=absent, never `Option`**;
 `language` = **`::mediaframe::Language`**; descriptor enums
 (`AudioCodec`/`ChannelLayout`/`TrackDisposition`/`BitRateMode`) =
 **`::mediaframe`** externs. Genuine nested VOs nested (`AudioTags`,
@@ -42,7 +42,7 @@ track. Conversions deferred.
 | `bit_rate_mode` | `Option<mediaframe::BitRateMode>` | analyze | `Cbr`/`Vbr`/`Abr` (extern; adopted) |
 | `bits_per_sample` | `Option<u16>` | — | PCM/lossless depth |
 | `is_lossless` | `bool` | derived/codec | transcode/quality + search facet |
-| `duration` | `Option<mediatime::TrackTime>` | time | per-track duration (extern) |
+| `duration` | `Option<mediatime::Timestamp>` | time | per-track duration (extern) |
 | `start_pts` | `Option<mediatime::Timestamp>` | — | audio rarely starts at 0 — A/V sync/seek (adopted) |
 | `language` | `Option<mediaframe::Language>` | language | declared BCP-47 tag (extern) |
 | `detected_language` | `Option<mediaframe::Language>` | whisper LID | track-scope detected (vs declared) |

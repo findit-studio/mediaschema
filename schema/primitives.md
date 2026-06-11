@@ -26,7 +26,7 @@ UUIDv7.
 not `String` (locked; upstream `buffa` SmolStr support requested — `anthropics/
 buffa#127`; until then the domain↔wire conversion does the `String→SmolStr`).
 
-**Externs (not redefined here):** media-time newtypes (`TrackTime`,
+**Externs (not redefined here):** media-time newtypes (`Timestamp`,
 `mediatime::{Timestamp,TimeRange,Timebase}`) are `::mediatime`; pixel/colour/
 frame (`Dimensions`, `Rect`, `PixelFormat`, `ColorInfo`, `HdrStaticMetadata`,
 `Rotation`, `SampleAspectRatio`, **`Rational`** (P-rat resolved — `{num:u32,

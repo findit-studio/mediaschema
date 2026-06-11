@@ -16,7 +16,7 @@ stream/codec data is per-track.
 
 Generic over `Id` (single **UUIDv7** key — Postgres `uuid` / Mongo `_id`; FKs
 are the UUID). `FileChecksum` distinct 32-byte newtype. Wall-clock =
-`jiff::Timestamp` (ms); media-time = `::mediatime` (`TrackTime`). **EXIF/capture
+`jiff::Timestamp` (ms); media-time = `::mediatime` (`Timestamp`). **EXIF/capture
 types — `GeoLocation` and `Device` — are `::mediaframe` externs** (rev 8: the
 EXIF/capture-metadata charter; *no longer mediaschema-owned VOs*). Entity's own
 meta flattened in. Conversions deferred.
@@ -29,7 +29,7 @@ meta flattened in. Conversions deferred.
 | `checksum` | `FileChecksum` | `MediaMeta.checksum: bytes` | content identity; **unique** (one `Media` per hash) |
 | `format` | `ContainerFormat` (enum) | `*Meta.format`/`container_format` | **container** format (MP4/MKV/MKA…); **codec is per-track** |
 | `size` | `u64` | `MediaMeta.size` | content size in bytes |
-| `duration` | `Option<TrackTime>` | `MediaMeta.time` | **overall** media length (per-track duration is on the track) |
+| `duration` | `Option<mediatime::Timestamp>` | `MediaMeta.time` | **overall** media length (per-track duration is on the track) |
 | `kind` | `MediaKind` (enum) | `Media.kind: DbMediaKind` | closed; may gain kinds |
 | `nb_streams` | `u32` | `Media.nb_streams` | **verbatim** `AVFormatContext.nb_streams`; total stream count *including* data / attachment streams the schema may not model per-track |
 | `nb_chapters` | `u32` | `Media.nb_chapters` | **verbatim** `AVFormatContext.nb_chapters`; symmetric with `nb_streams` (kept even when `chapters.is_empty()` so probe-without-chapter-fetch stays meaningful) |
