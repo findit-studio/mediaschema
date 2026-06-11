@@ -24,11 +24,49 @@ fn gen() {
   let root = manifest.parent().expect("workspace root").to_path_buf();
 
   buffa_build::Config::new()
-        .files(&[root.join("proto/media/v1/types.proto")])
+        .files(&[
+          root.join("proto/media/v1/types.proto"),
+          root.join("proto/media/v2/graph.proto"),
+        ])
         .includes(&[root.join("proto")])
         .out_dir(root.join("src/generated"))
         .include_file("mod.rs")
         .extern_path(".mediatime.v1", "::mediatime")
+        // mediaframe.v1.* is extern-mapped to the mediaframe crate
+        // (hand-written buffa impls behind its `buffa` feature) — same
+        // design as the mediatime extern; proto/mediaframe/v1 documents
+        // the contract. Per-type mappings because the Rust types live in
+        // submodules (frame/color/audio/…), not the crate root.
+        .extern_path(".mediaframe.v1.ContainerFormat", "::mediaframe::container::Format")
+        .extern_path(".mediaframe.v1.Format", "::mediaframe::subtitle::Format")
+        .extern_path(".mediaframe.v1.TrackOrigin", "::mediaframe::subtitle::TrackOrigin")
+        .extern_path(".mediaframe.v1.Language", "::mediaframe::lang::Language")
+        .extern_path(".mediaframe.v1.Device", "::mediaframe::capture::Device")
+        .extern_path(".mediaframe.v1.GeoLocation", "::mediaframe::capture::GeoLocation")
+        .extern_path(".mediaframe.v1.Dimensions", "::mediaframe::frame::Dimensions")
+        .extern_path(".mediaframe.v1.Rect", "::mediaframe::frame::Rect")
+        .extern_path(".mediaframe.v1.SampleAspectRatio", "::mediaframe::frame::SampleAspectRatio")
+        .extern_path(".mediaframe.v1.Rational", "::mediaframe::frame::Rational")
+        .extern_path(".mediaframe.v1.FrameRate", "::mediaframe::frame::FrameRate")
+        .extern_path(".mediaframe.v1.Rotation", "::mediaframe::frame::Rotation")
+        .extern_path(".mediaframe.v1.FieldOrder", "::mediaframe::frame::FieldOrder")
+        .extern_path(".mediaframe.v1.StereoMode", "::mediaframe::frame::StereoMode")
+        .extern_path(".mediaframe.v1.PixelFormat", "::mediaframe::pixel_format::PixelFormat")
+        .extern_path(".mediaframe.v1.Info", "::mediaframe::color::Info")
+        .extern_path(".mediaframe.v1.HdrStaticMetadata", "::mediaframe::color::HdrStaticMetadata")
+        .extern_path(".mediaframe.v1.MasteringDisplay", "::mediaframe::color::MasteringDisplay")
+        .extern_path(".mediaframe.v1.ContentLightLevel", "::mediaframe::color::ContentLightLevel")
+        .extern_path(".mediaframe.v1.ChromaCoord", "::mediaframe::color::ChromaCoord")
+        .extern_path(".mediaframe.v1.DolbyVisionConfig", "::mediaframe::color::DolbyVisionConfig")
+        .extern_path(".mediaframe.v1.TrackDisposition", "::mediaframe::disposition::TrackDisposition")
+        .extern_path(".mediaframe.v1.ChannelLayout", "::mediaframe::audio::ChannelLayout")
+        .extern_path(".mediaframe.v1.SampleFormat", "::mediaframe::audio::SampleFormat")
+        .extern_path(".mediaframe.v1.BitRateMode", "::mediaframe::audio::BitRateMode")
+        .extern_path(".mediaframe.v1.Loudness", "::mediaframe::audio::Loudness")
+        .extern_path(".mediaframe.v1.ReplayGain", "::mediaframe::audio::ReplayGain")
+        .extern_path(".mediaframe.v1.Fingerprint", "::mediaframe::audio::Fingerprint")
+        .extern_path(".mediaframe.v1.CoverArt", "::mediaframe::audio::CoverArt")
+        .extern_path(".mediaframe.v1.Tags", "::mediaframe::audio::Tags")
         .generate_json(true)
         .generate_arbitrary(true)
         // buffa 0.6: without this, generate_json(true) emits UNGATED serde

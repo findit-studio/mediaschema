@@ -1,0 +1,95 @@
+syntax = "proto3";
+
+// EXTERN-MAPPED: these types are provided by the `mediaframe` crate's
+// hand-written buffa impls (feature `buffa`) via
+// `extern_path(".mediaframe.v1", "::mediaframe")`. This file is
+// intentionally NOT in the xtask `.files()` — it exists only so protoc can
+// resolve `import "mediaframe/v1/mediaframe.proto"` and to document the
+// wire contract (the authoritative format lives in mediaframe
+// `src/buffa.rs`, including the default-elision vs zero-elision rules per
+// field; this file mirrors the `mediatime` extern design).
+//
+// Only the messages embedded by `media.v2` are documented here; mediaframe
+// implements more. NOTE: the codec vocabularies (`VideoCodec` /
+// `AudioCodec` / `SubtitleCodec`) have NO mediaframe wire impls — media.v2
+// carries them as plain string slug fields instead.
+
+package mediaframe.v1;
+
+// --- enum-as-message (uint32 `to_u32()` code; default-elision) ------------
+
+message Rotation       { uint32 value = 1; }
+message FieldOrder     { uint32 value = 1; }
+message StereoMode     { uint32 value = 1; }
+message PixelFormat    { uint32 value = 1; }
+message BitRateMode    { uint32 value = 1; }
+message SampleFormat   { uint32 value = 1; }
+message TrackOrigin    { uint32 value = 1; }
+
+// --- enum-as-message (string slug from `as_str()`; always encoded) --------
+
+message ChannelLayout   { string value = 1; }
+message ContainerFormat { string value = 1; }
+// Subtitle container format (mediaframe::subtitle::Format).
+message Format          { string value = 1; }
+message Language        { string value = 1; }
+
+// --- structs ---------------------------------------------------------------
+
+message Dimensions        { uint32 width = 1; uint32 height = 2; }
+message Rect              { uint32 x = 1; uint32 y = 2; uint32 width = 3; uint32 height = 4; }
+message SampleAspectRatio { uint32 num = 1; uint32 den = 2; }
+message Rational          { uint32 num = 1; uint32 den = 2; }
+message FrameRate         { Rational rate = 1; bool is_vfr = 2; }
+message DolbyVisionConfig {
+  uint32 profile = 1;
+  uint32 level = 2;
+  bool rpu_present = 3;
+  bool el_present = 4;
+  uint32 bl_signal_compat_id = 5;
+}
+// mediaframe::color::Info (ColorInfo): five bare uint32 FFmpeg codes,
+// always encoded.
+message Info {
+  uint32 primaries = 1;
+  uint32 transfer = 2;
+  uint32 matrix = 3;
+  uint32 range = 4;
+  uint32 chroma = 5;
+}
+message ContentLightLevel { uint32 max_cll = 1; uint32 max_fall = 2; }
+message ChromaCoord       { uint32 x = 1; uint32 y = 2; }
+message MasteringDisplay {
+  ChromaCoord primary_r = 1;
+  ChromaCoord primary_g = 2;
+  ChromaCoord primary_b = 3;
+  ChromaCoord white_point = 4;
+  uint32 max_luminance = 5;
+  uint32 min_luminance = 6;
+}
+message HdrStaticMetadata {
+  MasteringDisplay mastering = 1;
+  ContentLightLevel content_light = 2;
+}
+message TrackDisposition { uint32 bits = 1; }
+message Loudness {
+  float integrated_lufs = 1;
+  float range_lu = 2;
+  float true_peak_dbtp = 3;
+  float sample_peak_dbfs = 4;
+}
+message ReplayGain {
+  float track_gain_db = 1;
+  float track_peak = 2;
+  optional float album_gain_db = 3;
+  optional float album_peak = 4;
+}
+message Fingerprint { string algorithm = 1; bytes value = 2; }
+message CoverArt    { string mime = 1; bytes data = 2; }
+// Struct of named tag fields (strings + widened-u16 uint32s, proto3
+// zero-elision); see mediaframe src/buffa.rs for the authoritative field
+// list — extern-mapped, so the declaration suffices here.
+message Tags {}
+// Capture metadata (EXIF charter).
+message Device      { string make = 1; string model = 2; }
+message GeoLocation { double lat = 1; double lon = 2; optional float altitude = 3; }
