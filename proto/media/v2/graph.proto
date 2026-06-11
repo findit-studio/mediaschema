@@ -1,0 +1,289 @@
+syntax = "proto3";
+
+package media.v2;
+
+// The graph wire surface: nested messages mirroring `mediaschema::graph`
+// — the whole-record programming shape. Children are embedded (no parent
+// FK fields; the parent is the message you are inside); each node keeps
+// its own `id` and any cross-tree association ids
+// (`Speaker.person_id`, `AudioSegment.speaker_id`,
+// `MediaFile.watched_location_id`).
+//
+// Phase A (this file's initial revision) covers the demux-shape tree:
+// Media → files / chapters / facets / tracks / segments / speakers /
+// cues. `Scene` / `Keyframe` messages land in phase B together with the
+// `BlobRef` externalization of keyframe bytes; `VideoTrack` reserves the
+// field number its `scenes` child list will take. Until then the
+// graph→wire encoder is fallible and rejects graphs carrying scenes.
+//
+// Conventions (matching media.v1 + the mediaframe/mediatime externs):
+// ids = 16-byte UUIDv7 `bytes`; wall-clock instants = epoch-millis
+// `int64`; media-time = mediatime.v1 messages (self-contained timebase);
+// bitflags (`error_flags`, `*_index_status`) = raw bits as `uint32`;
+// metadata bags = `repeated media.v1.KeyValue` (insertion-ordered, like
+// `Chapter.metadata`); codec vocabularies = string slugs (`as_str()`,
+// decoded via total `FromStr` — mediaframe ships no codec wire types);
+// optional scalars use proto3 `optional` presence.
+
+import "mediatime/v1/mediatime.proto";
+import "mediaframe/v1/mediaframe.proto";
+import "media/v1/types.proto";
+
+// Per-kind facet rollup `{total, indexed, failed}` over child tracks
+// (mediaschema `IndexProgress` — no v1 counterpart).
+message IndexProgress {
+  uint32 total = 1;
+  uint32 indexed = 2;
+  uint32 failed = 3;
+}
+
+// The complete record for one content row (graph::Media).
+message Media {
+  bytes id = 1;
+  bytes checksum = 2;
+  mediaframe.v1.ContainerFormat format = 3;
+  uint64 size = 4;
+  // Presence = `Some` (overall duration).
+  mediatime.v1.Timestamp duration = 5;
+  media.v1.DbMediaKind kind = 6;
+  uint32 nb_streams = 7;
+  uint32 nb_chapters = 8;
+  repeated MediaFile files = 9;
+  repeated Chapter chapters = 10;
+  Video video = 11;
+  Audio audio = 12;
+  Subtitle subtitle = 13;
+  // MediaErrorFlags raw bits.
+  uint32 error_flags = 14;
+  media.v1.ErrorInfo probe_error = 15;
+  // EXIF capture date, epoch millis; absent = not recorded.
+  optional int64 capture_date_ms = 16;
+  mediaframe.v1.Device device = 17;
+  mediaframe.v1.GeoLocation gps = 18;
+}
+
+// One physical copy (graph::MediaFile). `watched_location_id` /
+// `watch_volume` are cross-tree associations, kept as ids.
+message MediaFile {
+  bytes id = 1;
+  optional int64 created_at_ms = 2;
+  media.v1.Location location = 3;
+  bytes watched_location_id = 4;
+  bytes watch_volume = 5;
+}
+
+// One container chapter (graph::Chapter).
+message Chapter {
+  bytes id = 1;
+  uint32 index = 2;
+  int64 source_id = 3;
+  mediatime.v1.TimeRange time_range = 4;
+  // `""` = absent (never optional).
+  string title = 5;
+  repeated media.v1.KeyValue metadata = 6;
+}
+
+// Video facet (graph::Video).
+message Video {
+  bytes id = 1;
+  uint32 total_scenes = 2;
+  IndexProgress track_progress = 3;
+  repeated VideoTrack tracks = 4;
+}
+
+// One video track (graph::VideoTrack). Phase A: no scenes child yet.
+message VideoTrack {
+  bytes id = 1;
+  optional uint32 stream_index = 2;
+  optional uint64 container_track_id = 3;
+  mediatime.v1.Timestamp start_pts = 4;
+  mediatime.v1.Timestamp duration = 5;
+  // VideoCodec slug (`as_str()`; decoded via total FromStr).
+  string codec = 6;
+  optional string profile = 7;
+  // u16 widened.
+  optional uint32 level = 8;
+  uint64 bit_rate = 9;
+  optional uint64 nb_frames = 10;
+  bool has_b_frames = 11;
+  optional bool closed_gop = 12;
+  // u8 widened.
+  optional uint32 bits_per_raw_sample = 13;
+  mediaframe.v1.Dimensions dimensions = 14;
+  mediaframe.v1.Rect visible_rect = 15;
+  mediaframe.v1.SampleAspectRatio sample_aspect_ratio = 16;
+  mediaframe.v1.PixelFormat pixel_format = 17;
+  mediaframe.v1.Info color = 18;
+  mediaframe.v1.HdrStaticMetadata hdr_static = 19;
+  mediaframe.v1.Rotation rotation = 20;
+  mediaframe.v1.FrameRate frame_rate = 21;
+  mediaframe.v1.FrameRate avg_frame_rate = 22;
+  mediaframe.v1.FieldOrder field_order = 23;
+  mediaframe.v1.StereoMode stereo_mode = 24;
+  mediaframe.v1.DolbyVisionConfig dovi = 25;
+  bool has_embedded_captions = 26;
+  mediaframe.v1.TrackDisposition disposition = 27;
+  bool is_primary = 28;
+  bool auto_selected = 29;
+  repeated media.v1.KeyValue metadata = 30;
+  // VideoIndexStatus raw bits.
+  uint32 index_status = 31;
+  repeated media.v1.ErrorInfo index_errors = 32;
+  media.v1.Provenance provenance = 33;
+  // Phase B: repeated Scene scenes = 34;
+  reserved 34;
+}
+
+// Audio facet (graph::Audio).
+message Audio {
+  bytes id = 1;
+  uint32 total_segments = 2;
+  IndexProgress track_progress = 3;
+  repeated AudioTrack tracks = 4;
+}
+
+// One audio track (graph::AudioTrack).
+message AudioTrack {
+  bytes id = 1;
+  optional uint32 stream_index = 2;
+  optional uint64 container_track_id = 3;
+  // AudioCodec slug.
+  string codec = 4;
+  // `""` = absent.
+  string profile = 5;
+  uint32 sample_rate = 6;
+  // u16 widened.
+  uint32 channels = 7;
+  mediaframe.v1.ChannelLayout channel_layout = 8;
+  mediaframe.v1.SampleFormat sample_format = 9;
+  uint64 bit_rate = 10;
+  mediaframe.v1.BitRateMode bit_rate_mode = 11;
+  optional uint32 bits_per_sample = 12;
+  bool is_lossless = 13;
+  mediatime.v1.Timestamp duration = 14;
+  mediatime.v1.Timestamp start_pts = 15;
+  mediaframe.v1.Language language = 16;
+  mediaframe.v1.Language detected_language = 17;
+  mediaframe.v1.TrackDisposition disposition = 18;
+  bool is_primary = 19;
+  bool auto_selected = 20;
+  // AudioContentKind slug; absent = `None`.
+  optional string content = 21;
+  optional float speech_ratio = 22;
+  bool is_silent = 23;
+  mediaframe.v1.Loudness loudness = 24;
+  mediaframe.v1.ReplayGain replay_gain = 25;
+  mediaframe.v1.Fingerprint fingerprint = 26;
+  // `""` = absent for the three identifier strings.
+  string isrc = 27;
+  string acoustid = 28;
+  string musicbrainz_recording_id = 29;
+  repeated Speaker speakers = 30;
+  mediaframe.v1.Tags tags = 31;
+  mediaframe.v1.CoverArt cover_art = 32;
+  repeated AudioSegment segments = 33;
+  repeated media.v1.KeyValue metadata = 34;
+  media.v1.Provenance provenance = 35;
+  // AudioIndexStatus raw bits.
+  uint32 index_status = 36;
+  repeated media.v1.ErrorInfo index_errors = 37;
+}
+
+// One transcript/diarization segment (graph::AudioSegment).
+// `speaker_id` is a cross-tree association into the sibling speaker set.
+message AudioSegment {
+  bytes id = 1;
+  uint32 index = 2;
+  mediatime.v1.TimeRange span = 3;
+  optional bytes speaker_id = 4;
+  media.v1.LocalizedText text = 5;
+  mediaframe.v1.Language language = 6;
+  repeated media.v1.Word words = 7;
+  optional float no_speech_prob = 8;
+  optional float avg_logprob = 9;
+  optional float temperature = 10;
+  media.v1.VoiceFingerprint voice_fingerprint = 11;
+}
+
+// One diarized speaker (graph::Speaker). `person_id` is a cross-tree
+// association to the cross-file Person aggregate.
+message Speaker {
+  bytes id = 1;
+  uint32 cluster_id = 2;
+  // `""` = unnamed cluster.
+  string name = 3;
+  mediatime.v1.Timestamp speech_duration = 4;
+  media.v1.VoiceFingerprint voiceprint = 5;
+  optional bytes person_id = 6;
+}
+
+// Subtitle facet (graph::Subtitle).
+message Subtitle {
+  bytes id = 1;
+  IndexProgress track_progress = 2;
+  repeated SubtitleTrack tracks = 3;
+}
+
+// One subtitle track (graph::SubtitleTrack).
+message SubtitleTrack {
+  bytes id = 1;
+  optional uint32 stream_index = 2;
+  optional uint64 container_track_id = 3;
+  // SubtitleCodec slug.
+  string codec = 4;
+  mediaframe.v1.Format format = 5;
+  mediaframe.v1.TrackOrigin origin = 6;
+  // Always present (non-optional in the domain).
+  mediaframe.v1.Language language = 7;
+  // `""` = absent.
+  string title = 8;
+  mediaframe.v1.TrackDisposition disposition = 9;
+  bool is_primary = 10;
+  bool auto_selected = 11;
+  mediatime.v1.Timestamp duration = 12;
+  uint32 cue_count = 13;
+  repeated SubtitleCue cues = 14;
+  media.v1.Provenance provenance = 15;
+  optional bytes source_checksum = 16;
+  // `""` = unknown.
+  string character_encoding = 17;
+  bool bom_present = 18;
+  bool is_sdh = 19;
+  bool is_closed_caption = 20;
+  bool is_translation = 21;
+  // SubtitleKind slug.
+  string kind = 22;
+  optional float coverage_ratio = 23;
+  bool is_empty = 24;
+  mediatime.v1.Timestamp first_cue = 25;
+  mediatime.v1.Timestamp last_cue = 26;
+  repeated media.v1.KeyValue metadata = 27;
+  // SubtitleIndexStatus raw bits.
+  uint32 index_status = 28;
+  repeated media.v1.ErrorInfo index_errors = 29;
+}
+
+// One cue (graph::SubtitleCue): self-contained span (own timebase, no
+// parent-timebase dance), type-erased per-format payload reusing the
+// media.v1 data messages.
+message SubtitleCue {
+  bytes id = 1;
+  uint32 ordinal = 2;
+  mediatime.v1.TimeRange span = 3;
+  media.v1.LocalizedText text = 4;
+  oneof data {
+    media.v1.SrtData srt = 5;
+    media.v1.VttData vtt = 6;
+    media.v1.AssData ass = 7;
+    media.v1.LrcData lrc = 8;
+    media.v1.MicroDvdData micro_dvd = 9;
+    media.v1.SubViewerData sub_viewer = 10;
+    media.v1.SbvData sbv = 11;
+    media.v1.TtmlData ttml = 12;
+    media.v1.SamiData sami = 13;
+    media.v1.VobSubData vob_sub = 14;
+    media.v1.PgsData pgs = 15;
+    media.v1.Cea608Data cea_608 = 16;
+    media.v1.EbuStlData ebu_stl = 17;
+  }
+}

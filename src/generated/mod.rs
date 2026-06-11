@@ -8,4 +8,9 @@ pub mod media {
         use super::*;
         include!("media.v1.mod.rs");
     }
+    #[allow(non_camel_case_types, dead_code, unused_imports, unused_qualifications, clippy::derivable_impls, clippy::match_single_binding, clippy::uninlined_format_args, clippy::doc_lazy_continuation, clippy::module_inception)]
+    pub mod v2 {
+        use super::*;
+        include!("media.v2.mod.rs");
+    }
 }

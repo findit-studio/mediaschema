@@ -14,14 +14,10 @@
 //! 3. `try_with_no_speech_prob(...)` enforces `[0,1]`-finite.
 //! 4. The remaining `with_*` setters are infallible.
 //!
-//! ## Field correspondence — [`Word`]
-//!
-//! | wire field            | domain field            | notes                                          |
-//! | --------------------- | ----------------------- | ---------------------------------------------- |
-//! | `text: String`        | `text: SmolStr`         | `""` = absent (locked convention)              |
-//! | `span: TimeRange`     | `span: TimeRange`       | extern via `::mediatime`                       |
-//! | `score: float`        | `score: f32`            | validating (`[0,1]`-finite)                    |
-//! | `language: optional Language` | `language: Option<Language>` | unset ⇒ `None`; parse via `mediaframe::lang::Language::from_bcp47` |
+//! The [`Word`] / `LocalizedText` / `Language` conversions this module
+//! decodes through live in the shared [`vo`](super::vo) module (promoted
+//! there once `media.v2` became a second embedding parent); see its
+//! field-correspondence tables.
 //!
 //! ## Field correspondence — [`AudioSegment`]
 //!
@@ -43,157 +39,19 @@
 use std::vec::Vec;
 
 use ::buffa::bytes::Bytes;
-use mediaframe::lang::Language;
-use smol_str::SmolStr;
 
 use crate::{
   buffa::{
     error::BuffaError,
+    vo::{language_from_wire, language_to_wire, localized_text_from_wire},
     voice_fingerprint::{voice_fingerprint_from_wire, voice_fingerprint_to_wire},
   },
   domain::{
     aggregates::audio::segment::{AudioSegment, Word},
-    vo::LocalizedText,
     Uuid7,
   },
   generated::media::v1 as wire,
 };
-// Under `feature = "alloc"` (no std), `String` / `ToOwned` / `ToString`
-// aren't in the prelude — pull them in via the `extern crate alloc as std`
-// alias declared in `lib.rs`. Under `feature = "std"` these come from the
-// std prelude automatically; the cfg keeps the import a no-op there.
-#[cfg(all(not(feature = "std"), feature = "alloc"))]
-#[allow(unused_imports)]
-use std::{
-  borrow::ToOwned,
-  string::{String, ToString},
-};
-
-// ---------------------------------------------------------------------------
-// LocalizedText ⇄ wire::LocalizedText — shared helpers
-// ---------------------------------------------------------------------------
-//
-// `LocalizedText` only appears as a singular message field on
-// `AudioSegment.text` today, so the helpers stay scoped to this module
-// (mirroring how `voice_fingerprint_*` were factored out only once a
-// second parent appeared).
-
-impl From<&LocalizedText> for wire::LocalizedText {
-  fn from(d: &LocalizedText) -> Self {
-    wire::LocalizedText {
-      src: d.src().to_owned().into(),
-      translated: d.translated().to_owned().into(),
-      __buffa_unknown_fields: Default::default(),
-    }
-  }
-}
-
-impl From<&wire::LocalizedText> for LocalizedText {
-  fn from(w: &wire::LocalizedText) -> Self {
-    LocalizedText::from_src_translated(
-      SmolStr::from(w.src.as_str()),
-      SmolStr::from(w.translated.as_str()),
-    )
-  }
-}
-
-/// Decode a singular `MessageField<wire::LocalizedText>` slot. An unset
-/// slot decodes to the all-empty `LocalizedText` (the "not yet emitted"
-/// state).
-fn localized_text_from_wire(w: &::buffa::MessageField<wire::LocalizedText>) -> LocalizedText {
-  match w.as_option() {
-    Some(v) => LocalizedText::from(v),
-    None => LocalizedText::new(),
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Language ⇄ wire::Language — shared helpers
-// ---------------------------------------------------------------------------
-//
-// Wire shape: `message Language { string bcp47 = 1; }`. Empty / "und"
-// decode to the undetermined language. Malformed tags surface as
-// `BuffaError::LanguageMalformed`.
-
-impl From<&Language> for wire::Language {
-  fn from(d: &Language) -> Self {
-    wire::Language {
-      bcp47: d.to_bcp47().into(),
-      __buffa_unknown_fields: Default::default(),
-    }
-  }
-}
-
-impl TryFrom<&wire::Language> for Language {
-  type Error = BuffaError;
-
-  fn try_from(w: &wire::Language) -> Result<Self, Self::Error> {
-    if w.bcp47.is_empty() {
-      return Ok(Language::new());
-    }
-    Language::from_bcp47(w.bcp47.as_str())
-      .map_err(|_| BuffaError::LanguageMalformed(SmolStr::from(w.bcp47.as_str())))
-  }
-}
-
-/// Encode `Option<Language>` into a parent message's
-/// `MessageField<wire::Language>` slot.
-fn language_to_wire(v: Option<Language>) -> ::buffa::MessageField<wire::Language> {
-  match v {
-    Some(v) => ::buffa::MessageField::some(wire::Language::from(&v)),
-    None => ::buffa::MessageField::none(),
-  }
-}
-
-/// Decode a parent message's `MessageField<wire::Language>` slot into an
-/// `Option<Language>`. An unset slot ⇒ `None`.
-fn language_from_wire(
-  w: &::buffa::MessageField<wire::Language>,
-) -> Result<Option<Language>, BuffaError> {
-  match w.as_option() {
-    Some(v) => Language::try_from(v).map(Some),
-    None => Ok(None),
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Word ⇄ wire::Word
-// ---------------------------------------------------------------------------
-
-impl From<&Word> for wire::Word {
-  fn from(d: &Word) -> Self {
-    wire::Word {
-      text: d.text().to_owned().into(),
-      span: ::buffa::MessageField::some(*d.span_ref()),
-      score: d.score(),
-      language: language_to_wire(d.language()),
-      __buffa_unknown_fields: Default::default(),
-    }
-  }
-}
-
-impl TryFrom<&wire::Word> for Word {
-  type Error = BuffaError;
-
-  fn try_from(w: &wire::Word) -> Result<Self, Self::Error> {
-    let span = w
-      .span
-      .as_option()
-      .cloned()
-      .ok_or(BuffaError::MissingRequiredField("Word.span"))?;
-    let language = language_from_wire(&w.language)?;
-    // The wire bytes were produced by a previously-validated `Word`, so
-    // the score is already finite-`[0,1]`. `try_from_parts` re-validates
-    // cheaply (one float check) and is the public reconstruction door.
-    Word::try_from_parts(SmolStr::from(w.text.as_str()), span, w.score, language).map_err(|_| {
-      // Domain rejection of a re-decoded score implies wire-tampering
-      // (the bytes weren't produced by a valid `try_new`). We surface
-      // it as a missing-required-field — there's no dedicated variant
-      // and adding one for a programmer-error case is overkill.
-      BuffaError::MissingRequiredField("Word.score")
-    })
-  }
-}
 
 // ---------------------------------------------------------------------------
 // AudioSegment<Uuid7> ⇄ wire::AudioSegment
@@ -311,9 +169,10 @@ fn audio_segment_error_as_buffa(
 #[cfg(all(test, feature = "std"))]
 mod tests {
   use super::*;
-  use crate::domain::vo::{Provenance, VoiceFingerprint};
+  use crate::domain::vo::{LocalizedText, Provenance, VoiceFingerprint};
   use core::num::NonZeroU32;
   use jiff::Timestamp as JiffTimestamp;
+  use mediaframe::lang::Language;
   use mediatime::{TimeRange, Timebase};
 
   fn tb() -> Timebase {
@@ -333,93 +192,6 @@ mod tests {
       Provenance::from_parts("ecapa-tdnn", "v1.0.0", "", "findit-indexer-0.1.0"),
     )
     .expect("valid voiceprint")
-  }
-
-  // ---- LocalizedText ---------------------------------------------------------
-
-  #[test]
-  fn localized_text_roundtrip_both_populated() {
-    let d = LocalizedText::from_src_translated("hola", "hello");
-    let w: wire::LocalizedText = (&d).into();
-    let d2: LocalizedText = (&w).into();
-    assert_eq!(d, d2);
-  }
-
-  #[test]
-  fn localized_text_roundtrip_empty() {
-    let d = LocalizedText::new();
-    let w: wire::LocalizedText = (&d).into();
-    let d2: LocalizedText = (&w).into();
-    assert_eq!(d, d2);
-    assert!(d2.is_empty());
-  }
-
-  // ---- Language --------------------------------------------------------------
-
-  #[test]
-  fn language_roundtrip_concrete_tag() {
-    let d = Language::from_bcp47("zh-Hant-TW").unwrap();
-    let w: wire::Language = (&d).into();
-    assert_eq!(w.bcp47, "zh-Hant-TW");
-    let d2 = Language::try_from(&w).unwrap();
-    assert_eq!(d, d2);
-  }
-
-  #[test]
-  fn language_empty_bcp47_decodes_as_undetermined() {
-    let w = wire::Language {
-      bcp47: SmolStr::default(),
-      __buffa_unknown_fields: Default::default(),
-    };
-    let d = Language::try_from(&w).unwrap();
-    assert!(d.is_undetermined());
-  }
-
-  #[test]
-  fn language_und_roundtrip() {
-    let d = Language::from_bcp47("und").unwrap();
-    let w: wire::Language = (&d).into();
-    let d2 = Language::try_from(&w).unwrap();
-    assert_eq!(d, d2);
-    assert!(d2.is_undetermined());
-  }
-
-  #[test]
-  fn language_malformed_bcp47_errors() {
-    let w = wire::Language {
-      bcp47: SmolStr::from("xx-yy-zz-bogus"),
-      __buffa_unknown_fields: Default::default(),
-    };
-    let err = Language::try_from(&w).unwrap_err();
-    assert!(matches!(err, BuffaError::LanguageMalformed(ref s) if s == "xx-yy-zz-bogus"));
-  }
-
-  // ---- Word ------------------------------------------------------------------
-
-  #[test]
-  fn word_roundtrip_without_language() {
-    let w = Word::try_new("hi", span(0, 100), 0.9).unwrap();
-    let wire: wire::Word = (&w).into();
-    assert!(wire.language.as_option().is_none());
-    let w2 = Word::try_from(&wire).unwrap();
-    assert_eq!(w, w2);
-  }
-
-  #[test]
-  fn word_roundtrip_with_language() {
-    let fr = Language::from_bcp47("fr").unwrap();
-    let w = Word::try_from_parts("bon", span(0, 200), 0.95, Some(fr)).unwrap();
-    let wire: wire::Word = (&w).into();
-    let w2 = Word::try_from(&wire).unwrap();
-    assert_eq!(w, w2);
-  }
-
-  #[test]
-  fn word_missing_span_errors() {
-    let mut wire = wire::Word::from(&Word::try_new("x", span(0, 100), 0.5).unwrap());
-    wire.span = ::buffa::MessageField::none();
-    let err = Word::try_from(&wire).unwrap_err();
-    assert!(err.is_missing_required_field());
   }
 
   // ---- AudioSegment ----------------------------------------------------------
