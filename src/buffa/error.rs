@@ -99,4 +99,22 @@ pub enum BuffaError {
   /// distinction matters.
   #[error("wire payload rejected by domain constructor: {0}")]
   DomainConstructorRejected(SmolStr),
+  /// The value or shape on one side of the bridge has **no
+  /// representation** on the other side. Two current sources: encoding a
+  /// `graph::VideoTrack` whose `scenes` are populated while the
+  /// `media.v2` wire surface is still phase A (no `scenes` field yet),
+  /// and decoding a wire integer that exceeds the domain field's
+  /// narrower width (e.g. `VideoTrack.level` is `uint32` widened on the
+  /// wire but `u16` on the domain).
+  ///
+  /// Named-field variant, so it is exempt from the `Unwrap`/`TryUnwrap`
+  /// accessor families (derive_more cannot unwrap anonymous records);
+  /// `is_unsupported()` and pattern-matching on `context` remain.
+  #[error("bridge cannot represent `{context}` on the target side")]
+  #[unwrap(ignore)]
+  #[try_unwrap(ignore)]
+  Unsupported {
+    /// Names the field/shape and the reason it cannot cross the bridge.
+    context: &'static str,
+  },
 }

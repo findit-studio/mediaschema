@@ -54,11 +54,40 @@
 //!     are reused by every parent that holds an
 //!     `optional VoiceFingerprint` slot (`Person.voiceprint`,
 //!     `Speaker.voiceprint`, `AudioSegment.voice_fingerprint`).
-//!   - [`audio_segment`] also factors module-private
-//!     `LocalizedText` ⇄ `wire::LocalizedText` and `Language` ⇄
-//!     `wire::Language` helpers (the only current parents are inside
-//!     the audio cluster; promoted to a shared module the next time a
-//!     non-audio parent embeds one).
+//!   - [`vo`] — `media.v1::LocalizedText` ⇄ `domain::LocalizedText`,
+//!     `media.v1::Language` ⇄ `mediaframe::lang::Language` and
+//!     `media.v1::Word` ⇄ `domain::Word`. Started module-private in
+//!     [`audio_segment`]; promoted here when the `media.v2` graph
+//!     surface became a second embedding parent (per the original
+//!     promotion note).
+//!
+//! ### Bridged — `media.v2` graph surface ([`graph`])
+//!
+//! Nested wire messages mirroring [`crate::graph`] (children embedded,
+//! no parent-FK fields). Encode is `From<&graph::X>` /
+//! `TryFrom<&graph::X>` (fallible only where phase A applies); decode is
+//! `TryFrom<&wire::X>` through the flat `domain` builders + the graph
+//! lift. Phase-A coverage — the 12 demux-shape nodes, all round-trip
+//! tested:
+//!
+//! - `media.v2::Media`         ⇄ `graph::Media`
+//! - `media.v2::MediaFile`     ⇄ `graph::MediaFile`
+//! - `media.v2::Chapter`       ⇄ `graph::Chapter`
+//! - `media.v2::Video`         ⇄ `graph::Video`
+//! - `media.v2::VideoTrack`    ⇄ `graph::VideoTrack`
+//! - `media.v2::Audio`         ⇄ `graph::Audio`
+//! - `media.v2::AudioTrack`    ⇄ `graph::AudioTrack`
+//! - `media.v2::AudioSegment`  ⇄ `graph::AudioSegment`
+//! - `media.v2::Speaker`       ⇄ `graph::Speaker`
+//! - `media.v2::Subtitle`      ⇄ `graph::Subtitle`
+//! - `media.v2::SubtitleTrack` ⇄ `graph::SubtitleTrack`
+//! - `media.v2::SubtitleCue`   ⇄ `graph::SubtitleCue`
+//!
+//! (plus the `media.v2::IndexProgress` ⇄ `domain::IndexProgress` facet
+//! rollup). **Pending phase B**: `Scene` / `Keyframe` — `media.v2` has
+//! no messages for them yet (`VideoTrack` reserves field 34 for its
+//! future `scenes` list), so encoding a `graph::VideoTrack` whose
+//! scenes are populated fails with [`BuffaError::Unsupported`].
 //!
 //! ### Not yet bridged (no clean wire counterpart)
 //!
@@ -81,8 +110,9 @@
 //! - `Subtitle` / `SubtitleTrack` — wire `Subtitle` / `SubtitleTrack`
 //!   carry pre-locked-schema fields; only the polymorphic `SubtitleCue`
 //!   redesign is bridged (above).
-//! - `UserTag`, `SceneAnnotation`, `IndexProgress` — no wire
-//!   counterpart at all (or a fundamentally different shape).
+//! - `UserTag`, `SceneAnnotation` — no wire counterpart at all (or a
+//!   fundamentally different shape). `IndexProgress` has no `media.v1`
+//!   counterpart either but is bridged against `media.v2` (above).
 //! - The capture VOs are now the published mediaframe types
 //!   (`mediaframe::capture::Device` / `GeoLocation`), bridged inline on
 //!   wire `Media`: `Device` ⇄ `device_make`/`device_model` pair, and
@@ -108,6 +138,25 @@ pub mod audio_segment;
 pub mod chapter;
 pub mod enums;
 pub mod error;
+// The graph bridge mirrors `crate::graph`, which requires `std` plus all
+// three medium features (a graph is a complete record); combined with
+// the parent module's `buffa` + heap gate.
+#[cfg(all(
+  feature = "std",
+  feature = "video",
+  feature = "audio",
+  feature = "subtitle"
+))]
+#[cfg_attr(
+  docsrs,
+  doc(cfg(all(
+    feature = "std",
+    feature = "video",
+    feature = "audio",
+    feature = "subtitle"
+  )))
+)]
+pub mod graph;
 pub mod location;
 pub mod media;
 pub mod media_file;
@@ -117,6 +166,7 @@ pub mod speaker;
 #[cfg(feature = "subtitle")]
 #[cfg_attr(docsrs, doc(cfg(feature = "subtitle")))]
 pub mod subtitle;
+pub mod vo;
 pub mod voice_fingerprint;
 pub mod watched_location;
 

@@ -7,8 +7,6 @@
 //! value; the bridge therefore goes through `Option<domain::Location>`
 //! on the wire→domain side.
 
-use std::vec::Vec;
-
 use crate::{
   buffa::error::BuffaError,
   domain::{primitives::LocalLocation, Location, Uuid7},
