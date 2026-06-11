@@ -57,14 +57,14 @@ default = ["std", "video", "audio", "subtitle"]
 alloc = ["dep:smol_str", "dep:bytes", "mediaframe/alloc"]
 std = ["dep:smol_str", "smol_str/default", "dep:bytes", "dep:indexmap", "indexmap?/std", "uuid/default", "uuid/v7", "buffa?/default", "buffa-types?/default", "mediaframe/std"]
 buffa = ["dep:buffa", "dep:buffa-types", "buffa?/smol_str", "mediaframe?/buffa"]
-json = ["std", "buffa", "dep:serde", "dep:serde_json", "buffa?/json", "buffa-types?/json", "mediatime/serde", "indexmap?/serde"]
+json = ["std", "buffa", "dep:serde", "dep:serde_json", "buffa?/json", "buffa-types?/json", "mediatime/serde", "mediaframe?/serde", "indexmap?/serde"]
 # `arbitrary` implies `std` AND `buffa`. Upstream `buffa-types`'s
 # `arbitrary` codegen references `std::RECURSIVE_COUNT_*` symbols emitted
 # by the `arbitrary` derive macro and won't compile without `std`; the
 # property tests cover the wire-codec round-trip so `buffa` is required
 # too. Property-based testing is inherently std-bound (`Unstructured`
 # allocates; `Vec`/`String` everywhere).
-arbitrary = ["std", "buffa", "dep:arbitrary", "buffa?/arbitrary", "buffa-types?/arbitrary", "mediatime/arbitrary"]
+arbitrary = ["std", "buffa", "dep:arbitrary", "buffa?/arbitrary", "buffa-types?/arbitrary", "mediatime/arbitrary", "mediaframe?/arbitrary"]
 # NOTE: no `quickcheck` feature. The previous byte-bridge derive
 # (`mediaschema-derive::QuickcheckArbitrary`) is removed; reintroducing
 # `quickcheck::Arbitrary` for the buffa-generated messages needs native
