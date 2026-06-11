@@ -1,9 +1,9 @@
 syntax = "proto3";
 
 // EXTERN-MAPPED: these types are provided by the `mediaframe` crate's
-// hand-written buffa impls (feature `buffa`) via
-// `extern_path(".mediaframe.v1", "::mediaframe")`. This file is
-// intentionally NOT in the xtask `.files()` — it exists only so protoc can
+// hand-written buffa impls (feature `buffa`) and are wired in via per-type
+// `extern_path(".mediaframe.v1.<Type>", "::mediaframe::<...>")` mappings (see `xtask/src/main.rs`).
+// This file is intentionally NOT in the xtask `.files()` — it exists only so protoc can
 // resolve `import "mediaframe/v1/mediaframe.proto"` and to document the
 // wire contract (the authoritative format lives in mediaframe
 // `src/buffa.rs`, including the default-elision vs zero-elision rules per
