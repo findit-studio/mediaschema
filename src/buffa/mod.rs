@@ -131,6 +131,9 @@
 #[cfg(feature = "audio")]
 #[cfg_attr(docsrs, doc(cfg(feature = "audio")))]
 pub mod audio_segment;
+#[cfg(feature = "audio")]
+#[cfg_attr(docsrs, doc(cfg(feature = "audio")))]
+pub mod sound_event;
 // `Chapter::metadata` reaches `IndexMap` whose default hasher is std-only;
 // the aggregate is std-gated, so its wire bridge follows.
 #[cfg(feature = "std")]
