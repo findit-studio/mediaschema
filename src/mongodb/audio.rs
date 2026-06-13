@@ -15,10 +15,11 @@ use crate::domain::{
   aggregates::audio::{
     facet::Audio,
     segment::{AudioSegment, Word},
+    sound_event::{SoundEvent, SoundEventError},
     track::AudioTrack,
   },
   bitflags::AudioIndexStatus,
-  enums::AudioContentKind,
+  enums::{AudioContentKind, CedDetector},
   vo::IndexProgress,
   Uuid7,
 };
@@ -44,6 +45,28 @@ fn content_kind_from_i64(v: i64, field: &'static str) -> Result<AudioContentKind
     1 => Ok(AudioContentKind::Music),
     2 => Ok(AudioContentKind::Mixed),
     3 => Ok(AudioContentKind::Silence),
+    _ => Err(MongoError::IntOutOfRange {
+      field: SmolStr::from(field),
+      value: v,
+    }),
+  }
+}
+
+// ---------------------------------------------------------------------------
+// CedDetector ↔ Int32
+// ---------------------------------------------------------------------------
+
+fn ced_detector_to_i32(d: CedDetector) -> i32 {
+  match d {
+    CedDetector::Ced => 0,
+    CedDetector::Manual => 1,
+  }
+}
+
+fn ced_detector_from_i64(v: i64, field: &'static str) -> Result<CedDetector, MongoError> {
+  match v {
+    0 => Ok(CedDetector::Ced),
+    1 => Ok(CedDetector::Manual),
     _ => Err(MongoError::IntOutOfRange {
       field: SmolStr::from(field),
       value: v,
@@ -683,6 +706,61 @@ impl TryFrom<Document> for AudioSegment<Uuid7> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// SoundEvent
+// ---------------------------------------------------------------------------
+//
+// The audio analog of `Scene`: a flat document with no nested collection.
+// `detector` rides as Int32 (mirroring `Scene.detector`); `code`
+// (`Option<u64>`) rides as Int64 or `Null`.
+
+impl From<&SoundEvent<Uuid7>> for Document {
+  fn from(e: &SoundEvent<Uuid7>) -> Self {
+    let mut d = Document::new();
+    d.insert("_id", uuid7_to_bson(*e.id_ref()));
+    d.insert("audio_track_id", uuid7_to_bson(*e.audio_track_id_ref()));
+    d.insert("index", Bson::Int64(e.index() as i64));
+    d.insert("span", time_range_to_bson(e.span_ref()));
+    d.insert("label", Bson::String(e.label().to_owned()));
+    d.insert(
+      "code",
+      e.code()
+        .map(|c| Bson::Int64(c as i64))
+        .unwrap_or(Bson::Null),
+    );
+    d.insert("score", Bson::Double(e.score() as f64));
+    d.insert("detector", Bson::Int32(ced_detector_to_i32(e.detector())));
+    d
+  }
+}
+
+impl TryFrom<Document> for SoundEvent<Uuid7> {
+  type Error = MongoError;
+
+  fn try_from(mut d: Document) -> Result<Self, Self::Error> {
+    let id = uuid7_from_bson(take(&mut d, "_id")?, "_id")?;
+    let audio_track_id = uuid7_from_bson(take(&mut d, "audio_track_id")?, "audio_track_id")?;
+    let index = as_u32(take(&mut d, "index")?, "index")?;
+    let span = time_range_from_bson(take(&mut d, "span")?, "span")?;
+    let label = as_smol(take(&mut d, "label")?, "label")?;
+    let code = opt(take_opt(&mut d, "code"), |b| as_u64(b, "code"))?;
+    let score = as_f32(take(&mut d, "score")?, "score")?;
+    let detector =
+      ced_detector_from_i64(as_i64(take(&mut d, "detector")?, "detector")?, "detector")?;
+    SoundEvent::try_new(
+      id,
+      audio_track_id,
+      index,
+      span,
+      label,
+      code,
+      score,
+      detector,
+    )
+    .map_err(|e: SoundEventError| MongoError::DomainConstructorRejected(e.to_string()))
+  }
+}
+
 // ===========================================================================
 // Tests
 // ===========================================================================
@@ -869,6 +947,86 @@ mod tests {
     d.insert("index", Bson::Int64(0));
     d.insert("span", time_range_to_bson(&sp(0, 500)));
     let err = AudioSegment::<Uuid7>::try_from(d).unwrap_err();
+    assert!(err.is_uuid_7());
+  }
+
+  #[test]
+  fn sound_event_roundtrip_minimal() {
+    let e = SoundEvent::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      sp(0, 1500),
+      "Speech",
+      None,
+      0.5,
+      CedDetector::Ced,
+    )
+    .unwrap();
+    let doc: Document = (&e).into();
+    // Absent code serialises as Null.
+    assert_eq!(doc.get("code"), Some(&Bson::Null));
+    let e2: SoundEvent<Uuid7> = doc.try_into().unwrap();
+    assert_eq!(e, e2);
+  }
+
+  #[test]
+  fn sound_event_roundtrip_full() {
+    let e = SoundEvent::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      7,
+      sp(5_000, 10_000),
+      "Siren",
+      Some(316),
+      0.87,
+      CedDetector::Manual,
+    )
+    .unwrap();
+    let doc: Document = (&e).into();
+    assert_eq!(doc.get("code"), Some(&Bson::Int64(316)));
+    assert_eq!(doc.get("detector"), Some(&Bson::Int32(1)));
+    let e2: SoundEvent<Uuid7> = doc.try_into().unwrap();
+    assert_eq!(e, e2);
+  }
+
+  #[test]
+  fn sound_event_unknown_detector_rejected() {
+    let e = SoundEvent::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      sp(0, 100),
+      "Speech",
+      None,
+      0.5,
+      CedDetector::Ced,
+    )
+    .unwrap();
+    let mut doc: Document = (&e).into();
+    doc.insert("detector", Bson::Int32(99));
+    let err = SoundEvent::<Uuid7>::try_from(doc).unwrap_err();
+    assert!(err.is_int_out_of_range());
+  }
+
+  #[test]
+  fn sound_event_nil_id_rejected() {
+    let mut d = Document::new();
+    d.insert(
+      "_id",
+      Bson::Binary(::bson::Binary {
+        subtype: ::bson::spec::BinarySubtype::Uuid,
+        bytes: vec![0u8; 16],
+      }),
+    );
+    d.insert("audio_track_id", uuid7_to_bson(Uuid7::new()));
+    d.insert("index", Bson::Int64(0));
+    d.insert("span", time_range_to_bson(&sp(0, 500)));
+    d.insert("label", Bson::String("Speech".to_owned()));
+    d.insert("code", Bson::Null);
+    d.insert("score", Bson::Double(0.5));
+    d.insert("detector", Bson::Int32(0));
+    let err = SoundEvent::<Uuid7>::try_from(d).unwrap_err();
     assert!(err.is_uuid_7());
   }
 }

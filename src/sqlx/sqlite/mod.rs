@@ -22,8 +22,9 @@ pub mod video;
 
 #[cfg(feature = "audio")]
 pub use audio::{
-  audio_track_from_rows, SqliteAudioRow, SqliteAudioSegmentRow, SqliteAudioSegmentWordRow,
-  SqliteAudioTrackIndexErrorRow, SqliteAudioTrackMetadataRow, SqliteAudioTrackRow,
+  audio_track_from_rows, sound_event_from_row, SqliteAudioRow, SqliteAudioSegmentRow,
+  SqliteAudioSegmentWordRow, SqliteAudioTrackIndexErrorRow, SqliteAudioTrackMetadataRow,
+  SqliteAudioTrackRow, SqliteSoundEventRow,
 };
 pub use chapter::{chapter_from_rows, SqliteChapterMetadataRow, SqliteChapterRow};
 pub use leaves::{

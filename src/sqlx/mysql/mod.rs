@@ -24,8 +24,9 @@ pub mod video;
 
 #[cfg(feature = "audio")]
 pub use audio::{
-  audio_track_from_rows, MySqlAudioRow, MySqlAudioSegmentRow, MySqlAudioSegmentWordRow,
-  MySqlAudioTrackIndexErrorRow, MySqlAudioTrackMetadataRow, MySqlAudioTrackRow,
+  audio_track_from_rows, sound_event_from_row, MySqlAudioRow, MySqlAudioSegmentRow,
+  MySqlAudioSegmentWordRow, MySqlAudioTrackIndexErrorRow, MySqlAudioTrackMetadataRow,
+  MySqlAudioTrackRow, MySqlSoundEventRow,
 };
 pub use chapter::{chapter_from_rows, MySqlChapterMetadataRow, MySqlChapterRow};
 pub use leaves::{
