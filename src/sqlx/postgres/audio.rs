@@ -34,10 +34,13 @@ use uuid::Uuid;
 
 use crate::{
   domain::{
-    aggregates::audio::{segment::WordError, AudioError, AudioSegmentError, AudioTrackError, Word},
+    aggregates::audio::{
+      segment::WordError, sound_event::SoundEventError, AudioError, AudioSegmentError,
+      AudioTrackError, Word,
+    },
     vo::{IndexProgress, Provenance, VoiceFingerprint},
-    Audio, AudioContentKind, AudioIndexStatus, AudioSegment, AudioTrack, ErrorCode, ErrorInfo,
-    Uuid7,
+    Audio, AudioContentKind, AudioIndexStatus, AudioSegment, AudioTrack, CedDetector, ErrorCode,
+    ErrorInfo, SoundEvent, Uuid7,
   },
   sqlx::{
     dto::{
@@ -745,6 +748,80 @@ pub fn audio_segment_from_rows(
 }
 
 // ===========================================================================
+// SoundEvent
+// ===========================================================================
+
+/// PostgreSQL row shape for [`SoundEvent`] — the audio analog of
+/// [`PgSceneRow`](crate::sqlx::postgres::video::PgSceneRow).
+///
+/// `span` flattens to `start_pts` / `end_pts` PTS ticks only; the timebase
+/// lives on the parent `audio_track` (a single stream has one timebase for
+/// all of its sound events). `code` (`Option<u64>`) rides as a nullable
+/// `BIGINT`. `detector` ([`CedDetector`]) rides as a `text` slug. There is
+/// no nested collection, so unlike `AudioSegment` there is no child table.
+#[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
+pub struct PgSoundEventRow {
+  pub id: Uuid,
+  pub audio_track_id: Uuid,
+  pub index: i64,
+  pub span_start_pts: i64,
+  pub span_end_pts: i64,
+  pub label: String,
+  /// Stable soundevents dataset code; NULL = unmapped class.
+  pub code: Option<i64>,
+  pub score: f32,
+  pub detector: String,
+}
+
+impl From<&SoundEvent<Uuid7>> for PgSoundEventRow {
+  fn from(e: &SoundEvent<Uuid7>) -> Self {
+    let span = e.span_ref();
+    Self {
+      id: uuid7_to_uuid(*e.id_ref()),
+      audio_track_id: uuid7_to_uuid(*e.audio_track_id_ref()),
+      index: i64::from(e.index()),
+      span_start_pts: span.start_pts(),
+      span_end_pts: span.end_pts(),
+      label: e.label().to_owned(),
+      code: e.code().map(|c| c as i64),
+      score: e.score(),
+      detector: ced_detector_to_slug(e.detector()).to_owned(),
+    }
+  }
+}
+
+/// Rebuild a [`SoundEvent`] from a stored row. The `parent_timebase` is the
+/// per-stream timebase carried on the parent `audio_track` row — see
+/// [`audio_segment_from_rows`] for the same pattern.
+pub fn sound_event_from_row(
+  r: PgSoundEventRow,
+  parent_timebase: mediatime::Timebase,
+) -> Result<SoundEvent<Uuid7>, SqlxError> {
+  let id = uuid_to_uuid7(r.id)?;
+  let audio_track_id = uuid_to_uuid7(r.audio_track_id)?;
+  let index = u32_from_i64(r.index, "SoundEvent.index")?;
+  let span = mediatime::TimeRange::try_new(r.span_start_pts, r.span_end_pts, parent_timebase)
+    .ok_or_else(|| {
+      SqlxError::DomainConstructorRejected(format!(
+        "TimeRange start_pts ({}) must be <= end_pts ({})",
+        r.span_start_pts, r.span_end_pts
+      ))
+    })?;
+  let detector = parse_ced_detector(&r.detector)?;
+  SoundEvent::try_new(
+    id,
+    audio_track_id,
+    index,
+    span,
+    r.label,
+    r.code.map(|c| c as u64),
+    r.score,
+    detector,
+  )
+  .map_err(|e: SoundEventError| SqlxError::DomainConstructorRejected(e.to_string()))
+}
+
+// ===========================================================================
 // Borrowed-view siblings (`*RowRef<'r>`) — zero-copy decode from `&'r Row`.
 //
 // `PgAudioRow` is all-`Copy` (Uuid + 4 × i64), so it has no `Ref` sibling.
@@ -1313,6 +1390,25 @@ fn seg_err(e: AudioSegmentError) -> SqlxError {
   SqlxError::DomainConstructorRejected(e.to_string())
 }
 
+fn ced_detector_to_slug(d: CedDetector) -> &'static str {
+  match d {
+    CedDetector::Ced => "ced",
+    CedDetector::Manual => "manual",
+  }
+}
+
+fn parse_ced_detector(s: &str) -> Result<CedDetector, SqlxError> {
+  Ok(match s {
+    "ced" => CedDetector::Ced,
+    "manual" => CedDetector::Manual,
+    other => {
+      return Err(SqlxError::UnknownDiscriminant(format!(
+        "CedDetector slug: {other}"
+      )))
+    }
+  })
+}
+
 fn u32_from_i64(v: i64, what: &str) -> Result<u32, SqlxError> {
   u32::try_from(v).map_err(|e| SqlxError::UnknownDiscriminant(format!("{what}: {e}")))
 }
@@ -1657,6 +1753,85 @@ mod tests {
     ) = (&t).into();
     row.id = Uuid::nil();
     assert!(AudioTrack::<Uuid7>::try_from((row, errs, meta))
+      .unwrap_err()
+      .is_invalid_uuid());
+  }
+
+  #[test]
+  fn sound_event_roundtrip_minimal() {
+    let e = SoundEvent::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      TimeRange::new(0, 1500, tb()),
+      "Speech",
+      None,
+      0.5,
+      CedDetector::Ced,
+    )
+    .unwrap();
+    let row: PgSoundEventRow = (&e).into();
+    assert!(row.code.is_none());
+    let e2 = sound_event_from_row(row, tb()).unwrap();
+    assert_eq!(e, e2);
+  }
+
+  #[test]
+  fn sound_event_roundtrip_full() {
+    let e = SoundEvent::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      7,
+      TimeRange::new(5_000, 10_000, tb()),
+      "Siren",
+      Some(316),
+      0.87,
+      CedDetector::Manual,
+    )
+    .unwrap();
+    let row: PgSoundEventRow = (&e).into();
+    assert_eq!(row.code, Some(316));
+    assert_eq!(row.detector, "manual");
+    let e2 = sound_event_from_row(row, tb()).unwrap();
+    assert_eq!(e, e2);
+  }
+
+  #[test]
+  fn sound_event_row_with_unknown_detector_rejected() {
+    let e = SoundEvent::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      TimeRange::new(0, 100, tb()),
+      "Speech",
+      None,
+      0.5,
+      CedDetector::Ced,
+    )
+    .unwrap();
+    let mut row: PgSoundEventRow = (&e).into();
+    row.detector = "bogus".to_owned();
+    assert!(sound_event_from_row(row, tb())
+      .unwrap_err()
+      .is_unknown_discriminant());
+  }
+
+  #[test]
+  fn sound_event_row_with_nil_uuid_rejected() {
+    let e = SoundEvent::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      TimeRange::new(0, 100, tb()),
+      "Speech",
+      None,
+      0.5,
+      CedDetector::Ced,
+    )
+    .unwrap();
+    let mut row: PgSoundEventRow = (&e).into();
+    row.id = Uuid::nil();
+    assert!(sound_event_from_row(row, tb())
       .unwrap_err()
       .is_invalid_uuid());
   }

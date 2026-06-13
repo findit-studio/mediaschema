@@ -228,6 +228,21 @@ message AudioSegment {
   optional VoiceFingerprint voice_fingerprint = 12;
 }
 
+// One detected sound event (locked `schema/sound_events.md`).
+// `audio_track_id` references the `AudioTrack.id`. `label` is the CED
+// class name ("" = unlabeled). `code` is the optional class code.
+// `detector` is the producer slug ("ced" | "manual").
+message SoundEvent {
+  bytes id = 1;
+  bytes audio_track_id = 2;
+  uint32 index = 3;
+  mediatime.v1.TimeRange span = 4;
+  string label = 5;
+  optional uint64 code = 6;
+  float score = 7;
+  string detector = 8;
+}
+
 // A watched media location with indexing progress counters.
 message WatchedLocation {
   Id id = 1;

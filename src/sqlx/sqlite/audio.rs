@@ -29,10 +29,13 @@ use smol_str::SmolStr;
 
 use crate::{
   domain::{
-    aggregates::audio::{segment::WordError, AudioError, AudioSegmentError, AudioTrackError, Word},
+    aggregates::audio::{
+      segment::WordError, sound_event::SoundEventError, AudioError, AudioSegmentError,
+      AudioTrackError, Word,
+    },
     vo::{IndexProgress, Provenance, VoiceFingerprint},
-    Audio, AudioContentKind, AudioIndexStatus, AudioSegment, AudioTrack, ErrorCode, ErrorInfo,
-    Uuid7,
+    Audio, AudioContentKind, AudioIndexStatus, AudioSegment, AudioTrack, CedDetector, ErrorCode,
+    ErrorInfo, SoundEvent, Uuid7,
   },
   sqlx::{
     dto::{bytes_to_uuid7, millis_to_timestamp, timestamp_from_parts, timestamp_to_millis},
@@ -696,6 +699,81 @@ pub fn audio_segment_from_rows(
 }
 
 // ===========================================================================
+// SoundEvent
+// ===========================================================================
+
+/// SQLite row shape for [`SoundEvent`] — the audio analog of
+/// [`SqliteSceneRow`](crate::sqlx::sqlite::video::SqliteSceneRow).
+///
+/// UUIDs ride as 16-byte `BLOB` (`Vec<u8>`). `span` flattens to `start_pts`
+/// / `end_pts` PTS ticks only; the timebase lives on the parent
+/// `audio_track` (a single stream has one timebase for all of its sound
+/// events). `code` (`Option<u64>`) rides as a nullable `INTEGER`.
+/// `detector` ([`CedDetector`]) rides as a `text` slug. There is no nested
+/// collection, so unlike `AudioSegment` there is no child table.
+#[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
+pub struct SqliteSoundEventRow {
+  pub id: Vec<u8>,
+  pub audio_track_id: Vec<u8>,
+  pub index: i64,
+  pub span_start_pts: i64,
+  pub span_end_pts: i64,
+  pub label: String,
+  /// Stable soundevents dataset code; NULL = unmapped class.
+  pub code: Option<i64>,
+  pub score: f32,
+  pub detector: String,
+}
+
+impl From<&SoundEvent<Uuid7>> for SqliteSoundEventRow {
+  fn from(e: &SoundEvent<Uuid7>) -> Self {
+    let span = e.span_ref();
+    Self {
+      id: e.id_ref().as_bytes().to_vec(),
+      audio_track_id: e.audio_track_id_ref().as_bytes().to_vec(),
+      index: i64::from(e.index()),
+      span_start_pts: span.start_pts(),
+      span_end_pts: span.end_pts(),
+      label: e.label().to_owned(),
+      code: e.code().map(|c| c as i64),
+      score: e.score(),
+      detector: ced_detector_to_slug(e.detector()).to_owned(),
+    }
+  }
+}
+
+/// Rebuild a [`SoundEvent`] from a stored row. The `parent_timebase` is the
+/// per-stream timebase carried on the parent `audio_track` row — see
+/// [`audio_segment_from_rows`] for the same pattern.
+pub fn sound_event_from_row(
+  r: SqliteSoundEventRow,
+  parent_timebase: mediatime::Timebase,
+) -> Result<SoundEvent<Uuid7>, SqlxError> {
+  let id = bytes_to_uuid7(&r.id)?;
+  let audio_track_id = bytes_to_uuid7(&r.audio_track_id)?;
+  let index = u32_from_i64(r.index, "SoundEvent.index")?;
+  let span = mediatime::TimeRange::try_new(r.span_start_pts, r.span_end_pts, parent_timebase)
+    .ok_or_else(|| {
+      SqlxError::DomainConstructorRejected(format!(
+        "TimeRange start_pts ({}) must be <= end_pts ({})",
+        r.span_start_pts, r.span_end_pts
+      ))
+    })?;
+  let detector = parse_ced_detector(&r.detector)?;
+  SoundEvent::try_new(
+    id,
+    audio_track_id,
+    index,
+    span,
+    r.label,
+    r.code.map(|c| c as u64),
+    r.score,
+    detector,
+  )
+  .map_err(|e: SoundEventError| SqlxError::DomainConstructorRejected(e.to_string()))
+}
+
+// ===========================================================================
 // Borrowed-view siblings (`*RowRef<'r>`) — zero-copy decode from `&'r Row`.
 // ===========================================================================
 
@@ -1299,6 +1377,25 @@ fn seg_err(e: AudioSegmentError) -> SqlxError {
   SqlxError::DomainConstructorRejected(e.to_string())
 }
 
+fn ced_detector_to_slug(d: CedDetector) -> &'static str {
+  match d {
+    CedDetector::Ced => "ced",
+    CedDetector::Manual => "manual",
+  }
+}
+
+fn parse_ced_detector(s: &str) -> Result<CedDetector, SqlxError> {
+  Ok(match s {
+    "ced" => CedDetector::Ced,
+    "manual" => CedDetector::Manual,
+    other => {
+      return Err(SqlxError::UnknownDiscriminant(format!(
+        "CedDetector slug: {other}"
+      )))
+    }
+  })
+}
+
 fn u32_from_i64(v: i64, what: &str) -> Result<u32, SqlxError> {
   u32::try_from(v).map_err(|e| SqlxError::UnknownDiscriminant(format!("{what}: {e}")))
 }
@@ -1597,5 +1694,84 @@ mod tests {
       .collect();
     let s2 = audio_segment_from_row_refs(row.as_ref(), word_refs, tb()).unwrap();
     assert_eq!(s, s2);
+  }
+
+  #[test]
+  fn sound_event_roundtrip_minimal() {
+    let e = SoundEvent::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      TimeRange::new(0, 1500, tb()),
+      "Speech",
+      None,
+      0.5,
+      CedDetector::Ced,
+    )
+    .unwrap();
+    let row: SqliteSoundEventRow = (&e).into();
+    assert!(row.code.is_none());
+    let e2 = sound_event_from_row(row, tb()).unwrap();
+    assert_eq!(e, e2);
+  }
+
+  #[test]
+  fn sound_event_roundtrip_full() {
+    let e = SoundEvent::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      7,
+      TimeRange::new(5_000, 10_000, tb()),
+      "Siren",
+      Some(316),
+      0.87,
+      CedDetector::Manual,
+    )
+    .unwrap();
+    let row: SqliteSoundEventRow = (&e).into();
+    assert_eq!(row.code, Some(316));
+    assert_eq!(row.detector, "manual");
+    let e2 = sound_event_from_row(row, tb()).unwrap();
+    assert_eq!(e, e2);
+  }
+
+  #[test]
+  fn sound_event_row_with_unknown_detector_rejected() {
+    let e = SoundEvent::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      TimeRange::new(0, 100, tb()),
+      "Speech",
+      None,
+      0.5,
+      CedDetector::Ced,
+    )
+    .unwrap();
+    let mut row: SqliteSoundEventRow = (&e).into();
+    row.detector = "bogus".to_owned();
+    assert!(sound_event_from_row(row, tb())
+      .unwrap_err()
+      .is_unknown_discriminant());
+  }
+
+  #[test]
+  fn sound_event_row_with_nil_uuid_rejected() {
+    let e = SoundEvent::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      TimeRange::new(0, 100, tb()),
+      "Speech",
+      None,
+      0.5,
+      CedDetector::Ced,
+    )
+    .unwrap();
+    let mut row: SqliteSoundEventRow = (&e).into();
+    row.id = std::vec![0u8; 16];
+    assert!(sound_event_from_row(row, tb())
+      .unwrap_err()
+      .is_invalid_uuid());
   }
 }

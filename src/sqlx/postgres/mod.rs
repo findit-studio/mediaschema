@@ -27,8 +27,9 @@ pub mod video;
 
 #[cfg(feature = "audio")]
 pub use audio::{
-  audio_track_from_rows, PgAudioRow, PgAudioSegmentRow, PgAudioSegmentWordRow,
-  PgAudioTrackIndexErrorRow, PgAudioTrackMetadataRow, PgAudioTrackRow,
+  audio_track_from_rows, sound_event_from_row, PgAudioRow, PgAudioSegmentRow,
+  PgAudioSegmentWordRow, PgAudioTrackIndexErrorRow, PgAudioTrackMetadataRow, PgAudioTrackRow,
+  PgSoundEventRow,
 };
 pub use chapter::{chapter_from_rows, PgChapterMetadataRow, PgChapterRow};
 pub use leaves::{PgSceneAnnotationRow, PgSpeakerRow, PgUserTagRow, PgWatchedLocationRow};

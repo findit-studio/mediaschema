@@ -33,6 +33,8 @@ pub enum CollectionName {
   AudioTracks,
   #[cfg(feature = "audio")]
   AudioSegments,
+  #[cfg(feature = "audio")]
+  SoundEvents,
   #[cfg(feature = "video")]
   VideoFacets,
   #[cfg(feature = "video")]
@@ -85,6 +87,8 @@ impl CollectionName {
       Self::AudioTracks => "audio_tracks",
       #[cfg(feature = "audio")]
       Self::AudioSegments => "audio_segments",
+      #[cfg(feature = "audio")]
+      Self::SoundEvents => "sound_events",
       #[cfg(feature = "video")]
       Self::VideoFacets => "video_facets",
       #[cfg(feature = "video")]
@@ -296,6 +300,19 @@ pub fn audio_segment_indexes() -> Vec<IndexModel> {
       "audio_segments_audio_track_id_index_unique",
     ),
     index_on(doc! { "speaker_id": 1 }, "audio_segments_speaker_id"),
+  ]
+}
+
+/// `sound_events` — FK on `audio_track_id` + composite
+/// `(audio_track_id, index)` for ordered enumeration.
+#[cfg(feature = "audio")]
+pub fn sound_event_indexes() -> Vec<IndexModel> {
+  vec![
+    index_on(doc! { "audio_track_id": 1 }, "sound_events_audio_track_id"),
+    unique_on(
+      doc! { "audio_track_id": 1, "index": 1 },
+      "sound_events_audio_track_id_index_unique",
+    ),
   ]
 }
 
@@ -538,6 +555,7 @@ pub fn all_indexes() -> Vec<(CollectionName, Vec<IndexModel>)> {
     (CollectionName::AudioFacets, audio_facet_indexes()),
     (CollectionName::AudioTracks, audio_track_indexes()),
     (CollectionName::AudioSegments, audio_segment_indexes()),
+    (CollectionName::SoundEvents, sound_event_indexes()),
   ]);
   #[cfg(feature = "video")]
   v.extend([
@@ -603,11 +621,11 @@ mod tests {
   fn all_indexes_covers_every_collection() {
     let v = all_indexes();
     // 8 always-on (Media + MediaFiles + Chapters + WatchedLocations +
-    // Speakers + Persons + UserTags + SceneAnnotations), plus 3 audio,
+    // Speakers + Persons + UserTags + SceneAnnotations), plus 4 audio,
     // 4 video, 12 subtitle when those features are on.
     let mut expected = 8usize;
     if cfg!(feature = "audio") {
-      expected += 3;
+      expected += 4;
     }
     if cfg!(feature = "video") {
       expected += 4;

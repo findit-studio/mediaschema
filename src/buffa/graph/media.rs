@@ -512,7 +512,7 @@ mod tests {
       .with_voiceprint(vfp())
       .with_person_id(Uuid7::new());
     let g_atrack =
-      graph::AudioTrack::try_from_flat(&afacet_id, atrack, vec![segment], vec![speaker])
+      graph::AudioTrack::try_from_flat(&afacet_id, atrack, vec![segment], vec![], vec![speaker])
         .expect("coherent");
     let g_audio = graph::Audio::try_from_flat(&media_id, afacet, vec![g_atrack]).expect("coherent");
 

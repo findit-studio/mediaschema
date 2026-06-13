@@ -1,4 +1,4 @@
-# `AudioTrack<Id>` — an audio stream  *(rev 6 — LOCKED, user-approved; +`replay_gain` (mediaframe 0.1.4))*
+# `AudioTrack<Id>` — an audio stream  *(rev 7 — LOCKED, user-approved; +`sound_events` refs (CED — `AudioSegment` parity))*
 
 ## Domain meaning
 
@@ -7,7 +7,7 @@ file holds **N** distinct recordings, so **per-recording music metadata (tags +
 cover art) lives here, not on a file/facet**. Holds the codec/stream
 descriptor, per-track **signal** analysis (loudness/fingerprint), per-track
 indexing state + provenance, and (**A-loc = per-track**, resolved) the
-per-track diarization/transcript **`segments`** refs → [audio_segments.md](audio_segments.md).
+per-track diarization/transcript **`segments`** refs → [audio_segments.md](audio_segments.md) and CED **`sound_events`** refs → [sound_events.md](sound_events.md).
 Total redesign parallel to `Video`/`VideoTrack` — the stale
 `AudioAnalysis`/`AudioSummary`/`TrackRecord` sprawl is discarded.
 
@@ -61,6 +61,7 @@ track. Conversions deferred.
 | `tags` | `Option<AudioTags>` (VO) | flat tag fields | per-recording music tags (grouped) |
 | `cover_art` | `Option<AudioCoverArt>` (VO) | cover_art | per-recording embedded art (inline) |
 | `segments` | `Vec<Id>` | — | → `AudioSegment` (**A-loc per-track**); `Audio.total_segments` rolls these up |
+| `sound_events` | `Vec<Id>` | — | → `SoundEvent` (**A-loc per-track**, CED); `Audio.total_sound_events` rolls these up |
 | `metadata` | `IndexMap<SmolStr, SmolStr>` | — | container `AVDictionary` entries from this stream, with the keys hoisted into `Tags` and `language` already consumed. Insertion-ordered. SQL projection: `audio_track_metadata` join table with `(audio_track_id, ordinal, key, value)` |
 | `provenance` | `Provenance` (shared VO) | — | analysis-run reproducibility |
 | `index_status` | `AudioIndexStatus` (bitflags `u32`) | status | the **verified 11-bit `ProcessingStage`** (below) |
