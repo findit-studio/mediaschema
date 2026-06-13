@@ -14,8 +14,9 @@
 //! ### Validation-responsibility boundary
 //!
 //! The facet stores `tracks` (id refs), `total_segments`
-//! (`Σ AudioTrack.segments.len()`), and `track_progress` (per-kind rollup
-//! over `tracks`) as **independent fields**. Keeping them consistent —
+//! (`Σ AudioTrack.segments.len()`), `total_sound_events`
+//! (`Σ AudioTrack.sound_events.len()`), and `track_progress` (per-kind
+//! rollup over `tracks`) as **independent fields**. Keeping them consistent —
 //! e.g. `track_progress.total() == tracks.len()` — is a
 //! cross-field/rollup-coupling concern owned by the application /
 //! storage layer (the database is the source of truth for rollups; the
@@ -37,9 +38,10 @@ use crate::domain::{vo::IndexProgress, Uuid7};
 ///
 /// Generic over `Id` (default [`Uuid7`]). The `tracks` vector holds refs to
 /// child `AudioTrack`s; `total_segments` is a cheap rollup of
-/// `Σ AudioTrack.segments.len()`; `track_progress` is the per-kind index
-/// rollup over `tracks`. All three are independent fields — see the
-/// module-level note on the validation-responsibility boundary.
+/// `Σ AudioTrack.segments.len()`; `total_sound_events` is the analogous
+/// rollup of `Σ AudioTrack.sound_events.len()`; `track_progress` is the
+/// per-kind index rollup over `tracks`. All are independent fields — see
+/// the module-level note on the validation-responsibility boundary.
 ///
 /// **No `Default`** — a facet with nil `id` would be an orphan record. Use
 /// [`Audio::try_new`] for the canonical `Uuid7` identity type.
@@ -49,6 +51,7 @@ pub struct Audio<Id = Uuid7> {
   media_id: Id,
   tracks: Vec<Id>,
   total_segments: u32,
+  total_sound_events: u32,
   track_progress: IndexProgress,
 }
 
@@ -57,10 +60,10 @@ impl Audio<Uuid7> {
   ///
   /// Rejects nil `id` (every aggregate row needs a real identity) and nil
   /// `media_id` (orphaned facet with no `Media` reference). The `tracks`
-  /// list starts empty, `total_segments` at zero, and `track_progress` as
-  /// the empty rollup (`{0, 0, 0}`). All three are populated by
-  /// builders/mutators as tracks are attached + segments rolled up — or
-  /// assembled directly from a database row.
+  /// list starts empty, `total_segments` / `total_sound_events` at zero,
+  /// and `track_progress` as the empty rollup (`{0, 0, 0}`). All are
+  /// populated by builders/mutators as tracks are attached + segments /
+  /// sound events rolled up — or assembled directly from a database row.
   pub fn try_new(id: Uuid7, media_id: Uuid7) -> Result<Self, AudioError> {
     if id.is_nil() {
       return Err(AudioError::NilId);
@@ -73,6 +76,7 @@ impl Audio<Uuid7> {
       media_id,
       tracks: Vec::new(),
       total_segments: 0,
+      total_sound_events: 0,
       track_progress: IndexProgress::new(),
     })
   }
@@ -105,6 +109,14 @@ impl<Id> Audio<Id> {
     self.total_segments
   }
 
+  /// Rollup `Σ AudioTrack.sound_events.len()` — cheap "how many sound
+  /// events under this media" facet. Truth = per-track
+  /// `AudioTrack.sound_events`.
+  #[inline(always)]
+  pub const fn total_sound_events(&self) -> u32 {
+    self.total_sound_events
+  }
+
   /// Per-kind indexing rollup over the facet's tracks.
   #[inline(always)]
   pub const fn track_progress_ref(&self) -> &IndexProgress {
@@ -127,6 +139,14 @@ impl<Id> Audio<Id> {
     self
   }
 
+  /// Builder: replace `total_sound_events`.
+  #[inline(always)]
+  #[must_use]
+  pub const fn with_total_sound_events(mut self, total: u32) -> Self {
+    self.total_sound_events = total;
+    self
+  }
+
   /// Builder: replace the `track_progress` rollup.
   #[inline(always)]
   #[must_use]
@@ -146,6 +166,13 @@ impl<Id> Audio<Id> {
   #[inline(always)]
   pub const fn set_total_segments(&mut self, total: u32) -> &mut Self {
     self.total_segments = total;
+    self
+  }
+
+  /// In-place mutator for `total_sound_events`.
+  #[inline(always)]
+  pub const fn set_total_sound_events(&mut self, total: u32) -> &mut Self {
+    self.total_sound_events = total;
     self
   }
 
@@ -188,6 +215,7 @@ mod tests {
     assert_eq!(a.media_id_ref(), &media_id);
     assert!(a.tracks_slice().is_empty());
     assert_eq!(a.total_segments(), 0);
+    assert_eq!(a.total_sound_events(), 0);
     assert_eq!(a.track_progress_ref(), &IndexProgress::new());
   }
 
@@ -221,10 +249,12 @@ mod tests {
       .unwrap()
       .with_tracks(std::vec![t1, t2])
       .with_total_segments(42)
+      .with_total_sound_events(13)
       .with_track_progress(p);
     assert_eq!(a.tracks_slice().len(), 2);
     assert!(a.tracks_slice().contains(&t1));
     assert_eq!(a.total_segments(), 42);
+    assert_eq!(a.total_sound_events(), 13);
     assert_eq!(a.track_progress_ref(), &p);
   }
 
@@ -233,9 +263,11 @@ mod tests {
     let mut a = Audio::try_new(Uuid7::new(), Uuid7::new()).unwrap();
     a.set_tracks(std::vec![Uuid7::new()]);
     a.set_total_segments(7);
+    a.set_total_sound_events(3);
     a.set_track_progress(IndexProgress::try_new(1, 1, 0).unwrap());
     assert_eq!(a.tracks_slice().len(), 1);
     assert_eq!(a.total_segments(), 7);
+    assert_eq!(a.total_sound_events(), 3);
     assert_eq!(a.track_progress_ref().total(), 1);
     assert!(!a.track_progress_ref().has_failures());
   }
@@ -250,11 +282,13 @@ mod tests {
       .unwrap()
       .with_tracks(std::vec![Uuid7::new(), Uuid7::new()])
       .with_total_segments(17)
+      .with_total_sound_events(9)
       .with_track_progress(IndexProgress::try_new(2, 1, 1).unwrap());
     a.set_tracks(std::vec![Uuid7::new()]);
     assert_eq!(a.tracks_slice().len(), 1);
     // Rollups remain whatever the caller last set them to.
     assert_eq!(a.total_segments(), 17);
+    assert_eq!(a.total_sound_events(), 9);
     assert_eq!(
       a.track_progress_ref(),
       &IndexProgress::try_new(2, 1, 1).unwrap()
@@ -296,6 +330,7 @@ pub struct AudioParts<Id = Uuid7> {
   pub media_id: Id,
   pub tracks: Vec<Id>,
   pub total_segments: u32,
+  pub total_sound_events: u32,
   pub track_progress: IndexProgress,
 }
 
@@ -308,6 +343,7 @@ impl<Id> Audio<Id> {
       media_id,
       tracks,
       total_segments,
+      total_sound_events,
       track_progress,
     } = self;
     AudioParts {
@@ -315,6 +351,7 @@ impl<Id> Audio<Id> {
       media_id,
       tracks,
       total_segments,
+      total_sound_events,
       track_progress,
     }
   }
@@ -337,6 +374,7 @@ impl<Id> Audio<Id> {
       media_id,
       tracks,
       total_segments,
+      total_sound_events,
       track_progress,
     } = parts;
     Self {
@@ -344,6 +382,7 @@ impl<Id> Audio<Id> {
       media_id,
       tracks,
       total_segments,
+      total_sound_events,
       track_progress,
     }
   }

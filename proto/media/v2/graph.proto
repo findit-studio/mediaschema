@@ -138,6 +138,8 @@ message VideoTrack {
 message Audio {
   bytes id = 1;
   uint32 total_segments = 2;
+  // Denormalized rollup `Σ AudioTrack.sound_events.len()`.
+  uint32 total_sound_events = 5;
   IndexProgress track_progress = 3;
   repeated AudioTrack tracks = 4;
 }
@@ -187,6 +189,7 @@ message AudioTrack {
   // AudioIndexStatus raw bits.
   uint32 index_status = 36;
   repeated media.v1.ErrorInfo index_errors = 37;
+  repeated SoundEvent sound_events = 38;
 }
 
 // One transcript/diarization segment (graph::AudioSegment).
@@ -203,6 +206,20 @@ message AudioSegment {
   optional float avg_logprob = 9;
   optional float temperature = 10;
   media.v1.VoiceFingerprint voice_fingerprint = 11;
+}
+
+// One detected sound event (graph::SoundEvent). The graph shape drops the
+// `audio_track_id` FK (implied by nesting), mirroring AudioSegment.
+// `label` is the CED class name (`""` = unlabeled); `code` is the optional
+// class code; `detector` is the producer slug (`"ced"` | `"manual"`).
+message SoundEvent {
+  bytes id = 1;
+  uint32 index = 2;
+  mediatime.v1.TimeRange span = 3;
+  string label = 4;
+  optional uint64 code = 5;
+  float score = 6;
+  string detector = 7;
 }
 
 // One diarized speaker (graph::Speaker). `person_id` is a cross-tree

@@ -191,6 +191,7 @@ pub struct AudioTrack<Id = Uuid7> {
   tags: Option<Tags>,
   cover_art: Option<CoverArt>,
   segments: Vec<Id>,
+  sound_events: Vec<Id>,
   /// AVDictionary entries from the container's stream metadata, with
   /// any "title" / "language" / "artist" / "album" / "genre" / "comment"
   /// keys (and the rest of the `Tags`-hoisted set) **already consumed**
@@ -251,6 +252,7 @@ impl AudioTrack<Uuid7> {
       tags: None,
       cover_art: None,
       segments: Vec::new(),
+      sound_events: Vec::new(),
       metadata: IndexMap::new(),
       provenance: Provenance::new(),
       index_status: AudioIndexStatus::empty(),
@@ -488,6 +490,12 @@ impl<Id> AudioTrack<Id> {
   #[inline(always)]
   pub const fn segments_slice(&self) -> &[Id] {
     self.segments.as_slice()
+  }
+
+  /// Per-track `SoundEvent` ids (`Audio.total_sound_events` rolls these up).
+  #[inline(always)]
+  pub const fn sound_events_slice(&self) -> &[Id] {
+    self.sound_events.as_slice()
   }
 
   /// Analysis-run reproducibility (per-track, one per run).
@@ -825,6 +833,14 @@ impl<Id> AudioTrack<Id> {
     self
   }
 
+  /// Builder: replace `sound_events`.
+  #[inline(always)]
+  #[must_use]
+  pub fn with_sound_events(mut self, v: impl Into<Vec<Id>>) -> Self {
+    self.sound_events = v.into();
+    self
+  }
+
   /// Builder: replace `provenance`.
   #[inline(always)]
   #[must_use]
@@ -1113,6 +1129,13 @@ impl<Id> AudioTrack<Id> {
     self
   }
 
+  /// In-place mutator for `sound_events`.
+  #[inline(always)]
+  pub fn set_sound_events(&mut self, v: impl Into<Vec<Id>>) -> &mut Self {
+    self.sound_events = v.into();
+    self
+  }
+
   /// In-place mutator for `provenance`.
   #[inline(always)]
   pub fn set_provenance(&mut self, v: Provenance) -> &mut Self {
@@ -1217,6 +1240,7 @@ mod tests {
     assert!(t.cover_art_ref().is_none());
     assert!(t.speakers_slice().is_empty());
     assert!(t.segments_slice().is_empty());
+    assert!(t.sound_events_slice().is_empty());
     assert_eq!(t.index_status(), AudioIndexStatus::empty());
     assert!(t.provenance_ref().is_empty());
   }
@@ -1333,18 +1357,22 @@ mod tests {
   fn speakers_and_segments_lists() {
     let s1 = Uuid7::new();
     let g1 = Uuid7::new();
+    let v1 = Uuid7::new();
     let t = AudioTrack::try_new(Uuid7::new(), Uuid7::new())
       .unwrap()
       .with_speakers(std::vec![s1])
-      .with_segments(std::vec![g1]);
+      .with_segments(std::vec![g1])
+      .with_sound_events(std::vec![v1]);
     assert_eq!(t.speakers_slice(), &[s1]);
     assert_eq!(t.segments_slice(), &[g1]);
+    assert_eq!(t.sound_events_slice(), &[v1]);
   }
 
   #[test]
   fn setters_mutate_in_place() {
     let s1 = Uuid7::new();
     let g1 = Uuid7::new();
+    let v1 = Uuid7::new();
     let mut t = AudioTrack::try_new(Uuid7::new(), Uuid7::new()).unwrap();
     t.set_codec(AudioCodec::Opus);
     t.try_set_sample_rate(48_000).unwrap();
@@ -1354,6 +1382,7 @@ mod tests {
     t.set_content(Some(AudioContentKind::Music));
     t.set_speakers(std::vec![s1]);
     t.set_segments(std::vec![g1]);
+    t.set_sound_events(std::vec![v1]);
     t.try_set_index_status(AudioIndexStatus::EXTRACTED).unwrap();
     assert_eq!(t.codec_ref(), &AudioCodec::Opus);
     assert_eq!(t.sample_rate(), 48_000);
@@ -1363,6 +1392,7 @@ mod tests {
     assert_eq!(t.content(), Some(AudioContentKind::Music));
     assert_eq!(t.speakers_slice(), &[s1]);
     assert_eq!(t.segments_slice(), &[g1]);
+    assert_eq!(t.sound_events_slice(), &[v1]);
     assert_eq!(t.index_status(), AudioIndexStatus::EXTRACTED);
   }
 
@@ -1749,6 +1779,7 @@ pub struct AudioTrackParts<Id = Uuid7> {
   pub tags: Option<Tags>,
   pub cover_art: Option<CoverArt>,
   pub segments: Vec<Id>,
+  pub sound_events: Vec<Id>,
   pub metadata: IndexMap<SmolStr, SmolStr>,
   pub provenance: Provenance,
   pub index_status: AudioIndexStatus,
@@ -1794,6 +1825,7 @@ impl<Id> AudioTrack<Id> {
       tags,
       cover_art,
       segments,
+      sound_events,
       metadata,
       provenance,
       index_status,
@@ -1834,6 +1866,7 @@ impl<Id> AudioTrack<Id> {
       tags,
       cover_art,
       segments,
+      sound_events,
       metadata,
       provenance,
       index_status,
@@ -1889,6 +1922,7 @@ impl<Id> AudioTrack<Id> {
       tags,
       cover_art,
       segments,
+      sound_events,
       metadata,
       provenance,
       index_status,
@@ -1929,6 +1963,7 @@ impl<Id> AudioTrack<Id> {
       tags,
       cover_art,
       segments,
+      sound_events,
       metadata,
       provenance,
       index_status,

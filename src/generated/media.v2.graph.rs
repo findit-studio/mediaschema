@@ -3370,6 +3370,19 @@ pub struct Audio {
         )
     )]
     pub total_segments: u32,
+    /// Denormalized rollup `Σ AudioTrack.sound_events.len()`.
+    ///
+    /// Field 5: `total_sound_events`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "totalSoundEvents",
+            alias = "total_sound_events",
+            with = "::buffa::json_helpers::uint32",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
+        )
+    )]
+    pub total_sound_events: u32,
     /// Field 3: `track_progress`
     #[cfg_attr(
         feature = "json",
@@ -3399,6 +3412,7 @@ impl ::core::fmt::Debug for Audio {
         f.debug_struct("Audio")
             .field("id", &self.id)
             .field("total_segments", &self.total_segments)
+            .field("total_sound_events", &self.total_sound_events)
             .field("track_progress", &self.track_progress)
             .field("tracks", &self.tracks)
             .finish()
@@ -3457,6 +3471,11 @@ impl ::buffa::Message for Audio {
                 += 1u32 + ::buffa::encoding::varint_len(inner_size as u64) as u32
                     + inner_size;
         }
+        if self.total_sound_events != 0u32 {
+            size
+                += 1u32
+                    + ::buffa::types::uint32_encoded_len(self.total_sound_events) as u32;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u32;
         size
     }
@@ -3497,6 +3516,11 @@ impl ::buffa::Message for Audio {
                 .encode(buf);
             ::buffa::encoding::encode_varint(__cache.consume_next() as u64, buf);
             v.write_to(__cache, buf);
+        }
+        if self.total_sound_events != 0u32 {
+            ::buffa::encoding::Tag::new(5u32, ::buffa::encoding::WireType::Varint)
+                .encode(buf);
+            ::buffa::types::encode_uint32(self.total_sound_events, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3557,6 +3581,16 @@ impl ::buffa::Message for Audio {
                 ::buffa::Message::merge_length_delimited(&mut elem, buf, depth)?;
                 self.tracks.push(elem);
             }
+            5u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::Varint {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 5u32,
+                        expected: 0u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.total_sound_events = ::buffa::types::decode_uint32(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, depth)?);
@@ -3569,6 +3603,7 @@ impl ::buffa::Message for Audio {
         self.total_segments = 0u32;
         self.track_progress = ::buffa::MessageField::none();
         self.tracks.clear();
+        self.total_sound_events = 0u32;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -4000,6 +4035,17 @@ pub struct AudioTrack {
         )
     )]
     pub index_errors: ::buffa::alloc::vec::Vec<super::v1::ErrorInfo>,
+    /// Field 38: `sound_events`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "soundEvents",
+            alias = "sound_events",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+            deserialize_with = "::buffa::json_helpers::null_as_default"
+        )
+    )]
+    pub sound_events: ::buffa::alloc::vec::Vec<SoundEvent>,
     #[cfg_attr(feature = "json", serde(skip))]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -4044,6 +4090,7 @@ impl ::core::fmt::Debug for AudioTrack {
             .field("provenance", &self.provenance)
             .field("index_status", &self.index_status)
             .field("index_errors", &self.index_errors)
+            .field("sound_events", &self.sound_events)
             .finish()
     }
 }
@@ -4311,6 +4358,14 @@ impl ::buffa::Message for AudioTrack {
             size += 2u32 + ::buffa::types::uint32_encoded_len(self.index_status) as u32;
         }
         for v in &self.index_errors {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 2u32 + ::buffa::encoding::varint_len(inner_size as u64) as u32
+                    + inner_size;
+        }
+        for v in &self.sound_events {
             let __slot = __cache.reserve();
             let inner_size = v.compute_size(__cache);
             __cache.set(__slot, inner_size);
@@ -4600,6 +4655,15 @@ impl ::buffa::Message for AudioTrack {
         for v in &self.index_errors {
             ::buffa::encoding::Tag::new(
                     37u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::encoding::encode_varint(__cache.consume_next() as u64, buf);
+            v.write_to(__cache, buf);
+        }
+        for v in &self.sound_events {
+            ::buffa::encoding::Tag::new(
+                    38u32,
                     ::buffa::encoding::WireType::LengthDelimited,
                 )
                 .encode(buf);
@@ -5063,6 +5127,18 @@ impl ::buffa::Message for AudioTrack {
                 ::buffa::Message::merge_length_delimited(&mut elem, buf, depth)?;
                 self.index_errors.push(elem);
             }
+            38u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 38u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                let mut elem = ::core::default::Default::default();
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, depth)?;
+                self.sound_events.push(elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, depth)?);
@@ -5108,6 +5184,7 @@ impl ::buffa::Message for AudioTrack {
         self.provenance = ::buffa::MessageField::none();
         self.index_status = 0u32;
         self.index_errors.clear();
+        self.sound_events.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -5697,6 +5774,366 @@ pub const __AUDIO_SEGMENT_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buf
     type_url: "type.googleapis.com/media.v2.AudioSegment",
     to_json: ::buffa::type_registry::any_to_json::<AudioSegment>,
     from_json: ::buffa::type_registry::any_from_json::<AudioSegment>,
+    is_wkt: false,
+};
+/// One detected sound event (graph::SoundEvent). The graph shape drops the
+/// `audio_track_id` FK (implied by nesting), mirroring AudioSegment.
+/// `label` is the CED class name (`""` = unlabeled); `code` is the optional
+/// class code; `detector` is the producer slug (`"ced"` | `"manual"`).
+#[derive(Clone, PartialEq, Default)]
+#[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
+#[cfg_attr(feature = "json", serde(default))]
+#[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
+pub struct SoundEvent {
+    /// Field 1: `id`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "id",
+            with = "::buffa::json_helpers::bytes",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
+        )
+    )]
+    #[cfg_attr(
+        feature = "arbitrary",
+        arbitrary(with = ::buffa::__private::arbitrary_bytes)
+    )]
+    pub id: ::buffa::bytes::Bytes,
+    /// Field 2: `index`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "index",
+            with = "::buffa::json_helpers::uint32",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
+        )
+    )]
+    pub index: u32,
+    /// Field 3: `span`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "span",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+        )
+    )]
+    pub span: ::buffa::MessageField<::mediatime::TimeRange>,
+    /// Field 4: `label`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "label",
+            with = "::buffa::json_helpers::proto_string",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+        )
+    )]
+    pub label: ::buffa::smol_str::SmolStr,
+    /// Field 5: `code`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "code",
+            with = "::buffa::json_helpers::opt_uint64",
+            skip_serializing_if = "::core::option::Option::is_none"
+        )
+    )]
+    pub code: ::core::option::Option<u64>,
+    /// Field 6: `score`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "score",
+            with = "::buffa::json_helpers::float",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_f32"
+        )
+    )]
+    pub score: f32,
+    /// Field 7: `detector`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "detector",
+            with = "::buffa::json_helpers::proto_string",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+        )
+    )]
+    pub detector: ::buffa::smol_str::SmolStr,
+    #[cfg_attr(feature = "json", serde(skip))]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for SoundEvent {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("SoundEvent")
+            .field("id", &self.id)
+            .field("index", &self.index)
+            .field("span", &self.span)
+            .field("label", &self.label)
+            .field("code", &self.code)
+            .field("score", &self.score)
+            .field("detector", &self.detector)
+            .finish()
+    }
+}
+impl SoundEvent {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/media.v2.SoundEvent";
+}
+impl SoundEvent {
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::code`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_code(mut self, value: u64) -> Self {
+        self.code = Some(value);
+        self
+    }
+}
+impl ::buffa::DefaultInstance for SoundEvent {
+    fn default_instance() -> &'static Self {
+        static VALUE: ::buffa::__private::OnceBox<SoundEvent> = ::buffa::__private::OnceBox::new();
+        VALUE.get_or_init(|| ::buffa::alloc::boxed::Box::new(Self::default()))
+    }
+}
+impl ::buffa::MessageName for SoundEvent {
+    const PACKAGE: &'static str = "media.v2";
+    const NAME: &'static str = "SoundEvent";
+    const FULL_NAME: &'static str = "media.v2.SoundEvent";
+    const TYPE_URL: &'static str = "type.googleapis.com/media.v2.SoundEvent";
+}
+impl ::buffa::Message for SoundEvent {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// The result is a `u32`; the protobuf specification requires all
+    /// messages to fit within 2 GiB (2,147,483,647 bytes), so a
+    /// compliant message will never overflow this type.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u32;
+        if !self.id.is_empty() {
+            size += 1u32 + ::buffa::types::bytes_encoded_len(&self.id) as u32;
+        }
+        if self.index != 0u32 {
+            size += 1u32 + ::buffa::types::uint32_encoded_len(self.index) as u32;
+        }
+        if self.span.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.span.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u32 + ::buffa::encoding::varint_len(inner_size as u64) as u32
+                    + inner_size;
+        }
+        if !self.label.is_empty() {
+            size += 1u32 + ::buffa::types::string_encoded_len(&self.label) as u32;
+        }
+        if let Some(v) = self.code {
+            size += 1u32 + ::buffa::types::uint64_encoded_len(v) as u32;
+        }
+        if self.score.to_bits() != 0u32 {
+            size += 1u32 + ::buffa::types::FIXED32_ENCODED_LEN as u32;
+        }
+        if !self.detector.is_empty() {
+            size += 1u32 + ::buffa::types::string_encoded_len(&self.detector) as u32;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u32;
+        size
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::bytes::BufMut,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.id.is_empty() {
+            ::buffa::encoding::Tag::new(
+                    1u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::types::encode_bytes(&self.id, buf);
+        }
+        if self.index != 0u32 {
+            ::buffa::encoding::Tag::new(2u32, ::buffa::encoding::WireType::Varint)
+                .encode(buf);
+            ::buffa::types::encode_uint32(self.index, buf);
+        }
+        if self.span.is_set() {
+            ::buffa::encoding::Tag::new(
+                    3u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::encoding::encode_varint(__cache.consume_next() as u64, buf);
+            self.span.write_to(__cache, buf);
+        }
+        if !self.label.is_empty() {
+            ::buffa::encoding::Tag::new(
+                    4u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::types::encode_string(&self.label, buf);
+        }
+        if let Some(v) = self.code {
+            ::buffa::encoding::Tag::new(5u32, ::buffa::encoding::WireType::Varint)
+                .encode(buf);
+            ::buffa::types::encode_uint64(v, buf);
+        }
+        if self.score.to_bits() != 0u32 {
+            ::buffa::encoding::Tag::new(6u32, ::buffa::encoding::WireType::Fixed32)
+                .encode(buf);
+            ::buffa::types::encode_float(self.score, buf);
+        }
+        if !self.detector.is_empty() {
+            ::buffa::encoding::Tag::new(
+                    7u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::types::encode_string(&self.detector, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        depth: u32,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 1u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.id = ::buffa::types::decode_bytes_to_bytes(buf)?;
+            }
+            2u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::Varint {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 2u32,
+                        expected: 0u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.index = ::buffa::types::decode_uint32(buf)?;
+            }
+            3u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 3u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                ::buffa::Message::merge_length_delimited(
+                    self.span.get_or_insert_default(),
+                    buf,
+                    depth,
+                )?;
+            }
+            4u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 4u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.label = ::buffa::types::decode_string_to(buf)?;
+            }
+            5u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::Varint {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 5u32,
+                        expected: 0u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.code = ::core::option::Option::Some(
+                    ::buffa::types::decode_uint64(buf)?,
+                );
+            }
+            6u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::Fixed32 {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 6u32,
+                        expected: 5u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.score = ::buffa::types::decode_float(buf)?;
+            }
+            7u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 7u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.detector = ::buffa::types::decode_string_to(buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, depth)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.id = ::buffa::bytes::Bytes::new();
+        self.index = 0u32;
+        self.span = ::buffa::MessageField::none();
+        self.label = ::core::default::Default::default();
+        self.code = ::core::option::Option::None;
+        self.score = 0f32;
+        self.detector = ::core::default::Default::default();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for SoundEvent {
+    const PROTO_FQN: &'static str = "media.v2.SoundEvent";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+#[cfg(feature = "json")]
+impl ::buffa::json_helpers::ProtoElemJson for SoundEvent {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[cfg(feature = "json")]
+#[doc(hidden)]
+pub const __SOUND_EVENT_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/media.v2.SoundEvent",
+    to_json: ::buffa::type_registry::any_to_json::<SoundEvent>,
+    from_json: ::buffa::type_registry::any_from_json::<SoundEvent>,
     is_wkt: false,
 };
 /// One diarized speaker (graph::Speaker). `person_id` is a cross-tree

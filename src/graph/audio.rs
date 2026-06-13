@@ -1,5 +1,6 @@
-//! Audio subtree: facet → tracks → segments + speakers. Standalone field
-//! owners — no embedded flat aggregates, no parent FKs, no id-vecs.
+//! Audio subtree: facet → tracks → segments + sound events + speakers.
+//! Standalone field owners — no embedded flat aggregates, no parent FKs,
+//! no id-vecs.
 
 use indexmap::IndexMap;
 use mediaframe::{
@@ -32,6 +33,7 @@ use crate::domain::{
 pub struct Audio<Id = Uuid7> {
   id: Id,
   total_segments: u32,
+  total_sound_events: u32,
   track_progress: IndexProgress,
   tracks: Vec<AudioTrack<Id>>,
 }
@@ -49,12 +51,14 @@ impl Audio<Uuid7> {
       media_id,
       tracks: _,
       total_segments,
+      total_sound_events,
       track_progress,
     } = facet.into_parts();
     parent_check(NodeKind::AudioFacet, id, &media_id, expected_media)?;
     Ok(Self {
       id,
       total_segments,
+      total_sound_events,
       track_progress,
       tracks,
     })
@@ -70,6 +74,11 @@ impl<Id> Audio<Id> {
   #[inline(always)]
   pub const fn total_segments(&self) -> u32 {
     self.total_segments
+  }
+
+  #[inline(always)]
+  pub const fn total_sound_events(&self) -> u32 {
+    self.total_sound_events
   }
 
   #[inline(always)]
@@ -122,6 +131,7 @@ pub struct AudioTrack<Id = Uuid7> {
   tags: Option<Tags>,
   cover_art: Option<CoverArt>,
   segments: Vec<AudioSegment<Id>>,
+  sound_events: Vec<SoundEvent<Id>>,
   metadata: IndexMap<SmolStr, SmolStr>,
   provenance: Provenance,
   index_status: AudioIndexStatus,
@@ -130,11 +140,12 @@ pub struct AudioTrack<Id = Uuid7> {
 
 impl AudioTrack<Uuid7> {
   /// Lift the flat track; validates `audio_id == expected_audio` and
-  /// lifts the flat segments/speakers against this track's id.
+  /// lifts the flat segments/sound events/speakers against this track's id.
   pub fn try_from_flat(
     expected_audio: &Uuid7,
     track: domain::AudioTrack<Uuid7>,
     segments: Vec<domain::AudioSegment<Uuid7>>,
+    sound_events: Vec<domain::SoundEvent<Uuid7>>,
     speakers: Vec<domain::Speaker<Uuid7>>,
   ) -> Result<Self, GraphError> {
     let AudioTrackParts {
@@ -172,6 +183,7 @@ impl AudioTrack<Uuid7> {
       tags,
       cover_art,
       segments: _,
+      sound_events: _,
       metadata,
       provenance,
       index_status,
@@ -181,6 +193,10 @@ impl AudioTrack<Uuid7> {
     let segments = segments
       .into_iter()
       .map(|s| AudioSegment::try_from_flat(&id, s))
+      .collect::<Result<Vec<_>, _>>()?;
+    let sound_events = sound_events
+      .into_iter()
+      .map(|s| SoundEvent::try_from_flat(&id, s))
       .collect::<Result<Vec<_>, _>>()?;
     let speakers = speakers
       .into_iter()
@@ -220,6 +236,7 @@ impl AudioTrack<Uuid7> {
       tags,
       cover_art,
       segments,
+      sound_events,
       metadata,
       provenance,
       index_status,
@@ -404,6 +421,12 @@ impl<Id> AudioTrack<Id> {
   #[inline(always)]
   pub const fn segments_slice(&self) -> &[AudioSegment<Id>] {
     self.segments.as_slice()
+  }
+
+  /// The track's detected sound events.
+  #[inline(always)]
+  pub const fn sound_events_slice(&self) -> &[SoundEvent<Id>] {
+    self.sound_events.as_slice()
   }
 
   #[inline(always)]
@@ -716,10 +739,29 @@ mod tests {
     let track_id = *track.id_ref();
     let segment =
       domain::AudioSegment::try_new(Uuid7::new(), track_id, 0, span()).expect("valid segment");
+    let sound_event = domain::SoundEvent::try_new(
+      Uuid7::new(),
+      track_id,
+      0,
+      span(),
+      "Speech",
+      Some(0),
+      0.9,
+      crate::domain::CedDetector::Ced,
+    )
+    .expect("valid sound event");
     let speaker = domain::Speaker::try_new(Uuid7::new(), track_id, 0, "S1").expect("valid speaker");
-    let node =
-      AudioTrack::try_from_flat(&audio_id, track, vec![segment], vec![speaker]).expect("coherent");
+    let node = AudioTrack::try_from_flat(
+      &audio_id,
+      track,
+      vec![segment],
+      vec![sound_event],
+      vec![speaker],
+    )
+    .expect("coherent");
     assert_eq!(node.segments_slice().len(), 1);
+    assert_eq!(node.sound_events_slice().len(), 1);
+    assert_eq!(node.sound_events_slice()[0].label(), "Speech");
     assert_eq!(node.speakers_slice().len(), 1);
     assert_eq!(node.speakers_slice()[0].name(), "S1");
   }
@@ -730,12 +772,38 @@ mod tests {
     let track = domain::AudioTrack::try_new(Uuid7::new(), audio_id).expect("valid track");
     let segment =
       domain::AudioSegment::try_new(Uuid7::new(), Uuid7::new(), 0, span()).expect("valid segment");
-    let err =
-      AudioTrack::try_from_flat(&audio_id, track, vec![segment], vec![]).expect_err("incoherent");
+    let err = AudioTrack::try_from_flat(&audio_id, track, vec![segment], vec![], vec![])
+      .expect_err("incoherent");
     assert!(matches!(
       err,
       GraphError::ParentMismatch {
         kind: NodeKind::AudioSegment,
+        ..
+      }
+    ));
+  }
+
+  #[test]
+  fn sound_event_under_wrong_track_is_rejected_via_track_lift() {
+    let audio_id = Uuid7::new();
+    let track = domain::AudioTrack::try_new(Uuid7::new(), audio_id).expect("valid track");
+    let sound_event = domain::SoundEvent::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      0,
+      span(),
+      "Speech",
+      None,
+      0.9,
+      crate::domain::CedDetector::Ced,
+    )
+    .expect("valid sound event");
+    let err = AudioTrack::try_from_flat(&audio_id, track, vec![], vec![sound_event], vec![])
+      .expect_err("incoherent");
+    assert!(matches!(
+      err,
+      GraphError::ParentMismatch {
+        kind: NodeKind::SoundEvent,
         ..
       }
     ));
@@ -747,8 +815,8 @@ mod tests {
     let track = domain::AudioTrack::try_new(Uuid7::new(), audio_id).expect("valid track");
     let speaker =
       domain::Speaker::try_new(Uuid7::new(), Uuid7::new(), 0, "S1").expect("valid speaker");
-    let err =
-      AudioTrack::try_from_flat(&audio_id, track, vec![], vec![speaker]).expect_err("incoherent");
+    let err = AudioTrack::try_from_flat(&audio_id, track, vec![], vec![], vec![speaker])
+      .expect_err("incoherent");
     assert!(matches!(
       err,
       GraphError::ParentMismatch {
@@ -827,6 +895,7 @@ impl From<(Uuid7, Audio<Uuid7>)> for domain::Audio<Uuid7> {
     let Audio {
       id,
       total_segments,
+      total_sound_events,
       track_progress,
       tracks,
     } = g;
@@ -835,18 +904,20 @@ impl From<(Uuid7, Audio<Uuid7>)> for domain::Audio<Uuid7> {
       media_id,
       tracks: tracks.iter().map(|t| *t.id_ref()).collect(),
       total_segments,
+      total_sound_events,
       track_progress,
     })
   }
 }
 
 /// Trait form of [`AudioTrack::try_from_flat`] —
-/// `(expected_audio, track, segments, speakers)`.
+/// `(expected_audio, track, segments, sound_events, speakers)`.
 impl
   TryFrom<(
     Uuid7,
     domain::AudioTrack<Uuid7>,
     Vec<domain::AudioSegment<Uuid7>>,
+    Vec<domain::SoundEvent<Uuid7>>,
     Vec<domain::Speaker<Uuid7>>,
   )> for AudioTrack<Uuid7>
 {
@@ -854,14 +925,15 @@ impl
 
   #[inline(always)]
   fn try_from(
-    (expected_audio, track, segments, speakers): (
+    (expected_audio, track, segments, sound_events, speakers): (
       Uuid7,
       domain::AudioTrack<Uuid7>,
       Vec<domain::AudioSegment<Uuid7>>,
+      Vec<domain::SoundEvent<Uuid7>>,
       Vec<domain::Speaker<Uuid7>>,
     ),
   ) -> Result<Self, Self::Error> {
-    Self::try_from_flat(&expected_audio, track, segments, speakers)
+    Self::try_from_flat(&expected_audio, track, segments, sound_events, speakers)
   }
 }
 
@@ -904,6 +976,7 @@ impl From<(Uuid7, AudioTrack<Uuid7>)> for domain::AudioTrack<Uuid7> {
       tags,
       cover_art,
       segments,
+      sound_events,
       metadata,
       provenance,
       index_status,
@@ -944,6 +1017,7 @@ impl From<(Uuid7, AudioTrack<Uuid7>)> for domain::AudioTrack<Uuid7> {
       tags,
       cover_art,
       segments: segments.iter().map(|s| *s.id_ref()).collect(),
+      sound_events: sound_events.iter().map(|s| *s.id_ref()).collect(),
       metadata,
       provenance,
       index_status,

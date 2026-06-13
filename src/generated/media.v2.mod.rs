@@ -33,6 +33,7 @@ pub mod __buffa {
         #[cfg(feature = "json")] reg.register_json_any(super::__AUDIO_JSON_ANY);
         #[cfg(feature = "json")] reg.register_json_any(super::__AUDIO_TRACK_JSON_ANY);
         #[cfg(feature = "json")] reg.register_json_any(super::__AUDIO_SEGMENT_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__SOUND_EVENT_JSON_ANY);
         #[cfg(feature = "json")] reg.register_json_any(super::__SPEAKER_JSON_ANY);
         #[cfg(feature = "json")] reg.register_json_any(super::__SUBTITLE_JSON_ANY);
         #[cfg(feature = "json")] reg.register_json_any(super::__SUBTITLE_TRACK_JSON_ANY);

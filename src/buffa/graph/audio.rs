@@ -1,16 +1,18 @@
 //! Wire ⇄ graph conversions for the audio subtree: `media.v2::Audio` ⇄
 //! [`graph::Audio`], `media.v2::AudioTrack` ⇄ [`graph::AudioTrack`],
-//! `media.v2::AudioSegment` ⇄ [`graph::AudioSegment`] and
+//! `media.v2::AudioSegment` ⇄ [`graph::AudioSegment`],
+//! `media.v2::SoundEvent` ⇄ [`graph::SoundEvent`] and
 //! `media.v2::Speaker` ⇄ [`graph::Speaker`].
 //!
 //! ## Field correspondence — `Audio`
 //!
-//! | wire field                       | graph field        | notes                 |
-//! | -------------------------------- | ------------------ | --------------------- |
-//! | `id` (bytes, 16)                 | `id`               | validating            |
-//! | `total_segments: uint32`         | `total_segments`   | denormalized rollup   |
-//! | `track_progress: IndexProgress`  | `track_progress`   | unset ⇒ empty rollup  |
-//! | `tracks: repeated AudioTrack`    | `tracks: Vec<_>`   | children embedded     |
+//! | wire field                       | graph field          | notes                 |
+//! | -------------------------------- | -------------------- | --------------------- |
+//! | `id` (bytes, 16)                 | `id`                 | validating            |
+//! | `total_segments: uint32`         | `total_segments`     | denormalized rollup   |
+//! | `total_sound_events: uint32`     | `total_sound_events` | denormalized rollup   |
+//! | `track_progress: IndexProgress`  | `track_progress`     | unset ⇒ empty rollup  |
+//! | `tracks: repeated AudioTrack`    | `tracks: Vec<_>`     | children embedded     |
 //!
 //! ## Field correspondence — `AudioTrack`
 //!
@@ -35,6 +37,7 @@
 //! | `speakers: repeated Speaker`            | `speakers: Vec<_>`            | children embedded                              |
 //! | `tags` / `cover_art`                    | `Option<_>`                   | externs; presence = `Some`                     |
 //! | `segments: repeated AudioSegment`       | `segments: Vec<_>`            | children embedded                              |
+//! | `sound_events: repeated SoundEvent`     | `sound_events: Vec<_>`        | children embedded                              |
 //! | `metadata: repeated KeyValue`           | `metadata: IndexMap`          | insertion order preserved                      |
 //! | `provenance: Provenance`                | `provenance`                  | unset ⇒ empty                                  |
 //! | `index_status: uint32`                  | `index_status: AudioIndexStatus` | raw bits; decode re-runs the topology + descriptor invariants |
@@ -47,6 +50,13 @@
 //! `language` as the mediaframe extern message instead of the v1 bcp47
 //! string form. `speaker_id` (cross-tree association into the sibling
 //! speaker set) stays as an optional 16-byte id.
+//!
+//! ## Field correspondence — `SoundEvent`
+//!
+//! Same shape as the v1 [`sound_event`](crate::buffa::sound_event) bridge
+//! minus the `audio_track_id` FK (implied by nesting); `detector` is the
+//! producer slug (`"ced"` | `"manual"`) and the whole record reconstructs
+//! in the single validating `try_new` (no nested children).
 //!
 //! ## Field correspondence — `Speaker`
 //!
@@ -68,7 +78,7 @@ use crate::{
     vo::localized_text_from_wire,
     voice_fingerprint::{voice_fingerprint_from_wire, voice_fingerprint_to_wire},
   },
-  domain::{self, AudioContentKind, AudioIndexStatus, Uuid7, Word},
+  domain::{self, AudioContentKind, AudioIndexStatus, CedDetector, Uuid7, Word},
   generated::media::{v1 as wire1, v2 as wire},
   graph,
 };
@@ -82,6 +92,7 @@ impl From<&graph::Audio<Uuid7>> for wire::Audio {
     wire::Audio {
       id: id_to_wire(g.id_ref()),
       total_segments: g.total_segments(),
+      total_sound_events: g.total_sound_events(),
       track_progress: index_progress_to_wire(g.track_progress_ref()),
       tracks: g
         .tracks_slice()
@@ -108,6 +119,7 @@ impl TryFrom<&wire::Audio> for graph::Audio<Uuid7> {
     let flat = domain::Audio::try_new(id, id)
       .map_err(rejected)?
       .with_total_segments(w.total_segments)
+      .with_total_sound_events(w.total_sound_events)
       .with_track_progress(index_progress_from_wire(&w.track_progress)?);
     graph::Audio::try_from_flat(&id, flat, tracks).map_err(graph_err)
   }
@@ -156,6 +168,11 @@ impl From<&graph::AudioTrack<Uuid7>> for wire::AudioTrack {
         .segments_slice()
         .iter()
         .map(wire::AudioSegment::from)
+        .collect(),
+      sound_events: g
+        .sound_events_slice()
+        .iter()
+        .map(wire::SoundEvent::from)
         .collect(),
       metadata: metadata_to_wire(g.metadata_ref()),
       provenance: provenance_to_wire(g.provenance_ref()),
@@ -243,12 +260,18 @@ fn audio_track_from_wire(
     .iter()
     .map(|s| flat_audio_segment(s, id))
     .collect::<Result<Vec<_>, _>>()?;
+  let sound_events = w
+    .sound_events
+    .iter()
+    .map(|s| flat_sound_event(s, id))
+    .collect::<Result<Vec<_>, _>>()?;
   let speakers = w
     .speakers
     .iter()
     .map(|s| flat_speaker(s, id))
     .collect::<Result<Vec<_>, _>>()?;
-  graph::AudioTrack::try_from_flat(&audio_id, t, segments, speakers).map_err(graph_err)
+  graph::AudioTrack::try_from_flat(&audio_id, t, segments, sound_events, speakers)
+    .map_err(graph_err)
 }
 
 /// Standalone decode — the parent FK is synthesized from the track's
@@ -333,6 +356,68 @@ impl TryFrom<&wire::AudioSegment> for graph::AudioSegment<Uuid7> {
     let synthetic_parent = id_from_wire(&w.id, "AudioSegment.id")?;
     let flat = flat_audio_segment(w, synthetic_parent)?;
     graph::AudioSegment::try_from_flat(&synthetic_parent, flat).map_err(graph_err)
+  }
+}
+
+// ---------------------------------------------------------------------------
+// graph::SoundEvent ⇄ wire::SoundEvent
+// ---------------------------------------------------------------------------
+
+impl From<&graph::SoundEvent<Uuid7>> for wire::SoundEvent {
+  fn from(g: &graph::SoundEvent<Uuid7>) -> Self {
+    wire::SoundEvent {
+      id: id_to_wire(g.id_ref()),
+      index: g.index(),
+      span: MessageField::some(*g.span_ref()),
+      label: SmolStr::from(g.label()),
+      code: g.code(),
+      score: g.score(),
+      detector: SmolStr::from(g.detector().as_str()),
+      __buffa_unknown_fields: Default::default(),
+    }
+  }
+}
+
+/// Reconstruct the flat sound event under the given `audio_track_id` — the
+/// same `try_new` reconstruction as the v1 bridge (the whole record builds
+/// in the single validating constructor; no `with_*` chain needed).
+fn flat_sound_event(
+  w: &wire::SoundEvent,
+  audio_track_id: Uuid7,
+) -> Result<domain::SoundEvent<Uuid7>, BuffaError> {
+  let id = id_from_wire(&w.id, "SoundEvent.id")?;
+  let span = *w
+    .span
+    .as_option()
+    .ok_or(BuffaError::MissingRequiredField("SoundEvent.span"))?;
+  // An unrecognized slug is only reachable via a tampered / out-of-contract
+  // wire frame: a domain `CedDetector` always serializes to a canonical
+  // slug. Surface it as the same generic "rejected" error the rest of this
+  // bridge uses for out-of-contract payloads.
+  let detector = CedDetector::from_str(w.detector.as_str())
+    .ok_or_else(|| unknown_slug("SoundEvent.detector", w.detector.as_str()))?;
+  domain::SoundEvent::try_new(
+    id,
+    audio_track_id,
+    w.index,
+    span,
+    w.label.as_str(),
+    w.code,
+    w.score,
+    detector,
+  )
+  .map_err(rejected)
+}
+
+/// Standalone decode — the parent FK is synthesized from the sound event's
+/// own id and consumed by the lift.
+impl TryFrom<&wire::SoundEvent> for graph::SoundEvent<Uuid7> {
+  type Error = BuffaError;
+
+  fn try_from(w: &wire::SoundEvent) -> Result<Self, Self::Error> {
+    let synthetic_parent = id_from_wire(&w.id, "SoundEvent.id")?;
+    let flat = flat_sound_event(w, synthetic_parent)?;
+    graph::SoundEvent::try_from_flat(&synthetic_parent, flat).map_err(graph_err)
   }
 }
 
@@ -456,6 +541,20 @@ mod tests {
       .with_person_id(Uuid7::new())
   }
 
+  fn flat_sound_event(track_id: Uuid7) -> domain::SoundEvent<Uuid7> {
+    domain::SoundEvent::try_new(
+      Uuid7::new(),
+      track_id,
+      0,
+      span(0, 400),
+      "Siren",
+      Some(316),
+      0.42,
+      CedDetector::Manual,
+    )
+    .expect("valid sound event")
+  }
+
   fn rich_track(audio_id: Uuid7) -> domain::AudioTrack<Uuid7> {
     domain::AudioTrack::try_new(Uuid7::new(), audio_id)
       .expect("valid track")
@@ -505,6 +604,16 @@ mod tests {
   }
 
   #[test]
+  fn sound_event_round_trips() {
+    let track_id = Uuid7::new();
+    let g =
+      graph::SoundEvent::try_from_flat(&track_id, flat_sound_event(track_id)).expect("coherent");
+    let w = wire::SoundEvent::from(&g);
+    let g2 = graph::SoundEvent::try_from(&w).expect("decodes");
+    assert_eq!(g2, g);
+  }
+
+  #[test]
   fn speaker_round_trips() {
     let track_id = Uuid7::new();
     let g = graph::Speaker::try_from_flat(&track_id, flat_speaker_fixture(track_id, Uuid7::new()))
@@ -524,6 +633,7 @@ mod tests {
       &audio_id,
       track,
       vec![flat_segment(track_id, speaker_id)],
+      vec![flat_sound_event(track_id)],
       vec![flat_speaker_fixture(track_id, speaker_id)],
     )
     .expect("coherent");
@@ -535,6 +645,9 @@ mod tests {
       g2.segments_slice()[0].speaker_id_ref(),
       Some(g2.speakers_slice()[0].id_ref())
     );
+    // The embedded sound event survives the trip.
+    assert_eq!(g2.sound_events_slice().len(), 1);
+    assert_eq!(g2.sound_events_slice()[0].label(), "Siren");
   }
 
   #[test]
@@ -543,10 +656,12 @@ mod tests {
     let facet = domain::Audio::try_new(Uuid7::new(), media_id)
       .expect("valid facet")
       .with_total_segments(7)
+      .with_total_sound_events(3)
       .with_track_progress(IndexProgress::try_new(1, 1, 0).expect("valid rollup"));
     let facet_id = *facet.id_ref();
-    let track = graph::AudioTrack::try_from_flat(&facet_id, rich_track(facet_id), vec![], vec![])
-      .expect("coherent");
+    let track =
+      graph::AudioTrack::try_from_flat(&facet_id, rich_track(facet_id), vec![], vec![], vec![])
+        .expect("coherent");
     let g = graph::Audio::try_from_flat(&media_id, facet, vec![track]).expect("coherent");
     let w = wire::Audio::from(&g);
     let g2 = graph::Audio::try_from(&w).expect("decodes");
@@ -556,8 +671,9 @@ mod tests {
   #[test]
   fn audio_track_unknown_content_slug_errors() {
     let audio_id = Uuid7::new();
-    let g = graph::AudioTrack::try_from_flat(&audio_id, rich_track(audio_id), vec![], vec![])
-      .expect("coherent");
+    let g =
+      graph::AudioTrack::try_from_flat(&audio_id, rich_track(audio_id), vec![], vec![], vec![])
+        .expect("coherent");
     let mut w = wire::AudioTrack::from(&g);
     w.content = Some(SmolStr::from("polka"));
     let err = graph::AudioTrack::try_from(&w).unwrap_err();
