@@ -47,12 +47,15 @@ jobs:
       # don't need `arduino/setup-protoc` here.
       - name: Install cargo-hack
         run: cargo install cargo-hack --locked
-      # Per-feature isolation: every feature builds on its own without
-      # implicitly depending on any other feature. Catches missing
-      # `cfg(feature = ...)` gates and `Default`/inherent-impl rule
-      # violations under single-feature builds.
-      - name: cargo hack check --each-feature
-        run: cargo hack check --each-feature --no-dev-deps
+      # Per-feature isolation: every feature builds on its own (on top of
+      # the always-required `alloc`) without implicitly depending on any
+      # other feature. Catches missing `cfg(feature = ...)` gates and
+      # `Default`/inherent-impl rule violations under single-feature
+      # builds. `--features alloc` floors the matrix: the domain needs
+      # alloc (Vec/String throughout), so the pure-core
+      # `--no-default-features` baseline is not a buildable target.
+      - name: cargo hack check --each-feature (alloc floor)
+        run: cargo hack check --each-feature --features alloc --no-dev-deps
       # Spot-check the medium-aggregate gates (`video` / `audio` /
       # `subtitle`) so a regression that needs a sibling medium to
       # compile surfaces on its own — `cargo hack`'s powerset below
