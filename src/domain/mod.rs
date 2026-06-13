@@ -24,8 +24,8 @@ pub mod vo;
 // Always available (pure no-std no-alloc):
 pub use bitflags::{AudioIndexStatus, MediaErrorFlags, SubtitleIndexStatus, VideoIndexStatus};
 pub use enums::{
-  AudioContentKind, AudioIndexStage, KeyframeExtractor, MediaKind, ScanStatus, SceneDetector,
-  SubtitleIndexStage, SubtitleKind, VideoIndexStage,
+  AudioContentKind, AudioIndexStage, CedDetector, KeyframeExtractor, MediaKind, ScanStatus,
+  SceneDetector, SubtitleIndexStage, SubtitleKind, VideoIndexStage,
 };
 pub use identified::Identified;
 pub use primitives::{ErrorCode, FileChecksum, Rgba, Uuid7};
@@ -42,7 +42,7 @@ pub use aggregates::{
 // its `metadata` bag and IndexMap's default hasher (`RandomState`)
 // is std-only. Same constraint as the `Chapter` aggregate.
 #[cfg(all(feature = "std", feature = "audio"))]
-pub use aggregates::{Audio, AudioSegment, AudioTrack, Word};
+pub use aggregates::{Audio, AudioSegment, AudioTrack, SoundEvent, Word};
 #[cfg(all(feature = "std", feature = "video"))]
 pub use aggregates::{Keyframe, Scene, Video, VideoTrack};
 #[cfg(all(feature = "std", feature = "subtitle"))]

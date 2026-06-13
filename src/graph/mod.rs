@@ -45,7 +45,7 @@ mod audio;
 mod subtitle;
 mod video;
 
-pub use audio::{Audio, AudioSegment, AudioTrack, Speaker};
+pub use audio::{Audio, AudioSegment, AudioTrack, SoundEvent, Speaker};
 pub use subtitle::{Subtitle, SubtitleCue, SubtitleTrack};
 pub use video::{Keyframe, Scene, Video, VideoTrack};
 
@@ -88,6 +88,8 @@ pub enum NodeKind {
   AudioTrack,
   /// [`AudioSegment`] under [`AudioTrack`].
   AudioSegment,
+  /// [`SoundEvent`] under [`AudioTrack`].
+  SoundEvent,
   /// [`Speaker`] under [`AudioTrack`].
   Speaker,
   /// [`Subtitle`] facet under [`Media`].
@@ -112,6 +114,7 @@ impl NodeKind {
       Self::AudioFacet => "audio_facet",
       Self::AudioTrack => "audio_track",
       Self::AudioSegment => "audio_segment",
+      Self::SoundEvent => "sound_event",
       Self::Speaker => "speaker",
       Self::SubtitleFacet => "subtitle_facet",
       Self::SubtitleTrack => "subtitle_track",

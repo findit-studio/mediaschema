@@ -42,7 +42,8 @@ pub mod watched_location;
 
 #[cfg(all(feature = "std", feature = "audio"))]
 pub use audio::{
-  Audio, AudioError, AudioSegment, AudioSegmentError, AudioTrack, AudioTrackError, Word,
+  Audio, AudioError, AudioSegment, AudioSegmentError, AudioTrack, AudioTrackError, SoundEvent,
+  SoundEventError, Word,
 };
 #[cfg(feature = "std")]
 pub use chapter::{Chapter, ChapterError};
