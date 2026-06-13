@@ -8,10 +8,9 @@
 //! descriptors are the published `mediaframe` types
 //! ([`mediaframe::codec::SubtitleCodec`], [`mediaframe::subtitle::Format`],
 //! [`mediaframe::subtitle::TrackOrigin`], [`mediaframe::lang::Language`],
-//! [`mediaframe::disposition::TrackDisposition`]). The one remaining
-//! placeholder is the per-track duration / cue positions:
-//! `mediatime::TrackTime` (per-track time) → `mediatime::Timestamp`
-//! (same path used by the locked `Speaker`) until that type exists.
+//! [`mediaframe::disposition::TrackDisposition`]). Per-track duration
+//! and cue positions are `mediatime::Timestamp` (track-relative
+//! offsets, same as the locked `Speaker`).
 
 use std::vec::Vec;
 
@@ -65,9 +64,6 @@ pub struct SubtitleTrack<Id = Uuid7> {
   is_primary: bool,
   auto_selected: bool,
 
-  // TODO(mediaframe): duration → `mediatime::TrackTime` once available;
-  // `mediatime::Timestamp` is the closest currently-exported fit (same
-  // workaround as `Speaker::speech_duration`).
   duration: Option<Timestamp>,
 
   // Rollups / forward refs.
@@ -93,7 +89,6 @@ pub struct SubtitleTrack<Id = Uuid7> {
   kind: SubtitleKind,
   coverage_ratio: Option<f32>,
   is_empty: bool,
-  // TODO(mediaframe): first/last cue → `mediatime::TrackTime`.
   first_cue: Option<Timestamp>,
   last_cue: Option<Timestamp>,
 
@@ -302,8 +297,7 @@ impl<Id> SubtitleTrack<Id> {
     self.auto_selected
   }
 
-  /// Per-track duration. TODO(mediaframe): switch to
-  /// `mediatime::TrackTime` once available (see `Speaker` note).
+  /// Per-track duration (track-relative `mediatime::Timestamp`).
   #[inline(always)]
   pub const fn duration_ref(&self) -> Option<&Timestamp> {
     self.duration.as_ref()
@@ -382,13 +376,13 @@ impl<Id> SubtitleTrack<Id> {
     self.is_empty
   }
 
-  /// First cue start. TODO(mediaframe): switch to `mediatime::TrackTime`.
+  /// First cue start (track-relative `mediatime::Timestamp`).
   #[inline(always)]
   pub const fn first_cue_ref(&self) -> Option<&Timestamp> {
     self.first_cue.as_ref()
   }
 
-  /// Last cue start. TODO(mediaframe): switch to `mediatime::TrackTime`.
+  /// Last cue start (track-relative `mediatime::Timestamp`).
   #[inline(always)]
   pub const fn last_cue_ref(&self) -> Option<&Timestamp> {
     self.last_cue.as_ref()

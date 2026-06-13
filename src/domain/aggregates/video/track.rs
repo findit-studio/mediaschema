@@ -51,12 +51,10 @@ pub struct VideoTrack<Id = Uuid7> {
 
   // --- media-time ---
   start_pts: Option<Timestamp>,
-  /// **Semantically a non-negative duration in the track timebase.**
-  /// Schema names this `Option<TrackTime>` (`mediatime` alias); the
-  /// crate currently exports only `Timestamp` / `TimeRange` / `Timebase`,
-  /// so we use the same `Timestamp` workaround as `Speaker::speech_duration`.
-  /// A proper `TrackTime` / `Duration` newtype is a tracked mediatime
-  /// follow-up.
+  /// **Semantically a non-negative duration in the track timebase**,
+  /// carried as a track-relative `mediatime::Timestamp` (same convention
+  /// as `Speaker::speech_duration`). A dedicated `Duration` newtype is a
+  /// tracked mediatime follow-up.
   duration: Option<Timestamp>,
 
   // --- codec ---

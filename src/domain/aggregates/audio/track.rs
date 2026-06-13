@@ -158,10 +158,8 @@ pub struct AudioTrack<Id = Uuid7> {
   bit_rate_mode: Option<BitRateMode>,
   bits_per_sample: Option<u16>,
   is_lossless: bool,
-  // TODO(mediaframe): `duration: Option<mediatime::TrackTime>` — `mediatime`
-  // 0.1.6 publicly exports only `Timestamp`/`TimeRange`/`Timebase` (no
-  // `TrackTime`). Same workaround as `Speaker.speech_duration`:
-  // `mediatime::Timestamp` treated as a track-relative offset/duration.
+  // `mediatime::Timestamp` as a track-relative offset/duration (same
+  // convention as `Speaker.speech_duration`).
   duration: Option<Timestamp>,
   start_pts: Option<Timestamp>,
   language: Option<Language>,
@@ -345,8 +343,7 @@ impl<Id> AudioTrack<Id> {
     self.is_lossless
   }
 
-  /// Per-track duration (track-relative offset/duration; see
-  /// TODO(mediaframe) note on the field).
+  /// Per-track duration (track-relative offset/duration).
   #[inline(always)]
   pub const fn duration_ref(&self) -> Option<&Timestamp> {
     self.duration.as_ref()

@@ -30,7 +30,7 @@ Conversions deferred.
 | `image_based` | `Option<bool>` | derived from `codec`/`format` | lossless tri-state classifier: `Some(true)` known bitmap (PGS/DVBSUB/DVDSUB ⇒ OCR required), `Some(false)` known text, `None` unclassifiable — **derived, not stored**. `requires_ocr()` is the conservative `bool` projection (`None` ⇒ `true`) used by completion gating |
 | `disposition` | `TrackDisposition` (bitflags!) | disposition `u32` | shared flag set — `FORCED`/`HEARING_IMPAIRED`/`DEFAULT`/… (see [bitflags.md](bitflags.md)) |
 | `is_primary` · `auto_selected` | `bool` | selection | selection signals |
-| `duration` | `Option<TrackTime>` | time | per-track duration (mediatime extern) |
+| `duration` | `Option<mediatime::Timestamp>` | time | per-track duration (mediatime extern) |
 | `cue_count` | `u32` | — (rollup) | maintained Σ of the cue aggregate's len (no progress lifecycle, like scenes) |
 | `cues` | `Vec<Id>` | — | refs to the per-track `SubtitleCue` segment aggregate |
 | `metadata` | `IndexMap<SmolStr, SmolStr>` | — | container `AVDictionary` entries from this stream, with the hoisted `title` / `language` keys (any case) consumed into dedicated columns. Insertion-ordered. SQL projection: `subtitle_track_metadata` join table with `(subtitle_track_id, ordinal, key, value)` |
@@ -45,7 +45,7 @@ Conversions deferred.
 | `kind` | `SubtitleKind` (enum) | ffmpeg disp | `FullDialogue`/`ForcedNarrative`(=`FORCED`)/`CommentaryText`(=`COMMENT`) (best-effort) |
 | `coverage_ratio` | `Option<f32>` | cue-parse | subtitled duration ÷ track duration (partial/truncated detection) |
 | `is_empty` | `bool` | cue-parse | parsed but zero cues (a defect to surface) |
-| `first_cue` · `last_cue` | `Option<TrackTime>` | cue-parse | first/last cue start (mediatime extern) |
+| `first_cue` · `last_cue` | `Option<mediatime::Timestamp>` | cue-parse | first/last cue start (mediatime extern) |
 | `index_status` | `SubtitleIndexStatus` (bitflags!) | status `u32` | per-kind pipeline stages (bit = stage succeeded) |
 | `index_errors` | `Vec<ErrorInfo>` | index errors | per-track error truth (stage-coded `ErrorInfo.code`); → `Media.error_flags` rollup. **Error-state derived from this + `index_status`** — no separate `error_status` field |
 

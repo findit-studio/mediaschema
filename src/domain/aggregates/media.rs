@@ -18,11 +18,7 @@
 //! - [`FileChecksum`] is the 32-byte content hash — a **distinct newtype
 //!   from `Id`** (content ≠ identity).
 //! - Wall-clock: [`jiff::Timestamp`] (ms-resolution).
-//! - Media-time (overall duration): [`mediatime::Timestamp`]. (The locked
-//!   doc names it `mediatime::TrackTime`, but `mediatime 0.1.6` only
-//!   exports `Timestamp`/`TimeRange`/`Timebase`; same doc/code drift as
-//!   `Speaker.speech_duration` — read the doc's `TrackTime` as
-//!   `mediatime::Timestamp` pending a doc-name fix.)
+//! - Media-time (overall duration): [`mediatime::Timestamp`].
 //! - `error_flags` is a maintained **rollup** of per-kind track failures
 //!   ([`MediaErrorFlags`] — `VIDEO_ERROR` / `AUDIO_ERROR` /
 //!   `SUBTITLE_ERROR` + reserved bits). Drill-down details live on the

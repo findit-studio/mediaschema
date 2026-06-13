@@ -34,7 +34,7 @@ Conversions deferred.
 | `audio_track_id` | `Id` | speaker→track | FK → `AudioTrack.id` (per-track, A-loc) |
 | `cluster_id` | `u32` | `dia` | the `dia` cluster label within this track (`DiarizedSpan.speaker_id`); stable within the diarization run |
 | `name` | `SmolStr` | user/future | human-assigned identity label; `""` = unassigned (diarization is anonymous — `SPEAKER_00`-style display is derived from `cluster_id`, not stored) |
-| `speech_duration` | `Option<mediatime::TrackTime>` | rollup | total time this speaker spoke (Σ of their `AudioSegment.span`s) — list/search facet; maintained rollup, truth = the segments |
+| `speech_duration` | `Option<mediatime::Timestamp>` | rollup | total time this speaker spoke (Σ of their `AudioSegment.span`s) — list/search facet; maintained rollup, truth = the segments |
 | `voiceprint` | `Option<VoiceFingerprint<Id>>` | indexer | per-track aggregated centroid across this speaker's `AudioSegment.voice_fingerprint`s; `None` until aggregation runs. Shared VO with [`Person`](person.md) — see [VoiceFingerprint VO](person.md#voicefingerprint-vo) |
 | `person` | `Option<Id>` | identity matcher | FK → [`Person.id`](person.md) — cross-track / cross-modality identity anchor; `None` until the identity-matching step links this speaker (auto-match or user-confirm). **The reverse FK** (`Person → Vec<Speaker>` is derived, not stored on `Person`) |
 

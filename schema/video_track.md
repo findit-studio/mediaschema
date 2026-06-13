@@ -21,7 +21,7 @@ WebCodecs only. Conversions deferred.
 | `stream_index` | `Option<u32>` | MS | source-locator (ffmpeg/WebCodecs); not identity |
 | `container_track_id` | `Option<u64>` | MS | keep only if pipeline uses it |
 | `start_pts` | `Option<mediatime::Timestamp>` | MS *(mediatime)* | stream start offset / first PTS — **mediatime-represented** (a pts @ timebase), not a raw `i64` |
-| `duration` | `Option<TrackTime>` | MS *(mediatime)* | per-track duration |
+| `duration` | `Option<mediatime::Timestamp>` | MS *(mediatime)* | per-track duration |
 | `codec` | `VideoCodec` (enum) | MS | `VideoCodec` + `Other(SmolStr)` escape ([enums.md](enums.md)) |
 | `profile` · `level` | `Option<SmolStr>` · `Option<u16>` | MS | **separate** from codec (your call) |
 | `bit_rate` | `u64` | MS | per-track bitrate (0 → unknown) |
@@ -60,7 +60,7 @@ uses it to skip album-art pseudo-streams.
 - **`start_pts` → `mediatime::Timestamp`** — yes; it is a presentation
   timestamp at the track timebase. Modelled as `mediatime::Timestamp`, not a
   raw `i64` (reuses the locked `mediatime` extern).
-- **`duration` → `TrackTime`** — yes; already a `mediatime` alias.
+- **`duration` → `mediatime::Timestamp`** — yes; already a `mediatime` extern.
 - **`frame_rate` is a rational but NOT `mediatime::Timebase`.** `mediatime`'s
   own docs state frame-rate and PTS-timebase are *conceptually different* (a
   30 fps stream typically has PTS timebase `1/30000` and frame rate `30/1`).
