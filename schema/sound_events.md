@@ -1,4 +1,4 @@
-# `SoundEvent<Id>` — a detected sound event  *(rev 1 — drafted)*
+# `SoundEvent<Id>` — a detected sound event  *(rev 2 — drafted)*
 
 ## Domain meaning
 
@@ -16,14 +16,14 @@ the `Ced*` `ErrorCode`s). This is the first-class home for the
 sound-event vocabulary that `audio_segments.md` deferred ("`SegmentKind`
 … would come from the separate CED/CLAP stage").
 
-No progress lifecycle: a `SoundEvent` exists iff its row exists. There is
-**no `AudioTrack.sound_events` rollup** field — sound events are
-high-fan-out and attach purely via their `audio_track_id` FK; the database
-derives a track's events by reverse-FK (the same way `VideoTrack.scenes`
-is not embedded in the graph and a track's children are derived). In the
-object-graph shape ([graph.md](graph.md)) `graph::SoundEvent` stands alone
-(the consumer builds it per detected event); it is **not** embedded in
-`graph::AudioTrack` in this pass.
+No progress lifecycle: a `SoundEvent` exists iff its row exists. It is wired
+into `AudioTrack` exactly like its sibling `AudioSegment`:
+`AudioTrack.sound_events: Vec<Id>` holds the per-track refs and the `Audio`
+facet keeps a `total_sound_events` rollup
+(`Σ AudioTrack.sound_events.len()`, mirroring `total_segments`). In the
+object-graph shape ([graph.md](graph.md)) `graph::SoundEvent` is embedded in
+`graph::AudioTrack` (`sound_events: Vec<SoundEvent>`, lifted via
+`try_from_flat`), again mirroring `segments`.
 
 ## Cross-cutting (locked)
 
@@ -32,8 +32,8 @@ Strings = `SmolStr` (`""` = absent, **no `Option`**). **Embeddings → an
 external vendor-neutral vector store** keyed by this `id`, if ever embedded
 — no embedding field here. **`Provenance` is per-track** (on `AudioTrack`,
 one per run) — not per sound event, exactly as for `Scene` /
-`AudioSegment`. Conversions (sqlx / mongodb / buffa) deferred (the crate
-explicitly supports deferring backends).
+`AudioSegment`. sqlx (postgres/mysql/sqlite), mongodb, and buffa (media.v1
+flat + media.v2 graph) bridges are all implemented (see Projection notes).
 
 ## Fields
 
@@ -67,28 +67,34 @@ may add detectors (e.g. a future CLAP-based tagger).
 
 ## Resolved (your calls)
 
-- **A-loc:** per-track — `audio_track_id → AudioTrack.id`; **no**
-  `AudioTrack.sound_events` rollup (high fan-out; derived by reverse-FK,
-  same as `VideoTrack.scenes` is not stored).
+- **A-loc:** per-track — `audio_track_id → AudioTrack.id`, with
+  `AudioTrack.sound_events: Vec<Id>` refs + the `Audio.total_sound_events`
+  rollup + `graph::AudioTrack` embedding, mirroring `AudioSegment` (full
+  parity — the earlier "high fan-out, derive by reverse-FK" deferral was
+  reversed for symmetry with `segments`).
 - **`score`:** validated raw `f32` (`[0,1]`), not `Confidence` — keeps the
   aggregate inside the `audio` feature without a `video` dependency.
 - **`code`:** `Option<u64>` (the soundevents stable code; `None` =
   unmapped). Matches the wire `CedDetection.tag: fixed64`.
-- **Backends deferred:** no sqlx / mongodb / buffa bridge for `SoundEvent`
-  in this pass (the crate defers backends; e.g. media.v2 graph has no
-  `Scene` yet either).
+- **Backends:** sqlx (postgres/mysql/sqlite), mongodb, and buffa (media.v1
+  flat + media.v2 graph) bridges are all implemented.
 
-## Projection notes (deferred)
+## Projection notes
 
-- **sqlx**: a future `sound_event` table; `id` PK; `audio_track_id` FK →
+- **sqlx**: `sound_events` table; `id` PK; `audio_track_id` FK →
   `audio_track`; `span` → `start_pts` / `end_pts`; `label` text; `code`
-  nullable `BIGINT`; `score` `REAL`; `detector` enum col (indexed —
-  filterable); `(audio_track_id, index)` unique. No vector column.
-- **mongodb**: `_id` = UUIDv7; flat scalars.
+  nullable `BIGINT`; `score` `REAL`; `detector` text slug;
+  `(audio_track_id, index)` unique. No vector column.
+- **mongodb**: `sound_events` collection; `_id` = UUIDv7; flat scalars;
+  `detector` as `Int32`; FK + `(audio_track_id, index)` indexes.
+- **buffa**: media.v1 flat `SoundEvent` (carries `audio_track_id`) +
+  media.v2 graph `SoundEvent` (drops the FK; nested `repeated SoundEvent
+  sound_events = 38` on `AudioTrack`).
 
-**Status: drafted (rev 1).** Thin detected sound event:
+**Status: drafted (rev 2).** Thin detected sound event:
 `id` / `audio_track_id`(→AudioTrack) / `index` / `span`(mediatime) /
 `label` / `code` / `score` / `detector`(`CedDetector`). `Provenance` lives
 on `AudioTrack` (per-track-per-run, not per-event); embeddings → external
-vector store; no rollup field (reverse-FK derived); backend bridges
-deferred.
+vector store. Hooked into `AudioTrack` at full `AudioSegment` parity
+(`sound_events` refs + `Audio.total_sound_events` rollup + graph
+embedding); sqlx / mongodb / buffa bridges implemented.

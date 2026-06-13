@@ -1,4 +1,4 @@
-# `Audio<Id>` — audio facet (thin aggregate)  *(rev 10 — LOCKED, user-approved; A-loc=per-track; `media_id` FK to Media)*
+# `Audio<Id>` — audio facet (thin aggregate)  *(rev 11 — LOCKED, user-approved; +`total_sound_events` rollup)*
 
 > Rev 8 = user-authorized reopen of r7 (the **A-loc cascade**): `segments`
 > moved from facet → **per-track** (`AudioTrack.segments`, mirrors locked
@@ -37,6 +37,7 @@ Generic over `Id` (UUIDv7 single key). Conversions deferred.
 | `media_id` | `Id` (UUIDv7) | **FK → `Media.id`** (rev 10 — renamed from `parent`): the `Media` this facet belongs to. Set at construction; identity-bearing (no setter). Mirrors locked `Subtitle.media_id`; makes the three facets (Audio/Video/Subtitle) uniform in their back-reference to `Media`. |
 | `tracks` | `Vec<Id>` | refs to child `AudioTrack`s |
 | `total_segments` | `u32` | **rollup** (rev 8): Σ `AudioTrack.segments.len()` across this facet's tracks — cheap "how many segments under this media" facet (mirrors locked `Video.total_scenes`). Truth = the per-track `AudioTrack.segments`. *(Replaces the old facet-level `segments: Vec<Id>`.)* |
+| `total_sound_events` | `u32` | **rollup** (rev 11): Σ `AudioTrack.sound_events.len()` across this facet's tracks — the CED sound-event analog of `total_segments`. Truth = the per-track `AudioTrack.sound_events`. |
 | `track_progress` | `IndexProgress` | rollup; truth = each `AudioTrack.index_stage` |
 
 (`AudioFileRecord` dissolved; per-recording tags + cover-art are per-`AudioTrack`.)
