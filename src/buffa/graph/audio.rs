@@ -56,9 +56,8 @@
 //! ## Field correspondence — `SoundEvent`
 //!
 //! Same shape as the v1 [`sound_event`](crate::buffa::sound_event) bridge
-//! minus the `audio_track_id` FK (implied by nesting); `detector` is the
-//! producer slug (`"ced"` | `"manual"`) and the whole record reconstructs
-//! in the single validating `try_new` (no nested children).
+//! minus the `audio_track_id` FK (implied by nesting); the whole record
+//! reconstructs in the single validating `try_new` (no nested children).
 //!
 //! ## Field correspondence — `Speaker`
 //!
@@ -80,7 +79,7 @@ use crate::{
     vo::localized_text_from_wire,
     voice_fingerprint::{voice_fingerprint_from_wire, voice_fingerprint_to_wire},
   },
-  domain::{self, AudioContentKind, AudioIndexStatus, CedDetector, Uuid7, Word},
+  domain::{self, AudioContentKind, AudioIndexStatus, Uuid7, Word},
   generated::media::{v1 as wire1, v2 as wire},
   graph,
 };
@@ -378,7 +377,6 @@ impl From<&graph::SoundEvent<Uuid7>> for wire::SoundEvent {
       label: SmolStr::from(g.label()),
       code: g.code(),
       score: g.score(),
-      detector: SmolStr::from(g.detector().as_str()),
       __buffa_unknown_fields: Default::default(),
     }
   }
@@ -396,12 +394,6 @@ fn flat_sound_event(
     .span
     .as_option()
     .ok_or(BuffaError::MissingRequiredField("SoundEvent.span"))?;
-  // An unrecognized slug is only reachable via a tampered / out-of-contract
-  // wire frame: a domain `CedDetector` always serializes to a canonical
-  // slug. Surface it as the same generic "rejected" error the rest of this
-  // bridge uses for out-of-contract payloads.
-  let detector = CedDetector::from_str(w.detector.as_str())
-    .ok_or_else(|| unknown_slug("SoundEvent.detector", w.detector.as_str()))?;
   domain::SoundEvent::try_new(
     id,
     audio_track_id,
@@ -410,7 +402,6 @@ fn flat_sound_event(
     w.label.as_str(),
     w.code,
     w.score,
-    detector,
   )
   .map_err(rejected)
 }
@@ -556,7 +547,6 @@ mod tests {
       "Siren",
       Some(316),
       0.42,
-      CedDetector::Manual,
     )
     .expect("valid sound event")
   }

@@ -39,8 +39,8 @@ use crate::{
       AudioTrackError, Word,
     },
     vo::{IndexProgress, Provenance, VoiceFingerprint},
-    Audio, AudioContentKind, AudioIndexStatus, AudioSegment, AudioTrack, CedDetector, ErrorCode,
-    ErrorInfo, SoundEvent, Uuid7,
+    Audio, AudioContentKind, AudioIndexStatus, AudioSegment, AudioTrack, ErrorCode, ErrorInfo,
+    SoundEvent, Uuid7,
   },
   sqlx::{
     dto::{
@@ -791,8 +791,8 @@ pub fn audio_segment_from_rows(
 /// `span` flattens to `start_pts` / `end_pts` PTS ticks only; the timebase
 /// lives on the parent `audio_track` (a single stream has one timebase for
 /// all of its sound events). `code` (`Option<u64>`) rides as a nullable
-/// `BIGINT`. `detector` ([`CedDetector`]) rides as a `text` slug. There is
-/// no nested collection, so unlike `AudioSegment` there is no child table.
+/// `BIGINT`. There is no nested collection, so unlike `AudioSegment` there
+/// is no child table.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct PgSoundEventRow {
   pub id: Uuid,
@@ -804,7 +804,6 @@ pub struct PgSoundEventRow {
   /// Stable soundevents dataset code; NULL = unmapped class.
   pub code: Option<i64>,
   pub score: f32,
-  pub detector: String,
 }
 
 impl From<&SoundEvent<Uuid7>> for PgSoundEventRow {
@@ -819,7 +818,6 @@ impl From<&SoundEvent<Uuid7>> for PgSoundEventRow {
       label: e.label().to_owned(),
       code: e.code().map(|c| c as i64),
       score: e.score(),
-      detector: ced_detector_to_slug(e.detector()).to_owned(),
     }
   }
 }
@@ -841,7 +839,6 @@ pub fn sound_event_from_row(
         r.span_start_pts, r.span_end_pts
       ))
     })?;
-  let detector = parse_ced_detector(&r.detector)?;
   SoundEvent::try_new(
     id,
     audio_track_id,
@@ -850,7 +847,6 @@ pub fn sound_event_from_row(
     r.label,
     r.code.map(|c| c as u64),
     r.score,
-    detector,
   )
   .map_err(|e: SoundEventError| SqlxError::DomainConstructorRejected(e.to_string()))
 }
@@ -1452,25 +1448,6 @@ fn seg_err(e: AudioSegmentError) -> SqlxError {
   SqlxError::DomainConstructorRejected(e.to_string())
 }
 
-fn ced_detector_to_slug(d: CedDetector) -> &'static str {
-  match d {
-    CedDetector::Ced => "ced",
-    CedDetector::Manual => "manual",
-  }
-}
-
-fn parse_ced_detector(s: &str) -> Result<CedDetector, SqlxError> {
-  Ok(match s {
-    "ced" => CedDetector::Ced,
-    "manual" => CedDetector::Manual,
-    other => {
-      return Err(SqlxError::UnknownDiscriminant(format!(
-        "CedDetector slug: {other}"
-      )))
-    }
-  })
-}
-
 fn u32_from_i64(v: i64, what: &str) -> Result<u32, SqlxError> {
   u32::try_from(v).map_err(|e| SqlxError::UnknownDiscriminant(format!("{what}: {e}")))
 }
@@ -1841,7 +1818,6 @@ mod tests {
       "Speech",
       None,
       0.5,
-      CedDetector::Ced,
     )
     .unwrap();
     let row: PgSoundEventRow = (&e).into();
@@ -1860,34 +1836,12 @@ mod tests {
       "Siren",
       Some(316),
       0.87,
-      CedDetector::Manual,
     )
     .unwrap();
     let row: PgSoundEventRow = (&e).into();
     assert_eq!(row.code, Some(316));
-    assert_eq!(row.detector, "manual");
     let e2 = sound_event_from_row(row, tb()).unwrap();
     assert_eq!(e, e2);
-  }
-
-  #[test]
-  fn sound_event_row_with_unknown_detector_rejected() {
-    let e = SoundEvent::try_new(
-      Uuid7::new(),
-      Uuid7::new(),
-      0,
-      TimeRange::new(0, 100, tb()),
-      "Speech",
-      None,
-      0.5,
-      CedDetector::Ced,
-    )
-    .unwrap();
-    let mut row: PgSoundEventRow = (&e).into();
-    row.detector = "bogus".to_owned();
-    assert!(sound_event_from_row(row, tb())
-      .unwrap_err()
-      .is_unknown_discriminant());
   }
 
   #[test]
@@ -1900,7 +1854,6 @@ mod tests {
       "Speech",
       None,
       0.5,
-      CedDetector::Ced,
     )
     .unwrap();
     let mut row: PgSoundEventRow = (&e).into();

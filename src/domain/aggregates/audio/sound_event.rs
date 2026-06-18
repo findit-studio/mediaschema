@@ -13,7 +13,7 @@ use derive_more::IsVariant;
 use mediatime::TimeRange;
 use smol_str::SmolStr;
 
-use crate::domain::{CedDetector, Uuid7};
+use crate::domain::Uuid7;
 
 // ---------------------------------------------------------------------------
 // Score validation — shared by `SoundEvent`'s validating ctor / mutators
@@ -63,7 +63,6 @@ pub struct SoundEvent<Id = Uuid7> {
   label: SmolStr,
   code: Option<u64>,
   score: f32,
-  detector: CedDetector,
 }
 
 impl SoundEvent<Uuid7> {
@@ -82,7 +81,6 @@ impl SoundEvent<Uuid7> {
   /// re-validates the invariant itself. The check is on **semantic** time
   /// ([`mediatime::Timestamp::cmp_semantic`], timebase-correct) rather
   /// than raw PTS, mirroring [`AudioSegment`](super::segment::AudioSegment).
-  #[allow(clippy::too_many_arguments)]
   pub fn try_new(
     id: Uuid7,
     audio_track_id: Uuid7,
@@ -91,7 +89,6 @@ impl SoundEvent<Uuid7> {
     label: impl Into<SmolStr>,
     code: Option<u64>,
     score: f32,
-    detector: CedDetector,
   ) -> Result<Self, SoundEventError> {
     if id.is_nil() {
       return Err(SoundEventError::NilId);
@@ -113,7 +110,6 @@ impl SoundEvent<Uuid7> {
       label: label.into(),
       code,
       score,
-      detector,
     })
   }
 }
@@ -159,12 +155,6 @@ impl<Id> SoundEvent<Id> {
   #[inline(always)]
   pub const fn score(&self) -> f32 {
     self.score
-  }
-
-  /// Which detector raised this sound event.
-  #[inline(always)]
-  pub const fn detector(&self) -> CedDetector {
-    self.detector
   }
 
   // ----- Builders -----------------------------------------------------------
@@ -222,14 +212,6 @@ impl<Id> SoundEvent<Id> {
     Ok(self)
   }
 
-  /// Builder: replace `detector`.
-  #[inline(always)]
-  #[must_use]
-  pub const fn with_detector(mut self, detector: CedDetector) -> Self {
-    self.detector = detector;
-    self
-  }
-
   // ----- Setters ------------------------------------------------------------
 
   /// In-place mutator for `index`.
@@ -275,13 +257,6 @@ impl<Id> SoundEvent<Id> {
     }
     self.score = score;
     Ok(self)
-  }
-
-  /// In-place mutator for `detector`.
-  #[inline(always)]
-  pub const fn set_detector(&mut self, detector: CedDetector) -> &mut Self {
-    self.detector = detector;
-    self
   }
 }
 
@@ -340,7 +315,6 @@ mod tests {
       "Speech",
       Some(0),
       0.87,
-      CedDetector::Ced,
     )
     .expect("valid construction must succeed");
     assert_eq!(e.audio_track_id_ref(), &audio_track_id);
@@ -349,7 +323,6 @@ mod tests {
     assert_eq!(e.label(), "Speech");
     assert_eq!(e.code(), Some(0));
     assert!((e.score() - 0.87).abs() < f32::EPSILON);
-    assert!(e.detector().is_ced());
   }
 
   #[test]
@@ -362,7 +335,6 @@ mod tests {
       "Speech",
       None,
       0.5,
-      CedDetector::Ced,
     );
     assert_eq!(r.err(), Some(SoundEventError::NilId));
     assert!(SoundEventError::NilId.is_nil_id());
@@ -378,7 +350,6 @@ mod tests {
       "Speech",
       None,
       0.5,
-      CedDetector::Ced,
     );
     assert_eq!(r.err(), Some(SoundEventError::NilAudioTrackId));
     assert!(SoundEventError::NilAudioTrackId.is_nil_audio_track_id());
@@ -392,16 +363,7 @@ mod tests {
     // the fact — `SoundEvent::try_new` must re-validate.
     let inverted = TimeRange::new(1_000, 5_000, tb()).with_end(0);
     assert!(inverted.start_pts() > inverted.end_pts());
-    let r = SoundEvent::try_new(
-      Uuid7::new(),
-      Uuid7::new(),
-      0,
-      inverted,
-      "Speech",
-      None,
-      0.5,
-      CedDetector::Manual,
-    );
+    let r = SoundEvent::try_new(Uuid7::new(), Uuid7::new(), 0, inverted, "Speech", None, 0.5);
     assert_eq!(r.err(), Some(SoundEventError::InvertedSpan));
     assert!(SoundEventError::InvertedSpan.is_inverted_span());
   }
@@ -417,7 +379,6 @@ mod tests {
       "Doorbell",
       Some(42),
       1.0,
-      CedDetector::Ced,
     )
     .expect("zero-length span ok");
   }
@@ -433,33 +394,16 @@ mod tests {
         "Speech",
         None,
         bad,
-        CedDetector::Ced,
       );
       assert_eq!(r.err(), Some(SoundEventError::ScoreOutOfRange));
     }
     // boundary values are accepted
-    assert!(SoundEvent::try_new(
-      Uuid7::new(),
-      Uuid7::new(),
-      0,
-      span(0, 100),
-      "x",
-      None,
-      0.0,
-      CedDetector::Ced
-    )
-    .is_ok());
-    assert!(SoundEvent::try_new(
-      Uuid7::new(),
-      Uuid7::new(),
-      0,
-      span(0, 100),
-      "x",
-      None,
-      1.0,
-      CedDetector::Ced
-    )
-    .is_ok());
+    assert!(
+      SoundEvent::try_new(Uuid7::new(), Uuid7::new(), 0, span(0, 100), "x", None, 0.0,).is_ok()
+    );
+    assert!(
+      SoundEvent::try_new(Uuid7::new(), Uuid7::new(), 0, span(0, 100), "x", None, 1.0,).is_ok()
+    );
     assert!(SoundEventError::ScoreOutOfRange.is_score_out_of_range());
   }
 
@@ -473,13 +417,11 @@ mod tests {
       "Speech",
       Some(0),
       0.5,
-      CedDetector::Ced,
     )
     .unwrap()
     .with_index(3)
     .with_label("Music")
     .with_code(Some(137))
-    .with_detector(CedDetector::Manual)
     .try_with_score(0.9)
     .unwrap()
     .try_with_span(span(100, 800))
@@ -487,7 +429,6 @@ mod tests {
     assert_eq!(e.index(), 3);
     assert_eq!(e.label(), "Music");
     assert_eq!(e.code(), Some(137));
-    assert!(e.detector().is_manual());
     assert!((e.score() - 0.9).abs() < f32::EPSILON);
     assert_eq!(e.span_ref(), &span(100, 800));
   }
@@ -502,7 +443,6 @@ mod tests {
       "Speech",
       None,
       0.5,
-      CedDetector::Ced,
     )
     .unwrap();
     assert!(e.clone().try_with_score(f32::NAN).is_err());
@@ -530,7 +470,6 @@ mod tests {
       "Speech",
       None,
       0.5,
-      CedDetector::Ced,
     )
     .unwrap();
     let mut inverted = TimeRange::new(2_000, 8_000, tb());
@@ -554,18 +493,15 @@ mod tests {
       "Speech",
       None,
       0.5,
-      CedDetector::Ced,
     )
     .unwrap();
     e.set_index(7);
     e.set_label("Dog");
     e.set_code(Some(74));
-    e.set_detector(CedDetector::Manual);
     e.try_set_score(0.33).unwrap();
     assert_eq!(e.index(), 7);
     assert_eq!(e.label(), "Dog");
     assert_eq!(e.code(), Some(74));
-    assert!(e.detector().is_manual());
     assert!((e.score() - 0.33).abs() < f32::EPSILON);
   }
 
@@ -580,7 +516,6 @@ mod tests {
       "Siren",
       Some(316),
       0.42,
-      CedDetector::Ced,
     )
     .unwrap();
     let parts = e.into_parts();
@@ -590,7 +525,6 @@ mod tests {
     assert_eq!(parts.label, SmolStr::new("Siren"));
     assert_eq!(parts.code, Some(316));
     assert!((parts.score - 0.42).abs() < f32::EPSILON);
-    assert_eq!(parts.detector, CedDetector::Ced);
   }
 
   // `rehydrate` is gated behind `all(std, video, audio, subtitle)` (it is
@@ -608,7 +542,6 @@ mod tests {
       "Siren",
       Some(316),
       0.42,
-      CedDetector::Ced,
     )
     .unwrap();
     let back = SoundEvent::rehydrate(e.clone().into_parts());
@@ -632,7 +565,6 @@ pub struct SoundEventParts<Id = Uuid7> {
   pub label: SmolStr,
   pub code: Option<u64>,
   pub score: f32,
-  pub detector: CedDetector,
 }
 
 impl<Id> SoundEvent<Id> {
@@ -647,7 +579,6 @@ impl<Id> SoundEvent<Id> {
       label,
       code,
       score,
-      detector,
     } = self;
     SoundEventParts {
       id,
@@ -657,7 +588,6 @@ impl<Id> SoundEvent<Id> {
       label,
       code,
       score,
-      detector,
     }
   }
 }
@@ -682,7 +612,6 @@ impl<Id> SoundEvent<Id> {
       label,
       code,
       score,
-      detector,
     } = parts;
     Self {
       id,
@@ -692,7 +621,6 @@ impl<Id> SoundEvent<Id> {
       label,
       code,
       score,
-      detector,
     }
   }
 }

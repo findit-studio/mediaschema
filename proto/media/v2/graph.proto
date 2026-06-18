@@ -216,7 +216,7 @@ message AudioSegment {
 // One detected sound event (graph::SoundEvent). The graph shape drops the
 // `audio_track_id` FK (implied by nesting), mirroring AudioSegment.
 // `label` is the CED class name (`""` = unlabeled); `code` is the optional
-// class code; `detector` is the producer slug (`"ced"` | `"manual"`).
+// class code.
 message SoundEvent {
   bytes id = 1;
   uint32 index = 2;
@@ -224,7 +224,6 @@ message SoundEvent {
   string label = 4;
   optional uint64 code = 5;
   float score = 6;
-  string detector = 7;
 }
 
 // One diarized speaker (graph::Speaker). `person_id` is a cross-tree

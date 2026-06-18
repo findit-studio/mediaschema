@@ -24,8 +24,8 @@ pub mod vo;
 // Always available (pure no-std no-alloc):
 pub use bitflags::{AudioIndexStatus, MediaErrorFlags, SubtitleIndexStatus, VideoIndexStatus};
 pub use enums::{
-  AudioContentKind, AudioIndexStage, CedDetector, KeyframeExtractor, MediaKind, ScanStatus,
-  SceneDetector, SubtitleIndexStage, SubtitleKind, VideoIndexStage,
+  AudioContentKind, AudioIndexStage, KeyframeExtractor, MediaKind, ScanStatus, SceneDetector,
+  SubtitleIndexStage, SubtitleKind, VideoIndexStage,
 };
 pub use identified::Identified;
 pub use primitives::{ErrorCode, FileChecksum, Rgba, Uuid7};

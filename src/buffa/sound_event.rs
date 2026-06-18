@@ -23,13 +23,11 @@
 //! | `label: string`       | `label: SmolStr`         | CED class name; `""` = unlabeled               |
 //! | `code: optional uint64` | `code: Option<u64>`    | optional class code; absent ⇒ `None`           |
 //! | `score: float`        | `score: f32`             | validating (`[0,1]`-finite)                    |
-//! | `detector: string`    | `detector: CedDetector`  | producer slug (`"ced"` \| `"manual"`)          |
 
 use crate::{
   buffa::error::BuffaError,
   domain::{
     aggregates::audio::sound_event::{SoundEvent, SoundEventError},
-    enums::CedDetector,
     Uuid7,
   },
   generated::media::v1 as wire,
@@ -50,7 +48,6 @@ impl From<&SoundEvent<Uuid7>> for wire::SoundEvent {
       label: d.label().to_owned().into(),
       code: d.code(),
       score: d.score(),
-      detector: d.detector().as_str().to_owned().into(),
       __buffa_unknown_fields: Default::default(),
     }
   }
@@ -67,15 +64,6 @@ impl TryFrom<&wire::SoundEvent> for SoundEvent<Uuid7> {
       .as_option()
       .cloned()
       .ok_or(BuffaError::MissingRequiredField("SoundEvent.span"))?;
-    // An unrecognized slug is only reachable via a tampered / out-of-contract
-    // wire frame: a domain `CedDetector` always serializes to one of its
-    // canonical slugs. `BuffaError` has no string-slug variant
-    // (`UnknownEnumValue(i32)` is for numeric `EnumValue::Unknown` wire
-    // enums, not a string), so this surfaces as `MissingRequiredField` —
-    // the same "tampered wire ⇒ generic surface" strategy the rest of this
-    // bridge uses.
-    let detector = CedDetector::from_str(w.detector.as_str())
-      .ok_or(BuffaError::MissingRequiredField("SoundEvent.detector"))?;
 
     // No `from_parts` is needed: `try_new` is the same public reconstruction
     // surface app code uses, and the only invariant re-checks are the ones a
@@ -88,7 +76,6 @@ impl TryFrom<&wire::SoundEvent> for SoundEvent<Uuid7> {
       w.label.clone(),
       w.code,
       w.score,
-      detector,
     )
     .map_err(sound_event_error_as_buffa)
   }
@@ -144,24 +131,13 @@ mod tests {
   #[test]
   fn sound_event_minimal_roundtrip() {
     let track = Uuid7::new();
-    let d = SoundEvent::try_new(
-      Uuid7::new(),
-      track,
-      0,
-      span(0, 1500),
-      "",
-      None,
-      0.0,
-      CedDetector::Ced,
-    )
-    .unwrap();
+    let d = SoundEvent::try_new(Uuid7::new(), track, 0, span(0, 1500), "", None, 0.0).unwrap();
     let w: wire::SoundEvent = (&d).into();
     let d2 = SoundEvent::try_from(&w).unwrap();
     assert_eq!(d, d2);
     assert_eq!(d2.audio_track_id_ref(), &track);
     assert_eq!(d2.label(), "");
     assert_eq!(d2.code(), None);
-    assert!(d2.detector().is_ced());
   }
 
   #[test]
@@ -174,7 +150,6 @@ mod tests {
       "Siren",
       Some(316),
       0.42,
-      CedDetector::Manual,
     )
     .unwrap();
     let w: wire::SoundEvent = (&d).into();
@@ -184,7 +159,6 @@ mod tests {
     assert_eq!(d2.label(), "Siren");
     assert_eq!(d2.code(), Some(316));
     assert!((d2.score() - 0.42).abs() < f32::EPSILON);
-    assert!(d2.detector().is_manual());
   }
 
   #[test]
@@ -197,7 +171,6 @@ mod tests {
       "Speech",
       None,
       0.5,
-      CedDetector::Ced,
     )
     .unwrap();
     let mut w: wire::SoundEvent = (&d).into();
@@ -216,7 +189,6 @@ mod tests {
       "Speech",
       None,
       0.5,
-      CedDetector::Ced,
     )
     .unwrap();
     let mut w: wire::SoundEvent = (&d).into();
@@ -235,7 +207,6 @@ mod tests {
       "Speech",
       None,
       0.5,
-      CedDetector::Ced,
     )
     .unwrap();
     let mut w: wire::SoundEvent = (&d).into();
@@ -254,32 +225,12 @@ mod tests {
       "Speech",
       None,
       0.5,
-      CedDetector::Ced,
     )
     .unwrap();
     let mut w: wire::SoundEvent = (&d).into();
     w.audio_track_id = Bytes::copy_from_slice(&[0u8; 7]);
     let err = SoundEvent::try_from(&w).unwrap_err();
     assert!(err.is_id_wrong_length());
-  }
-
-  #[test]
-  fn sound_event_unknown_detector_slug_errors() {
-    let d = SoundEvent::try_new(
-      Uuid7::new(),
-      Uuid7::new(),
-      0,
-      span(0, 500),
-      "Speech",
-      None,
-      0.5,
-      CedDetector::Ced,
-    )
-    .unwrap();
-    let mut w: wire::SoundEvent = (&d).into();
-    w.detector = "not_a_detector".into();
-    let err = SoundEvent::try_from(&w).unwrap_err();
-    assert!(err.is_missing_required_field());
   }
 
   #[test]
@@ -292,7 +243,6 @@ mod tests {
       "Speech",
       None,
       0.5,
-      CedDetector::Ced,
     )
     .unwrap();
     let mut w: wire::SoundEvent = (&d).into();

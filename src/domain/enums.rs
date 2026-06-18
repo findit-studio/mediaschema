@@ -110,46 +110,6 @@ impl SceneDetector {
 }
 
 // ===========================================================================
-// CedDetector — which sound-event detector produced a SoundEvent
-// ===========================================================================
-
-/// Which sound-event detector raised a `SoundEvent`. The audio analog of
-/// [`SceneDetector`]: `Ced` is the soundevents **CED** (sound-event
-/// detector) model run in the audio `CED_DONE` stage, `Manual` is the
-/// user-created / imported escape hatch. `#[non_exhaustive]` — the audio
-/// pipeline may add detectors (e.g. a future CLAP-based tagger).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, IsVariant, Display)]
-#[display("{}", self.as_str())]
-#[non_exhaustive]
-pub enum CedDetector {
-  /// The soundevents CED (sound-event detector) model.
-  Ced,
-  /// User-created / imported sound event (not from a detector).
-  Manual,
-}
-
-impl CedDetector {
-  /// Stable snake_case slug — the canonical string form of every variant.
-  #[inline(always)]
-  pub const fn as_str(&self) -> &'static str {
-    match self {
-      Self::Ced => "ced",
-      Self::Manual => "manual",
-    }
-  }
-  /// Inverse of [`as_str`](Self::as_str). Returns `None` for any input
-  /// that isn't an exact match of one of the slugs.
-  #[inline]
-  pub fn from_str(s: &str) -> Option<Self> {
-    Some(match s {
-      "ced" => Self::Ced,
-      "manual" => Self::Manual,
-      _ => return None,
-    })
-  }
-}
-
-// ===========================================================================
 // KeyframeExtractor — which extractor produced a Keyframe
 // ===========================================================================
 
@@ -814,14 +774,6 @@ mod slug_tests {
       assert_eq!(SceneDetector::from_str(v.as_str()), Some(v), "{v:?}");
     }
     assert_eq!(SceneDetector::from_str("not_a_slug"), None);
-  }
-
-  #[test]
-  fn ced_detector_slug_roundtrip() {
-    for v in [CedDetector::Ced, CedDetector::Manual] {
-      assert_eq!(CedDetector::from_str(v.as_str()), Some(v), "{v:?}");
-    }
-    assert_eq!(CedDetector::from_str("not_a_slug"), None);
   }
 
   #[test]

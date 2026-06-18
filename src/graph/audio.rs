@@ -24,8 +24,8 @@ use crate::domain::{
     },
     speaker::SpeakerParts,
   },
-  AudioContentKind, AudioIndexStatus, CedDetector, ErrorInfo, IndexProgress, LocalizedText,
-  Provenance, Uuid7, VoiceFingerprint, Word,
+  AudioContentKind, AudioIndexStatus, ErrorInfo, IndexProgress, LocalizedText, Provenance, Uuid7,
+  VoiceFingerprint, Word,
 };
 
 /// The audio facet with its complete track subtrees.
@@ -602,7 +602,6 @@ pub struct SoundEvent<Id = Uuid7> {
   label: SmolStr,
   code: Option<u64>,
   score: f32,
-  detector: CedDetector,
 }
 
 impl SoundEvent<Uuid7> {
@@ -619,7 +618,6 @@ impl SoundEvent<Uuid7> {
       label,
       code,
       score,
-      detector,
     } = sound_event.into_parts();
     parent_check(NodeKind::SoundEvent, id, &audio_track_id, expected_track)?;
     Ok(Self {
@@ -629,7 +627,6 @@ impl SoundEvent<Uuid7> {
       label,
       code,
       score,
-      detector,
     })
   }
 }
@@ -666,11 +663,6 @@ impl<Id> SoundEvent<Id> {
   #[inline(always)]
   pub const fn score(&self) -> f32 {
     self.score
-  }
-
-  #[inline(always)]
-  pub const fn detector(&self) -> CedDetector {
-    self.detector
   }
 }
 
@@ -767,17 +759,9 @@ mod tests {
     let track_id = *track.id_ref();
     let segment =
       domain::AudioSegment::try_new(Uuid7::new(), track_id, 0, span()).expect("valid segment");
-    let sound_event = domain::SoundEvent::try_new(
-      Uuid7::new(),
-      track_id,
-      0,
-      span(),
-      "Speech",
-      Some(0),
-      0.9,
-      crate::domain::CedDetector::Ced,
-    )
-    .expect("valid sound event");
+    let sound_event =
+      domain::SoundEvent::try_new(Uuid7::new(), track_id, 0, span(), "Speech", Some(0), 0.9)
+        .expect("valid sound event");
     let speaker = domain::Speaker::try_new(Uuid7::new(), track_id, 0, "S1").expect("valid speaker");
     let node = AudioTrack::try_from_flat(
       &audio_id,
@@ -815,17 +799,9 @@ mod tests {
   fn sound_event_under_wrong_track_is_rejected_via_track_lift() {
     let audio_id = Uuid7::new();
     let track = domain::AudioTrack::try_new(Uuid7::new(), audio_id).expect("valid track");
-    let sound_event = domain::SoundEvent::try_new(
-      Uuid7::new(),
-      Uuid7::new(),
-      0,
-      span(),
-      "Speech",
-      None,
-      0.9,
-      crate::domain::CedDetector::Ced,
-    )
-    .expect("valid sound event");
+    let sound_event =
+      domain::SoundEvent::try_new(Uuid7::new(), Uuid7::new(), 0, span(), "Speech", None, 0.9)
+        .expect("valid sound event");
     let err = AudioTrack::try_from_flat(&audio_id, track, vec![], vec![sound_event], vec![])
       .expect_err("incoherent");
     assert!(matches!(
@@ -857,39 +833,22 @@ mod tests {
   #[test]
   fn sound_event_lifts_and_drops_fk() {
     let track_id = Uuid7::new();
-    let flat = domain::SoundEvent::try_new(
-      Uuid7::new(),
-      track_id,
-      0,
-      span(),
-      "Speech",
-      Some(0),
-      0.9,
-      crate::domain::CedDetector::Ced,
-    )
-    .expect("valid sound event");
+    let flat =
+      domain::SoundEvent::try_new(Uuid7::new(), track_id, 0, span(), "Speech", Some(0), 0.9)
+        .expect("valid sound event");
     let event_id = *flat.id_ref();
     let node = SoundEvent::try_from_flat(&track_id, flat).expect("coherent");
     assert_eq!(node.id_ref(), &event_id);
     assert_eq!(node.label(), "Speech");
     assert_eq!(node.code(), Some(0));
-    assert!(node.detector().is_ced());
   }
 
   #[test]
   fn sound_event_under_wrong_track_is_rejected() {
     let track_id = Uuid7::new();
-    let flat = domain::SoundEvent::try_new(
-      Uuid7::new(),
-      Uuid7::new(),
-      0,
-      span(),
-      "Speech",
-      None,
-      0.9,
-      crate::domain::CedDetector::Ced,
-    )
-    .expect("valid sound event");
+    let flat =
+      domain::SoundEvent::try_new(Uuid7::new(), Uuid7::new(), 0, span(), "Speech", None, 0.9)
+        .expect("valid sound event");
     let err = SoundEvent::try_from_flat(&track_id, flat).expect_err("incoherent");
     assert!(matches!(
       err,
@@ -1125,7 +1084,6 @@ impl From<(Uuid7, SoundEvent<Uuid7>)> for domain::SoundEvent<Uuid7> {
       label,
       code,
       score,
-      detector,
     } = g;
     domain::SoundEvent::rehydrate(SoundEventParts {
       id,
@@ -1135,7 +1093,6 @@ impl From<(Uuid7, SoundEvent<Uuid7>)> for domain::SoundEvent<Uuid7> {
       label,
       code,
       score,
-      detector,
     })
   }
 }
@@ -1207,7 +1164,6 @@ mod conv_tests {
       "Music",
       Some(137),
       0.75,
-      crate::domain::CedDetector::Ced,
     )
     .expect("valid sound event");
     let lifted: SoundEvent<Uuid7> = (track_id, flat.clone()).try_into().expect("coherent");
