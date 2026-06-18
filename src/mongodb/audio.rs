@@ -19,7 +19,7 @@ use crate::domain::{
     track::AudioTrack,
   },
   bitflags::AudioIndexStatus,
-  enums::{AudioContentKind, CedDetector},
+  enums::AudioContentKind,
   vo::IndexProgress,
   Uuid7,
 };
@@ -45,28 +45,6 @@ fn content_kind_from_i64(v: i64, field: &'static str) -> Result<AudioContentKind
     1 => Ok(AudioContentKind::Music),
     2 => Ok(AudioContentKind::Mixed),
     3 => Ok(AudioContentKind::Silence),
-    _ => Err(MongoError::IntOutOfRange {
-      field: SmolStr::from(field),
-      value: v,
-    }),
-  }
-}
-
-// ---------------------------------------------------------------------------
-// CedDetector ↔ Int32
-// ---------------------------------------------------------------------------
-
-fn ced_detector_to_i32(d: CedDetector) -> i32 {
-  match d {
-    CedDetector::Ced => 0,
-    CedDetector::Manual => 1,
-  }
-}
-
-fn ced_detector_from_i64(v: i64, field: &'static str) -> Result<CedDetector, MongoError> {
-  match v {
-    0 => Ok(CedDetector::Ced),
-    1 => Ok(CedDetector::Manual),
     _ => Err(MongoError::IntOutOfRange {
       field: SmolStr::from(field),
       value: v,
@@ -423,6 +401,8 @@ impl From<&AudioTrack<Uuid7>> for Document {
         .unwrap_or(Bson::Null),
     );
     d.insert("provenance", provenance_to_bson(t.provenance_ref()));
+    d.insert("vad_provenance", provenance_to_bson(t.vad_provenance_ref()));
+    d.insert("ced_provenance", provenance_to_bson(t.ced_provenance_ref()));
     d.insert("index_status", Bson::Int64(t.index_status().bits() as i64));
     d.insert(
       "index_errors",
@@ -558,6 +538,12 @@ impl TryFrom<Document> for AudioTrack<Uuid7> {
     }
     if let Some(b) = take_opt(&mut d, "provenance") {
       t.set_provenance(provenance_from_bson(b, "provenance")?);
+    }
+    if let Some(b) = take_opt(&mut d, "vad_provenance") {
+      t.set_vad_provenance(provenance_from_bson(b, "vad_provenance")?);
+    }
+    if let Some(b) = take_opt(&mut d, "ced_provenance") {
+      t.set_ced_provenance(provenance_from_bson(b, "ced_provenance")?);
     }
     if let Some(b) = take_opt(&mut d, "index_status") {
       let bits = as_u64(b, "index_status")?;
@@ -711,8 +697,7 @@ impl TryFrom<Document> for AudioSegment<Uuid7> {
 // ---------------------------------------------------------------------------
 //
 // The audio analog of `Scene`: a flat document with no nested collection.
-// `detector` rides as Int32 (mirroring `Scene.detector`); `code`
-// (`Option<u64>`) rides as Int64 or `Null`.
+// `code` (`Option<u64>`) rides as Int64 or `Null`.
 
 impl From<&SoundEvent<Uuid7>> for Document {
   fn from(e: &SoundEvent<Uuid7>) -> Self {
@@ -729,7 +714,6 @@ impl From<&SoundEvent<Uuid7>> for Document {
         .unwrap_or(Bson::Null),
     );
     d.insert("score", Bson::Double(e.score() as f64));
-    d.insert("detector", Bson::Int32(ced_detector_to_i32(e.detector())));
     d
   }
 }
@@ -745,19 +729,8 @@ impl TryFrom<Document> for SoundEvent<Uuid7> {
     let label = as_smol(take(&mut d, "label")?, "label")?;
     let code = opt(take_opt(&mut d, "code"), |b| as_u64(b, "code"))?;
     let score = as_f32(take(&mut d, "score")?, "score")?;
-    let detector =
-      ced_detector_from_i64(as_i64(take(&mut d, "detector")?, "detector")?, "detector")?;
-    SoundEvent::try_new(
-      id,
-      audio_track_id,
-      index,
-      span,
-      label,
-      code,
-      score,
-      detector,
-    )
-    .map_err(|e: SoundEventError| MongoError::DomainConstructorRejected(e.to_string()))
+    SoundEvent::try_new(id, audio_track_id, index, span, label, code, score)
+      .map_err(|e: SoundEventError| MongoError::DomainConstructorRejected(e.to_string()))
   }
 }
 
@@ -857,6 +830,8 @@ mod tests {
         CoverArt::try_new("image/jpeg", vec![0xFFu8, 0xD8, 0xFF]).unwrap(),
       ))
       .with_provenance(Provenance::from_parts("asry", "1.0", "p", "idx"))
+      .with_vad_provenance(Provenance::from_parts("silero", "v5", "p", "idx"))
+      .with_ced_provenance(Provenance::from_parts("ced-net", "v2", "p", "idx"))
       .try_with_index_status(AudioIndexStatus::EXTRACTED | AudioIndexStatus::VAD_DONE)
       .unwrap()
       .with_index_errors(vec![ErrorInfo::new(ErrorCode::ProbeCorrupt, "bad header")]);
@@ -960,7 +935,6 @@ mod tests {
       "Speech",
       None,
       0.5,
-      CedDetector::Ced,
     )
     .unwrap();
     let doc: Document = (&e).into();
@@ -980,33 +954,12 @@ mod tests {
       "Siren",
       Some(316),
       0.87,
-      CedDetector::Manual,
     )
     .unwrap();
     let doc: Document = (&e).into();
     assert_eq!(doc.get("code"), Some(&Bson::Int64(316)));
-    assert_eq!(doc.get("detector"), Some(&Bson::Int32(1)));
     let e2: SoundEvent<Uuid7> = doc.try_into().unwrap();
     assert_eq!(e, e2);
-  }
-
-  #[test]
-  fn sound_event_unknown_detector_rejected() {
-    let e = SoundEvent::try_new(
-      Uuid7::new(),
-      Uuid7::new(),
-      0,
-      sp(0, 100),
-      "Speech",
-      None,
-      0.5,
-      CedDetector::Ced,
-    )
-    .unwrap();
-    let mut doc: Document = (&e).into();
-    doc.insert("detector", Bson::Int32(99));
-    let err = SoundEvent::<Uuid7>::try_from(doc).unwrap_err();
-    assert!(err.is_int_out_of_range());
   }
 
   #[test]
@@ -1025,7 +978,6 @@ mod tests {
     d.insert("label", Bson::String("Speech".to_owned()));
     d.insert("code", Bson::Null);
     d.insert("score", Bson::Double(0.5));
-    d.insert("detector", Bson::Int32(0));
     let err = SoundEvent::<Uuid7>::try_from(d).unwrap_err();
     assert!(err.is_uuid_7());
   }

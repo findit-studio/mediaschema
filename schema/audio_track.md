@@ -64,6 +64,8 @@ track. Conversions deferred.
 | `sound_events` | `Vec<Id>` | — | → `SoundEvent` (**A-loc per-track**, CED); `Audio.total_sound_events` rolls these up |
 | `metadata` | `IndexMap<SmolStr, SmolStr>` | — | container `AVDictionary` entries from this stream, with the keys hoisted into `Tags` and `language` already consumed. Insertion-ordered. SQL projection: `audio_track_metadata` join table with `(audio_track_id, ordinal, key, value)` |
 | `provenance` | `Provenance` (shared VO) | — | analysis-run reproducibility |
+| `vad_provenance` | `Provenance` (shared VO) | — | provenance of the VAD (voice-activity) model that produced this track's `SpeechSegment`s; distinct from the general analysis `provenance` |
+| `ced_provenance` | `Provenance` (shared VO) | — | provenance of the CED (sound-event) model that produced this track's `SoundEvent`s; distinct from the general `provenance` and from `vad_provenance` |
 | `index_status` | `AudioIndexStatus` (bitflags `u32`) | status | the **verified 11-bit `ProcessingStage`** (below) |
 | `index_errors` | `Vec<ErrorInfo>` | index errors | per-track truth (stage-coded `ErrorInfo.code`); → `Media.error_flags` rollup; error-state **derived** (no `error_status`) |
 

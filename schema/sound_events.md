@@ -3,7 +3,7 @@
 ## Domain meaning
 
 One **detected, time-ranged sound classification** on an **audio track** —
-the audio analog of [`Scene`](scene.md)'s detector field. Where `Scene`
+the audio analog of [`Scene`](scene.md). Where `Scene`
 records a detected video segment, `SoundEvent` records a sound the **CED**
 (sound-event detector) raised over a window of an `AudioTrack`: a `label`
 (class name, e.g. *"Speech"* / *"Music"* / *"Doorbell"*), an optional stable
@@ -46,7 +46,6 @@ flat + media.v2 graph) bridges are all implemented (see Projection notes).
 | `label` | `SmolStr` | CED | CED class name, e.g. `"Speech"`; `""` = absent |
 | `code` | `Option<u64>` | CED | stable soundevents dataset code (the src `CedTag` u64); `None` = unmapped class |
 | `score` | `f32` ∈ `[0,1]` | CED | detection confidence; finite, validated `[0,1]` |
-| `detector` | `CedDetector` (enum) | — | which detector raised this event |
 
 `score` is a validated raw `f32` (finite, `[0,1]`), mirroring this
 cluster's `Word.score`. It is **not** the video-cluster `Confidence`
@@ -54,10 +53,8 @@ value-object: `Confidence` lives behind the `video` feature, and
 `SoundEvent` is an `audio`-feature aggregate that must compile without
 `video` — the invariant is identical either way.
 
-**`CedDetector`** (mediaschema-owned enum; the audio analog of
-`SceneDetector`): `Ced` (the soundevents CED model) · `Manual`
-(user-created / imported event). `#[non_exhaustive]` — the audio pipeline
-may add detectors (e.g. a future CLAP-based tagger).
+The CED model that produced this track's sound events is recorded
+per-track on [`AudioTrack.ced_provenance`](audio_track.md), not per event.
 
 ## Invariants
 
@@ -83,17 +80,17 @@ may add detectors (e.g. a future CLAP-based tagger).
 
 - **sqlx**: `sound_events` table; `id` PK; `audio_track_id` FK →
   `audio_track`; `span` → `start_pts` / `end_pts`; `label` text; `code`
-  nullable `BIGINT`; `score` `REAL`; `detector` text slug;
-  `(audio_track_id, index)` unique. No vector column.
+  nullable `BIGINT`; `score` `REAL`; `(audio_track_id, index)` unique. No
+  vector column.
 - **mongodb**: `sound_events` collection; `_id` = UUIDv7; flat scalars;
-  `detector` as `Int32`; FK + `(audio_track_id, index)` indexes.
+  FK + `(audio_track_id, index)` indexes.
 - **buffa**: media.v1 flat `SoundEvent` (carries `audio_track_id`) +
   media.v2 graph `SoundEvent` (drops the FK; nested `repeated SoundEvent
   sound_events = 38` on `AudioTrack`).
 
 **Status: drafted (rev 2).** Thin detected sound event:
 `id` / `audio_track_id`(→AudioTrack) / `index` / `span`(mediatime) /
-`label` / `code` / `score` / `detector`(`CedDetector`). `Provenance` lives
+`label` / `code` / `score`. `Provenance` lives
 on `AudioTrack` (per-track-per-run, not per-event); embeddings → external
 vector store. Hooked into `AudioTrack` at full `AudioSegment` parity
 (`sound_events` refs + `Audio.total_sound_events` rollup + graph

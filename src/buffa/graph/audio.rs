@@ -40,6 +40,8 @@
 //! | `sound_events: repeated SoundEvent`     | `sound_events: Vec<_>`        | children embedded                              |
 //! | `metadata: repeated KeyValue`           | `metadata: IndexMap`          | insertion order preserved                      |
 //! | `provenance: Provenance`                | `provenance`                  | unset ⇒ empty                                  |
+//! | `vad_provenance: Provenance`            | `vad_provenance`              | unset ⇒ empty; VAD-model provenance, distinct from `provenance` |
+//! | `ced_provenance: Provenance`            | `ced_provenance`              | unset ⇒ empty; CED-model provenance, distinct from `provenance` and `vad_provenance` |
 //! | `index_status: uint32`                  | `index_status: AudioIndexStatus` | raw bits; decode re-runs the topology + descriptor invariants |
 //! | `index_errors: repeated ErrorInfo`      | `index_errors: Vec<_>`        |                                                |
 //!
@@ -54,9 +56,8 @@
 //! ## Field correspondence — `SoundEvent`
 //!
 //! Same shape as the v1 [`sound_event`](crate::buffa::sound_event) bridge
-//! minus the `audio_track_id` FK (implied by nesting); `detector` is the
-//! producer slug (`"ced"` | `"manual"`) and the whole record reconstructs
-//! in the single validating `try_new` (no nested children).
+//! minus the `audio_track_id` FK (implied by nesting); the whole record
+//! reconstructs in the single validating `try_new` (no nested children).
 //!
 //! ## Field correspondence — `Speaker`
 //!
@@ -78,7 +79,7 @@ use crate::{
     vo::localized_text_from_wire,
     voice_fingerprint::{voice_fingerprint_from_wire, voice_fingerprint_to_wire},
   },
-  domain::{self, AudioContentKind, AudioIndexStatus, CedDetector, Uuid7, Word},
+  domain::{self, AudioContentKind, AudioIndexStatus, Uuid7, Word},
   generated::media::{v1 as wire1, v2 as wire},
   graph,
 };
@@ -176,6 +177,8 @@ impl From<&graph::AudioTrack<Uuid7>> for wire::AudioTrack {
         .collect(),
       metadata: metadata_to_wire(g.metadata_ref()),
       provenance: provenance_to_wire(g.provenance_ref()),
+      vad_provenance: provenance_to_wire(g.vad_provenance_ref()),
+      ced_provenance: provenance_to_wire(g.ced_provenance_ref()),
       index_status: g.index_status().bits(),
       index_errors: errors_to_wire(g.index_errors_slice()),
       __buffa_unknown_fields: Default::default(),
@@ -237,6 +240,8 @@ fn audio_track_from_wire(
     .with_cover_art(w.cover_art.as_option().cloned())
     .with_metadata(metadata_from_wire(&w.metadata))
     .with_provenance(provenance_from_wire(&w.provenance))
+    .with_vad_provenance(provenance_from_wire(&w.vad_provenance))
+    .with_ced_provenance(provenance_from_wire(&w.ced_provenance))
     .with_index_errors(errors_from_wire(&w.index_errors));
   if let Some(v) = w.channel_layout.as_option() {
     t = t.with_channel_layout(v.clone());
@@ -372,7 +377,6 @@ impl From<&graph::SoundEvent<Uuid7>> for wire::SoundEvent {
       label: SmolStr::from(g.label()),
       code: g.code(),
       score: g.score(),
-      detector: SmolStr::from(g.detector().as_str()),
       __buffa_unknown_fields: Default::default(),
     }
   }
@@ -390,12 +394,6 @@ fn flat_sound_event(
     .span
     .as_option()
     .ok_or(BuffaError::MissingRequiredField("SoundEvent.span"))?;
-  // An unrecognized slug is only reachable via a tampered / out-of-contract
-  // wire frame: a domain `CedDetector` always serializes to a canonical
-  // slug. Surface it as the same generic "rejected" error the rest of this
-  // bridge uses for out-of-contract payloads.
-  let detector = CedDetector::from_str(w.detector.as_str())
-    .ok_or_else(|| unknown_slug("SoundEvent.detector", w.detector.as_str()))?;
   domain::SoundEvent::try_new(
     id,
     audio_track_id,
@@ -404,7 +402,6 @@ fn flat_sound_event(
     w.label.as_str(),
     w.code,
     w.score,
-    detector,
   )
   .map_err(rejected)
 }
@@ -550,7 +547,6 @@ mod tests {
       "Siren",
       Some(316),
       0.42,
-      CedDetector::Manual,
     )
     .expect("valid sound event")
   }
@@ -586,6 +582,13 @@ mod tests {
       .with_provenance(Provenance::from_parts(
         "whisper",
         "v3",
+        "p-1",
+        "indexer-0.1",
+      ))
+      .with_vad_provenance(Provenance::from_parts("silero", "v5", "p-1", "indexer-0.1"))
+      .with_ced_provenance(Provenance::from_parts(
+        "ced-net",
+        "v2",
         "p-1",
         "indexer-0.1",
       ))

@@ -33,8 +33,8 @@ use crate::{
       AudioTrackError, Word,
     },
     vo::{IndexProgress, Provenance, VoiceFingerprint},
-    Audio, AudioContentKind, AudioIndexStatus, AudioSegment, AudioTrack, CedDetector, ErrorCode,
-    ErrorInfo, SoundEvent, Uuid7,
+    Audio, AudioContentKind, AudioIndexStatus, AudioSegment, AudioTrack, ErrorCode, ErrorInfo,
+    SoundEvent, Uuid7,
   },
   sqlx::{
     dto::{bytes_to_uuid7, millis_to_timestamp, timestamp_from_parts, timestamp_to_millis},
@@ -195,6 +195,14 @@ pub struct MySqlAudioTrackRow {
   pub provenance_model_version: String,
   pub provenance_prompt_version: String,
   pub provenance_indexer_version: String,
+  pub vad_provenance_model_name: String,
+  pub vad_provenance_model_version: String,
+  pub vad_provenance_prompt_version: String,
+  pub vad_provenance_indexer_version: String,
+  pub ced_provenance_model_name: String,
+  pub ced_provenance_model_version: String,
+  pub ced_provenance_prompt_version: String,
+  pub ced_provenance_indexer_version: String,
   pub index_status: i64,
 }
 
@@ -233,6 +241,8 @@ impl From<&AudioTrack<Uuid7>>
     let cover = t.cover_art_ref();
     let tags = t.tags_ref();
     let prov = t.provenance_ref();
+    let vad_prov = t.vad_provenance_ref();
+    let ced_prov = t.ced_provenance_ref();
     let duration = t.duration_ref();
     let start_pts = t.start_pts_ref();
     let row = MySqlAudioTrackRow {
@@ -299,6 +309,14 @@ impl From<&AudioTrack<Uuid7>>
       provenance_model_version: prov.model_version().to_owned(),
       provenance_prompt_version: prov.prompt_version().to_owned(),
       provenance_indexer_version: prov.indexer_version().to_owned(),
+      vad_provenance_model_name: vad_prov.model_name().to_owned(),
+      vad_provenance_model_version: vad_prov.model_version().to_owned(),
+      vad_provenance_prompt_version: vad_prov.prompt_version().to_owned(),
+      vad_provenance_indexer_version: vad_prov.indexer_version().to_owned(),
+      ced_provenance_model_name: ced_prov.model_name().to_owned(),
+      ced_provenance_model_version: ced_prov.model_version().to_owned(),
+      ced_provenance_prompt_version: ced_prov.prompt_version().to_owned(),
+      ced_provenance_indexer_version: ced_prov.indexer_version().to_owned(),
       index_status: i64::from(t.index_status().bits()),
     };
     let errors = t
@@ -479,6 +497,18 @@ pub fn audio_track_from_rows(
       r.provenance_model_version,
       r.provenance_prompt_version,
       r.provenance_indexer_version,
+    ));
+    t = t.with_vad_provenance(crate::domain::vo::Provenance::from_parts(
+      r.vad_provenance_model_name,
+      r.vad_provenance_model_version,
+      r.vad_provenance_prompt_version,
+      r.vad_provenance_indexer_version,
+    ));
+    t = t.with_ced_provenance(crate::domain::vo::Provenance::from_parts(
+      r.ced_provenance_model_name,
+      r.ced_provenance_model_version,
+      r.ced_provenance_prompt_version,
+      r.ced_provenance_indexer_version,
     ));
 
     let status = AudioIndexStatus::from_bits_truncate(u32_from_i64(
@@ -706,9 +736,8 @@ pub fn audio_segment_from_rows(
 /// UUIDs ride as `BINARY(16)` (`Vec<u8>`). `span` flattens to `start_pts` /
 /// `end_pts` PTS ticks only; the timebase lives on the parent `audio_track`
 /// (a single stream has one timebase for all of its sound events). `code`
-/// (`Option<u64>`) rides as a nullable `BIGINT`. `detector`
-/// ([`CedDetector`]) rides as a `text` slug. There is no nested collection,
-/// so unlike `AudioSegment` there is no child table.
+/// (`Option<u64>`) rides as a nullable `BIGINT`. There is no nested
+/// collection, so unlike `AudioSegment` there is no child table.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlSoundEventRow {
   pub id: Vec<u8>,
@@ -720,7 +749,6 @@ pub struct MySqlSoundEventRow {
   /// Stable soundevents dataset code; NULL = unmapped class.
   pub code: Option<i64>,
   pub score: f32,
-  pub detector: String,
 }
 
 impl From<&SoundEvent<Uuid7>> for MySqlSoundEventRow {
@@ -735,7 +763,6 @@ impl From<&SoundEvent<Uuid7>> for MySqlSoundEventRow {
       label: e.label().to_owned(),
       code: e.code().map(|c| c as i64),
       score: e.score(),
-      detector: ced_detector_to_slug(e.detector()).to_owned(),
     }
   }
 }
@@ -757,7 +784,6 @@ pub fn sound_event_from_row(
         r.span_start_pts, r.span_end_pts
       ))
     })?;
-  let detector = parse_ced_detector(&r.detector)?;
   SoundEvent::try_new(
     id,
     audio_track_id,
@@ -766,7 +792,6 @@ pub fn sound_event_from_row(
     r.label,
     r.code.map(|c| c as u64),
     r.score,
-    detector,
   )
   .map_err(|e: SoundEventError| SqlxError::DomainConstructorRejected(e.to_string()))
 }
@@ -884,6 +909,14 @@ pub struct MySqlAudioTrackRowRef<'r> {
   pub provenance_model_version: &'r str,
   pub provenance_prompt_version: &'r str,
   pub provenance_indexer_version: &'r str,
+  pub vad_provenance_model_name: &'r str,
+  pub vad_provenance_model_version: &'r str,
+  pub vad_provenance_prompt_version: &'r str,
+  pub vad_provenance_indexer_version: &'r str,
+  pub ced_provenance_model_name: &'r str,
+  pub ced_provenance_model_version: &'r str,
+  pub ced_provenance_prompt_version: &'r str,
+  pub ced_provenance_indexer_version: &'r str,
   pub index_status: i64,
 }
 
@@ -972,6 +1005,14 @@ impl MySqlAudioTrackRow {
       provenance_model_version: &self.provenance_model_version,
       provenance_prompt_version: &self.provenance_prompt_version,
       provenance_indexer_version: &self.provenance_indexer_version,
+      vad_provenance_model_name: &self.vad_provenance_model_name,
+      vad_provenance_model_version: &self.vad_provenance_model_version,
+      vad_provenance_prompt_version: &self.vad_provenance_prompt_version,
+      vad_provenance_indexer_version: &self.vad_provenance_indexer_version,
+      ced_provenance_model_name: &self.ced_provenance_model_name,
+      ced_provenance_model_version: &self.ced_provenance_model_version,
+      ced_provenance_prompt_version: &self.ced_provenance_prompt_version,
+      ced_provenance_indexer_version: &self.ced_provenance_indexer_version,
       index_status: self.index_status,
     }
   }
@@ -1141,6 +1182,18 @@ impl<'r>
       r.provenance_model_version,
       r.provenance_prompt_version,
       r.provenance_indexer_version,
+    ));
+    t = t.with_vad_provenance(crate::domain::vo::Provenance::from_parts(
+      r.vad_provenance_model_name,
+      r.vad_provenance_model_version,
+      r.vad_provenance_prompt_version,
+      r.vad_provenance_indexer_version,
+    ));
+    t = t.with_ced_provenance(crate::domain::vo::Provenance::from_parts(
+      r.ced_provenance_model_name,
+      r.ced_provenance_model_version,
+      r.ced_provenance_prompt_version,
+      r.ced_provenance_indexer_version,
     ));
 
     let status = AudioIndexStatus::from_bits_truncate(u32_from_i64(
@@ -1373,25 +1426,6 @@ fn seg_err(e: AudioSegmentError) -> SqlxError {
   SqlxError::DomainConstructorRejected(e.to_string())
 }
 
-fn ced_detector_to_slug(d: CedDetector) -> &'static str {
-  match d {
-    CedDetector::Ced => "ced",
-    CedDetector::Manual => "manual",
-  }
-}
-
-fn parse_ced_detector(s: &str) -> Result<CedDetector, SqlxError> {
-  Ok(match s {
-    "ced" => CedDetector::Ced,
-    "manual" => CedDetector::Manual,
-    other => {
-      return Err(SqlxError::UnknownDiscriminant(format!(
-        "CedDetector slug: {other}"
-      )))
-    }
-  })
-}
-
 fn u32_from_i64(v: i64, what: &str) -> Result<u32, SqlxError> {
   u32::try_from(v).map_err(|e| SqlxError::UnknownDiscriminant(format!("{what}: {e}")))
 }
@@ -1541,6 +1575,12 @@ mod tests {
       .with_provenance(crate::domain::vo::Provenance::from_parts(
         "asry", "1.0", "p1", "idx-2",
       ))
+      .with_vad_provenance(crate::domain::vo::Provenance::from_parts(
+        "silero", "v5", "p1", "idx-2",
+      ))
+      .with_ced_provenance(crate::domain::vo::Provenance::from_parts(
+        "ced-net", "v2", "p1", "idx-2",
+      ))
       .try_with_index_status(AudioIndexStatus::EXTRACTED | AudioIndexStatus::VAD_DONE)
       .unwrap()
       .with_index_errors(std::vec![ErrorInfo::new(ErrorCode::ProbeCorrupt, "bad")]);
@@ -1650,6 +1690,12 @@ mod tests {
       .with_provenance(crate::domain::vo::Provenance::from_parts(
         "asry", "1.0", "p1", "idx-2",
       ))
+      .with_vad_provenance(crate::domain::vo::Provenance::from_parts(
+        "silero", "v5", "p1", "idx-2",
+      ))
+      .with_ced_provenance(crate::domain::vo::Provenance::from_parts(
+        "ced-net", "v2", "p1", "idx-2",
+      ))
       .try_with_index_status(AudioIndexStatus::EXTRACTED)
       .unwrap()
       .with_index_errors(std::vec![ErrorInfo::new(ErrorCode::ProbeCorrupt, "bad")]);
@@ -1705,7 +1751,6 @@ mod tests {
       "Speech",
       None,
       0.5,
-      CedDetector::Ced,
     )
     .unwrap();
     let row: MySqlSoundEventRow = (&e).into();
@@ -1724,34 +1769,12 @@ mod tests {
       "Siren",
       Some(316),
       0.87,
-      CedDetector::Manual,
     )
     .unwrap();
     let row: MySqlSoundEventRow = (&e).into();
     assert_eq!(row.code, Some(316));
-    assert_eq!(row.detector, "manual");
     let e2 = sound_event_from_row(row, tb()).unwrap();
     assert_eq!(e, e2);
-  }
-
-  #[test]
-  fn sound_event_row_with_unknown_detector_rejected() {
-    let e = SoundEvent::try_new(
-      Uuid7::new(),
-      Uuid7::new(),
-      0,
-      TimeRange::new(0, 100, tb()),
-      "Speech",
-      None,
-      0.5,
-      CedDetector::Ced,
-    )
-    .unwrap();
-    let mut row: MySqlSoundEventRow = (&e).into();
-    row.detector = "bogus".to_owned();
-    assert!(sound_event_from_row(row, tb())
-      .unwrap_err()
-      .is_unknown_discriminant());
   }
 
   #[test]
@@ -1764,7 +1787,6 @@ mod tests {
       "Speech",
       None,
       0.5,
-      CedDetector::Ced,
     )
     .unwrap();
     let mut row: MySqlSoundEventRow = (&e).into();
