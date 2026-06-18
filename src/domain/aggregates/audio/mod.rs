@@ -20,9 +20,11 @@
 pub mod facet;
 pub mod segment;
 pub mod sound_event;
+pub mod speech_segment;
 pub mod track;
 
 pub use facet::{Audio, AudioError};
 pub use segment::{AudioSegment, AudioSegmentError, Word};
 pub use sound_event::{SoundEvent, SoundEventError};
+pub use speech_segment::{SpeechSegment, SpeechSegmentError, SpeechSegmentParts};
 pub use track::{AudioTrack, AudioTrackError};

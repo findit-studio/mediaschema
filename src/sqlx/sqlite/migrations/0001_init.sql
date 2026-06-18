@@ -225,6 +225,10 @@ CREATE TABLE IF NOT EXISTS audio_track (
     provenance_model_version  TEXT    NOT NULL,
     provenance_prompt_version TEXT    NOT NULL,
     provenance_indexer_version TEXT   NOT NULL,
+    vad_provenance_model_name     TEXT    NOT NULL,
+    vad_provenance_model_version  TEXT    NOT NULL,
+    vad_provenance_prompt_version TEXT    NOT NULL,
+    vad_provenance_indexer_version TEXT   NOT NULL,
     index_status              INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_audio_track_audio_id ON audio_track(audio_id);

@@ -186,6 +186,8 @@ message AudioTrack {
   repeated AudioSegment segments = 33;
   repeated media.v1.KeyValue metadata = 34;
   media.v1.Provenance provenance = 35;
+  // VAD-model provenance; distinct from `provenance`.
+  media.v1.Provenance vad_provenance = 39;
   // AudioIndexStatus raw bits.
   uint32 index_status = 36;
   repeated media.v1.ErrorInfo index_errors = 37;

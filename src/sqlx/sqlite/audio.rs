@@ -195,6 +195,10 @@ pub struct SqliteAudioTrackRow {
   pub provenance_model_version: String,
   pub provenance_prompt_version: String,
   pub provenance_indexer_version: String,
+  pub vad_provenance_model_name: String,
+  pub vad_provenance_model_version: String,
+  pub vad_provenance_prompt_version: String,
+  pub vad_provenance_indexer_version: String,
   pub index_status: i64,
 }
 
@@ -233,6 +237,7 @@ impl From<&AudioTrack<Uuid7>>
     let cover = t.cover_art_ref();
     let tags = t.tags_ref();
     let prov = t.provenance_ref();
+    let vad_prov = t.vad_provenance_ref();
     let duration = t.duration_ref();
     let start_pts = t.start_pts_ref();
     let row = SqliteAudioTrackRow {
@@ -299,6 +304,10 @@ impl From<&AudioTrack<Uuid7>>
       provenance_model_version: prov.model_version().to_owned(),
       provenance_prompt_version: prov.prompt_version().to_owned(),
       provenance_indexer_version: prov.indexer_version().to_owned(),
+      vad_provenance_model_name: vad_prov.model_name().to_owned(),
+      vad_provenance_model_version: vad_prov.model_version().to_owned(),
+      vad_provenance_prompt_version: vad_prov.prompt_version().to_owned(),
+      vad_provenance_indexer_version: vad_prov.indexer_version().to_owned(),
       index_status: i64::from(t.index_status().bits()),
     };
     let errors = t
@@ -479,6 +488,12 @@ pub fn audio_track_from_rows(
       r.provenance_model_version,
       r.provenance_prompt_version,
       r.provenance_indexer_version,
+    ));
+    t = t.with_vad_provenance(crate::domain::vo::Provenance::from_parts(
+      r.vad_provenance_model_name,
+      r.vad_provenance_model_version,
+      r.vad_provenance_prompt_version,
+      r.vad_provenance_indexer_version,
     ));
 
     let status = AudioIndexStatus::from_bits_truncate(u32_from_i64(
@@ -886,6 +901,10 @@ pub struct SqliteAudioTrackRowRef<'r> {
   pub provenance_model_version: &'r str,
   pub provenance_prompt_version: &'r str,
   pub provenance_indexer_version: &'r str,
+  pub vad_provenance_model_name: &'r str,
+  pub vad_provenance_model_version: &'r str,
+  pub vad_provenance_prompt_version: &'r str,
+  pub vad_provenance_indexer_version: &'r str,
   pub index_status: i64,
 }
 
@@ -974,6 +993,10 @@ impl SqliteAudioTrackRow {
       provenance_model_version: &self.provenance_model_version,
       provenance_prompt_version: &self.provenance_prompt_version,
       provenance_indexer_version: &self.provenance_indexer_version,
+      vad_provenance_model_name: &self.vad_provenance_model_name,
+      vad_provenance_model_version: &self.vad_provenance_model_version,
+      vad_provenance_prompt_version: &self.vad_provenance_prompt_version,
+      vad_provenance_indexer_version: &self.vad_provenance_indexer_version,
       index_status: self.index_status,
     }
   }
@@ -1143,6 +1166,12 @@ impl<'r>
       r.provenance_model_version,
       r.provenance_prompt_version,
       r.provenance_indexer_version,
+    ));
+    t = t.with_vad_provenance(crate::domain::vo::Provenance::from_parts(
+      r.vad_provenance_model_name,
+      r.vad_provenance_model_version,
+      r.vad_provenance_prompt_version,
+      r.vad_provenance_indexer_version,
     ));
 
     let status = AudioIndexStatus::from_bits_truncate(u32_from_i64(
@@ -1540,6 +1569,9 @@ mod tests {
       .with_provenance(crate::domain::vo::Provenance::from_parts(
         "asry", "1.0", "p", "idx",
       ))
+      .with_vad_provenance(crate::domain::vo::Provenance::from_parts(
+        "silero", "v5", "p", "idx",
+      ))
       .try_with_index_status(AudioIndexStatus::EXTRACTED)
       .unwrap()
       .with_index_errors(std::vec![
@@ -1648,6 +1680,9 @@ mod tests {
       .with_tags(Some(tags))
       .with_provenance(crate::domain::vo::Provenance::from_parts(
         "asry", "1.0", "p1", "idx-2",
+      ))
+      .with_vad_provenance(crate::domain::vo::Provenance::from_parts(
+        "firered", "v1", "p1", "idx-2",
       ))
       .try_with_index_status(AudioIndexStatus::EXTRACTED)
       .unwrap()

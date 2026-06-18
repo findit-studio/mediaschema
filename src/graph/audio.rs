@@ -134,6 +134,10 @@ pub struct AudioTrack<Id = Uuid7> {
   sound_events: Vec<SoundEvent<Id>>,
   metadata: IndexMap<SmolStr, SmolStr>,
   provenance: Provenance,
+  /// Provenance of the VAD (voice-activity) model that produced this
+  /// track's `SpeechSegment`s — distinct from the general analysis
+  /// `provenance`.
+  vad_provenance: Provenance,
   index_status: AudioIndexStatus,
   index_errors: Vec<ErrorInfo>,
 }
@@ -186,6 +190,7 @@ impl AudioTrack<Uuid7> {
       sound_events: _,
       metadata,
       provenance,
+      vad_provenance,
       index_status,
       index_errors,
     } = track.into_parts();
@@ -239,6 +244,7 @@ impl AudioTrack<Uuid7> {
       sound_events,
       metadata,
       provenance,
+      vad_provenance,
       index_status,
       index_errors,
     })
@@ -437,6 +443,14 @@ impl<Id> AudioTrack<Id> {
   #[inline(always)]
   pub const fn provenance_ref(&self) -> &Provenance {
     &self.provenance
+  }
+
+  /// Provenance of the VAD (voice-activity) model that produced this
+  /// track's `SpeechSegment`s — distinct from the general analysis
+  /// `provenance`.
+  #[inline(always)]
+  pub const fn vad_provenance_ref(&self) -> &Provenance {
+    &self.vad_provenance
   }
 
   #[inline(always)]
@@ -979,6 +993,7 @@ impl From<(Uuid7, AudioTrack<Uuid7>)> for domain::AudioTrack<Uuid7> {
       sound_events,
       metadata,
       provenance,
+      vad_provenance,
       index_status,
       index_errors,
     } = g;
@@ -1020,6 +1035,7 @@ impl From<(Uuid7, AudioTrack<Uuid7>)> for domain::AudioTrack<Uuid7> {
       sound_events: sound_events.iter().map(|s| *s.id_ref()).collect(),
       metadata,
       provenance,
+      vad_provenance,
       index_status,
       index_errors,
     })

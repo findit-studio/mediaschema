@@ -42,7 +42,10 @@ pub use aggregates::{
 // its `metadata` bag and IndexMap's default hasher (`RandomState`)
 // is std-only. Same constraint as the `Chapter` aggregate.
 #[cfg(all(feature = "std", feature = "audio"))]
-pub use aggregates::{Audio, AudioSegment, AudioTrack, SoundEvent, Word};
+pub use aggregates::{
+  Audio, AudioSegment, AudioTrack, SoundEvent, SpeechSegment, SpeechSegmentError,
+  SpeechSegmentParts, Word,
+};
 #[cfg(all(feature = "std", feature = "video"))]
 pub use aggregates::{Keyframe, Scene, Video, VideoTrack};
 #[cfg(all(feature = "std", feature = "subtitle"))]

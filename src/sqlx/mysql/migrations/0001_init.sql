@@ -243,6 +243,10 @@ CREATE TABLE IF NOT EXISTS audio_track (
     provenance_model_version  VARCHAR(255) NOT NULL,
     provenance_prompt_version VARCHAR(255) NOT NULL,
     provenance_indexer_version VARCHAR(255) NOT NULL,
+    vad_provenance_model_name     VARCHAR(255) NOT NULL,
+    vad_provenance_model_version  VARCHAR(255) NOT NULL,
+    vad_provenance_prompt_version VARCHAR(255) NOT NULL,
+    vad_provenance_indexer_version VARCHAR(255) NOT NULL,
     index_status              BIGINT       NOT NULL DEFAULT 0,
     PRIMARY KEY (id),
     KEY idx_audio_track_audio_id (audio_id)
