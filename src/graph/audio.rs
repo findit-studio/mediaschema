@@ -138,6 +138,10 @@ pub struct AudioTrack<Id = Uuid7> {
   /// track's `SpeechSegment`s — distinct from the general analysis
   /// `provenance`.
   vad_provenance: Provenance,
+  /// Provenance of the CED (sound-event) model that produced this track's
+  /// `SoundEvent`s — distinct from the general `provenance` and from
+  /// `vad_provenance`.
+  ced_provenance: Provenance,
   index_status: AudioIndexStatus,
   index_errors: Vec<ErrorInfo>,
 }
@@ -191,6 +195,7 @@ impl AudioTrack<Uuid7> {
       metadata,
       provenance,
       vad_provenance,
+      ced_provenance,
       index_status,
       index_errors,
     } = track.into_parts();
@@ -245,6 +250,7 @@ impl AudioTrack<Uuid7> {
       metadata,
       provenance,
       vad_provenance,
+      ced_provenance,
       index_status,
       index_errors,
     })
@@ -451,6 +457,14 @@ impl<Id> AudioTrack<Id> {
   #[inline(always)]
   pub const fn vad_provenance_ref(&self) -> &Provenance {
     &self.vad_provenance
+  }
+
+  /// Provenance of the CED (sound-event) model that produced this track's
+  /// `SoundEvent`s — distinct from the general `provenance` and from
+  /// `vad_provenance`.
+  #[inline(always)]
+  pub const fn ced_provenance_ref(&self) -> &Provenance {
+    &self.ced_provenance
   }
 
   #[inline(always)]
@@ -994,6 +1008,7 @@ impl From<(Uuid7, AudioTrack<Uuid7>)> for domain::AudioTrack<Uuid7> {
       metadata,
       provenance,
       vad_provenance,
+      ced_provenance,
       index_status,
       index_errors,
     } = g;
@@ -1036,6 +1051,7 @@ impl From<(Uuid7, AudioTrack<Uuid7>)> for domain::AudioTrack<Uuid7> {
       metadata,
       provenance,
       vad_provenance,
+      ced_provenance,
       index_status,
       index_errors,
     })

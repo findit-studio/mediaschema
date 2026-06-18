@@ -232,6 +232,10 @@ CREATE TABLE IF NOT EXISTS audio_track (
     vad_provenance_model_version  text    NOT NULL,
     vad_provenance_prompt_version text    NOT NULL,
     vad_provenance_indexer_version text   NOT NULL,
+    ced_provenance_model_name     text    NOT NULL,
+    ced_provenance_model_version  text    NOT NULL,
+    ced_provenance_prompt_version text    NOT NULL,
+    ced_provenance_indexer_version text   NOT NULL,
     index_status              bigint  NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_audio_track_audio_id ON audio_track(audio_id);

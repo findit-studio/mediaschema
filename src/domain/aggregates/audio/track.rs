@@ -201,6 +201,10 @@ pub struct AudioTrack<Id = Uuid7> {
   /// track's `SpeechSegment`s — distinct from the general analysis
   /// `provenance`.
   vad_provenance: Provenance,
+  /// Provenance of the CED (sound-event) model that produced this track's
+  /// `SoundEvent`s — distinct from the general `provenance` and from
+  /// `vad_provenance`.
+  ced_provenance: Provenance,
   index_status: AudioIndexStatus,
   index_errors: Vec<ErrorInfo>,
 }
@@ -258,6 +262,7 @@ impl AudioTrack<Uuid7> {
       metadata: IndexMap::new(),
       provenance: Provenance::new(),
       vad_provenance: Provenance::new(),
+      ced_provenance: Provenance::new(),
       index_status: AudioIndexStatus::empty(),
       index_errors: Vec::new(),
     })
@@ -512,6 +517,14 @@ impl<Id> AudioTrack<Id> {
   #[inline(always)]
   pub const fn vad_provenance_ref(&self) -> &Provenance {
     &self.vad_provenance
+  }
+
+  /// Provenance of the CED (sound-event) model that produced this track's
+  /// `SoundEvent`s — distinct from the general `provenance` and from
+  /// `vad_provenance`.
+  #[inline(always)]
+  pub const fn ced_provenance_ref(&self) -> &Provenance {
+    &self.ced_provenance
   }
 
   /// 11-bit indexing state (the verified `ProcessingStage`).
@@ -869,6 +882,16 @@ impl<Id> AudioTrack<Id> {
     self
   }
 
+  /// Builder: replace `ced_provenance` — provenance of the CED
+  /// (sound-event) model that produced this track's `SoundEvent`s,
+  /// distinct from the general `provenance` and from `vad_provenance`.
+  #[inline(always)]
+  #[must_use]
+  pub fn with_ced_provenance(mut self, v: Provenance) -> Self {
+    self.ced_provenance = v;
+    self
+  }
+
   /// Validating builder: replace `index_status`.
   ///
   /// Two invariants are enforced:
@@ -1172,6 +1195,15 @@ impl<Id> AudioTrack<Id> {
     self
   }
 
+  /// In-place mutator for `ced_provenance` — provenance of the CED
+  /// (sound-event) model that produced this track's `SoundEvent`s,
+  /// distinct from the general `provenance` and from `vad_provenance`.
+  #[inline(always)]
+  pub fn set_ced_provenance(&mut self, v: Provenance) -> &mut Self {
+    self.ced_provenance = v;
+    self
+  }
+
   /// Validating in-place mutator for `index_status`. Rejects a mask that is
   /// topologically inconsistent with the `AudioIndexStage` lifecycle (a
   /// later stage bit without its prerequisites,
@@ -1377,6 +1409,20 @@ mod tests {
     assert_eq!(t.vad_provenance_ref().model_name(), "silero");
     // The two provenances are independent fields.
     assert_ne!(t.vad_provenance_ref(), t.provenance_ref());
+  }
+
+  #[test]
+  fn ced_provenance_is_per_track_and_distinct_from_provenance() {
+    let prov = Provenance::from_parts("asry", "1.2.3", "v0", "indexer-0.4");
+    let ced = Provenance::from_parts("ced-net", "v2", "v0", "indexer-0.4");
+    let t = AudioTrack::try_new(Uuid7::new(), Uuid7::new())
+      .unwrap()
+      .with_provenance(prov.clone())
+      .with_ced_provenance(ced.clone());
+    assert_eq!(t.ced_provenance_ref(), &ced);
+    assert_eq!(t.ced_provenance_ref().model_name(), "ced-net");
+    // The two provenances are independent fields.
+    assert_ne!(t.ced_provenance_ref(), t.provenance_ref());
   }
 
   #[test]
@@ -1830,6 +1876,10 @@ pub struct AudioTrackParts<Id = Uuid7> {
   /// track's `SpeechSegment`s — distinct from the general analysis
   /// `provenance`.
   pub vad_provenance: Provenance,
+  /// Provenance of the CED (sound-event) model that produced this track's
+  /// `SoundEvent`s — distinct from the general `provenance` and from
+  /// `vad_provenance`.
+  pub ced_provenance: Provenance,
   pub index_status: AudioIndexStatus,
   pub index_errors: Vec<ErrorInfo>,
 }
@@ -1877,6 +1927,7 @@ impl<Id> AudioTrack<Id> {
       metadata,
       provenance,
       vad_provenance,
+      ced_provenance,
       index_status,
       index_errors,
     } = self;
@@ -1919,6 +1970,7 @@ impl<Id> AudioTrack<Id> {
       metadata,
       provenance,
       vad_provenance,
+      ced_provenance,
       index_status,
       index_errors,
     }
@@ -1976,6 +2028,7 @@ impl<Id> AudioTrack<Id> {
       metadata,
       provenance,
       vad_provenance,
+      ced_provenance,
       index_status,
       index_errors,
     } = parts;
@@ -2018,6 +2071,7 @@ impl<Id> AudioTrack<Id> {
       metadata,
       provenance,
       vad_provenance,
+      ced_provenance,
       index_status,
       index_errors,
     }

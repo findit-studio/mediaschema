@@ -188,6 +188,9 @@ message AudioTrack {
   media.v1.Provenance provenance = 35;
   // VAD-model provenance; distinct from `provenance`.
   media.v1.Provenance vad_provenance = 39;
+  // CED-model (sound-event) provenance; distinct from `provenance` and
+  // `vad_provenance`.
+  media.v1.Provenance ced_provenance = 40;
   // AudioIndexStatus raw bits.
   uint32 index_status = 36;
   repeated media.v1.ErrorInfo index_errors = 37;

@@ -199,6 +199,10 @@ pub struct SqliteAudioTrackRow {
   pub vad_provenance_model_version: String,
   pub vad_provenance_prompt_version: String,
   pub vad_provenance_indexer_version: String,
+  pub ced_provenance_model_name: String,
+  pub ced_provenance_model_version: String,
+  pub ced_provenance_prompt_version: String,
+  pub ced_provenance_indexer_version: String,
   pub index_status: i64,
 }
 
@@ -238,6 +242,7 @@ impl From<&AudioTrack<Uuid7>>
     let tags = t.tags_ref();
     let prov = t.provenance_ref();
     let vad_prov = t.vad_provenance_ref();
+    let ced_prov = t.ced_provenance_ref();
     let duration = t.duration_ref();
     let start_pts = t.start_pts_ref();
     let row = SqliteAudioTrackRow {
@@ -308,6 +313,10 @@ impl From<&AudioTrack<Uuid7>>
       vad_provenance_model_version: vad_prov.model_version().to_owned(),
       vad_provenance_prompt_version: vad_prov.prompt_version().to_owned(),
       vad_provenance_indexer_version: vad_prov.indexer_version().to_owned(),
+      ced_provenance_model_name: ced_prov.model_name().to_owned(),
+      ced_provenance_model_version: ced_prov.model_version().to_owned(),
+      ced_provenance_prompt_version: ced_prov.prompt_version().to_owned(),
+      ced_provenance_indexer_version: ced_prov.indexer_version().to_owned(),
       index_status: i64::from(t.index_status().bits()),
     };
     let errors = t
@@ -494,6 +503,12 @@ pub fn audio_track_from_rows(
       r.vad_provenance_model_version,
       r.vad_provenance_prompt_version,
       r.vad_provenance_indexer_version,
+    ));
+    t = t.with_ced_provenance(crate::domain::vo::Provenance::from_parts(
+      r.ced_provenance_model_name,
+      r.ced_provenance_model_version,
+      r.ced_provenance_prompt_version,
+      r.ced_provenance_indexer_version,
     ));
 
     let status = AudioIndexStatus::from_bits_truncate(u32_from_i64(
@@ -905,6 +920,10 @@ pub struct SqliteAudioTrackRowRef<'r> {
   pub vad_provenance_model_version: &'r str,
   pub vad_provenance_prompt_version: &'r str,
   pub vad_provenance_indexer_version: &'r str,
+  pub ced_provenance_model_name: &'r str,
+  pub ced_provenance_model_version: &'r str,
+  pub ced_provenance_prompt_version: &'r str,
+  pub ced_provenance_indexer_version: &'r str,
   pub index_status: i64,
 }
 
@@ -997,6 +1016,10 @@ impl SqliteAudioTrackRow {
       vad_provenance_model_version: &self.vad_provenance_model_version,
       vad_provenance_prompt_version: &self.vad_provenance_prompt_version,
       vad_provenance_indexer_version: &self.vad_provenance_indexer_version,
+      ced_provenance_model_name: &self.ced_provenance_model_name,
+      ced_provenance_model_version: &self.ced_provenance_model_version,
+      ced_provenance_prompt_version: &self.ced_provenance_prompt_version,
+      ced_provenance_indexer_version: &self.ced_provenance_indexer_version,
       index_status: self.index_status,
     }
   }
@@ -1172,6 +1195,12 @@ impl<'r>
       r.vad_provenance_model_version,
       r.vad_provenance_prompt_version,
       r.vad_provenance_indexer_version,
+    ));
+    t = t.with_ced_provenance(crate::domain::vo::Provenance::from_parts(
+      r.ced_provenance_model_name,
+      r.ced_provenance_model_version,
+      r.ced_provenance_prompt_version,
+      r.ced_provenance_indexer_version,
     ));
 
     let status = AudioIndexStatus::from_bits_truncate(u32_from_i64(
@@ -1572,6 +1601,9 @@ mod tests {
       .with_vad_provenance(crate::domain::vo::Provenance::from_parts(
         "silero", "v5", "p", "idx",
       ))
+      .with_ced_provenance(crate::domain::vo::Provenance::from_parts(
+        "ced-net", "v2", "p", "idx",
+      ))
       .try_with_index_status(AudioIndexStatus::EXTRACTED)
       .unwrap()
       .with_index_errors(std::vec![
@@ -1683,6 +1715,9 @@ mod tests {
       ))
       .with_vad_provenance(crate::domain::vo::Provenance::from_parts(
         "firered", "v1", "p1", "idx-2",
+      ))
+      .with_ced_provenance(crate::domain::vo::Provenance::from_parts(
+        "ced-net", "v2", "p1", "idx-2",
       ))
       .try_with_index_status(AudioIndexStatus::EXTRACTED)
       .unwrap()

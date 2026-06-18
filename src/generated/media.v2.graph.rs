@@ -4023,6 +4023,19 @@ pub struct AudioTrack {
         )
     )]
     pub vad_provenance: ::buffa::MessageField<super::v1::Provenance>,
+    /// CED-model (sound-event) provenance; distinct from `provenance` and
+    /// `vad_provenance`.
+    ///
+    /// Field 40: `ced_provenance`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "cedProvenance",
+            alias = "ced_provenance",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+        )
+    )]
+    pub ced_provenance: ::buffa::MessageField<super::v1::Provenance>,
     /// AudioIndexStatus raw bits.
     ///
     /// Field 36: `index_status`
@@ -4101,6 +4114,7 @@ impl ::core::fmt::Debug for AudioTrack {
             .field("metadata", &self.metadata)
             .field("provenance", &self.provenance)
             .field("vad_provenance", &self.vad_provenance)
+            .field("ced_provenance", &self.ced_provenance)
             .field("index_status", &self.index_status)
             .field("index_errors", &self.index_errors)
             .field("sound_events", &self.sound_events)
@@ -4389,6 +4403,14 @@ impl ::buffa::Message for AudioTrack {
         if self.vad_provenance.is_set() {
             let __slot = __cache.reserve();
             let inner_size = self.vad_provenance.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 2u32 + ::buffa::encoding::varint_len(inner_size as u64) as u32
+                    + inner_size;
+        }
+        if self.ced_provenance.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.ced_provenance.compute_size(__cache);
             __cache.set(__slot, inner_size);
             size
                 += 2u32 + ::buffa::encoding::varint_len(inner_size as u64) as u32
@@ -4699,6 +4721,15 @@ impl ::buffa::Message for AudioTrack {
                 .encode(buf);
             ::buffa::encoding::encode_varint(__cache.consume_next() as u64, buf);
             self.vad_provenance.write_to(__cache, buf);
+        }
+        if self.ced_provenance.is_set() {
+            ::buffa::encoding::Tag::new(
+                    40u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::encoding::encode_varint(__cache.consume_next() as u64, buf);
+            self.ced_provenance.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -5183,6 +5214,20 @@ impl ::buffa::Message for AudioTrack {
                     depth,
                 )?;
             }
+            40u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 40u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                ::buffa::Message::merge_length_delimited(
+                    self.ced_provenance.get_or_insert_default(),
+                    buf,
+                    depth,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, depth)?);
@@ -5230,6 +5275,7 @@ impl ::buffa::Message for AudioTrack {
         self.index_errors.clear();
         self.sound_events.clear();
         self.vad_provenance = ::buffa::MessageField::none();
+        self.ced_provenance = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
 }

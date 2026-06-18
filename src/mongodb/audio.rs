@@ -424,6 +424,7 @@ impl From<&AudioTrack<Uuid7>> for Document {
     );
     d.insert("provenance", provenance_to_bson(t.provenance_ref()));
     d.insert("vad_provenance", provenance_to_bson(t.vad_provenance_ref()));
+    d.insert("ced_provenance", provenance_to_bson(t.ced_provenance_ref()));
     d.insert("index_status", Bson::Int64(t.index_status().bits() as i64));
     d.insert(
       "index_errors",
@@ -562,6 +563,9 @@ impl TryFrom<Document> for AudioTrack<Uuid7> {
     }
     if let Some(b) = take_opt(&mut d, "vad_provenance") {
       t.set_vad_provenance(provenance_from_bson(b, "vad_provenance")?);
+    }
+    if let Some(b) = take_opt(&mut d, "ced_provenance") {
+      t.set_ced_provenance(provenance_from_bson(b, "ced_provenance")?);
     }
     if let Some(b) = take_opt(&mut d, "index_status") {
       let bits = as_u64(b, "index_status")?;
@@ -862,6 +866,7 @@ mod tests {
       ))
       .with_provenance(Provenance::from_parts("asry", "1.0", "p", "idx"))
       .with_vad_provenance(Provenance::from_parts("silero", "v5", "p", "idx"))
+      .with_ced_provenance(Provenance::from_parts("ced-net", "v2", "p", "idx"))
       .try_with_index_status(AudioIndexStatus::EXTRACTED | AudioIndexStatus::VAD_DONE)
       .unwrap()
       .with_index_errors(vec![ErrorInfo::new(ErrorCode::ProbeCorrupt, "bad header")]);

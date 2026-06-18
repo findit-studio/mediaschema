@@ -41,6 +41,7 @@
 //! | `metadata: repeated KeyValue`           | `metadata: IndexMap`          | insertion order preserved                      |
 //! | `provenance: Provenance`                | `provenance`                  | unset ⇒ empty                                  |
 //! | `vad_provenance: Provenance`            | `vad_provenance`              | unset ⇒ empty; VAD-model provenance, distinct from `provenance` |
+//! | `ced_provenance: Provenance`            | `ced_provenance`              | unset ⇒ empty; CED-model provenance, distinct from `provenance` and `vad_provenance` |
 //! | `index_status: uint32`                  | `index_status: AudioIndexStatus` | raw bits; decode re-runs the topology + descriptor invariants |
 //! | `index_errors: repeated ErrorInfo`      | `index_errors: Vec<_>`        |                                                |
 //!
@@ -178,6 +179,7 @@ impl From<&graph::AudioTrack<Uuid7>> for wire::AudioTrack {
       metadata: metadata_to_wire(g.metadata_ref()),
       provenance: provenance_to_wire(g.provenance_ref()),
       vad_provenance: provenance_to_wire(g.vad_provenance_ref()),
+      ced_provenance: provenance_to_wire(g.ced_provenance_ref()),
       index_status: g.index_status().bits(),
       index_errors: errors_to_wire(g.index_errors_slice()),
       __buffa_unknown_fields: Default::default(),
@@ -240,6 +242,7 @@ fn audio_track_from_wire(
     .with_metadata(metadata_from_wire(&w.metadata))
     .with_provenance(provenance_from_wire(&w.provenance))
     .with_vad_provenance(provenance_from_wire(&w.vad_provenance))
+    .with_ced_provenance(provenance_from_wire(&w.ced_provenance))
     .with_index_errors(errors_from_wire(&w.index_errors));
   if let Some(v) = w.channel_layout.as_option() {
     t = t.with_channel_layout(v.clone());
@@ -593,6 +596,12 @@ mod tests {
         "indexer-0.1",
       ))
       .with_vad_provenance(Provenance::from_parts("silero", "v5", "p-1", "indexer-0.1"))
+      .with_ced_provenance(Provenance::from_parts(
+        "ced-net",
+        "v2",
+        "p-1",
+        "indexer-0.1",
+      ))
       .try_with_index_status(AudioIndexStatus::EXTRACTED | AudioIndexStatus::CLASSIFIED)
       .expect("valid status")
   }
