@@ -4,7 +4,7 @@ jobs:
   gen-is-committed:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       # Pin protoc to the version src/generated was authored with (local
       # protoc 34.0). buffa-build feeds --include_source_info into codegen,
@@ -21,7 +21,7 @@ jobs:
   test-matrix:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - name: Install protoc 34.0
         uses: arduino/setup-protoc@v3
