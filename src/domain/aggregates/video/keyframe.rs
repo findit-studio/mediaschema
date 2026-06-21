@@ -3,20 +3,20 @@
 //!
 //! Parent → `Scene`. **No `provenance`** — hoisted to `VideoTrack` in
 //! rev 16; every `Keyframe` inside a track shares the track's
-//! `Provenance`. The image is inline `data: bytes::Bytes` (no
-//! `location` — locked rev E); embeddings + `feature_print` live in
-//! **LanceDB**, keyed by `id`.
+//! `Provenance`. The image is no longer inlined here — a `Keyframe`
+//! references its [`Thumbnail`](super::thumbnail::Thumbnail) by FK
+//! (`thumbnail_id`), so thumbnail storage (filesystem / database /
+//! remote) is recorded per-thumbnail and can be mixed or migrated.
+//! Embeddings + `feature_print` live in **LanceDB**, keyed by `id`.
 //!
 //! Many analysis VOs live in the sibling [`detections`](super::detections)
 //! module to keep this file focused on the aggregate itself.
 
 use std::vec::Vec;
 
-use bytes::Bytes;
 use derive_more::IsVariant;
 use mediaframe::frame::Dimensions;
 use mediatime::Timestamp;
-use smol_str::SmolStr;
 
 use crate::domain::{KeyframeExtractor, Uuid7};
 
@@ -44,13 +44,10 @@ pub struct Keyframe<Id = Uuid7> {
   pts: Timestamp,
 
   // --- artifact ---
-  /// Inline thumbnail image bytes (`bytes::Bytes`, no `location`).
-  ///
-  /// The byte-length of this buffer is the keyframe `size`; `size` is
-  /// **not** a stored field — it is derived from `data` via
-  /// [`Keyframe::size`], so the two cannot diverge.
-  data: Bytes,
-  mime: SmolStr,
+  /// FK → [`Thumbnail`](super::thumbnail::Thumbnail)`.id`. The image
+  /// bytes (and their storage backend) live on the referenced
+  /// `Thumbnail`, not inline on the keyframe.
+  thumbnail_id: Id,
   /// Thumbnail dimensions (`mediaframe::frame::Dimensions`).
   dimensions: Dimensions,
   extractor: KeyframeExtractor,
@@ -82,6 +79,7 @@ impl Keyframe<Uuid7> {
   /// Rejects:
   /// - nil `id` (LanceDB embedding key collision),
   /// - nil `scene_id` (orphan keyframe with no `Scene`),
+  /// - nil `thumbnail_id` (orphan keyframe with no `Thumbnail`),
   /// - zero `dimensions` (a thumbnail with W=0 or H=0 is not a valid
   ///   image artifact; the locked spec calls out `dimensions` as
   ///   non-zero in its invariants).
@@ -92,6 +90,7 @@ impl Keyframe<Uuid7> {
   pub fn try_new(
     id: Uuid7,
     scene_id: Uuid7,
+    thumbnail_id: Uuid7,
     pts: Timestamp,
     dimensions: Dimensions,
     extractor: KeyframeExtractor,
@@ -102,6 +101,9 @@ impl Keyframe<Uuid7> {
     if scene_id.is_nil() {
       return Err(KeyframeError::NilSceneId);
     }
+    if thumbnail_id.is_nil() {
+      return Err(KeyframeError::NilThumbnailId);
+    }
     if dimensions.width() == 0 || dimensions.height() == 0 {
       return Err(KeyframeError::ZeroDimensions);
     }
@@ -109,8 +111,7 @@ impl Keyframe<Uuid7> {
       id,
       scene_id,
       pts,
-      data: Bytes::new(),
-      mime: SmolStr::default(),
+      thumbnail_id,
       dimensions,
       extractor,
       classifications: Vec::new(),
@@ -149,26 +150,11 @@ impl<Id> Keyframe<Id> {
   }
 
   // --- artifact ---
-  /// Thumbnail image bytes (inline, no `location`).
+  /// FK → [`Thumbnail`](super::thumbnail::Thumbnail)`.id` — the image
+  /// bytes + storage backend live on the referenced thumbnail.
   #[inline(always)]
-  pub fn data(&self) -> &[u8] {
-    &self.data
-  }
-  /// Owned handle to the image bytes — O(1) refcount clone, no copy.
-  #[inline(always)]
-  pub fn data_bytes(&self) -> Bytes {
-    self.data.clone()
-  }
-  /// MIME type (`""` = absent).
-  #[inline(always)]
-  pub fn mime(&self) -> &str {
-    self.mime.as_str()
-  }
-  /// Byte size of `data` — **derived** from `data.len()`, never stored
-  /// independently, so it can never diverge from the actual buffer.
-  #[inline(always)]
-  pub fn size(&self) -> u64 {
-    self.data.len() as u64
+  pub const fn thumbnail_id_ref(&self) -> &Id {
+    &self.thumbnail_id
   }
   /// Thumbnail dimensions (`mediaframe::frame::Dimensions`).
   #[inline(always)]
@@ -247,26 +233,18 @@ impl<Id> Keyframe<Id> {
 // Builders + setters per the encapsulation rule.
 impl<Id> Keyframe<Id> {
   // --- artifact ---
+  /// Builder: replace the `thumbnail_id` FK (→
+  /// [`Thumbnail`](super::thumbnail::Thumbnail)`.id`).
   #[must_use]
   #[inline(always)]
-  pub fn with_data(mut self, v: impl Into<Bytes>) -> Self {
-    self.data = v.into();
+  pub fn with_thumbnail_id(mut self, v: Id) -> Self {
+    self.thumbnail_id = v;
     self
   }
+  /// In-place mutator for the `thumbnail_id` FK.
   #[inline(always)]
-  pub fn set_data(&mut self, v: impl Into<Bytes>) -> &mut Self {
-    self.data = v.into();
-    self
-  }
-  #[must_use]
-  #[inline(always)]
-  pub fn with_mime(mut self, v: impl Into<SmolStr>) -> Self {
-    self.mime = v.into();
-    self
-  }
-  #[inline(always)]
-  pub fn set_mime(&mut self, v: impl Into<SmolStr>) -> &mut Self {
-    self.mime = v.into();
+  pub fn set_thumbnail_id(&mut self, v: Id) -> &mut Self {
+    self.thumbnail_id = v;
     self
   }
   /// Fallible builder for `dimensions`, re-validating the locked
@@ -478,6 +456,10 @@ pub enum KeyframeError {
   /// `Scene` reference.
   #[error("Keyframe `scene_id` (FK → Scene) must not be the nil UUID")]
   NilSceneId,
+  /// Supplied `thumbnail_id` was the nil sentinel — orphan keyframe with
+  /// no `Thumbnail` reference.
+  #[error("Keyframe `thumbnail_id` (FK → Thumbnail) must not be the nil UUID")]
+  NilThumbnailId,
   /// `dimensions.width() == 0` or `dimensions.height() == 0` — a
   /// zero-extent thumbnail is not a valid artifact (locked invariant).
   #[error("Keyframe dimensions must be non-zero (locked invariant)")]
@@ -502,20 +484,22 @@ mod tests {
   #[test]
   fn try_new_happy_path() {
     let scene_id = Uuid7::new();
+    let thumbnail_id = Uuid7::new();
     let ts = Timestamp::new(1234, tb());
     let kf = Keyframe::try_new(
       Uuid7::new(),
       scene_id,
+      thumbnail_id,
       ts,
       Dimensions::new(320, 180),
       KeyframeExtractor::CompositeQuality,
     )
     .unwrap();
     assert_eq!(kf.scene_id_ref(), &scene_id);
+    assert_eq!(kf.thumbnail_id_ref(), &thumbnail_id);
     assert_eq!(kf.pts_ref(), &ts);
     assert_eq!(kf.dimensions(), Dimensions::new(320, 180));
     assert!(kf.extractor().is_composite_quality());
-    assert!(kf.data().is_empty());
     assert!(kf.classifications_slice().is_empty());
     assert!(kf.colors_slice().is_empty());
     assert_eq!(kf.vlm_ref().shot_type(), "");
@@ -528,6 +512,7 @@ mod tests {
       Keyframe::try_new(
         Uuid7::nil(),
         Uuid7::new(),
+        Uuid7::new(),
         ts,
         Dimensions::new(1, 1),
         KeyframeExtractor::Manual
@@ -539,6 +524,7 @@ mod tests {
       Keyframe::try_new(
         Uuid7::new(),
         Uuid7::nil(),
+        Uuid7::new(),
         ts,
         Dimensions::new(1, 1),
         KeyframeExtractor::Manual
@@ -546,8 +532,21 @@ mod tests {
       .err(),
       Some(KeyframeError::NilSceneId)
     );
+    assert_eq!(
+      Keyframe::try_new(
+        Uuid7::new(),
+        Uuid7::new(),
+        Uuid7::nil(),
+        ts,
+        Dimensions::new(1, 1),
+        KeyframeExtractor::Manual
+      )
+      .err(),
+      Some(KeyframeError::NilThumbnailId)
+    );
     assert!(KeyframeError::NilId.is_nil_id());
     assert!(KeyframeError::NilSceneId.is_nil_scene_id());
+    assert!(KeyframeError::NilThumbnailId.is_nil_thumbnail_id());
   }
 
   #[test]
@@ -555,6 +554,7 @@ mod tests {
     let ts = Timestamp::new(0, tb());
     for (w, h) in [(0u32, 1u32), (1, 0), (0, 0)] {
       let r = Keyframe::try_new(
+        Uuid7::new(),
         Uuid7::new(),
         Uuid7::new(),
         ts,
@@ -573,16 +573,18 @@ mod tests {
   #[test]
   fn builders_and_setters_chain() {
     let ts = Timestamp::new(7000, tb());
+    let thumb_a = Uuid7::new();
+    let thumb_b = Uuid7::new();
     let kf = Keyframe::try_new(
       Uuid7::new(),
       Uuid7::new(),
+      thumb_a,
       ts,
       Dimensions::new(1920, 1080),
       KeyframeExtractor::IFrame,
     )
     .unwrap()
-    .with_mime("image/jpeg")
-    .with_data(std::vec![0xff, 0xd8, 0xff])
+    .with_thumbnail_id(thumb_b)
     .with_classifications(std::vec![Detection::try_new("dog", 0.97).unwrap()])
     .with_vlm(
       VlmAnalysis::new()
@@ -590,10 +592,7 @@ mod tests {
         .with_tags(std::vec![LocalizedText::from_src("dog")])
         .with_shot_type("medium-shot"),
     );
-    assert_eq!(kf.mime(), "image/jpeg");
-    // `size` is derived from `data` — 3 bytes in ⇒ size 3.
-    assert_eq!(kf.size(), 3);
-    assert_eq!(kf.data().len(), 3);
+    assert_eq!(kf.thumbnail_id_ref(), &thumb_b);
     assert_eq!(kf.classifications_slice().len(), 1);
     assert_eq!(kf.classifications_slice()[0].label(), "dog");
     assert_eq!(kf.vlm_ref().description_ref().src(), "a dog running");
@@ -601,37 +600,17 @@ mod tests {
     assert_eq!(kf.vlm_ref().shot_type(), "medium-shot");
 
     let mut kf = kf;
-    kf.set_mime("");
-    kf.set_data(Bytes::new());
+    kf.set_thumbnail_id(thumb_a);
     kf.try_set_dimensions(Dimensions::new(2, 2)).unwrap();
-    assert!(kf.mime().is_empty());
-    // `size` tracks `data` with no separate setter — clearing `data`
-    // drops `size` to 0 automatically.
-    assert_eq!(kf.size(), 0);
-    assert!(kf.data().is_empty());
+    assert_eq!(kf.thumbnail_id_ref(), &thumb_a);
     assert_eq!(kf.dimensions(), Dimensions::new(2, 2));
-  }
-
-  #[test]
-  fn size_is_derived_from_data() {
-    let ts = Timestamp::new(0, tb());
-    let kf = Keyframe::try_new(
-      Uuid7::new(),
-      Uuid7::new(),
-      ts,
-      Dimensions::new(8, 8),
-      KeyframeExtractor::IFrame,
-    )
-    .unwrap()
-    .with_data(std::vec![1u8, 2, 3, 4, 5]);
-    assert_eq!(kf.size(), kf.data().len() as u64);
-    assert_eq!(kf.size(), 5);
   }
 
   #[test]
   fn dimension_mutators_reject_zero_extent() {
     let ts = Timestamp::new(0, tb());
     let mut kf = Keyframe::try_new(
+      Uuid7::new(),
       Uuid7::new(),
       Uuid7::new(),
       ts,
@@ -674,8 +653,7 @@ pub struct KeyframeParts<Id = Uuid7> {
   pub id: Id,
   pub scene_id: Id,
   pub pts: Timestamp,
-  pub data: Bytes,
-  pub mime: SmolStr,
+  pub thumbnail_id: Id,
   pub dimensions: Dimensions,
   pub extractor: KeyframeExtractor,
   pub classifications: Vec<Detection>,
@@ -702,8 +680,7 @@ impl<Id> Keyframe<Id> {
       id,
       scene_id,
       pts,
-      data,
-      mime,
+      thumbnail_id,
       dimensions,
       extractor,
       classifications,
@@ -725,8 +702,7 @@ impl<Id> Keyframe<Id> {
       id,
       scene_id,
       pts,
-      data,
-      mime,
+      thumbnail_id,
       dimensions,
       extractor,
       classifications,
@@ -763,8 +739,7 @@ impl<Id> Keyframe<Id> {
       id,
       scene_id,
       pts,
-      data,
-      mime,
+      thumbnail_id,
       dimensions,
       extractor,
       classifications,
@@ -786,8 +761,7 @@ impl<Id> Keyframe<Id> {
       id,
       scene_id,
       pts,
-      data,
-      mime,
+      thumbnail_id,
       dimensions,
       extractor,
       classifications,

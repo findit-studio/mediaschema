@@ -58,5 +58,5 @@ pub use subtitle::{
   SubtitleCue, SubtitleCueKind, SubtitleTrack, VttCue, VttData, VttRegion, VttStyleBlock,
 };
 #[cfg(all(feature = "std", feature = "video"))]
-pub use video::{Keyframe, Scene, Video, VideoTrack};
+pub use video::{Keyframe, Scene, Thumbnail, ThumbnailError, Video, VideoTrack};
 pub use watched_location::WatchedLocation;

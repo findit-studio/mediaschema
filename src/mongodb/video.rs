@@ -1332,9 +1332,7 @@ impl From<&Keyframe<Uuid7>> for Document {
     d.insert("_id", uuid7_to_bson(*k.id_ref()));
     d.insert("scene_id", uuid7_to_bson(*k.scene_id_ref()));
     d.insert("pts", media_ts_to_bson(*k.pts_ref()));
-    d.insert("data", bytes_to_bson(k.data()));
-    d.insert("mime", Bson::String(k.mime().to_owned()));
-    d.insert("size", Bson::Int64(k.size() as i64));
+    d.insert("thumbnail_id", uuid7_to_bson(*k.thumbnail_id_ref()));
     d.insert("dimensions", dimensions_to_bson(k.dimensions()));
     d.insert(
       "extractor",
@@ -1432,23 +1430,14 @@ impl TryFrom<Document> for Keyframe<Uuid7> {
     let id = uuid7_from_bson(take(&mut d, "_id")?, "_id")?;
     let scene_id = uuid7_from_bson(take(&mut d, "scene_id")?, "scene_id")?;
     let pts = media_ts_from_bson(take(&mut d, "pts")?, "pts")?;
+    let thumbnail_id = uuid7_from_bson(take(&mut d, "thumbnail_id")?, "thumbnail_id")?;
     let dimensions = dimensions_from_bson(take(&mut d, "dimensions")?, "dimensions")?;
     let extractor = keyframe_extractor_from_i64(
       as_i64(take(&mut d, "extractor")?, "extractor")?,
       "extractor",
     )?;
-    let mut k = Keyframe::try_new(id, scene_id, pts, dimensions, extractor)?;
+    let mut k = Keyframe::try_new(id, scene_id, thumbnail_id, pts, dimensions, extractor)?;
 
-    if let Some(b) = take_opt(&mut d, "data") {
-      k.set_data(as_binary(b, "data")?);
-    }
-    if let Some(b) = take_opt(&mut d, "mime") {
-      k.set_mime(as_smol(b, "mime")?);
-    }
-    // `size` is derived from `data` (`Keyframe::size()`); it is written
-    // to the document for query/projection use but never decoded — once
-    // `data` is restored above, `size()` round-trips for free.
-    let _ = take_opt(&mut d, "size");
     if let Some(b) = take_opt(&mut d, "classifications") {
       let v = as_array(b, "classifications")?
         .into_iter()
@@ -1706,13 +1695,12 @@ mod tests {
     let k = Keyframe::try_new(
       Uuid7::new(),
       Uuid7::new(),
+      Uuid7::new(),
       MediaTimestamp::new(1234, tb()),
       Dimensions::new(320, 180),
       KeyframeExtractor::CompositeQuality,
     )
     .unwrap()
-    .with_mime("image/jpeg")
-    .with_data(vec![0xff, 0xd8, 0xff])
     .with_classifications(vec![Detection::try_new("dog", 0.97).unwrap()])
     .with_objects(vec![ObjectDetection::new(
       Detection::try_new("dog", 0.95).unwrap(),
@@ -1775,6 +1763,7 @@ mod tests {
     d.insert("_id", uuid7_to_bson(Uuid7::new()));
     d.insert("scene_id", uuid7_to_bson(Uuid7::new()));
     d.insert("pts", media_ts_to_bson(MediaTimestamp::new(0, tb())));
+    d.insert("thumbnail_id", uuid7_to_bson(Uuid7::new()));
     d.insert("dimensions", dimensions_to_bson(Dimensions::new(0, 0)));
     d.insert("extractor", Bson::Int32(9));
     let err = Keyframe::<Uuid7>::try_from(d).unwrap_err();

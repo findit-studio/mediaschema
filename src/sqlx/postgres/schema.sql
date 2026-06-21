@@ -423,12 +423,27 @@ CREATE INDEX        IF NOT EXISTS idx_scene_video_track_id   ON scene(video_trac
 CREATE INDEX        IF NOT EXISTS idx_scene_detector ON scene(detector);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_scene_video_track_id_index ON scene(video_track_id, index);
 
+-- Thumbnail image + storage descriptor. FK target of keyframe.thumbnail_id,
+-- so it is declared BEFORE keyframe. `kind` is a ThumbnailKind slug
+-- (`filesystem`/`database`/`remote`); exactly one payload slot is
+-- populated per kind: `data` (bytea) for `database`, `location` (text)
+-- for `filesystem`/`remote` — the other is NULL.
+CREATE TABLE IF NOT EXISTS thumbnail (
+    id        uuid   NOT NULL PRIMARY KEY,
+    kind      text   NOT NULL,
+    data      bytea,
+    location  text,
+    mime      text   NOT NULL,
+    width     bigint NOT NULL,
+    height    bigint NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_thumbnail_kind ON thumbnail(kind);
+
 CREATE TABLE IF NOT EXISTS keyframe (
     id                        uuid   NOT NULL PRIMARY KEY,
     scene_id                    uuid   NOT NULL,
     pts                       bigint NOT NULL,
-    data                      bytea  NOT NULL,
-    mime                      text   NOT NULL,
+    thumbnail_id              uuid   NOT NULL,
     width                     bigint NOT NULL,
     height                    bigint NOT NULL,
     extractor                 text   NOT NULL,
@@ -441,6 +456,7 @@ CREATE TABLE IF NOT EXISTS keyframe (
     aesthetics_is_utility     boolean NOT NULL DEFAULT false
 );
 CREATE INDEX IF NOT EXISTS idx_keyframe_scene_id ON keyframe(scene_id);
+CREATE INDEX IF NOT EXISTS idx_keyframe_thumbnail_id ON keyframe(thumbnail_id);
 
 -- detection child tables (per-kind, keyed by (keyframe, ordinal))
 CREATE TABLE IF NOT EXISTS keyframe_classification (

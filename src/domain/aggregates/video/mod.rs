@@ -14,6 +14,7 @@ pub mod detections;
 pub mod facet;
 pub mod keyframe;
 pub mod scene;
+pub mod thumbnail;
 pub mod track;
 
 pub use crate::domain::vo::{IndexProgress, IndexProgressError};
@@ -28,4 +29,5 @@ pub use detections::{
 pub use facet::{Video, VideoError};
 pub use keyframe::{Keyframe, KeyframeError};
 pub use scene::{Scene, SceneError};
+pub use thumbnail::{Thumbnail, ThumbnailError};
 pub use track::{VideoTrack, VideoTrackError};

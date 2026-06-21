@@ -442,12 +442,28 @@ CREATE TABLE IF NOT EXISTS scene (
     UNIQUE KEY idx_scene_video_track_id_index (video_track_id, `index`)
 );
 
+-- Thumbnail image + storage descriptor. FK target of keyframe.thumbnail_id,
+-- so it is declared BEFORE keyframe. `kind` is a ThumbnailKind slug
+-- (`filesystem`/`database`/`remote`); exactly one payload slot is
+-- populated per kind: `data` (LONGBLOB) for `database`, `location` (TEXT)
+-- for `filesystem`/`remote` — the other is NULL.
+CREATE TABLE IF NOT EXISTS thumbnail (
+    id        BINARY(16)   NOT NULL,
+    kind      VARCHAR(32)  NOT NULL,
+    data      LONGBLOB,
+    location  TEXT,
+    mime      VARCHAR(255) NOT NULL,
+    width     BIGINT       NOT NULL,
+    height    BIGINT       NOT NULL,
+    PRIMARY KEY (id),
+    KEY idx_thumbnail_kind (kind)
+);
+
 CREATE TABLE IF NOT EXISTS keyframe (
     id                         BINARY(16)   NOT NULL,
     scene_id                     BINARY(16)   NOT NULL,
     pts                        BIGINT       NOT NULL,
-    data                       LONGBLOB     NOT NULL,
-    mime                       VARCHAR(255) NOT NULL,
+    thumbnail_id               BINARY(16)   NOT NULL,
     width                      BIGINT       NOT NULL,
     height                     BIGINT       NOT NULL,
     extractor                  VARCHAR(64)  NOT NULL,
@@ -459,7 +475,8 @@ CREATE TABLE IF NOT EXISTS keyframe (
     aesthetics_overall_score   FLOAT        NOT NULL,
     aesthetics_is_utility      TINYINT      NOT NULL DEFAULT 0,
     PRIMARY KEY (id),
-    KEY idx_keyframe_scene_id (scene_id)
+    KEY idx_keyframe_scene_id (scene_id),
+    KEY idx_keyframe_thumbnail_id (thumbnail_id)
 );
 
 CREATE TABLE IF NOT EXISTS keyframe_classification (

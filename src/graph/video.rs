@@ -1,7 +1,6 @@
 //! Video subtree: facet → tracks → scenes → keyframes. Standalone field
 //! owners — no embedded flat aggregates, no parent FKs, no id-vecs.
 
-use bytes::Bytes;
 use indexmap::IndexMap;
 use mediaframe::{
   codec::VideoCodec,
@@ -467,8 +466,9 @@ impl<Id> Scene<Id> {
 pub struct Keyframe<Id = Uuid7> {
   id: Id,
   pts: Timestamp,
-  data: Bytes,
-  mime: SmolStr,
+  /// FK → [`Thumbnail`](crate::domain::Thumbnail)`.id` — the image bytes
+  /// + storage backend live on the referenced thumbnail, not inline.
+  thumbnail_id: Id,
   dimensions: Dimensions,
   extractor: KeyframeExtractor,
   classifications: Vec<Detection>,
@@ -497,8 +497,7 @@ impl Keyframe<Uuid7> {
       id,
       scene_id,
       pts,
-      data,
-      mime,
+      thumbnail_id,
       dimensions,
       extractor,
       classifications,
@@ -520,8 +519,7 @@ impl Keyframe<Uuid7> {
     Ok(Self {
       id,
       pts,
-      data,
-      mime,
+      thumbnail_id,
       dimensions,
       extractor,
       classifications,
@@ -553,28 +551,11 @@ impl<Id> Keyframe<Id> {
     &self.pts
   }
 
-  /// Thumbnail image bytes (inline).
+  /// FK → [`Thumbnail`](crate::domain::Thumbnail)`.id` — the image bytes
+  /// + storage backend live on the referenced thumbnail.
   #[inline(always)]
-  pub fn data(&self) -> &[u8] {
-    &self.data
-  }
-
-  /// Owned handle to the image bytes — O(1) refcount clone, no copy.
-  #[inline(always)]
-  pub fn data_bytes(&self) -> Bytes {
-    self.data.clone()
-  }
-
-  /// MIME type (`""` = absent).
-  #[inline(always)]
-  pub fn mime(&self) -> &str {
-    self.mime.as_str()
-  }
-
-  /// Byte size of `data` — derived from `data.len()`.
-  #[inline(always)]
-  pub fn size(&self) -> u64 {
-    self.data.len() as u64
+  pub const fn thumbnail_id_ref(&self) -> &Id {
+    &self.thumbnail_id
   }
 
   #[inline(always)]
@@ -706,6 +687,7 @@ mod tests {
     let keyframe = domain::Keyframe::try_new(
       Uuid7::new(),
       Uuid7::new(),
+      Uuid7::new(),
       span().start(),
       Dimensions::new(320, 240),
       KeyframeExtractor::IFrame,
@@ -724,9 +706,11 @@ mod tests {
   #[test]
   fn lifted_keyframe_keeps_artifact_fields() {
     let scene_id = Uuid7::new();
+    let thumbnail_id = Uuid7::new();
     let keyframe = domain::Keyframe::try_new(
       Uuid7::new(),
       scene_id,
+      thumbnail_id,
       span().start(),
       Dimensions::new(320, 240),
       KeyframeExtractor::IFrame,
@@ -735,7 +719,7 @@ mod tests {
     let g = Keyframe::try_from_flat(&scene_id, keyframe).expect("coherent");
     assert_eq!(g.dimensions(), Dimensions::new(320, 240));
     assert_eq!(g.extractor(), KeyframeExtractor::IFrame);
-    assert!(g.data().is_empty());
+    assert_eq!(g.thumbnail_id_ref(), &thumbnail_id);
   }
 }
 
@@ -922,8 +906,7 @@ impl From<(Uuid7, Keyframe<Uuid7>)> for domain::Keyframe<Uuid7> {
     let Keyframe {
       id,
       pts,
-      data,
-      mime,
+      thumbnail_id,
       dimensions,
       extractor,
       classifications,
@@ -945,8 +928,7 @@ impl From<(Uuid7, Keyframe<Uuid7>)> for domain::Keyframe<Uuid7> {
       id,
       scene_id,
       pts,
-      data,
-      mime,
+      thumbnail_id,
       dimensions,
       extractor,
       classifications,

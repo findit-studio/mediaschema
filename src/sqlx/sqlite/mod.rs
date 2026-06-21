@@ -18,6 +18,9 @@ pub mod person;
 pub mod subtitle;
 #[cfg(feature = "video")]
 #[cfg_attr(docsrs, doc(cfg(feature = "video")))]
+pub mod thumbnail;
+#[cfg(feature = "video")]
+#[cfg_attr(docsrs, doc(cfg(feature = "video")))]
 pub mod video;
 
 #[cfg(feature = "audio")]
@@ -42,6 +45,8 @@ pub use subtitle::{
   SqliteSubtitleTrackVttRegionRow, SqliteSubtitleTrackVttStyleRow,
 };
 #[cfg(feature = "video")]
+pub use thumbnail::SqliteThumbnailRow;
+#[cfg(feature = "video")]
 pub use video::{
   video_track_from_rows, SqliteKeyframeActionRow, SqliteKeyframeBarcodeRow,
   SqliteKeyframeBodyPose3DJointRow, SqliteKeyframeBodyPose3DRow, SqliteKeyframeBodyPoseJointRow,
@@ -63,3 +68,34 @@ pub const SCHEMA_SQL: &str = include_str!("schema.sql");
 /// Initial migration mirror of [`SCHEMA_SQL`], also embedded as a static
 /// string so consumers can wire it into their migration runner.
 pub const MIGRATION_0001_INIT: &str = include_str!("migrations/0001_init.sql");
+
+#[cfg(all(test, feature = "video"))]
+mod schema_tests {
+  use super::{MIGRATION_0001_INIT, SCHEMA_SQL};
+
+  #[test]
+  fn schema_has_thumbnail_table_and_keyframe_fk() {
+    // The thumbnail FK target exists with its storage discriminator.
+    assert!(SCHEMA_SQL.contains("CREATE TABLE IF NOT EXISTS thumbnail"));
+    assert!(SCHEMA_SQL.contains("kind      TEXT    NOT NULL"));
+    // Keyframe references the thumbnail by FK and no longer inlines the
+    // image bytes / mime.
+    assert!(SCHEMA_SQL.contains("thumbnail_id               BLOB    NOT NULL"));
+    assert!(SCHEMA_SQL.contains("idx_keyframe_thumbnail_id"));
+    assert!(!SCHEMA_SQL.contains("data                       BLOB    NOT NULL"));
+    assert!(!SCHEMA_SQL.contains("mime                       TEXT    NOT NULL"));
+    // The thumbnail table is declared BEFORE keyframe (FK target first).
+    let thumb = SCHEMA_SQL
+      .find("CREATE TABLE IF NOT EXISTS thumbnail")
+      .expect("thumbnail table present");
+    let keyframe = SCHEMA_SQL
+      .find("CREATE TABLE IF NOT EXISTS keyframe (")
+      .expect("keyframe table present");
+    assert!(thumb < keyframe, "thumbnail must precede keyframe");
+  }
+
+  #[test]
+  fn migration_mirror_matches_schema() {
+    assert_eq!(SCHEMA_SQL, MIGRATION_0001_INIT);
+  }
+}

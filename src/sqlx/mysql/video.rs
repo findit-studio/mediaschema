@@ -738,8 +738,9 @@ pub struct MySqlKeyframeRow {
   pub id: Vec<u8>,
   pub scene_id: Vec<u8>,
   pub pts: i64,
-  pub data: Vec<u8>,
-  pub mime: String,
+  /// FK → `thumbnail.id` (16-byte BINARY). The image bytes + storage
+  /// backend live on the referenced `thumbnail` row.
+  pub thumbnail_id: Vec<u8>,
   pub width: i64,
   pub height: i64,
   pub extractor: String,
@@ -1064,8 +1065,7 @@ impl From<&Keyframe<Uuid7>> for MySqlKeyframeRows {
       id: id.clone(),
       scene_id: k.scene_id_ref().as_bytes().to_vec(),
       pts: pts.pts(),
-      data: k.data().to_vec(),
-      mime: k.mime().to_owned(),
+      thumbnail_id: k.thumbnail_id_ref().as_bytes().to_vec(),
       width: i64::from(dims.width()),
       height: i64::from(dims.height()),
       extractor: keyframe_extractor_to_slug(k.extractor()).to_owned(),
@@ -1352,16 +1352,15 @@ pub fn keyframe_from_rows(
       .ok_or_else(|| SqlxError::DomainConstructorRejected("Keyframe row is missing".to_owned()))?;
     let id = bytes_to_uuid7(&row.id)?;
     let scene_id = bytes_to_uuid7(&row.scene_id)?;
+    let thumbnail_id = bytes_to_uuid7(&row.thumbnail_id)?;
     let pts = mediatime::Timestamp::new(row.pts, parent_timebase);
     let dimensions = Dimensions::new(
       u32_from_i64(row.width, "Keyframe.width")?,
       u32_from_i64(row.height, "Keyframe.height")?,
     );
     let extractor = parse_keyframe_extractor(&row.extractor)?;
-    let mut kf = Keyframe::try_new(id, scene_id, pts, dimensions, extractor)
+    let mut kf = Keyframe::try_new(id, scene_id, thumbnail_id, pts, dimensions, extractor)
       .map_err(|e: KeyframeError| SqlxError::DomainConstructorRejected(e.to_string()))?
-      .with_mime(row.mime)
-      .with_data(Bytes::from(row.data))
       .with_aesthetics(Aesthetics::new(
         row.aesthetics_overall_score,
         row.aesthetics_is_utility,
@@ -2702,8 +2701,8 @@ pub struct MySqlKeyframeRowRef<'r> {
   pub id: &'r [u8],
   pub scene_id: &'r [u8],
   pub pts: i64,
-  pub data: &'r [u8],
-  pub mime: &'r str,
+  /// FK → `thumbnail.id` (16-byte BINARY).
+  pub thumbnail_id: &'r [u8],
   pub width: i64,
   pub height: i64,
   pub extractor: &'r str,
@@ -2975,8 +2974,7 @@ impl MySqlKeyframeRow {
       id: &self.id,
       scene_id: &self.scene_id,
       pts: self.pts,
-      data: &self.data,
-      mime: &self.mime,
+      thumbnail_id: &self.thumbnail_id,
       width: self.width,
       height: self.height,
       extractor: &self.extractor,
@@ -3451,16 +3449,15 @@ pub fn keyframe_from_rows_ref<'r>(
       .ok_or_else(|| SqlxError::DomainConstructorRejected("Keyframe row is missing".to_owned()))?;
     let id = bytes_to_uuid7(row.id)?;
     let scene_id = bytes_to_uuid7(row.scene_id)?;
+    let thumbnail_id = bytes_to_uuid7(row.thumbnail_id)?;
     let pts = mediatime::Timestamp::new(row.pts, parent_timebase);
     let dimensions = Dimensions::new(
       u32_from_i64(row.width, "Keyframe.width")?,
       u32_from_i64(row.height, "Keyframe.height")?,
     );
     let extractor = parse_keyframe_extractor(row.extractor)?;
-    let mut kf = Keyframe::try_new(id, scene_id, pts, dimensions, extractor)
+    let mut kf = Keyframe::try_new(id, scene_id, thumbnail_id, pts, dimensions, extractor)
       .map_err(|e: KeyframeError| SqlxError::DomainConstructorRejected(e.to_string()))?
-      .with_mime(row.mime)
-      .with_data(Bytes::copy_from_slice(row.data))
       .with_aesthetics(Aesthetics::new(
         row.aesthetics_overall_score,
         row.aesthetics_is_utility,
@@ -4077,6 +4074,7 @@ mod tests {
     let kf = Keyframe::try_new(
       Uuid7::new(),
       Uuid7::new(),
+      Uuid7::new(),
       Timestamp::new(0, tb()),
       Dimensions::new(320, 180),
       KeyframeExtractor::CompositeQuality,
@@ -4093,13 +4091,12 @@ mod tests {
     let mut kf = Keyframe::try_new(
       Uuid7::new(),
       Uuid7::new(),
+      Uuid7::new(),
       Timestamp::new(7000, tb()),
       Dimensions::new(1920, 1080),
       KeyframeExtractor::IFrame,
     )
     .unwrap()
-    .with_mime("image/jpeg")
-    .with_data(std::vec![0xff_u8, 0xd8, 0xff])
     .with_classifications(std::vec![Detection::try_new("dog", 0.97).unwrap()])
     .with_objects(std::vec![
       ObjectDetection::new(Detection::try_new("ball", 0.6).unwrap(), Some(bb)),
@@ -4343,6 +4340,7 @@ mod tests {
     let kf = Keyframe::try_new(
       Uuid7::new(),
       Uuid7::new(),
+      Uuid7::new(),
       Timestamp::new(0, tb()),
       Dimensions::new(320, 180),
       KeyframeExtractor::CompositeQuality,
@@ -4359,13 +4357,12 @@ mod tests {
     let kf = Keyframe::try_new(
       Uuid7::new(),
       Uuid7::new(),
+      Uuid7::new(),
       Timestamp::new(7000, tb()),
       Dimensions::new(1920, 1080),
       KeyframeExtractor::IFrame,
     )
     .unwrap()
-    .with_mime("image/jpeg")
-    .with_data(std::vec![0xff_u8, 0xd8, 0xff])
     .with_classifications(std::vec![Detection::try_new("dog", 0.97).unwrap()])
     .with_objects(std::vec![ObjectDetection::new(
       Detection::try_new("ball", 0.6).unwrap(),

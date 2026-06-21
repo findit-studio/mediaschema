@@ -25,7 +25,7 @@ pub mod vo;
 pub use bitflags::{AudioIndexStatus, MediaErrorFlags, SubtitleIndexStatus, VideoIndexStatus};
 pub use enums::{
   AudioContentKind, AudioIndexStage, KeyframeExtractor, MediaKind, ScanStatus, SceneDetector,
-  SubtitleIndexStage, SubtitleKind, VideoIndexStage,
+  SubtitleIndexStage, SubtitleKind, ThumbnailKind, ThumbnailKindParseError, VideoIndexStage,
 };
 pub use identified::Identified;
 pub use primitives::{ErrorCode, FileChecksum, Rgba, Uuid7};
@@ -47,7 +47,7 @@ pub use aggregates::{
   SpeechSegmentParts, Word,
 };
 #[cfg(all(feature = "std", feature = "video"))]
-pub use aggregates::{Keyframe, Scene, Video, VideoTrack};
+pub use aggregates::{Keyframe, Scene, Thumbnail, ThumbnailError, Video, VideoTrack};
 #[cfg(all(feature = "std", feature = "subtitle"))]
 pub use aggregates::{Subtitle, SubtitleCue, SubtitleTrack};
 // `Chapter` is medium-independent (container-level) but std-gated like

@@ -177,6 +177,93 @@ impl KeyframeExtractor {
 }
 
 // ===========================================================================
+// ThumbnailKind — where a Keyframe's thumbnail image is stored
+// ===========================================================================
+
+/// Storage backend for a `Thumbnail`'s image bytes — recorded per
+/// thumbnail so retrieval is data-driven and backends can be mixed or
+/// migrated.
+///
+/// - [`FileSystem`](Self::FileSystem) — image lives on disk; the
+///   thumbnail's `location` holds the path, `data` is empty.
+/// - [`Database`](Self::Database) — image is inlined as `data`;
+///   `location` is empty.
+/// - [`Remote`](Self::Remote) — image lives behind a URL; `location`
+///   holds the URL, `data` is empty.
+///
+/// `#[non_exhaustive]` — additional storage backends (object stores,
+/// CDNs, …) may be added without a SemVer break. No `Default`: the
+/// storage backend is a deliberate per-thumbnail choice, not an
+/// inferable zero value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, IsVariant, Display)]
+#[display("{}", self.as_str())]
+#[non_exhaustive]
+pub enum ThumbnailKind {
+  /// Image stored on the local filesystem; `location` is the path.
+  FileSystem,
+  /// Image inlined in the database row; `data` carries the bytes.
+  Database,
+  /// Image stored at a remote URL; `location` is the URL.
+  Remote,
+}
+
+impl ThumbnailKind {
+  /// Stable snake_case slug — the canonical string form of every variant.
+  /// Used for `Display`, storage tags, log keys, schema-doc references.
+  #[inline(always)]
+  pub const fn as_str(&self) -> &'static str {
+    match self {
+      Self::FileSystem => "filesystem",
+      Self::Database => "database",
+      Self::Remote => "remote",
+    }
+  }
+  /// Inverse of [`as_str`](Self::as_str). Returns `None` for any input
+  /// that isn't an exact match of one of the slugs.
+  #[inline]
+  pub fn from_str(s: &str) -> Option<Self> {
+    Some(match s {
+      "filesystem" => Self::FileSystem,
+      "database" => Self::Database,
+      "remote" => Self::Remote,
+      _ => return None,
+    })
+  }
+}
+
+impl core::str::FromStr for ThumbnailKind {
+  type Err = ThumbnailKindParseError;
+
+  /// Partial parse: a known slug maps to its variant; an unknown slug is
+  /// an error (no string mints a storage tag). Delegates to the
+  /// canonical [`ThumbnailKind::from_str`] slug table.
+  #[inline]
+  fn from_str(s: &str) -> Result<Self, Self::Err> {
+    Self::from_str(s).ok_or(ThumbnailKindParseError(()))
+  }
+}
+
+impl TryFrom<&str> for ThumbnailKind {
+  type Error = ThumbnailKindParseError;
+
+  #[inline]
+  fn try_from(s: &str) -> Result<Self, Self::Error> {
+    core::str::FromStr::from_str(s)
+  }
+}
+
+/// Error returned when a string fails to parse into a [`ThumbnailKind`]
+/// (see its [`FromStr`](core::str::FromStr) / [`TryFrom<&str>`] impls).
+///
+/// Opaque tuple struct: the private unit field seals it against
+/// downstream construction and lets it grow real fields later without a
+/// SemVer break, while keeping the bad input out of the public type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error("unknown ThumbnailKind slug")]
+#[non_exhaustive]
+pub struct ThumbnailKindParseError(());
+
+// ===========================================================================
 // SubtitleKind — subtitle role (a findit selection/search facet)
 // ===========================================================================
 
@@ -806,6 +893,38 @@ mod slug_tests {
       assert_eq!(SubtitleKind::from_str(v.as_str()), Some(v), "{v:?}");
     }
     assert_eq!(SubtitleKind::from_str("not_a_slug"), None);
+  }
+
+  #[test]
+  fn thumbnail_kind_slug_roundtrip() {
+    for v in [
+      ThumbnailKind::FileSystem,
+      ThumbnailKind::Database,
+      ThumbnailKind::Remote,
+    ] {
+      assert_eq!(ThumbnailKind::from_str(v.as_str()), Some(v), "{v:?}");
+    }
+    assert_eq!(ThumbnailKind::from_str("not_a_slug"), None);
+  }
+
+  #[test]
+  fn thumbnail_kind_fromstr_and_tryfrom() {
+    use core::str::FromStr;
+    // Both the `FromStr` trait and `TryFrom<&str>` route through the
+    // same slug table; a known slug succeeds, an unknown one errors.
+    // (The inherent `from_str -> Option` shadows the trait, so the
+    // trait form is named explicitly here.)
+    assert_eq!(
+      <ThumbnailKind as FromStr>::from_str("database"),
+      Ok(ThumbnailKind::Database)
+    );
+    assert_eq!(ThumbnailKind::try_from("remote"), Ok(ThumbnailKind::Remote));
+    assert!("filesystem"
+      .parse::<ThumbnailKind>()
+      .unwrap()
+      .is_file_system());
+    assert!(<ThumbnailKind as FromStr>::from_str("nope").is_err());
+    assert!(ThumbnailKind::try_from("nope").is_err());
   }
 
   #[test]
