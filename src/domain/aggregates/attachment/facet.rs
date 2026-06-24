@@ -167,6 +167,7 @@ mod tests {
     assert!(AttachmentError::NilMediaId.is_nil_media_id());
   }
 
+  #[cfg(all(feature = "video", feature = "audio", feature = "subtitle"))]
   #[test]
   fn into_parts_and_rehydrate_round_trip() {
     let a = Attachment::try_new(Uuid7::new(), Uuid7::new())

@@ -1369,7 +1369,6 @@ pub fn keyframe_from_rows(
       .keyframe
       .ok_or_else(|| SqlxError::DomainConstructorRejected("Keyframe row is missing".to_owned()))?;
     let id = uuid_to_uuid7(row.id)?;
-    let scene_id = uuid_to_uuid7(row.scene_id)?;
     let thumbnail_id = uuid_to_uuid7(row.thumbnail_id)?;
     let pts = mediatime::Timestamp::new(row.pts, parent_timebase);
     let dimensions = Dimensions::new(
@@ -1377,8 +1376,21 @@ pub fn keyframe_from_rows(
       u32_from_i64(row.height, "Keyframe.height")?,
     );
     let extractor = parse_keyframe_extractor(&row.extractor)?;
-    let mut kf = Keyframe::try_new(id, scene_id, thumbnail_id, pts, dimensions, extractor)
-      .map_err(|e: KeyframeError| SqlxError::DomainConstructorRejected(e.to_string()))?
+    // Branch on `role`: a scene keyframe requires its (non-NULL) `scene_id`;
+    // a cover keyframe has none (`scene_id` is NULL).
+    let kf = match parse_keyframe_role(&row.role)? {
+      KeyframeRole::Cover => Keyframe::try_new_cover(id, thumbnail_id, pts, dimensions, extractor),
+      KeyframeRole::Scene => {
+        let scene_id = uuid_to_uuid7(row.scene_id.ok_or_else(|| {
+          SqlxError::DomainConstructorRejected(
+            "keyframe.scene_id is NULL but role is 'scene'".to_owned(),
+          )
+        })?)?;
+        Keyframe::try_new(id, scene_id, thumbnail_id, pts, dimensions, extractor)
+      }
+    }
+    .map_err(|e: KeyframeError| SqlxError::DomainConstructorRejected(e.to_string()))?;
+    let mut kf = kf
       .with_aesthetics(Aesthetics::new(
         row.aesthetics_overall_score,
         row.aesthetics_is_utility,
@@ -1588,6 +1600,15 @@ fn parse_scene_detector(s: &str) -> Result<SceneDetector, SqlxError> {
       )))
     }
   })
+}
+
+fn keyframe_role_to_slug(r: KeyframeRole) -> &'static str {
+  r.as_str()
+}
+
+fn parse_keyframe_role(s: &str) -> Result<KeyframeRole, SqlxError> {
+  KeyframeRole::from_str(s)
+    .ok_or_else(|| SqlxError::UnknownDiscriminant(format!("KeyframeRole slug: {s}")))
 }
 
 fn keyframe_extractor_to_slug(e: KeyframeExtractor) -> &'static str {
@@ -2676,7 +2697,10 @@ pub fn scene_from_row_ref<'r>(
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct PgKeyframeRowRef<'r> {
   pub id: Uuid,
-  pub scene_id: Uuid,
+  /// FK → `scene.id` for a scene keyframe; NULL for a cover keyframe.
+  pub scene_id: Option<Uuid>,
+  /// `KeyframeRole` slug (`scene` / `cover`).
+  pub role: &'r str,
   pub pts: i64,
   /// FK → `thumbnail.id`.
   pub thumbnail_id: Uuid,
@@ -2844,6 +2868,7 @@ impl PgKeyframeRow {
     PgKeyframeRowRef {
       id: self.id,
       scene_id: self.scene_id,
+      role: &self.role,
       pts: self.pts,
       thumbnail_id: self.thumbnail_id,
       width: self.width,
@@ -3158,7 +3183,6 @@ pub fn keyframe_from_rows_ref<'r>(
       .keyframe
       .ok_or_else(|| SqlxError::DomainConstructorRejected("Keyframe row is missing".to_owned()))?;
     let id = uuid_to_uuid7(row.id)?;
-    let scene_id = uuid_to_uuid7(row.scene_id)?;
     let thumbnail_id = uuid_to_uuid7(row.thumbnail_id)?;
     let pts = mediatime::Timestamp::new(row.pts, parent_timebase);
     let dimensions = Dimensions::new(
@@ -3166,8 +3190,19 @@ pub fn keyframe_from_rows_ref<'r>(
       u32_from_i64(row.height, "Keyframe.height")?,
     );
     let extractor = parse_keyframe_extractor(row.extractor)?;
-    let mut kf = Keyframe::try_new(id, scene_id, thumbnail_id, pts, dimensions, extractor)
-      .map_err(|e: KeyframeError| SqlxError::DomainConstructorRejected(e.to_string()))?
+    let kf = match parse_keyframe_role(row.role)? {
+      KeyframeRole::Cover => Keyframe::try_new_cover(id, thumbnail_id, pts, dimensions, extractor),
+      KeyframeRole::Scene => {
+        let scene_id = uuid_to_uuid7(row.scene_id.ok_or_else(|| {
+          SqlxError::DomainConstructorRejected(
+            "keyframe.scene_id is NULL but role is 'scene'".to_owned(),
+          )
+        })?)?;
+        Keyframe::try_new(id, scene_id, thumbnail_id, pts, dimensions, extractor)
+      }
+    }
+    .map_err(|e: KeyframeError| SqlxError::DomainConstructorRejected(e.to_string()))?;
+    let mut kf = kf
       .with_aesthetics(Aesthetics::new(
         row.aesthetics_overall_score,
         row.aesthetics_is_utility,

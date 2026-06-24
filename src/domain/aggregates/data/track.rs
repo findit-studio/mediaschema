@@ -492,6 +492,7 @@ mod tests {
     assert!(t.index_status().contains(DataIndexStatus::PROBED));
   }
 
+  #[cfg(all(feature = "video", feature = "audio", feature = "subtitle"))]
   #[test]
   fn into_parts_and_rehydrate_round_trip() {
     let t = DataTrack::try_new(Uuid7::new(), Uuid7::new())

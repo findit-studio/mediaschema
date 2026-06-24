@@ -180,6 +180,7 @@ mod tests {
     assert_eq!(d.track_progress_ref(), &p);
   }
 
+  #[cfg(all(feature = "video", feature = "audio", feature = "subtitle"))]
   #[test]
   fn into_parts_and_rehydrate_round_trip() {
     let d = Data::try_new(Uuid7::new(), Uuid7::new())

@@ -53,8 +53,8 @@ use crate::{
       KeyframeError, SceneError, VideoError, VideoTrackError,
     },
     vo::{IndexProgress, LocalizedText, Provenance},
-    ErrorCode, ErrorInfo, Keyframe, KeyframeExtractor, Rgba, Scene, SceneDetector, Uuid7, Video,
-    VideoIndexStatus, VideoTrack,
+    ErrorCode, ErrorInfo, Keyframe, KeyframeExtractor, KeyframeRole, Rgba, Scene, SceneDetector,
+    Uuid7, Video, VideoIndexStatus, VideoTrack,
   },
   sqlx::{
     dto::{bytes_to_uuid7, timestamp_from_parts},
@@ -736,7 +736,10 @@ pub fn scene_from_row(
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeRow {
   pub id: Vec<u8>,
-  pub scene_id: Vec<u8>,
+  /// FK → `scene.id` for a scene keyframe; NULL for a cover keyframe.
+  pub scene_id: Option<Vec<u8>>,
+  /// `KeyframeRole` slug (`scene` / `cover`).
+  pub role: String,
   pub pts: i64,
   /// FK → `thumbnail.id` (16-byte BINARY). The image bytes + storage
   /// backend live on the referenced `thumbnail` row.
@@ -1063,7 +1066,8 @@ impl From<&Keyframe<Uuid7>> for MySqlKeyframeRows {
     let horizon = k.horizon_ref();
     let row = MySqlKeyframeRow {
       id: id.clone(),
-      scene_id: k.scene_id_ref().as_bytes().to_vec(),
+      scene_id: k.scene_id_ref().map(|s| s.as_bytes().to_vec()),
+      role: keyframe_role_to_slug(k.role()).to_owned(),
       pts: pts.pts(),
       thumbnail_id: k.thumbnail_id_ref().as_bytes().to_vec(),
       width: i64::from(dims.width()),
@@ -1351,7 +1355,6 @@ pub fn keyframe_from_rows(
       .keyframe
       .ok_or_else(|| SqlxError::DomainConstructorRejected("Keyframe row is missing".to_owned()))?;
     let id = bytes_to_uuid7(&row.id)?;
-    let scene_id = bytes_to_uuid7(&row.scene_id)?;
     let thumbnail_id = bytes_to_uuid7(&row.thumbnail_id)?;
     let pts = mediatime::Timestamp::new(row.pts, parent_timebase);
     let dimensions = Dimensions::new(
@@ -1359,8 +1362,21 @@ pub fn keyframe_from_rows(
       u32_from_i64(row.height, "Keyframe.height")?,
     );
     let extractor = parse_keyframe_extractor(&row.extractor)?;
-    let mut kf = Keyframe::try_new(id, scene_id, thumbnail_id, pts, dimensions, extractor)
-      .map_err(|e: KeyframeError| SqlxError::DomainConstructorRejected(e.to_string()))?
+    // Branch on `role`: a scene keyframe requires its (non-NULL) `scene_id`;
+    // a cover keyframe has none (`scene_id` is NULL).
+    let kf = match parse_keyframe_role(&row.role)? {
+      KeyframeRole::Cover => Keyframe::try_new_cover(id, thumbnail_id, pts, dimensions, extractor),
+      KeyframeRole::Scene => {
+        let scene_id = bytes_to_uuid7(row.scene_id.as_deref().ok_or_else(|| {
+          SqlxError::DomainConstructorRejected(
+            "keyframe.scene_id is NULL but role is 'scene'".to_owned(),
+          )
+        })?)?;
+        Keyframe::try_new(id, scene_id, thumbnail_id, pts, dimensions, extractor)
+      }
+    }
+    .map_err(|e: KeyframeError| SqlxError::DomainConstructorRejected(e.to_string()))?;
+    let mut kf = kf
       .with_aesthetics(Aesthetics::new(
         row.aesthetics_overall_score,
         row.aesthetics_is_utility,
@@ -1570,6 +1586,15 @@ fn parse_scene_detector(s: &str) -> Result<SceneDetector, SqlxError> {
       )))
     }
   })
+}
+
+fn keyframe_role_to_slug(r: KeyframeRole) -> &'static str {
+  r.as_str()
+}
+
+fn parse_keyframe_role(s: &str) -> Result<KeyframeRole, SqlxError> {
+  KeyframeRole::from_str(s)
+    .ok_or_else(|| SqlxError::UnknownDiscriminant(format!("KeyframeRole slug: {s}")))
 }
 
 fn keyframe_extractor_to_slug(e: KeyframeExtractor) -> &'static str {
@@ -2699,7 +2724,10 @@ pub fn scene_from_row_ref<'r>(
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeRowRef<'r> {
   pub id: &'r [u8],
-  pub scene_id: &'r [u8],
+  /// FK → `scene.id` for a scene keyframe; NULL for a cover keyframe.
+  pub scene_id: Option<&'r [u8]>,
+  /// `KeyframeRole` slug (`scene` / `cover`).
+  pub role: &'r str,
   pub pts: i64,
   /// FK → `thumbnail.id` (16-byte BINARY).
   pub thumbnail_id: &'r [u8],
@@ -2972,7 +3000,8 @@ impl MySqlKeyframeRow {
   pub fn as_ref(&self) -> MySqlKeyframeRowRef<'_> {
     MySqlKeyframeRowRef {
       id: &self.id,
-      scene_id: &self.scene_id,
+      scene_id: self.scene_id.as_deref(),
+      role: &self.role,
       pts: self.pts,
       thumbnail_id: &self.thumbnail_id,
       width: self.width,
@@ -3448,7 +3477,6 @@ pub fn keyframe_from_rows_ref<'r>(
       .keyframe
       .ok_or_else(|| SqlxError::DomainConstructorRejected("Keyframe row is missing".to_owned()))?;
     let id = bytes_to_uuid7(row.id)?;
-    let scene_id = bytes_to_uuid7(row.scene_id)?;
     let thumbnail_id = bytes_to_uuid7(row.thumbnail_id)?;
     let pts = mediatime::Timestamp::new(row.pts, parent_timebase);
     let dimensions = Dimensions::new(
@@ -3456,8 +3484,19 @@ pub fn keyframe_from_rows_ref<'r>(
       u32_from_i64(row.height, "Keyframe.height")?,
     );
     let extractor = parse_keyframe_extractor(row.extractor)?;
-    let mut kf = Keyframe::try_new(id, scene_id, thumbnail_id, pts, dimensions, extractor)
-      .map_err(|e: KeyframeError| SqlxError::DomainConstructorRejected(e.to_string()))?
+    let kf = match parse_keyframe_role(row.role)? {
+      KeyframeRole::Cover => Keyframe::try_new_cover(id, thumbnail_id, pts, dimensions, extractor),
+      KeyframeRole::Scene => {
+        let scene_id = bytes_to_uuid7(row.scene_id.ok_or_else(|| {
+          SqlxError::DomainConstructorRejected(
+            "keyframe.scene_id is NULL but role is 'scene'".to_owned(),
+          )
+        })?)?;
+        Keyframe::try_new(id, scene_id, thumbnail_id, pts, dimensions, extractor)
+      }
+    }
+    .map_err(|e: KeyframeError| SqlxError::DomainConstructorRejected(e.to_string()))?;
+    let mut kf = kf
       .with_aesthetics(Aesthetics::new(
         row.aesthetics_overall_score,
         row.aesthetics_is_utility,

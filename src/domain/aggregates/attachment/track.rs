@@ -387,6 +387,7 @@ mod tests {
     assert!(t.blob_ref().is_none());
   }
 
+  #[cfg(all(feature = "video", feature = "audio", feature = "subtitle"))]
   #[test]
   fn blob_slot_round_trips_when_set_and_when_none() {
     // Reserved-but-settable: a `Some(BlobRef)` survives into_parts/rehydrate
