@@ -177,6 +177,49 @@ impl KeyframeExtractor {
 }
 
 // ===========================================================================
+// KeyframeRole — scene-representative frame vs the video's poster/cover
+// ===========================================================================
+
+/// Role of a [`Keyframe`](crate::domain::Keyframe) — a scene-representative
+/// frame vs the video's poster/cover frame.
+///
+/// A `Scene` keyframe rides the `keyframe → scene → video_track` chain
+/// (`scene_id` is `Some`); a `Cover` keyframe attaches at the video level
+/// with no scene parent (`scene_id` is `None`). **Closed** — there are
+/// exactly two roles. `#[default]` is `Scene` (the common case).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, IsVariant, Display)]
+#[display("{}", self.as_str())]
+pub enum KeyframeRole {
+  /// Scene-representative frame (`keyframe → scene → video_track`).
+  #[default]
+  Scene,
+  /// Video poster / cover frame (attaches at the video level, no scene
+  /// parent).
+  Cover,
+}
+
+impl KeyframeRole {
+  /// Stable snake_case slug — the canonical string form of every variant.
+  #[inline(always)]
+  pub const fn as_str(&self) -> &'static str {
+    match self {
+      Self::Scene => "scene",
+      Self::Cover => "cover",
+    }
+  }
+  /// Inverse of [`as_str`](Self::as_str). Returns `None` for any input
+  /// that isn't an exact match of one of the slugs.
+  #[inline]
+  pub fn from_str(s: &str) -> Option<Self> {
+    Some(match s {
+      "scene" => Self::Scene,
+      "cover" => Self::Cover,
+      _ => return None,
+    })
+  }
+}
+
+// ===========================================================================
 // ThumbnailKind — where a Keyframe's thumbnail image is stored
 // ===========================================================================
 
@@ -893,6 +936,16 @@ mod slug_tests {
       assert_eq!(SubtitleKind::from_str(v.as_str()), Some(v), "{v:?}");
     }
     assert_eq!(SubtitleKind::from_str("not_a_slug"), None);
+  }
+
+  #[test]
+  fn keyframe_role_slug_roundtrip() {
+    for v in [KeyframeRole::Scene, KeyframeRole::Cover] {
+      assert_eq!(KeyframeRole::from_str(v.as_str()), Some(v), "{v:?}");
+    }
+    assert_eq!(KeyframeRole::from_str("not_a_slug"), None);
+    // Default is Scene (the common case).
+    assert_eq!(KeyframeRole::default(), KeyframeRole::Scene);
   }
 
   #[test]

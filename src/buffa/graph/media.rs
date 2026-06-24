@@ -452,7 +452,8 @@ mod tests {
       .with_index_errors(vec![ErrorInfo::new(ErrorCode::ProbeCorrupt, "glitch")])
       .with_provenance(Provenance::from_parts("ffprobe", "7.0", "", "indexer-0.1"));
     let g_vtrack = graph::VideoTrack::try_from_flat(&vfacet_id, vtrack, vec![]).expect("coherent");
-    let g_video = graph::Video::try_from_flat(&media_id, vfacet, vec![g_vtrack]).expect("coherent");
+    let g_video =
+      graph::Video::try_from_flat(&media_id, vfacet, vec![g_vtrack], None).expect("coherent");
 
     // Audio facet + one track with a segment and a speaker.
     let afacet = domain::Audio::try_new(Uuid7::new(), media_id)

@@ -18,7 +18,7 @@ use derive_more::IsVariant;
 use mediaframe::frame::Dimensions;
 use mediatime::Timestamp;
 
-use crate::domain::{KeyframeExtractor, Uuid7};
+use crate::domain::{KeyframeExtractor, KeyframeRole, Uuid7};
 
 use super::detections::{
   ActionDetection, Aesthetics, AnimalAnalysis, BarcodeDetection, Detection, DocumentSegment,
@@ -26,21 +26,35 @@ use super::detections::{
   VlmAnalysis,
 };
 
-/// A scene thumbnail + its full image analysis bundle.
+/// A thumbnail + its full image analysis bundle.
 ///
 /// Generic over `Id` (default [`Uuid7`]). Fields are private per the
 /// encapsulation rule; access via the getter / `with_*` / `set_*`
 /// accessors.
 ///
-/// **No `Default`** — defaulting to nil `id`/`scene_id` would be an
-/// orphan thumbnail with no scene. Construct via [`Keyframe::try_new`]
-/// (which also rejects zero-`dimensions`, per the locked invariant
-/// that a thumbnail has positive W and H).
+/// ## `role` and `scene_id`
+///
+/// A keyframe is either a **scene** keyframe (the common case — a
+/// scene-representative frame, [`KeyframeRole::Scene`]) or the video's
+/// **cover** poster ([`KeyframeRole::Cover`]). A scene keyframe rides the
+/// `keyframe → scene → video_track` chain and so carries a `Some` `scene_id`;
+/// a cover keyframe attaches at the video level and has **no scene parent**,
+/// so its `scene_id` is `None`. The two cases are minted by the two
+/// constructors ([`Keyframe::try_new`] / [`Keyframe::try_new_cover`]).
+///
+/// **No `Default`** — defaulting to a nil `id` would be an orphan thumbnail.
+/// Construct via [`Keyframe::try_new`] / [`Keyframe::try_new_cover`] (which
+/// also reject zero-`dimensions`, per the locked invariant that a thumbnail
+/// has positive W and H).
 #[derive(Debug, Clone, PartialEq)]
 pub struct Keyframe<Id = Uuid7> {
   // --- identity / source ---
   id: Id,
-  scene_id: Id,
+  /// FK → `Scene.id` for a scene keyframe; `None` for a cover keyframe
+  /// (which attaches at the video level, no scene parent).
+  scene_id: Option<Id>,
+  /// Whether this is a scene-representative frame or the video poster.
+  role: KeyframeRole,
   pts: Timestamp,
 
   // --- artifact ---
@@ -74,19 +88,21 @@ pub struct Keyframe<Id = Uuid7> {
 }
 
 impl Keyframe<Uuid7> {
-  /// Validating constructor.
+  /// Validating constructor for a **scene** keyframe ([`KeyframeRole::Scene`]).
   ///
   /// Rejects:
   /// - nil `id` (LanceDB embedding key collision),
-  /// - nil `scene_id` (orphan keyframe with no `Scene`),
+  /// - nil `scene_id` (orphan scene keyframe with no `Scene`),
   /// - nil `thumbnail_id` (orphan keyframe with no `Thumbnail`),
   /// - zero `dimensions` (a thumbnail with W=0 or H=0 is not a valid
   ///   image artifact; the locked spec calls out `dimensions` as
   ///   non-zero in its invariants).
   ///
-  /// All analysis fields start empty and are filled in via the
-  /// `with_*` / `set_*` mutators as apple-vision / colorthief / VLM
-  /// stages land.
+  /// The keyframe's `scene_id` is set to `Some(scene_id)` and its `role`
+  /// to [`KeyframeRole::Scene`]. All analysis fields start empty and are
+  /// filled in via the `with_*` / `set_*` mutators as apple-vision /
+  /// colorthief / VLM stages land. For the video poster, use
+  /// [`Keyframe::try_new_cover`].
   pub fn try_new(
     id: Uuid7,
     scene_id: Uuid7,
@@ -95,11 +111,62 @@ impl Keyframe<Uuid7> {
     dimensions: Dimensions,
     extractor: KeyframeExtractor,
   ) -> Result<Self, KeyframeError> {
-    if id.is_nil() {
-      return Err(KeyframeError::NilId);
-    }
     if scene_id.is_nil() {
       return Err(KeyframeError::NilSceneId);
+    }
+    Self::build(
+      id,
+      Some(scene_id),
+      KeyframeRole::Scene,
+      thumbnail_id,
+      pts,
+      dimensions,
+      extractor,
+    )
+  }
+
+  /// Validating constructor for the video's **cover** poster keyframe
+  /// ([`KeyframeRole::Cover`]).
+  ///
+  /// A cover keyframe attaches at the **video** level — it has **no scene
+  /// parent**, so its `scene_id` is `None`. Rejects nil `id` / nil
+  /// `thumbnail_id` / zero `dimensions` exactly like [`Keyframe::try_new`];
+  /// there is no `scene_id` to reject. The result is a real, analyzable
+  /// [`Keyframe`] (it carries the same image + analysis bundle), so the
+  /// keyframe analyzers can process the poster frame.
+  pub fn try_new_cover(
+    id: Uuid7,
+    thumbnail_id: Uuid7,
+    pts: Timestamp,
+    dimensions: Dimensions,
+    extractor: KeyframeExtractor,
+  ) -> Result<Self, KeyframeError> {
+    Self::build(
+      id,
+      None,
+      KeyframeRole::Cover,
+      thumbnail_id,
+      pts,
+      dimensions,
+      extractor,
+    )
+  }
+
+  /// Shared constructor body for [`Keyframe::try_new`] /
+  /// [`Keyframe::try_new_cover`]. The caller has already validated that a
+  /// scene keyframe's `scene_id` is non-nil; this enforces the remaining
+  /// invariants (nil `id` / nil `thumbnail_id` / zero `dimensions`).
+  fn build(
+    id: Uuid7,
+    scene_id: Option<Uuid7>,
+    role: KeyframeRole,
+    thumbnail_id: Uuid7,
+    pts: Timestamp,
+    dimensions: Dimensions,
+    extractor: KeyframeExtractor,
+  ) -> Result<Self, KeyframeError> {
+    if id.is_nil() {
+      return Err(KeyframeError::NilId);
     }
     if thumbnail_id.is_nil() {
       return Err(KeyframeError::NilThumbnailId);
@@ -110,6 +177,7 @@ impl Keyframe<Uuid7> {
     Ok(Self {
       id,
       scene_id,
+      role,
       pts,
       thumbnail_id,
       dimensions,
@@ -140,9 +208,17 @@ impl<Id> Keyframe<Id> {
   pub const fn id_ref(&self) -> &Id {
     &self.id
   }
+  /// FK → `Scene.id` for a scene keyframe; `None` for a cover keyframe
+  /// (which attaches at the video level, no scene parent).
   #[inline(always)]
-  pub const fn scene_id_ref(&self) -> &Id {
-    &self.scene_id
+  pub const fn scene_id_ref(&self) -> Option<&Id> {
+    self.scene_id.as_ref()
+  }
+  /// Whether this is a scene-representative frame ([`KeyframeRole::Scene`])
+  /// or the video poster ([`KeyframeRole::Cover`]).
+  #[inline(always)]
+  pub const fn role(&self) -> KeyframeRole {
+    self.role
   }
   #[inline(always)]
   pub const fn pts_ref(&self) -> &Timestamp {
@@ -280,6 +356,23 @@ impl<Id> Keyframe<Id> {
   #[inline(always)]
   pub const fn set_extractor(&mut self, v: KeyframeExtractor) -> &mut Self {
     self.extractor = v;
+    self
+  }
+  /// Builder: replace the `role` discriminant. Note this does **not**
+  /// touch `scene_id` — flipping a scene keyframe to `Cover` (or back)
+  /// without also reconciling `scene_id` is the caller's responsibility;
+  /// the canonical paths are the two constructors.
+  #[must_use]
+  #[inline(always)]
+  pub const fn with_role(mut self, v: KeyframeRole) -> Self {
+    self.role = v;
+    self
+  }
+  /// In-place mutator for the `role` discriminant. See
+  /// [`Keyframe::with_role`].
+  #[inline(always)]
+  pub const fn set_role(&mut self, v: KeyframeRole) -> &mut Self {
+    self.role = v;
     self
   }
 
@@ -495,7 +588,8 @@ mod tests {
       KeyframeExtractor::CompositeQuality,
     )
     .unwrap();
-    assert_eq!(kf.scene_id_ref(), &scene_id);
+    assert_eq!(kf.scene_id_ref(), Some(&scene_id));
+    assert!(kf.role().is_scene());
     assert_eq!(kf.thumbnail_id_ref(), &thumbnail_id);
     assert_eq!(kf.pts_ref(), &ts);
     assert_eq!(kf.dimensions(), Dimensions::new(320, 180));
@@ -503,6 +597,96 @@ mod tests {
     assert!(kf.classifications_slice().is_empty());
     assert!(kf.colors_slice().is_empty());
     assert_eq!(kf.vlm_ref().shot_type(), "");
+  }
+
+  #[test]
+  fn try_new_cover_has_no_scene_and_cover_role() {
+    let thumbnail_id = Uuid7::new();
+    let ts = Timestamp::new(1234, tb());
+    let kf = Keyframe::try_new_cover(
+      Uuid7::new(),
+      thumbnail_id,
+      ts,
+      Dimensions::new(320, 180),
+      KeyframeExtractor::CompositeQuality,
+    )
+    .unwrap();
+    assert_eq!(
+      kf.scene_id_ref(),
+      None,
+      "cover keyframe has no scene parent"
+    );
+    assert!(kf.role().is_cover());
+    assert_eq!(kf.thumbnail_id_ref(), &thumbnail_id);
+  }
+
+  #[test]
+  fn try_new_cover_rejects_nil_id_thumbnail_and_zero_dims() {
+    let ts = Timestamp::new(0, tb());
+    assert_eq!(
+      Keyframe::try_new_cover(
+        Uuid7::nil(),
+        Uuid7::new(),
+        ts,
+        Dimensions::new(1, 1),
+        KeyframeExtractor::Manual
+      )
+      .err(),
+      Some(KeyframeError::NilId)
+    );
+    assert_eq!(
+      Keyframe::try_new_cover(
+        Uuid7::new(),
+        Uuid7::nil(),
+        ts,
+        Dimensions::new(1, 1),
+        KeyframeExtractor::Manual
+      )
+      .err(),
+      Some(KeyframeError::NilThumbnailId)
+    );
+    assert_eq!(
+      Keyframe::try_new_cover(
+        Uuid7::new(),
+        Uuid7::new(),
+        ts,
+        Dimensions::new(0, 1),
+        KeyframeExtractor::Manual
+      )
+      .err(),
+      Some(KeyframeError::ZeroDimensions)
+    );
+  }
+
+  #[test]
+  fn role_and_scene_id_survive_into_parts_rehydrate() {
+    let ts = Timestamp::new(0, tb());
+    let scene = Keyframe::try_new(
+      Uuid7::new(),
+      Uuid7::new(),
+      Uuid7::new(),
+      ts,
+      Dimensions::new(2, 2),
+      KeyframeExtractor::IFrame,
+    )
+    .unwrap();
+    let scene2 = Keyframe::rehydrate(scene.clone().into_parts());
+    assert_eq!(scene, scene2);
+    assert!(scene2.role().is_scene());
+    assert!(scene2.scene_id_ref().is_some());
+
+    let cover = Keyframe::try_new_cover(
+      Uuid7::new(),
+      Uuid7::new(),
+      ts,
+      Dimensions::new(2, 2),
+      KeyframeExtractor::IFrame,
+    )
+    .unwrap();
+    let cover2 = Keyframe::rehydrate(cover.clone().into_parts());
+    assert_eq!(cover, cover2);
+    assert!(cover2.role().is_cover());
+    assert!(cover2.scene_id_ref().is_none());
   }
 
   #[test]
@@ -651,7 +835,10 @@ mod tests {
 #[derive(Debug, Clone, PartialEq)]
 pub struct KeyframeParts<Id = Uuid7> {
   pub id: Id,
-  pub scene_id: Id,
+  /// FK → `Scene.id` for a scene keyframe; `None` for a cover keyframe.
+  pub scene_id: Option<Id>,
+  /// Scene-representative frame vs the video poster.
+  pub role: KeyframeRole,
   pub pts: Timestamp,
   pub thumbnail_id: Id,
   pub dimensions: Dimensions,
@@ -679,6 +866,7 @@ impl<Id> Keyframe<Id> {
     let Self {
       id,
       scene_id,
+      role,
       pts,
       thumbnail_id,
       dimensions,
@@ -701,6 +889,7 @@ impl<Id> Keyframe<Id> {
     KeyframeParts {
       id,
       scene_id,
+      role,
       pts,
       thumbnail_id,
       dimensions,
@@ -738,6 +927,7 @@ impl<Id> Keyframe<Id> {
     let KeyframeParts {
       id,
       scene_id,
+      role,
       pts,
       thumbnail_id,
       dimensions,
@@ -760,6 +950,7 @@ impl<Id> Keyframe<Id> {
     Self {
       id,
       scene_id,
+      role,
       pts,
       thumbnail_id,
       dimensions,

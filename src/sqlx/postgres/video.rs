@@ -54,8 +54,8 @@ use crate::{
       KeyframeError, SceneError, VideoError, VideoTrackError,
     },
     vo::{IndexProgress, LocalizedText, Provenance},
-    ErrorCode, ErrorInfo, Keyframe, KeyframeExtractor, Rgba, Scene, SceneDetector, Uuid7, Video,
-    VideoIndexStatus, VideoTrack,
+    ErrorCode, ErrorInfo, Keyframe, KeyframeExtractor, KeyframeRole, Rgba, Scene, SceneDetector,
+    Uuid7, Video, VideoIndexStatus, VideoTrack,
   },
   sqlx::{
     dto::{timestamp_from_parts, uuid7_to_uuid, uuid_to_uuid7},
@@ -79,6 +79,8 @@ pub struct PgVideoRow {
   pub track_progress_total: i64,
   pub track_progress_indexed: i64,
   pub track_progress_failed: i64,
+  /// FK → `cover_keyframe.id` (the video poster); NULL = no cover yet.
+  pub cover_keyframe_id: Option<Uuid>,
 }
 
 impl From<&Video<Uuid7>> for PgVideoRow {
@@ -91,6 +93,7 @@ impl From<&Video<Uuid7>> for PgVideoRow {
       track_progress_total: i64::from(p.total()),
       track_progress_indexed: i64::from(p.indexed()),
       track_progress_failed: i64::from(p.failed()),
+      cover_keyframe_id: v.cover_keyframe_id_ref().map(|id| uuid7_to_uuid(*id)),
     }
   }
 }
@@ -107,11 +110,16 @@ impl TryFrom<PgVideoRow> for Video<Uuid7> {
       u32_from_i64(r.track_progress_indexed, "Video.track_progress_indexed")?,
       u32_from_i64(r.track_progress_failed, "Video.track_progress_failed")?,
     );
+    let cover_keyframe_id = match r.cover_keyframe_id {
+      Some(u) => Some(uuid_to_uuid7(u)?),
+      None => None,
+    };
     let v = Video::try_new(id, media_id)
       .map_err(|e: VideoError| SqlxError::DomainConstructorRejected(e.to_string()))?;
     Ok(
       v.with_total_scenes(total_scenes)
-        .with_track_progress(progress),
+        .with_track_progress(progress)
+        .with_cover_keyframe_id(cover_keyframe_id),
     )
   }
 }
@@ -743,7 +751,10 @@ pub fn scene_from_row(
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct PgKeyframeRow {
   pub id: Uuid,
-  pub scene_id: Uuid,
+  /// FK → `scene.id` for a scene keyframe; NULL for a cover keyframe.
+  pub scene_id: Option<Uuid>,
+  /// `KeyframeRole` slug (`scene` / `cover`).
+  pub role: String,
   pub pts: i64,
   /// FK → `thumbnail.id`. The image bytes + storage backend live on the
   /// referenced `thumbnail` row.
@@ -1070,7 +1081,8 @@ impl From<&Keyframe<Uuid7>> for PgKeyframeRows {
     let horizon = k.horizon_ref();
     let row = PgKeyframeRow {
       id,
-      scene_id: uuid7_to_uuid(*k.scene_id_ref()),
+      scene_id: k.scene_id_ref().map(|s| uuid7_to_uuid(*s)),
+      role: keyframe_role_to_slug(k.role()).to_owned(),
       pts: pts.pts(),
       thumbnail_id: uuid7_to_uuid(*k.thumbnail_id_ref()),
       width: i64::from(dims.width()),

@@ -408,7 +408,9 @@ CREATE TABLE IF NOT EXISTS video (
     total_scenes           INTEGER NOT NULL DEFAULT 0,
     track_progress_total   INTEGER NOT NULL DEFAULT 0,
     track_progress_indexed INTEGER NOT NULL DEFAULT 0,
-    track_progress_failed  INTEGER NOT NULL DEFAULT 0
+    track_progress_failed  INTEGER NOT NULL DEFAULT 0,
+    -- FK -> cover_keyframe.id (the video's poster); NULL = no cover yet.
+    cover_keyframe_id      BLOB
 );
 
 CREATE TABLE IF NOT EXISTS video_track (
@@ -540,7 +542,11 @@ CREATE INDEX IF NOT EXISTS idx_thumbnail_kind ON thumbnail(kind);
 
 CREATE TABLE IF NOT EXISTS keyframe (
     id                         BLOB    NOT NULL PRIMARY KEY,
-    scene_id                     BLOB    NOT NULL,
+    -- Nullable: a scene keyframe carries its `Scene` FK; a cover keyframe
+    -- (role = 'cover') has no scene parent (it is stored in cover_keyframe,
+    -- keyed by video_id). `role` self-describes which case a row is.
+    scene_id                   BLOB,
+    role                       TEXT    NOT NULL DEFAULT 'scene',
     pts                        INTEGER NOT NULL,
     thumbnail_id               BLOB    NOT NULL,
     width                      INTEGER NOT NULL,
@@ -554,8 +560,35 @@ CREATE TABLE IF NOT EXISTS keyframe (
     aesthetics_overall_score   REAL    NOT NULL,
     aesthetics_is_utility      INTEGER NOT NULL DEFAULT 0
 );
+-- A partial index would also work; SQLite indexes NULL keys, so a plain
+-- index over a nullable column is fine (scene keyframes have a non-NULL key).
 CREATE INDEX IF NOT EXISTS idx_keyframe_scene_id ON keyframe(scene_id);
 CREATE INDEX IF NOT EXISTS idx_keyframe_thumbnail_id ON keyframe(thumbnail_id);
+
+-- The video's cover/poster keyframe. Mirrors `keyframe` but parented by
+-- `video_id` (FK -> video.id), NOT by a scene — a cover keyframe attaches
+-- at the video level. It reuses the existing `Thumbnail` entity
+-- (thumbnail_id) and the existing `keyframe_*` detection child tables,
+-- keyed by this row's `id` (a cover keyframe id is a valid keyframe_id).
+CREATE TABLE IF NOT EXISTS cover_keyframe (
+    id                         BLOB    NOT NULL PRIMARY KEY,
+    video_id                   BLOB    NOT NULL,        -- FK -> video.id (NOT scene)
+    pts                        INTEGER NOT NULL,
+    thumbnail_id               BLOB    NOT NULL,        -- FK -> thumbnail.id
+    width                      INTEGER NOT NULL,
+    height                     INTEGER NOT NULL,
+    extractor                  TEXT    NOT NULL,
+    role                       TEXT    NOT NULL DEFAULT 'cover',
+    vlm_description_src        TEXT    NOT NULL,
+    vlm_description_translated TEXT    NOT NULL,
+    vlm_shot_type              TEXT    NOT NULL,
+    horizon_angle              REAL    NOT NULL,
+    horizon_confidence         REAL    NOT NULL,
+    aesthetics_overall_score   REAL    NOT NULL,
+    aesthetics_is_utility      INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_cover_keyframe_video_id ON cover_keyframe(video_id);
+CREATE INDEX IF NOT EXISTS idx_cover_keyframe_thumbnail_id ON cover_keyframe(thumbnail_id);
 
 CREATE TABLE IF NOT EXISTS keyframe_classification (
     keyframe_id   BLOB    NOT NULL,

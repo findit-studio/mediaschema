@@ -97,7 +97,10 @@ impl TryFrom<&wire::Video> for graph::Video<Uuid7> {
       .map_err(rejected)?
       .with_total_scenes(w.total_scenes)
       .with_track_progress(index_progress_from_wire(&w.track_progress)?);
-    graph::Video::try_from_flat(&id, flat, tracks).map_err(graph_err)
+    // Phase A: `media.v2::Video` has no `cover` field — the cover keyframe
+    // cannot ride the wire yet (Keyframe is Phase B), so lift with `None`,
+    // exactly as tracks are lifted with empty scenes.
+    graph::Video::try_from_flat(&id, flat, tracks, None).map_err(graph_err)
   }
 }
 
@@ -315,7 +318,7 @@ mod tests {
     let facet_id = *facet.id_ref();
     let track =
       graph::VideoTrack::try_from_flat(&facet_id, rich_track(facet_id), vec![]).expect("coherent");
-    let g = graph::Video::try_from_flat(&media_id, facet, vec![track]).expect("coherent");
+    let g = graph::Video::try_from_flat(&media_id, facet, vec![track], None).expect("coherent");
     let w = wire::Video::try_from(&g).expect("encodes");
     let g2 = graph::Video::try_from(&w).expect("decodes");
     assert_eq!(g2, g);
@@ -341,7 +344,7 @@ mod tests {
     // The guard propagates through the facet encoder too.
     let media_id = Uuid7::new();
     let facet = domain::Video::try_new(video_id, media_id).expect("valid facet");
-    let g_facet = graph::Video::try_from_flat(&media_id, facet, vec![g]).expect("coherent");
+    let g_facet = graph::Video::try_from_flat(&media_id, facet, vec![g], None).expect("coherent");
     assert!(wire::Video::try_from(&g_facet)
       .unwrap_err()
       .is_unsupported());

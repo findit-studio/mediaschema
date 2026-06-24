@@ -60,10 +60,11 @@ pub use subtitle::{
 pub use thumbnail::SqliteThumbnailRow;
 #[cfg(feature = "video")]
 pub use video::{
-  video_track_from_rows, SqliteKeyframeActionRow, SqliteKeyframeBarcodeRow,
-  SqliteKeyframeBodyPose3DJointRow, SqliteKeyframeBodyPose3DRow, SqliteKeyframeBodyPoseJointRow,
-  SqliteKeyframeBodyPoseRow, SqliteKeyframeClassificationRow, SqliteKeyframeColorRow,
-  SqliteKeyframeDocumentSegmentRow, SqliteKeyframeFaceLandmarkPointRow,
+  cover_keyframe_from_rows, cover_keyframe_rows_from, video_track_from_rows,
+  SqliteCoverKeyframeRow, SqliteCoverKeyframeRows, SqliteKeyframeActionRow,
+  SqliteKeyframeBarcodeRow, SqliteKeyframeBodyPose3DJointRow, SqliteKeyframeBodyPose3DRow,
+  SqliteKeyframeBodyPoseJointRow, SqliteKeyframeBodyPoseRow, SqliteKeyframeClassificationRow,
+  SqliteKeyframeColorRow, SqliteKeyframeDocumentSegmentRow, SqliteKeyframeFaceLandmarkPointRow,
   SqliteKeyframeFaceLandmarkRegionRow, SqliteKeyframeFaceLandmarksRow, SqliteKeyframeFaceRow,
   SqliteKeyframeHandPoseRow, SqliteKeyframeMaskRow, SqliteKeyframeObjectRow, SqliteKeyframeRow,
   SqliteKeyframeRows, SqliteKeyframeSaliencyRow, SqliteKeyframeSubjectRow,
@@ -104,6 +105,20 @@ mod schema_tests {
       .find("CREATE TABLE IF NOT EXISTS keyframe (")
       .expect("keyframe table present");
     assert!(thumb < keyframe, "thumbnail must precede keyframe");
+  }
+
+  #[test]
+  fn schema_has_cover_keyframe_and_role_and_nullable_scene_id() {
+    // The cover keyframe is a distinct table parented by video_id.
+    assert!(SCHEMA_SQL.contains("CREATE TABLE IF NOT EXISTS cover_keyframe ("));
+    assert!(SCHEMA_SQL.contains("idx_cover_keyframe_video_id"));
+    assert!(SCHEMA_SQL.contains("idx_cover_keyframe_thumbnail_id"));
+    // The video facet gains the cover FK.
+    assert!(SCHEMA_SQL.contains("cover_keyframe_id      BLOB"));
+    // The scene keyframe gains a role column and its scene_id is now
+    // nullable (the cover decision-b override).
+    assert!(SCHEMA_SQL.contains("role                       TEXT    NOT NULL DEFAULT 'scene'"));
+    assert!(!SCHEMA_SQL.contains("scene_id                     BLOB    NOT NULL"));
   }
 
   #[test]

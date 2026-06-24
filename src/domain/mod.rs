@@ -27,8 +27,9 @@ pub use bitflags::{
   VideoIndexStatus,
 };
 pub use enums::{
-  AudioContentKind, AudioIndexStage, KeyframeExtractor, MediaKind, ScanStatus, SceneDetector,
-  SubtitleIndexStage, SubtitleKind, ThumbnailKind, ThumbnailKindParseError, VideoIndexStage,
+  AudioContentKind, AudioIndexStage, KeyframeExtractor, KeyframeRole, MediaKind, ScanStatus,
+  SceneDetector, SubtitleIndexStage, SubtitleKind, ThumbnailKind, ThumbnailKindParseError,
+  VideoIndexStage,
 };
 pub use identified::Identified;
 pub use primitives::{ErrorCode, FileChecksum, Rgba, Uuid7};

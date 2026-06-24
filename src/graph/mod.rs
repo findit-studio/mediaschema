@@ -51,7 +51,7 @@ pub use attachment::{Attachment, AttachmentTrack};
 pub use audio::{Audio, AudioSegment, AudioTrack, SoundEvent, Speaker};
 pub use data::{Data, DataTrack};
 pub use subtitle::{Subtitle, SubtitleCue, SubtitleTrack};
-pub use video::{Keyframe, Scene, Video, VideoTrack};
+pub use video::{cover_into_flat, Keyframe, Scene, Video, VideoTrack};
 
 use derive_more::{Display, IsVariant};
 use indexmap::IndexMap;
@@ -110,6 +110,9 @@ pub enum NodeKind {
   AttachmentFacet,
   /// [`AttachmentTrack`] under [`Attachment`].
   AttachmentTrack,
+  /// The video's cover/poster [`Keyframe`] (attaches at the video level, no
+  /// scene parent).
+  CoverKeyframe,
 }
 
 impl NodeKind {
@@ -135,6 +138,7 @@ impl NodeKind {
       Self::DataTrack => "data_track",
       Self::AttachmentFacet => "attachment_facet",
       Self::AttachmentTrack => "attachment_track",
+      Self::CoverKeyframe => "cover_keyframe",
     }
   }
 }
@@ -158,14 +162,26 @@ pub enum GraphError {
     expected: Uuid7,
   },
   /// `Media`'s stored facet link (`video_id` / `audio_id` /
-  /// `subtitle_id`) disagrees with the facet embedded in the graph
-  /// (present vs absent, or a different id).
+  /// `subtitle_id` / `data_id` / `attachment_id`) disagrees with the facet
+  /// embedded in the graph (present vs absent, or a different id).
   #[error("{kind} link on media `{media}` disagrees with the embedded facet")]
   FacetLinkMismatch {
     /// Which facet link failed.
     kind: NodeKind,
     /// The media row's id.
     media: Uuid7,
+  },
+  /// A keyframe was lifted into the wrong slot for its
+  /// [`KeyframeRole`](crate::domain::KeyframeRole): a cover keyframe handed
+  /// to the scene lift, or a scene keyframe handed to the cover lift.
+  #[error("{kind} `{node}` has the wrong KeyframeRole for this slot")]
+  RoleMismatch {
+    /// Which slot the keyframe was lifted into
+    /// ([`NodeKind::Keyframe`] = scene slot, [`NodeKind::CoverKeyframe`] =
+    /// cover slot).
+    kind: NodeKind,
+    /// The keyframe's own id.
+    node: Uuid7,
   },
 }
 
@@ -190,8 +206,9 @@ pub(crate) fn parent_check(
 }
 
 /// The stored facet link and the embedded facet must agree: both absent,
-/// or present with the same id.
-fn facet_link_check(
+/// or present with the same id. Also used for the video↔cover-keyframe
+/// link (`Video.cover_keyframe_id` vs the embedded `Video.cover`).
+pub(crate) fn facet_link_check(
   kind: NodeKind,
   media: Uuid7,
   stored: Option<&Uuid7>,
@@ -639,7 +656,7 @@ mod tests {
 
     // Embedded facet present, stored link absent.
     let facet = domain::Video::try_new(Uuid7::new(), id).expect("valid facet");
-    let video = Video::try_from_flat(&id, facet, vec![]).expect("coherent facet");
+    let video = Video::try_from_flat(&id, facet, vec![], None).expect("coherent facet");
     let err = Media::try_from_flat(flat_media(id), vec![], vec![], Some(video), None, None)
       .expect_err("missing facet link");
     assert!(matches!(
@@ -660,7 +677,7 @@ mod tests {
     let track_id = *track.id_ref();
     let lifted_track = VideoTrack::try_from_flat(&facet_id, track, vec![]).expect("coherent");
     assert_eq!(lifted_track.id_ref(), &track_id);
-    let video = Video::try_from_flat(&id, facet, vec![lifted_track]).expect("coherent");
+    let video = Video::try_from_flat(&id, facet, vec![lifted_track], None).expect("coherent");
     let mut m = flat_media(id);
     m.set_video_id(Some(facet_id));
     let g = Media::try_from_flat(m, vec![], vec![], Some(video), None, None).expect("coherent");
@@ -869,7 +886,7 @@ mod conv_tests {
     let facet = domain::Video::try_new(Uuid7::new(), id).expect("valid facet");
     let facet_id = *facet.id_ref();
     flat.set_video_id(Some(facet_id));
-    let video = Video::try_from_flat(&id, facet, vec![]).expect("coherent");
+    let video = Video::try_from_flat(&id, facet, vec![], None).expect("coherent");
     let lifted: Media<Uuid7> = (flat.clone(), vec![], vec![], Some(video), None, None)
       .try_into()
       .expect("coherent");
