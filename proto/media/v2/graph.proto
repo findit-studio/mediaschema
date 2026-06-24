@@ -60,6 +60,8 @@ message Media {
   optional int64 capture_date_ms = 16;
   mediaframe.v1.Device device = 17;
   mediaframe.v1.GeoLocation gps = 18;
+  Data data = 19;
+  Attachment attachment = 20;
 }
 
 // One physical copy (graph::MediaFile). `watched_location_id` /

@@ -82,6 +82,10 @@
 //! - `media.v2::Subtitle`      ⇄ `graph::Subtitle`
 //! - `media.v2::SubtitleTrack` ⇄ `graph::SubtitleTrack`
 //! - `media.v2::SubtitleCue`   ⇄ `graph::SubtitleCue`
+//! - `media.v2::Data`          ⇄ `graph::Data`
+//! - `media.v2::DataTrack`     ⇄ `graph::DataTrack`
+//! - `media.v2::Attachment`    ⇄ `graph::Attachment`
+//! - `media.v2::AttachmentTrack` ⇄ `graph::AttachmentTrack`
 //!
 //! (plus the `media.v2::IndexProgress` ⇄ `domain::IndexProgress` facet
 //! rollup). **Pending phase B**: `Scene` / `Keyframe` — `media.v2` has

@@ -400,6 +400,24 @@ pub struct Media {
         )
     )]
     pub gps: ::buffa::MessageField<::mediaframe::capture::GeoLocation>,
+    /// Field 19: `data`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "data",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+        )
+    )]
+    pub data: ::buffa::MessageField<Data>,
+    /// Field 20: `attachment`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "attachment",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+        )
+    )]
+    pub attachment: ::buffa::MessageField<Attachment>,
     #[cfg_attr(feature = "json", serde(skip))]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -425,6 +443,8 @@ impl ::core::fmt::Debug for Media {
             .field("capture_date_ms", &self.capture_date_ms)
             .field("device", &self.device)
             .field("gps", &self.gps)
+            .field("data", &self.data)
+            .field("attachment", &self.attachment)
             .finish()
     }
 }
@@ -569,6 +589,22 @@ impl ::buffa::Message for Media {
         if self.gps.is_set() {
             let __slot = __cache.reserve();
             let inner_size = self.gps.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 2u32 + ::buffa::encoding::varint_len(inner_size as u64) as u32
+                    + inner_size;
+        }
+        if self.data.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.data.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 2u32 + ::buffa::encoding::varint_len(inner_size as u64) as u32
+                    + inner_size;
+        }
+        if self.attachment.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.attachment.compute_size(__cache);
             __cache.set(__slot, inner_size);
             size
                 += 2u32 + ::buffa::encoding::varint_len(inner_size as u64) as u32
@@ -722,6 +758,24 @@ impl ::buffa::Message for Media {
                 .encode(buf);
             ::buffa::encoding::encode_varint(__cache.consume_next() as u64, buf);
             self.gps.write_to(__cache, buf);
+        }
+        if self.data.is_set() {
+            ::buffa::encoding::Tag::new(
+                    19u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::encoding::encode_varint(__cache.consume_next() as u64, buf);
+            self.data.write_to(__cache, buf);
+        }
+        if self.attachment.is_set() {
+            ::buffa::encoding::Tag::new(
+                    20u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::encoding::encode_varint(__cache.consume_next() as u64, buf);
+            self.attachment.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -954,6 +1008,34 @@ impl ::buffa::Message for Media {
                     depth,
                 )?;
             }
+            19u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 19u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                ::buffa::Message::merge_length_delimited(
+                    self.data.get_or_insert_default(),
+                    buf,
+                    depth,
+                )?;
+            }
+            20u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 20u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                ::buffa::Message::merge_length_delimited(
+                    self.attachment.get_or_insert_default(),
+                    buf,
+                    depth,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, depth)?);
@@ -980,6 +1062,8 @@ impl ::buffa::Message for Media {
         self.capture_date_ms = ::core::option::Option::None;
         self.device = ::buffa::MessageField::none();
         self.gps = ::buffa::MessageField::none();
+        self.data = ::buffa::MessageField::none();
+        self.attachment = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
 }

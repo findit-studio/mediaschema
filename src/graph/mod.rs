@@ -238,6 +238,8 @@ pub struct Media<Id = Uuid7> {
   video: Option<Video<Id>>,
   audio: Option<Audio<Id>>,
   subtitle: Option<Subtitle<Id>>,
+  data: Option<Data<Id>>,
+  attachment: Option<Attachment<Id>>,
   error_flags: MediaErrorFlags,
   probe_error: Option<ErrorInfo>,
   capture_date: Option<JiffTimestamp>,
@@ -252,6 +254,11 @@ impl Media<Uuid7> {
   /// `media.id` and that each stored facet link agrees with the embedded
   /// facet (present with the same id, or both absent). The facets arrive
   /// pre-lifted; their `media_id` was consumed by their own lift.
+  // One parameter per directly-owned child collection / facet (files,
+  // chapters, and the five facet subtrees) — the tree root genuinely fans
+  // out this wide; a bundling struct would just be `MediaFlat`, which the
+  // trait form already provides.
+  #[allow(clippy::too_many_arguments)]
   pub fn try_from_flat(
     media: domain::Media<Uuid7>,
     files: Vec<domain::MediaFile<Uuid7>>,
@@ -259,6 +266,8 @@ impl Media<Uuid7> {
     video: Option<Video<Uuid7>>,
     audio: Option<Audio<Uuid7>>,
     subtitle: Option<Subtitle<Uuid7>>,
+    data: Option<Data<Uuid7>>,
+    attachment: Option<Attachment<Uuid7>>,
   ) -> Result<Self, GraphError> {
     // Exhaustive destructure: a new `Media` field is a compile error
     // here until the graph mirrors it. The reverse-lookup id vecs are
@@ -277,6 +286,8 @@ impl Media<Uuid7> {
       video_id,
       audio_id,
       subtitle_id,
+      data_id,
+      attachment_id,
       error_flags,
       probe_error,
       capture_date,
@@ -301,6 +312,18 @@ impl Media<Uuid7> {
       subtitle_id.as_ref(),
       subtitle.as_ref().map(|s| s.id_ref()),
     )?;
+    facet_link_check(
+      NodeKind::DataFacet,
+      id,
+      data_id.as_ref(),
+      data.as_ref().map(|d| d.id_ref()),
+    )?;
+    facet_link_check(
+      NodeKind::AttachmentFacet,
+      id,
+      attachment_id.as_ref(),
+      attachment.as_ref().map(|a| a.id_ref()),
+    )?;
     let files = files
       .into_iter()
       .map(|f| MediaFile::try_from_flat(&id, f))
@@ -323,6 +346,8 @@ impl Media<Uuid7> {
       video,
       audio,
       subtitle,
+      data,
+      attachment,
       error_flags,
       probe_error,
       capture_date,
@@ -401,6 +426,18 @@ impl<Id> Media<Id> {
   #[inline(always)]
   pub const fn subtitle_ref(&self) -> Option<&Subtitle<Id>> {
     self.subtitle.as_ref()
+  }
+
+  /// The data subtree, when the file has timed-metadata streams.
+  #[inline(always)]
+  pub const fn data_ref(&self) -> Option<&Data<Id>> {
+    self.data.as_ref()
+  }
+
+  /// The attachment subtree, when the file has attachment streams.
+  #[inline(always)]
+  pub const fn attachment_ref(&self) -> Option<&Attachment<Id>> {
+    self.attachment.as_ref()
   }
 
   #[inline(always)]
@@ -597,8 +634,8 @@ mod tests {
   #[test]
   fn empty_graph_lifts_and_mirrors_scalars() {
     let id = Uuid7::new();
-    let g =
-      Media::try_from_flat(flat_media(id), vec![], vec![], None, None, None).expect("coherent");
+    let g = Media::try_from_flat(flat_media(id), vec![], vec![], None, None, None, None, None)
+      .expect("coherent");
     assert_eq!(g.id_ref(), &id);
     assert_eq!(g.size(), 1024);
     assert_eq!(g.kind(), MediaKind::Video);
@@ -612,8 +649,17 @@ mod tests {
     let stranger = Uuid7::new();
     let chapter =
       domain::Chapter::try_new(Uuid7::new(), stranger, 0, 1, span()).expect("valid chapter");
-    let err = Media::try_from_flat(flat_media(id), vec![], vec![chapter], None, None, None)
-      .expect_err("incoherent chapter");
+    let err = Media::try_from_flat(
+      flat_media(id),
+      vec![],
+      vec![chapter],
+      None,
+      None,
+      None,
+      None,
+      None,
+    )
+    .expect_err("incoherent chapter");
     assert!(matches!(
       err,
       GraphError::ParentMismatch {
@@ -644,8 +690,8 @@ mod tests {
     // Stored link present, embedded facet absent.
     let mut m = flat_media(id);
     m.set_video_id(Some(Uuid7::new()));
-    let err =
-      Media::try_from_flat(m, vec![], vec![], None, None, None).expect_err("dangling facet link");
+    let err = Media::try_from_flat(m, vec![], vec![], None, None, None, None, None)
+      .expect_err("dangling facet link");
     assert!(matches!(
       err,
       GraphError::FacetLinkMismatch {
@@ -657,8 +703,17 @@ mod tests {
     // Embedded facet present, stored link absent.
     let facet = domain::Video::try_new(Uuid7::new(), id).expect("valid facet");
     let video = Video::try_from_flat(&id, facet, vec![], None).expect("coherent facet");
-    let err = Media::try_from_flat(flat_media(id), vec![], vec![], Some(video), None, None)
-      .expect_err("missing facet link");
+    let err = Media::try_from_flat(
+      flat_media(id),
+      vec![],
+      vec![],
+      Some(video),
+      None,
+      None,
+      None,
+      None,
+    )
+    .expect_err("missing facet link");
     assert!(matches!(
       err,
       GraphError::FacetLinkMismatch {
@@ -666,6 +721,126 @@ mod tests {
         ..
       }
     ));
+  }
+
+  #[test]
+  fn data_facet_link_must_agree_both_ways() {
+    let id = Uuid7::new();
+    // Stored link present, embedded facet absent.
+    let mut m = flat_media(id);
+    m.set_data_id(Some(Uuid7::new()));
+    let err = Media::try_from_flat(m, vec![], vec![], None, None, None, None, None)
+      .expect_err("dangling data link");
+    assert!(matches!(
+      err,
+      GraphError::FacetLinkMismatch {
+        kind: NodeKind::DataFacet,
+        ..
+      }
+    ));
+
+    // Embedded facet present, stored link absent.
+    let facet = domain::Data::try_new(Uuid7::new(), id).expect("valid facet");
+    let data = Data::try_from_flat(&id, facet, vec![]).expect("coherent facet");
+    let err = Media::try_from_flat(
+      flat_media(id),
+      vec![],
+      vec![],
+      None,
+      None,
+      None,
+      Some(data),
+      None,
+    )
+    .expect_err("missing data link");
+    assert!(matches!(
+      err,
+      GraphError::FacetLinkMismatch {
+        kind: NodeKind::DataFacet,
+        ..
+      }
+    ));
+  }
+
+  #[test]
+  fn attachment_facet_link_must_agree_both_ways() {
+    let id = Uuid7::new();
+    // Stored link present, embedded facet absent.
+    let mut m = flat_media(id);
+    m.set_attachment_id(Some(Uuid7::new()));
+    let err = Media::try_from_flat(m, vec![], vec![], None, None, None, None, None)
+      .expect_err("dangling attachment link");
+    assert!(matches!(
+      err,
+      GraphError::FacetLinkMismatch {
+        kind: NodeKind::AttachmentFacet,
+        ..
+      }
+    ));
+
+    // Embedded facet present, stored link absent.
+    let facet = domain::Attachment::try_new(Uuid7::new(), id).expect("valid facet");
+    let attachment = Attachment::try_from_flat(&id, facet, vec![]).expect("coherent facet");
+    let err = Media::try_from_flat(
+      flat_media(id),
+      vec![],
+      vec![],
+      None,
+      None,
+      None,
+      None,
+      Some(attachment),
+    )
+    .expect_err("missing attachment link");
+    assert!(matches!(
+      err,
+      GraphError::FacetLinkMismatch {
+        kind: NodeKind::AttachmentFacet,
+        ..
+      }
+    ));
+  }
+
+  #[test]
+  fn coherent_data_and_attachment_facets_lift_into_media() {
+    let id = Uuid7::new();
+    let dfacet = domain::Data::try_new(Uuid7::new(), id).expect("valid data facet");
+    let dfacet_id = *dfacet.id_ref();
+    let dtrack = domain::DataTrack::try_new(Uuid7::new(), dfacet_id).expect("valid data track");
+    let g_dtrack = DataTrack::try_from_flat(&dfacet_id, dtrack).expect("coherent");
+    let data = Data::try_from_flat(&id, dfacet, vec![g_dtrack]).expect("coherent");
+
+    let afacet = domain::Attachment::try_new(Uuid7::new(), id).expect("valid attachment facet");
+    let afacet_id = *afacet.id_ref();
+    let atrack =
+      domain::AttachmentTrack::try_new(Uuid7::new(), afacet_id).expect("valid attachment track");
+    let g_atrack = AttachmentTrack::try_from_flat(&afacet_id, atrack).expect("coherent");
+    let attachment = Attachment::try_from_flat(&id, afacet, vec![g_atrack]).expect("coherent");
+
+    let mut m = flat_media(id);
+    m.set_data_id(Some(dfacet_id));
+    m.set_attachment_id(Some(afacet_id));
+    let g = Media::try_from_flat(
+      m,
+      vec![],
+      vec![],
+      None,
+      None,
+      None,
+      Some(data),
+      Some(attachment),
+    )
+    .expect("coherent");
+    assert_eq!(g.data_ref().expect("data").tracks_slice().len(), 1);
+    assert_eq!(
+      g.attachment_ref().expect("attachment").tracks_slice().len(),
+      1
+    );
+
+    // Root projection re-derives both FKs from the embedded facets.
+    let back: domain::Media<Uuid7> = g.into();
+    assert_eq!(back.data_id_ref(), Some(&dfacet_id));
+    assert_eq!(back.attachment_id_ref(), Some(&afacet_id));
   }
 
   #[test]
@@ -680,7 +855,8 @@ mod tests {
     let video = Video::try_from_flat(&id, facet, vec![lifted_track], None).expect("coherent");
     let mut m = flat_media(id);
     m.set_video_id(Some(facet_id));
-    let g = Media::try_from_flat(m, vec![], vec![], Some(video), None, None).expect("coherent");
+    let g = Media::try_from_flat(m, vec![], vec![], Some(video), None, None, None, None)
+      .expect("coherent");
     assert_eq!(g.video_ref().expect("video").tracks_slice().len(), 1);
   }
 
@@ -720,6 +896,8 @@ pub type MediaFlat = (
   Option<Video<Uuid7>>,
   Option<Audio<Uuid7>>,
   Option<Subtitle<Uuid7>>,
+  Option<Data<Uuid7>>,
+  Option<Attachment<Uuid7>>,
 );
 
 /// Trait form of [`Media::try_from_flat`].
@@ -728,9 +906,11 @@ impl TryFrom<MediaFlat> for Media<Uuid7> {
 
   #[inline(always)]
   fn try_from(
-    (media, files, chapters, video, audio, subtitle): MediaFlat,
+    (media, files, chapters, video, audio, subtitle, data, attachment): MediaFlat,
   ) -> Result<Self, GraphError> {
-    Self::try_from_flat(media, files, chapters, video, audio, subtitle)
+    Self::try_from_flat(
+      media, files, chapters, video, audio, subtitle, data, attachment,
+    )
   }
 }
 
@@ -754,6 +934,8 @@ impl From<Media<Uuid7>> for domain::Media<Uuid7> {
       video,
       audio,
       subtitle,
+      data,
+      attachment,
       error_flags,
       probe_error,
       capture_date,
@@ -774,6 +956,8 @@ impl From<Media<Uuid7>> for domain::Media<Uuid7> {
       video_id: video.as_ref().map(|v| *v.id_ref()),
       audio_id: audio.as_ref().map(|a| *a.id_ref()),
       subtitle_id: subtitle.as_ref().map(|s| *s.id_ref()),
+      data_id: data.as_ref().map(|d| *d.id_ref()),
+      attachment_id: attachment.as_ref().map(|a| *a.id_ref()),
       error_flags,
       probe_error,
       capture_date,
@@ -887,7 +1071,16 @@ mod conv_tests {
     let facet_id = *facet.id_ref();
     flat.set_video_id(Some(facet_id));
     let video = Video::try_from_flat(&id, facet, vec![], None).expect("coherent");
-    let lifted: Media<Uuid7> = (flat.clone(), vec![], vec![], Some(video), None, None)
+    let lifted: Media<Uuid7> = (
+      flat.clone(),
+      vec![],
+      vec![],
+      Some(video),
+      None,
+      None,
+      None,
+      None,
+    )
       .try_into()
       .expect("coherent");
     let back: domain::Media<Uuid7> = lifted.into();

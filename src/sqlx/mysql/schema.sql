@@ -19,6 +19,8 @@ CREATE TABLE IF NOT EXISTS media (
     video               BINARY(16),
     audio               BINARY(16),
     subtitle            BINARY(16),
+    data                BINARY(16),
+    attachment          BINARY(16),
     error_flags         SMALLINT UNSIGNED NOT NULL DEFAULT 0,
     probe_error_code    INT,
     probe_error_message TEXT,
@@ -32,7 +34,9 @@ CREATE TABLE IF NOT EXISTS media (
     UNIQUE KEY idx_media_checksum (checksum),
     KEY idx_media_video (video),
     KEY idx_media_audio (audio),
-    KEY idx_media_subtitle (subtitle)
+    KEY idx_media_subtitle (subtitle),
+    KEY idx_media_data (data),
+    KEY idx_media_attachment (attachment)
 );
 
 -- Container-level chapters (AVFormatContext.chapters[i]). See

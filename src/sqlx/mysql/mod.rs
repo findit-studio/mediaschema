@@ -98,6 +98,12 @@ mod data_schema_tests {
   }
 
   #[test]
+  fn media_wires_data_and_attachment_facet_fks() {
+    assert!(SCHEMA_SQL.contains("idx_media_data"));
+    assert!(SCHEMA_SQL.contains("idx_media_attachment"));
+  }
+
+  #[test]
   fn data_migration_mirror_matches_schema() {
     assert_eq!(SCHEMA_SQL, MIGRATION_0001_INIT);
   }

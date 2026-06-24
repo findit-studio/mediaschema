@@ -97,6 +97,10 @@ pub struct Media<Id = Uuid7> {
   audio_id: Option<Id>,
   /// FK → `Subtitle` facet (`None` = no subtitle stream).
   subtitle_id: Option<Id>,
+  /// FK → `Data` facet (`None` = no timed-metadata stream).
+  data_id: Option<Id>,
+  /// FK → `Attachment` facet (`None` = no attachment stream).
+  attachment_id: Option<Id>,
   /// Maintained rollup: a bit is set iff that kind's `track_progress.failed
   /// > 0`. Drill-down details live on `*Track.index_errors`.
   error_flags: MediaErrorFlags,
@@ -151,6 +155,8 @@ impl Media<Uuid7> {
       video_id: None,
       audio_id: None,
       subtitle_id: None,
+      data_id: None,
+      attachment_id: None,
       error_flags: MediaErrorFlags::new(),
       probe_error: None,
       capture_date: None,
@@ -238,6 +244,18 @@ impl<Id> Media<Id> {
   #[inline(always)]
   pub const fn subtitle_id_ref(&self) -> Option<&Id> {
     self.subtitle_id.as_ref()
+  }
+
+  /// FK → `Data` facet.
+  #[inline(always)]
+  pub const fn data_id_ref(&self) -> Option<&Id> {
+    self.data_id.as_ref()
+  }
+
+  /// FK → `Attachment` facet.
+  #[inline(always)]
+  pub const fn attachment_id_ref(&self) -> Option<&Id> {
+    self.attachment_id.as_ref()
   }
 
   /// Per-kind error rollup.
@@ -358,6 +376,22 @@ impl<Id> Media<Id> {
   #[must_use]
   pub fn with_subtitle_id(mut self, subtitle_id: Option<Id>) -> Self {
     self.subtitle_id = subtitle_id;
+    self
+  }
+
+  /// Builder: set the `Data` facet FK.
+  #[inline(always)]
+  #[must_use]
+  pub fn with_data_id(mut self, data_id: Option<Id>) -> Self {
+    self.data_id = data_id;
+    self
+  }
+
+  /// Builder: set the `Attachment` facet FK.
+  #[inline(always)]
+  #[must_use]
+  pub fn with_attachment_id(mut self, attachment_id: Option<Id>) -> Self {
+    self.attachment_id = attachment_id;
     self
   }
 
@@ -487,6 +521,20 @@ impl<Id> Media<Id> {
   #[inline(always)]
   pub fn set_subtitle_id(&mut self, subtitle_id: Option<Id>) -> &mut Self {
     self.subtitle_id = subtitle_id;
+    self
+  }
+
+  /// In-place mutator for the `Data` facet FK.
+  #[inline(always)]
+  pub fn set_data_id(&mut self, data_id: Option<Id>) -> &mut Self {
+    self.data_id = data_id;
+    self
+  }
+
+  /// In-place mutator for the `Attachment` facet FK.
+  #[inline(always)]
+  pub fn set_attachment_id(&mut self, attachment_id: Option<Id>) -> &mut Self {
+    self.attachment_id = attachment_id;
     self
   }
 
@@ -713,6 +761,41 @@ mod tests {
   }
 
   #[test]
+  fn data_and_attachment_facet_fks() {
+    let data_id = Uuid7::new();
+    let attachment_id = Uuid7::new();
+    let m = sample_media();
+    // Default to absent on construction.
+    assert!(m.data_id_ref().is_none());
+    assert!(m.attachment_id_ref().is_none());
+
+    // Builders set them.
+    let m = m
+      .with_data_id(Some(data_id))
+      .with_attachment_id(Some(attachment_id));
+    assert_eq!(m.data_id_ref(), Some(&data_id));
+    assert_eq!(m.attachment_id_ref(), Some(&attachment_id));
+
+    // In-place setters mirror the builders.
+    let mut m = m;
+    m.set_data_id(None);
+    m.set_attachment_id(None);
+    assert!(m.data_id_ref().is_none());
+    assert!(m.attachment_id_ref().is_none());
+  }
+
+  /// The new facet FKs survive an `into_parts` / `rehydrate` round-trip.
+  /// Gated like [`Media::rehydrate`] (the medium-complete door).
+  #[cfg(all(feature = "video", feature = "audio", feature = "subtitle"))]
+  #[test]
+  fn data_and_attachment_facet_fks_rehydrate() {
+    let m = sample_media()
+      .with_data_id(Some(Uuid7::new()))
+      .with_attachment_id(Some(Uuid7::new()));
+    assert_eq!(Media::rehydrate(m.clone().into_parts()), m);
+  }
+
+  #[test]
   fn setters_mutate_in_place() {
     let mut m = Media::try_new(
       Uuid7::new(),
@@ -819,6 +902,8 @@ pub struct MediaParts<Id = Uuid7> {
   pub video_id: Option<Id>,
   pub audio_id: Option<Id>,
   pub subtitle_id: Option<Id>,
+  pub data_id: Option<Id>,
+  pub attachment_id: Option<Id>,
   pub error_flags: MediaErrorFlags,
   pub probe_error: Option<ErrorInfo>,
   pub capture_date: Option<JiffTimestamp>,
@@ -844,6 +929,8 @@ impl<Id> Media<Id> {
       video_id,
       audio_id,
       subtitle_id,
+      data_id,
+      attachment_id,
       error_flags,
       probe_error,
       capture_date,
@@ -864,6 +951,8 @@ impl<Id> Media<Id> {
       video_id,
       audio_id,
       subtitle_id,
+      data_id,
+      attachment_id,
       error_flags,
       probe_error,
       capture_date,
@@ -900,6 +989,8 @@ impl<Id> Media<Id> {
       video_id,
       audio_id,
       subtitle_id,
+      data_id,
+      attachment_id,
       error_flags,
       probe_error,
       capture_date,
@@ -920,6 +1011,8 @@ impl<Id> Media<Id> {
       video_id,
       audio_id,
       subtitle_id,
+      data_id,
+      attachment_id,
       error_flags,
       probe_error,
       capture_date,

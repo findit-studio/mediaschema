@@ -19,6 +19,8 @@ CREATE TABLE IF NOT EXISTS media (
     video               BLOB,
     audio               BLOB,
     subtitle            BLOB,
+    data                BLOB,
+    attachment          BLOB,
     error_flags         INTEGER NOT NULL DEFAULT 0,
     probe_error_code    INTEGER,
     probe_error_message TEXT,
@@ -62,6 +64,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_media_checksum ON media(checksum);
 CREATE INDEX        IF NOT EXISTS idx_media_video    ON media(video);
 CREATE INDEX        IF NOT EXISTS idx_media_audio    ON media(audio);
 CREATE INDEX        IF NOT EXISTS idx_media_subtitle ON media(subtitle);
+CREATE INDEX        IF NOT EXISTS idx_media_data     ON media(data);
+CREATE INDEX        IF NOT EXISTS idx_media_attachment ON media(attachment);
 
 CREATE TABLE IF NOT EXISTS watched_location (
     id                    BLOB    NOT NULL PRIMARY KEY,

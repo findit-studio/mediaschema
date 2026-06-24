@@ -41,6 +41,8 @@ pub struct SqliteMediaRow {
   pub video_id: Option<Vec<u8>>,
   pub audio_id: Option<Vec<u8>>,
   pub subtitle_id: Option<Vec<u8>>,
+  pub data_id: Option<Vec<u8>>,
+  pub attachment_id: Option<Vec<u8>>,
   pub error_flags: i64,
   /// `ErrorInfo.code` as the verified `u32` wire value; NULL = no probe
   /// error. Discriminates presence of the flattened `ErrorInfo` VO.
@@ -95,6 +97,8 @@ impl From<&Media<Uuid7>> for SqliteMediaRow {
       video_id: m.video_id_ref().map(|id| id.as_bytes().to_vec()),
       audio_id: m.audio_id_ref().map(|id| id.as_bytes().to_vec()),
       subtitle_id: m.subtitle_id_ref().map(|id| id.as_bytes().to_vec()),
+      data_id: m.data_id_ref().map(|id| id.as_bytes().to_vec()),
+      attachment_id: m.attachment_id_ref().map(|id| id.as_bytes().to_vec()),
       error_flags: i64::from(m.error_flags().bits()),
       probe_error_code: probe_error.map(|e| i64::from(e.code().as_u32())),
       probe_error_message: probe_error.map(|e| e.message().to_owned()),
@@ -140,6 +144,12 @@ impl TryFrom<SqliteMediaRow> for Media<Uuid7> {
     }
     if let Some(v) = r.subtitle_id {
       m = m.with_subtitle_id(Some(bytes_to_uuid7(&v)?));
+    }
+    if let Some(v) = r.data_id {
+      m = m.with_data_id(Some(bytes_to_uuid7(&v)?));
+    }
+    if let Some(v) = r.attachment_id {
+      m = m.with_attachment_id(Some(bytes_to_uuid7(&v)?));
     }
     let flags_bits = u16::try_from(r.error_flags)
       .map_err(|e| SqlxError::UnknownDiscriminant(format!("Media.error_flags: {e}")))?;
@@ -195,6 +205,8 @@ pub struct SqliteMediaRowRef<'r> {
   pub video_id: Option<&'r [u8]>,
   pub audio_id: Option<&'r [u8]>,
   pub subtitle_id: Option<&'r [u8]>,
+  pub data_id: Option<&'r [u8]>,
+  pub attachment_id: Option<&'r [u8]>,
   pub error_flags: i64,
   pub probe_error_code: Option<i64>,
   pub probe_error_message: Option<&'r str>,
@@ -221,6 +233,8 @@ impl SqliteMediaRow {
       video_id: self.video_id.as_deref(),
       audio_id: self.audio_id.as_deref(),
       subtitle_id: self.subtitle_id.as_deref(),
+      data_id: self.data_id.as_deref(),
+      attachment_id: self.attachment_id.as_deref(),
       error_flags: self.error_flags,
       probe_error_code: self.probe_error_code,
       probe_error_message: self.probe_error_message.as_deref(),
@@ -264,6 +278,12 @@ impl<'r> TryFrom<SqliteMediaRowRef<'r>> for Media<Uuid7> {
     }
     if let Some(v) = r.subtitle_id {
       m = m.with_subtitle_id(Some(bytes_to_uuid7(v)?));
+    }
+    if let Some(v) = r.data_id {
+      m = m.with_data_id(Some(bytes_to_uuid7(v)?));
+    }
+    if let Some(v) = r.attachment_id {
+      m = m.with_attachment_id(Some(bytes_to_uuid7(v)?));
     }
     let flags_bits = u16::try_from(r.error_flags)
       .map_err(|e| SqlxError::UnknownDiscriminant(format!("Media.error_flags: {e}")))?;
@@ -384,6 +404,28 @@ mod tests {
   }
 
   #[test]
+  fn media_roundtrip_data_and_attachment_fks() {
+    let data_id = Uuid7::new();
+    let attachment_id = Uuid7::new();
+    let m = Media::try_new(
+      Uuid7::new(),
+      fake_checksum(),
+      Format::Mp4,
+      1,
+      MediaKind::Video,
+    )
+    .unwrap()
+    .with_data_id(Some(data_id))
+    .with_attachment_id(Some(attachment_id));
+    let row: SqliteMediaRow = (&m).into();
+    assert!(row.data_id.is_some());
+    assert!(row.attachment_id.is_some());
+    let m2: Media<Uuid7> = row.try_into().unwrap();
+    assert_eq!(m2.data_id_ref(), Some(&data_id));
+    assert_eq!(m2.attachment_id_ref(), Some(&attachment_id));
+  }
+
+  #[test]
   fn media_ref_roundtrip() {
     let m = Media::try_new(
       Uuid7::new(),
@@ -441,6 +483,8 @@ mod tests {
       video_id: None,
       audio_id: None,
       subtitle_id: None,
+      data_id: None,
+      attachment_id: None,
       error_flags: 0,
       probe_error_code: None,
       probe_error_message: None,
@@ -469,6 +513,8 @@ mod tests {
       video_id: None,
       audio_id: None,
       subtitle_id: None,
+      data_id: None,
+      attachment_id: None,
       error_flags: 0,
       probe_error_code: None,
       probe_error_message: None,
