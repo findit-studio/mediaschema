@@ -23,7 +23,7 @@ use crate::domain::{
     detections::*, facet::Video, keyframe::Keyframe, scene::Scene, track::VideoTrack,
   },
   bitflags::VideoIndexStatus,
-  enums::{KeyframeExtractor, SceneDetector},
+  enums::{KeyframeExtractor, KeyframeRole, SceneDetector},
   vo::IndexProgress,
   Uuid7,
 };
@@ -98,6 +98,28 @@ fn keyframe_extractor_from_i64(
 }
 
 // ---------------------------------------------------------------------------
+// KeyframeRole ↔ Int32 (closed enum: `Scene` = 0, `Cover` = 1)
+// ---------------------------------------------------------------------------
+
+fn keyframe_role_to_i32(r: KeyframeRole) -> i32 {
+  match r {
+    KeyframeRole::Scene => 0,
+    KeyframeRole::Cover => 1,
+  }
+}
+
+fn keyframe_role_from_i64(v: i64, field: &'static str) -> Result<KeyframeRole, MongoError> {
+  match v {
+    0 => Ok(KeyframeRole::Scene),
+    1 => Ok(KeyframeRole::Cover),
+    _ => Err(MongoError::IntOutOfRange {
+      field: SmolStr::from(field),
+      value: v,
+    }),
+  }
+}
+
+// ---------------------------------------------------------------------------
 // IndexProgress (video copy — same `vo::IndexProgress` used across facets;
 // kept module-private to mirror audio/subtitle and keep the video module
 // self-contained).
@@ -138,6 +160,13 @@ impl From<&Video<Uuid7>> for Document {
       "track_progress",
       index_progress_to_bson(v.track_progress_ref()),
     );
+    // FK → the video's cover/poster keyframe; `Null` = no cover yet.
+    d.insert(
+      "cover_keyframe_id",
+      v.cover_keyframe_id_ref()
+        .map(|id| uuid7_to_bson(*id))
+        .unwrap_or(Bson::Null),
+    );
     d
   }
 }
@@ -157,6 +186,9 @@ impl TryFrom<Document> for Video<Uuid7> {
     }
     if let Some(b) = take_opt(&mut d, "track_progress") {
       v.set_track_progress(index_progress_from_bson(b, "track_progress")?);
+    }
+    if let Some(b) = take_opt(&mut d, "cover_keyframe_id") {
+      v.set_cover_keyframe_id(Some(uuid7_from_bson(b, "cover_keyframe_id")?));
     }
     Ok(v)
   }
@@ -1330,7 +1362,16 @@ impl From<&Keyframe<Uuid7>> for Document {
   fn from(k: &Keyframe<Uuid7>) -> Self {
     let mut d = Document::new();
     d.insert("_id", uuid7_to_bson(*k.id_ref()));
-    d.insert("scene_id", uuid7_to_bson(*k.scene_id_ref()));
+    // `role` self-describes the keyframe: a scene keyframe carries its
+    // `scene_id` FK (`Binary`); a cover keyframe has no scene parent
+    // (`scene_id` is `Null`).
+    d.insert("role", Bson::Int32(keyframe_role_to_i32(k.role())));
+    d.insert(
+      "scene_id",
+      k.scene_id_ref()
+        .map(|s| uuid7_to_bson(*s))
+        .unwrap_or(Bson::Null),
+    );
     d.insert("pts", media_ts_to_bson(*k.pts_ref()));
     d.insert("thumbnail_id", uuid7_to_bson(*k.thumbnail_id_ref()));
     d.insert("dimensions", dimensions_to_bson(k.dimensions()));
@@ -1428,7 +1469,13 @@ impl TryFrom<Document> for Keyframe<Uuid7> {
 
   fn try_from(mut d: Document) -> Result<Self, Self::Error> {
     let id = uuid7_from_bson(take(&mut d, "_id")?, "_id")?;
-    let scene_id = uuid7_from_bson(take(&mut d, "scene_id")?, "scene_id")?;
+    // `scene_id` is optional: present (`Binary`) for a scene keyframe,
+    // `Null`/absent for a cover keyframe.
+    let scene_id = match take_opt(&mut d, "scene_id") {
+      Some(b) => Some(uuid7_from_bson(b, "scene_id")?),
+      None => None,
+    };
+    let role = keyframe_role_from_i64(as_i64(take(&mut d, "role")?, "role")?, "role")?;
     let pts = media_ts_from_bson(take(&mut d, "pts")?, "pts")?;
     let thumbnail_id = uuid7_from_bson(take(&mut d, "thumbnail_id")?, "thumbnail_id")?;
     let dimensions = dimensions_from_bson(take(&mut d, "dimensions")?, "dimensions")?;
@@ -1436,7 +1483,19 @@ impl TryFrom<Document> for Keyframe<Uuid7> {
       as_i64(take(&mut d, "extractor")?, "extractor")?,
       "extractor",
     )?;
-    let mut k = Keyframe::try_new(id, scene_id, thumbnail_id, pts, dimensions, extractor)?;
+    // Branch on `role`: a scene keyframe requires its (non-Null) `scene_id`;
+    // a cover keyframe has none (`scene_id` is Null).
+    let mut k = match role {
+      KeyframeRole::Cover => Keyframe::try_new_cover(id, thumbnail_id, pts, dimensions, extractor)?,
+      KeyframeRole::Scene => {
+        let scene_id = scene_id.ok_or_else(|| {
+          MongoError::DomainConstructorRejected(
+            "keyframe.scene_id is Null but role is 'scene'".to_owned(),
+          )
+        })?;
+        Keyframe::try_new(id, scene_id, thumbnail_id, pts, dimensions, extractor)?
+      }
+    };
 
     if let Some(b) = take_opt(&mut d, "classifications") {
       let v = as_array(b, "classifications")?
@@ -1558,6 +1617,18 @@ mod tests {
     assert!(v2.tracks_slice().is_empty());
     assert_eq!(v.total_scenes(), v2.total_scenes());
     assert_eq!(v.track_progress_ref(), v2.track_progress_ref());
+    assert!(v2.cover_keyframe_id_ref().is_none());
+  }
+
+  #[test]
+  fn video_facet_cover_keyframe_id_roundtrip() {
+    let cover = Uuid7::new();
+    let v = Video::try_new(Uuid7::new(), Uuid7::new())
+      .unwrap()
+      .with_cover_keyframe_id(Some(cover));
+    let doc: Document = (&v).into();
+    let v2: Video<Uuid7> = doc.try_into().unwrap();
+    assert_eq!(v2.cover_keyframe_id_ref(), Some(&cover));
   }
 
   #[test]
@@ -1761,6 +1832,7 @@ mod tests {
   fn keyframe_zero_dimensions_rejected() {
     let mut d = Document::new();
     d.insert("_id", uuid7_to_bson(Uuid7::new()));
+    d.insert("role", Bson::Int32(0));
     d.insert("scene_id", uuid7_to_bson(Uuid7::new()));
     d.insert("pts", media_ts_to_bson(MediaTimestamp::new(0, tb())));
     d.insert("thumbnail_id", uuid7_to_bson(Uuid7::new()));
@@ -1768,5 +1840,27 @@ mod tests {
     d.insert("extractor", Bson::Int32(9));
     let err = Keyframe::<Uuid7>::try_from(d).unwrap_err();
     assert!(err.is_keyframe());
+  }
+
+  #[test]
+  fn keyframe_cover_roundtrip_preserves_cover_role() {
+    let k = Keyframe::try_new_cover(
+      Uuid7::new(),
+      Uuid7::new(),
+      MediaTimestamp::new(7000, tb()),
+      Dimensions::new(640, 360),
+      KeyframeExtractor::CompositeQuality,
+    )
+    .unwrap()
+    .with_classifications(vec![Detection::try_new("dog", 0.9).unwrap()]);
+    let doc: Document = (&k).into();
+    // A cover keyframe stores role='cover' (Int32 1) and a Null scene_id.
+    assert_eq!(doc.get("role"), Some(&Bson::Int32(1)));
+    assert_eq!(doc.get("scene_id"), Some(&Bson::Null));
+    let k2: Keyframe<Uuid7> = doc.try_into().unwrap();
+    assert_eq!(k, k2);
+    assert!(k2.role().is_cover());
+    assert!(k2.scene_id_ref().is_none());
+    assert_eq!(k2.classifications_slice().len(), 1);
   }
 }

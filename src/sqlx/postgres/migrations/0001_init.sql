@@ -412,7 +412,9 @@ CREATE TABLE IF NOT EXISTS video (
     total_scenes           bigint  NOT NULL DEFAULT 0,
     track_progress_total   bigint  NOT NULL DEFAULT 0,
     track_progress_indexed bigint  NOT NULL DEFAULT 0,
-    track_progress_failed  bigint  NOT NULL DEFAULT 0
+    track_progress_failed  bigint  NOT NULL DEFAULT 0,
+    -- FK -> cover_keyframe.id (the video's poster); NULL = no cover yet.
+    cover_keyframe_id      uuid
 );
 
 CREATE TABLE IF NOT EXISTS video_track (
@@ -544,7 +546,11 @@ CREATE INDEX IF NOT EXISTS idx_thumbnail_kind ON thumbnail(kind);
 
 CREATE TABLE IF NOT EXISTS keyframe (
     id                        uuid   NOT NULL PRIMARY KEY,
-    scene_id                    uuid   NOT NULL,
+    -- Nullable: a scene keyframe carries its `Scene` FK; a cover keyframe
+    -- (role = 'cover') has no scene parent (it is stored in cover_keyframe,
+    -- keyed by video_id). `role` self-describes which case a row is.
+    scene_id                    uuid,
+    role                      text   NOT NULL DEFAULT 'scene',
     pts                       bigint NOT NULL,
     thumbnail_id              uuid   NOT NULL,
     width                     bigint NOT NULL,
@@ -560,6 +566,31 @@ CREATE TABLE IF NOT EXISTS keyframe (
 );
 CREATE INDEX IF NOT EXISTS idx_keyframe_scene_id ON keyframe(scene_id);
 CREATE INDEX IF NOT EXISTS idx_keyframe_thumbnail_id ON keyframe(thumbnail_id);
+
+-- The video's cover/poster keyframe. Mirrors `keyframe` but parented by
+-- `video_id` (FK -> video.id), NOT by a scene — a cover keyframe attaches
+-- at the video level. It reuses the existing `Thumbnail` entity
+-- (thumbnail_id) and the existing `keyframe_*` detection child tables,
+-- keyed by this row's `id` (a cover keyframe id is a valid keyframe_id).
+CREATE TABLE IF NOT EXISTS cover_keyframe (
+    id                        uuid   NOT NULL PRIMARY KEY,
+    video_id                  uuid   NOT NULL,        -- FK -> video.id (NOT scene)
+    pts                       bigint NOT NULL,
+    thumbnail_id              uuid   NOT NULL,        -- FK -> thumbnail.id
+    width                     bigint NOT NULL,
+    height                    bigint NOT NULL,
+    extractor                 text   NOT NULL,
+    role                      text   NOT NULL DEFAULT 'cover',
+    vlm_description_src       text   NOT NULL,
+    vlm_description_translated text  NOT NULL,
+    vlm_shot_type             text   NOT NULL,
+    horizon_angle             real   NOT NULL,
+    horizon_confidence        real   NOT NULL,
+    aesthetics_overall_score  real   NOT NULL,
+    aesthetics_is_utility     boolean NOT NULL DEFAULT false
+);
+CREATE INDEX IF NOT EXISTS idx_cover_keyframe_video_id ON cover_keyframe(video_id);
+CREATE INDEX IF NOT EXISTS idx_cover_keyframe_thumbnail_id ON cover_keyframe(thumbnail_id);
 
 -- detection child tables (per-kind, keyed by (keyframe, ordinal))
 CREATE TABLE IF NOT EXISTS keyframe_classification (

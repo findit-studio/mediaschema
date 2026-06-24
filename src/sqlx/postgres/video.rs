@@ -1566,6 +1566,170 @@ pub fn keyframe_from_rows(
   }
 }
 
+// ===========================================================================
+// CoverKeyframe — the video poster (mirrors keyframe, parented by video_id)
+// ===========================================================================
+
+/// PostgreSQL `cover_keyframe` base row. Mirrors [`PgKeyframeRow`] but is
+/// parented by **`video_id`** (FK → `video.id`), not by a scene — a cover
+/// keyframe attaches at the video level. `role` is always `'cover'`.
+#[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
+pub struct PgCoverKeyframeRow {
+  pub id: Uuid,
+  /// FK → `video.id` (the video this poster belongs to).
+  pub video_id: Uuid,
+  pub pts: i64,
+  /// FK → `thumbnail.id`.
+  pub thumbnail_id: Uuid,
+  pub width: i64,
+  pub height: i64,
+  pub extractor: String,
+  pub role: String,
+  pub vlm_description_src: String,
+  pub vlm_description_translated: String,
+  pub vlm_shot_type: String,
+  pub horizon_angle: f32,
+  pub horizon_confidence: f32,
+  pub aesthetics_overall_score: f32,
+  pub aesthetics_is_utility: bool,
+}
+
+/// The cover keyframe's row bundle: the `cover_keyframe` base row plus the
+/// reused `keyframe_*` detection child rows (keyed by the cover keyframe's
+/// id — a cover keyframe id is a valid `keyframe_id`).
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct PgCoverKeyframeRows {
+  pub cover_keyframe: Option<PgCoverKeyframeRow>,
+  pub classifications: Vec<PgKeyframeClassificationRow>,
+  pub objects: Vec<PgKeyframeObjectRow>,
+  pub actions: Vec<PgKeyframeActionRow>,
+  pub text_detections: Vec<PgKeyframeTextDetectionRow>,
+  pub barcodes: Vec<PgKeyframeBarcodeRow>,
+  pub saliencies: Vec<PgKeyframeSaliencyRow>,
+  pub document_segments: Vec<PgKeyframeDocumentSegmentRow>,
+  pub colors: Vec<PgKeyframeColorRow>,
+  pub subjects: Vec<PgKeyframeSubjectRow>,
+  pub faces: Vec<PgKeyframeFaceRow>,
+  pub body_poses: Vec<PgKeyframeBodyPoseRow>,
+  pub body_pose_joints: Vec<PgKeyframeBodyPoseJointRow>,
+  pub hand_poses: Vec<PgKeyframeHandPoseRow>,
+  pub body_poses_3d: Vec<PgKeyframeBodyPose3DRow>,
+  pub body_pose_3d_joints: Vec<PgKeyframeBodyPose3DJointRow>,
+  pub masks: Vec<PgKeyframeMaskRow>,
+  pub face_landmarks: Vec<PgKeyframeFaceLandmarksRow>,
+  pub face_landmark_regions: Vec<PgKeyframeFaceLandmarkRegionRow>,
+  pub face_landmark_points: Vec<PgKeyframeFaceLandmarkPointRow>,
+  pub vlm_labels: Vec<PgKeyframeVlmLabelRow>,
+}
+
+/// Project the video's cover keyframe to its `cover_keyframe` row + reused
+/// detection child rows. `video_id` is the FK back to the parent video. The
+/// child rows are produced by the shared [`PgKeyframeRows`] mapping
+/// (keyed by the cover keyframe's id), so the cover analysis persists
+/// exactly like a scene keyframe's.
+pub fn cover_keyframe_rows_from(k: &Keyframe<Uuid7>, video_id: Uuid7) -> PgCoverKeyframeRows {
+  // Reuse the full keyframe-rows mapping for the base scalars + every
+  // detection child table.
+  let base = PgKeyframeRows::from(k);
+  let kr = base
+    .keyframe
+    .expect("PgKeyframeRows always sets the base row");
+  let cover = PgCoverKeyframeRow {
+    id: kr.id,
+    video_id: uuid7_to_uuid(video_id),
+    pts: kr.pts,
+    thumbnail_id: kr.thumbnail_id,
+    width: kr.width,
+    height: kr.height,
+    extractor: kr.extractor,
+    role: keyframe_role_to_slug(KeyframeRole::Cover).to_owned(),
+    vlm_description_src: kr.vlm_description_src,
+    vlm_description_translated: kr.vlm_description_translated,
+    vlm_shot_type: kr.vlm_shot_type,
+    horizon_angle: kr.horizon_angle,
+    horizon_confidence: kr.horizon_confidence,
+    aesthetics_overall_score: kr.aesthetics_overall_score,
+    aesthetics_is_utility: kr.aesthetics_is_utility,
+  };
+  PgCoverKeyframeRows {
+    cover_keyframe: Some(cover),
+    classifications: base.classifications,
+    objects: base.objects,
+    actions: base.actions,
+    text_detections: base.text_detections,
+    barcodes: base.barcodes,
+    saliencies: base.saliencies,
+    document_segments: base.document_segments,
+    colors: base.colors,
+    subjects: base.subjects,
+    faces: base.faces,
+    body_poses: base.body_poses,
+    body_pose_joints: base.body_pose_joints,
+    hand_poses: base.hand_poses,
+    body_poses_3d: base.body_poses_3d,
+    body_pose_3d_joints: base.body_pose_3d_joints,
+    masks: base.masks,
+    face_landmarks: base.face_landmarks,
+    face_landmark_regions: base.face_landmark_regions,
+    face_landmark_points: base.face_landmark_points,
+    vlm_labels: base.vlm_labels,
+  }
+}
+
+/// Rebuild the cover [`Keyframe`] (role = [`KeyframeRole::Cover`], no scene
+/// FK) from its `cover_keyframe` rows. Reuses [`keyframe_from_rows`] by
+/// re-expressing the cover base row as a scene-less [`PgKeyframeRow`]
+/// (`scene_id = None`, `role = 'cover'`).
+pub fn cover_keyframe_from_rows(
+  rows: PgCoverKeyframeRows,
+  parent_timebase: mediatime::Timebase,
+) -> Result<Keyframe<Uuid7>, SqlxError> {
+  let cover = rows.cover_keyframe.ok_or_else(|| {
+    SqlxError::DomainConstructorRejected("CoverKeyframe row is missing".to_owned())
+  })?;
+  let kr = PgKeyframeRow {
+    id: cover.id,
+    scene_id: None,
+    role: cover.role,
+    pts: cover.pts,
+    thumbnail_id: cover.thumbnail_id,
+    width: cover.width,
+    height: cover.height,
+    extractor: cover.extractor,
+    vlm_description_src: cover.vlm_description_src,
+    vlm_description_translated: cover.vlm_description_translated,
+    vlm_shot_type: cover.vlm_shot_type,
+    horizon_angle: cover.horizon_angle,
+    horizon_confidence: cover.horizon_confidence,
+    aesthetics_overall_score: cover.aesthetics_overall_score,
+    aesthetics_is_utility: cover.aesthetics_is_utility,
+  };
+  let keyframe_rows = PgKeyframeRows {
+    keyframe: Some(kr),
+    classifications: rows.classifications,
+    objects: rows.objects,
+    actions: rows.actions,
+    text_detections: rows.text_detections,
+    barcodes: rows.barcodes,
+    saliencies: rows.saliencies,
+    document_segments: rows.document_segments,
+    colors: rows.colors,
+    subjects: rows.subjects,
+    faces: rows.faces,
+    body_poses: rows.body_poses,
+    body_pose_joints: rows.body_pose_joints,
+    hand_poses: rows.hand_poses,
+    body_poses_3d: rows.body_poses_3d,
+    body_pose_3d_joints: rows.body_pose_3d_joints,
+    masks: rows.masks,
+    face_landmarks: rows.face_landmarks,
+    face_landmark_regions: rows.face_landmark_regions,
+    face_landmark_points: rows.face_landmark_points,
+    vlm_labels: rows.vlm_labels,
+  };
+  keyframe_from_rows(keyframe_rows, parent_timebase)
+}
+
 // ---------------------------------------------------------------------------
 // Helpers — slug ↔ enum, ordinal sorting, group-by, primitive narrowing
 // ---------------------------------------------------------------------------
@@ -3688,6 +3852,43 @@ mod tests {
     assert_eq!(v.id_ref(), v2.id_ref());
     assert_eq!(v2.total_scenes(), 7);
     assert_eq!(v2.track_progress_ref().total(), 2);
+    assert!(v2.cover_keyframe_id_ref().is_none());
+  }
+
+  #[test]
+  fn video_facet_cover_keyframe_id_roundtrip() {
+    let cover = Uuid7::new();
+    let v = Video::try_new(Uuid7::new(), Uuid7::new())
+      .unwrap()
+      .with_cover_keyframe_id(Some(cover));
+    let row: PgVideoRow = (&v).into();
+    assert!(row.cover_keyframe_id.is_some());
+    let v2: Video<Uuid7> = row.try_into().unwrap();
+    assert_eq!(v2.cover_keyframe_id_ref(), Some(&cover));
+  }
+
+  #[test]
+  fn cover_keyframe_roundtrip_preserves_cover_role() {
+    let video_id = Uuid7::new();
+    let kf = Keyframe::try_new_cover(
+      Uuid7::new(),
+      Uuid7::new(),
+      Timestamp::new(7000, tb()),
+      Dimensions::new(640, 360),
+      KeyframeExtractor::CompositeQuality,
+    )
+    .unwrap()
+    .with_classifications(std::vec![Detection::try_new("dog", 0.9).unwrap()]);
+    let rows = cover_keyframe_rows_from(&kf, video_id);
+    // The cover base row records video_id + role='cover'.
+    let base = rows.cover_keyframe.as_ref().expect("cover base row");
+    assert_eq!(base.video_id, uuid7_to_uuid(video_id));
+    assert_eq!(base.role, "cover");
+    let kf2 = cover_keyframe_from_rows(rows, tb()).unwrap();
+    assert_eq!(kf, kf2);
+    assert!(kf2.role().is_cover());
+    assert!(kf2.scene_id_ref().is_none());
+    assert_eq!(kf2.classifications_slice().len(), 1);
   }
 
   #[test]

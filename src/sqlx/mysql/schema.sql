@@ -434,6 +434,8 @@ CREATE TABLE IF NOT EXISTS video (
     track_progress_total   BIGINT     NOT NULL DEFAULT 0,
     track_progress_indexed BIGINT     NOT NULL DEFAULT 0,
     track_progress_failed  BIGINT     NOT NULL DEFAULT 0,
+    -- FK -> cover_keyframe.id (the video's poster); NULL = no cover yet.
+    cover_keyframe_id      BINARY(16),
     PRIMARY KEY (id),
     UNIQUE KEY uq_video_media_id (media_id)
 );
@@ -570,7 +572,11 @@ CREATE TABLE IF NOT EXISTS thumbnail (
 
 CREATE TABLE IF NOT EXISTS keyframe (
     id                         BINARY(16)   NOT NULL,
-    scene_id                     BINARY(16)   NOT NULL,
+    -- Nullable: a scene keyframe carries its `Scene` FK; a cover keyframe
+    -- (role = 'cover') has no scene parent (it is stored in cover_keyframe,
+    -- keyed by video_id). `role` self-describes which case a row is.
+    scene_id                     BINARY(16),
+    role                       VARCHAR(64)  NOT NULL DEFAULT 'scene',
     pts                        BIGINT       NOT NULL,
     thumbnail_id               BINARY(16)   NOT NULL,
     width                      BIGINT       NOT NULL,
@@ -586,6 +592,32 @@ CREATE TABLE IF NOT EXISTS keyframe (
     PRIMARY KEY (id),
     KEY idx_keyframe_scene_id (scene_id),
     KEY idx_keyframe_thumbnail_id (thumbnail_id)
+);
+
+-- The video's cover/poster keyframe. Mirrors `keyframe` but parented by
+-- `video_id` (FK -> video.id), NOT by a scene — a cover keyframe attaches
+-- at the video level. It reuses the existing `Thumbnail` entity
+-- (thumbnail_id) and the existing `keyframe_*` detection child tables,
+-- keyed by this row's `id` (a cover keyframe id is a valid keyframe_id).
+CREATE TABLE IF NOT EXISTS cover_keyframe (
+    id                         BINARY(16)   NOT NULL,
+    video_id                   BINARY(16)   NOT NULL,
+    pts                        BIGINT       NOT NULL,
+    thumbnail_id               BINARY(16)   NOT NULL,
+    width                      BIGINT       NOT NULL,
+    height                     BIGINT       NOT NULL,
+    extractor                  VARCHAR(64)  NOT NULL,
+    role                       VARCHAR(64)  NOT NULL DEFAULT 'cover',
+    vlm_description_src        TEXT         NOT NULL,
+    vlm_description_translated TEXT         NOT NULL,
+    vlm_shot_type              VARCHAR(64)  NOT NULL,
+    horizon_angle              FLOAT        NOT NULL,
+    horizon_confidence         FLOAT        NOT NULL,
+    aesthetics_overall_score   FLOAT        NOT NULL,
+    aesthetics_is_utility      TINYINT      NOT NULL DEFAULT 0,
+    PRIMARY KEY (id),
+    KEY idx_cover_keyframe_video_id (video_id),
+    KEY idx_cover_keyframe_thumbnail_id (thumbnail_id)
 );
 
 CREATE TABLE IF NOT EXISTS keyframe_classification (
