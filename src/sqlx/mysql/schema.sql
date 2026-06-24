@@ -369,6 +369,57 @@ CREATE TABLE IF NOT EXISTS data_track_index_error (
     KEY idx_dtie_data_track_id (data_track_id)
 );
 
+-- Attachment-cluster: the `Attachment` facet + `AttachmentTrack` (+ the
+-- metadata / index_error child tables). Attachment streams
+-- (codec_type=attachment: fonts / cover art / thumbnails); presence +
+-- descriptor + metadata only — NO attachment bytes are stored. The
+-- `blob_*` columns are RESERVED and always NULL in v1.
+
+CREATE TABLE IF NOT EXISTS attachment (
+    id                     BINARY(16) NOT NULL,
+    media_id               BINARY(16) NOT NULL,
+    track_progress_total   BIGINT     NOT NULL DEFAULT 0,
+    track_progress_indexed BIGINT     NOT NULL DEFAULT 0,
+    track_progress_failed  BIGINT     NOT NULL DEFAULT 0,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_attachment_media_id (media_id)
+);
+
+CREATE TABLE IF NOT EXISTS attachment_track (
+    id                 BINARY(16)   NOT NULL,
+    attachment_id      BINARY(16)   NOT NULL,
+    stream_index       BIGINT,
+    codec              VARCHAR(64)  NOT NULL,
+    filename           VARCHAR(1024) NOT NULL,
+    mimetype           VARCHAR(255) NOT NULL,
+    byte_size          BIGINT       NOT NULL DEFAULT 0,
+    disposition        BIGINT       NOT NULL DEFAULT 0,
+    index_status       BIGINT       NOT NULL DEFAULT 0,
+    blob_uri           VARCHAR(2048),
+    blob_byte_size     BIGINT,
+    blob_content_type  VARCHAR(255),
+    PRIMARY KEY (id),
+    KEY idx_attachment_track_attachment_id (attachment_id)
+);
+
+CREATE TABLE IF NOT EXISTS attachment_track_metadata (
+    attachment_track_id BINARY(16)   NOT NULL,
+    ordinal             INT          NOT NULL,
+    `key`               VARCHAR(255) NOT NULL,
+    value               TEXT         NOT NULL,
+    PRIMARY KEY (attachment_track_id, ordinal),
+    KEY idx_attachment_track_metadata_attachment_track_id (attachment_track_id)
+);
+
+CREATE TABLE IF NOT EXISTS attachment_track_index_error (
+    attachment_track_id BINARY(16) NOT NULL,
+    ordinal             INT        NOT NULL,
+    code                INT        NOT NULL,
+    message             TEXT       NOT NULL,
+    PRIMARY KEY (attachment_track_id, ordinal),
+    KEY idx_attie_attachment_track_id (attachment_track_id)
+);
+
 -- Video-cluster: the `Video` facet + `VideoTrack` + `Scene` + `Keyframe`
 -- (+ per-detection child tables).
 

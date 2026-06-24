@@ -349,6 +349,54 @@ CREATE TABLE IF NOT EXISTS data_track_index_error (
 );
 CREATE INDEX IF NOT EXISTS idx_dtie_data_track_id ON data_track_index_error(data_track_id);
 
+-- Attachment-cluster: the `Attachment` facet + `AttachmentTrack` (+ the
+-- metadata / index_error child tables). Attachment streams
+-- (codec_type=attachment: fonts / cover art / thumbnails); presence +
+-- descriptor + metadata only — NO attachment bytes are stored. The
+-- `blob_*` columns are RESERVED and always NULL in v1.
+
+CREATE TABLE IF NOT EXISTS attachment (
+    id                     uuid    NOT NULL PRIMARY KEY,
+    media_id               uuid    NOT NULL UNIQUE,
+    track_progress_total   bigint  NOT NULL DEFAULT 0,
+    track_progress_indexed bigint  NOT NULL DEFAULT 0,
+    track_progress_failed  bigint  NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS attachment_track (
+    id                 uuid    NOT NULL PRIMARY KEY,
+    attachment_id      uuid    NOT NULL,
+    stream_index       bigint,
+    codec              text    NOT NULL,
+    filename           text    NOT NULL,
+    mimetype           text    NOT NULL,
+    byte_size          bigint  NOT NULL DEFAULT 0,
+    disposition        bigint  NOT NULL DEFAULT 0,
+    index_status       bigint  NOT NULL DEFAULT 0,
+    blob_uri           text,
+    blob_byte_size     bigint,
+    blob_content_type  text
+);
+CREATE INDEX IF NOT EXISTS idx_attachment_track_attachment_id ON attachment_track(attachment_id);
+
+CREATE TABLE IF NOT EXISTS attachment_track_metadata (
+    attachment_track_id uuid    NOT NULL,
+    ordinal             integer NOT NULL,
+    key                 text    NOT NULL,
+    value               text    NOT NULL,
+    PRIMARY KEY (attachment_track_id, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_attachment_track_metadata_attachment_track_id ON attachment_track_metadata(attachment_track_id);
+
+CREATE TABLE IF NOT EXISTS attachment_track_index_error (
+    attachment_track_id uuid    NOT NULL,
+    ordinal             integer NOT NULL,
+    code                integer NOT NULL,
+    message             text    NOT NULL,
+    PRIMARY KEY (attachment_track_id, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_attie_attachment_track_id ON attachment_track_index_error(attachment_track_id);
+
 -- Video-cluster: the `Video` facet + `VideoTrack` + `Scene` + `Keyframe`
 -- (+ per-detection child tables). Nested mediaframe descriptor VOs are
 -- flattened into real columns; collections ride in child tables with an

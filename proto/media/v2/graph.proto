@@ -336,3 +336,37 @@ message DataTrack {
   uint32 index_status = 12;    // DataIndexStatus raw bits
   repeated media.v1.ErrorInfo index_errors = 13;
 }
+
+// A reserved externalization handle for out-of-band bytes (graph BlobRef).
+// Never set in v1 — attachment bytes are not stored.
+message BlobRef {
+  string uri = 1;
+  uint64 byte_size = 2;
+  string content_type = 3;
+}
+
+// Attachment facet (graph::Attachment) — container-level attachment streams
+// (`codec_type=attachment`: fonts / cover art / thumbnails). Presence +
+// metadata only; no attachment bytes.
+message Attachment {
+  bytes id = 1;
+  IndexProgress track_progress = 2;
+  repeated AttachmentTrack tracks = 3;
+}
+
+// One attachment track (graph::AttachmentTrack). The graph shape drops the
+// `attachment_id` FK (implied by nesting). `codec` / `filename` / `mimetype`
+// are plain slugs (`""` = unknown/absent). `blob` is RESERVED — unset in v1.
+message AttachmentTrack {
+  bytes id = 1;
+  optional uint32 stream_index = 2;
+  string codec = 3;            // slug; "" = unknown
+  string filename = 4;         // "" = absent
+  string mimetype = 5;         // "" = absent
+  uint64 byte_size = 6;
+  mediaframe.v1.TrackDisposition disposition = 7;
+  repeated media.v1.KeyValue metadata = 8;
+  uint32 index_status = 9;     // AttachmentIndexStatus raw bits
+  repeated media.v1.ErrorInfo index_errors = 10;
+  BlobRef blob = 11;           // RESERVED — unset in v1
+}

@@ -40,6 +40,10 @@ pub mod __buffa {
         #[cfg(feature = "json")] reg.register_json_any(super::__SUBTITLE_CUE_JSON_ANY);
         #[cfg(feature = "json")] reg.register_json_any(super::__DATA_JSON_ANY);
         #[cfg(feature = "json")] reg.register_json_any(super::__DATA_TRACK_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__BLOB_REF_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__ATTACHMENT_JSON_ANY);
+        #[cfg(feature = "json")]
+        reg.register_json_any(super::__ATTACHMENT_TRACK_JSON_ANY);
     }
 }
 #[cfg(feature = "json")]

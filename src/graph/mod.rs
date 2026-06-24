@@ -41,11 +41,13 @@
 //! The module requires `std` plus all three medium features — a graph is
 //! a complete record; partial-medium consumers use the flat aggregates.
 
+mod attachment;
 mod audio;
 mod data;
 mod subtitle;
 mod video;
 
+pub use attachment::{Attachment, AttachmentTrack};
 pub use audio::{Audio, AudioSegment, AudioTrack, SoundEvent, Speaker};
 pub use data::{Data, DataTrack};
 pub use subtitle::{Subtitle, SubtitleCue, SubtitleTrack};
@@ -104,6 +106,10 @@ pub enum NodeKind {
   DataFacet,
   /// [`DataTrack`] under [`Data`].
   DataTrack,
+  /// [`Attachment`] facet under [`Media`].
+  AttachmentFacet,
+  /// [`AttachmentTrack`] under [`Attachment`].
+  AttachmentTrack,
 }
 
 impl NodeKind {
@@ -127,6 +133,8 @@ impl NodeKind {
       Self::SubtitleCue => "subtitle_cue",
       Self::DataFacet => "data_facet",
       Self::DataTrack => "data_track",
+      Self::AttachmentFacet => "attachment_facet",
+      Self::AttachmentTrack => "attachment_track",
     }
   }
 }

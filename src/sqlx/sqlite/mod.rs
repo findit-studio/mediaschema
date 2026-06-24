@@ -8,6 +8,8 @@
 #[cfg(feature = "audio")]
 #[cfg_attr(docsrs, doc(cfg(feature = "audio")))]
 pub mod audio;
+// `Attachment` is container-level (like `chapter` / `media`) — ungated.
+pub mod attachment;
 pub mod chapter;
 // `Data` is container-level (like `chapter` / `media`) — ungated.
 pub mod data;
@@ -25,6 +27,10 @@ pub mod thumbnail;
 #[cfg_attr(docsrs, doc(cfg(feature = "video")))]
 pub mod video;
 
+pub use attachment::{
+  attachment_track_from_rows, SqliteAttachmentRow, SqliteAttachmentTrackIndexErrorRow,
+  SqliteAttachmentTrackMetadataRow, SqliteAttachmentTrackRow,
+};
 #[cfg(feature = "audio")]
 pub use audio::{
   audio_track_from_rows, sound_event_from_row, SqliteAudioRow, SqliteAudioSegmentRow,
@@ -117,6 +123,17 @@ mod data_schema_tests {
     assert!(SCHEMA_SQL.contains("CREATE TABLE IF NOT EXISTS data_track_metadata ("));
     assert!(SCHEMA_SQL.contains("CREATE TABLE IF NOT EXISTS data_track_index_error ("));
     assert!(SCHEMA_SQL.contains("idx_data_track_data_id"));
+  }
+
+  #[test]
+  fn schema_has_attachment_cluster_tables() {
+    assert!(SCHEMA_SQL.contains("CREATE TABLE IF NOT EXISTS attachment ("));
+    assert!(SCHEMA_SQL.contains("CREATE TABLE IF NOT EXISTS attachment_track ("));
+    assert!(SCHEMA_SQL.contains("CREATE TABLE IF NOT EXISTS attachment_track_metadata ("));
+    assert!(SCHEMA_SQL.contains("CREATE TABLE IF NOT EXISTS attachment_track_index_error ("));
+    assert!(SCHEMA_SQL.contains("idx_attachment_track_attachment_id"));
+    // Reserved blob columns are declared (always NULL in v1).
+    assert!(SCHEMA_SQL.contains("blob_uri"));
   }
 
   #[test]

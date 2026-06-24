@@ -348,6 +348,57 @@ CREATE TABLE IF NOT EXISTS data_track_index_error (
 );
 CREATE INDEX IF NOT EXISTS idx_dtie_data_track_id ON data_track_index_error(data_track_id);
 
+-- Attachment-cluster: the `Attachment` facet + `AttachmentTrack` (+ the
+-- metadata / index_error child tables). Attachment streams
+-- (codec_type=attachment: fonts / cover art / thumbnails); presence +
+-- descriptor + metadata only — NO attachment bytes are stored. The
+-- `blob_*` columns are RESERVED and always NULL in v1.
+
+CREATE TABLE IF NOT EXISTS attachment (
+    id                     BLOB    NOT NULL PRIMARY KEY,
+    media_id               BLOB    NOT NULL UNIQUE,
+    track_progress_total   INTEGER NOT NULL DEFAULT 0,
+    track_progress_indexed INTEGER NOT NULL DEFAULT 0,
+    track_progress_failed  INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS attachment_track (
+    id                 BLOB    NOT NULL PRIMARY KEY,
+    attachment_id      BLOB    NOT NULL,   -- FK -> attachment.id
+    stream_index       INTEGER,
+    codec              TEXT    NOT NULL,
+    filename           TEXT    NOT NULL,
+    mimetype           TEXT    NOT NULL,
+    byte_size          INTEGER NOT NULL DEFAULT 0,
+    disposition        INTEGER NOT NULL DEFAULT 0,
+    index_status       INTEGER NOT NULL DEFAULT 0,
+    -- Reserved BlobRef externalization handle; always NULL in v1.
+    blob_uri           TEXT,
+    blob_byte_size     INTEGER,
+    blob_content_type  TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_attachment_track_attachment_id ON attachment_track(attachment_id);
+
+-- AVDictionary entries per attachment_track. `ordinal` preserves IndexMap
+-- insertion order; ORDER BY ordinal yields the original sequence.
+CREATE TABLE IF NOT EXISTS attachment_track_metadata (
+    attachment_track_id BLOB    NOT NULL,
+    ordinal             INTEGER NOT NULL,
+    key                 TEXT    NOT NULL,
+    value               TEXT    NOT NULL,
+    PRIMARY KEY (attachment_track_id, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_attachment_track_metadata_attachment_track_id ON attachment_track_metadata(attachment_track_id);
+
+CREATE TABLE IF NOT EXISTS attachment_track_index_error (
+    attachment_track_id BLOB    NOT NULL,   -- FK -> attachment_track.id
+    ordinal             INTEGER NOT NULL,
+    code                INTEGER NOT NULL,
+    message             TEXT    NOT NULL,
+    PRIMARY KEY (attachment_track_id, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_attie_attachment_track_id ON attachment_track_index_error(attachment_track_id);
+
 -- Video-cluster: the `Video` facet + `VideoTrack` + `Scene` + `Keyframe`
 -- (+ per-detection child tables). Booleans ride as 0/1 INTEGER.
 
