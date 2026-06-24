@@ -28,6 +28,12 @@ pub mod audio;
 #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
 pub mod chapter;
 pub mod curation;
+// `Data`/`DataTrack` are container-level (not video/audio/subtitle). Like
+// `Chapter`, they reach `IndexMap<SmolStr, SmolStr>` (std-only default
+// hasher), so gate on `std` (rather than `any(std, alloc)`).
+#[cfg(feature = "std")]
+#[cfg_attr(docsrs, doc(cfg(feature = "std")))]
+pub mod data;
 pub mod media;
 pub mod media_file;
 pub mod person;
@@ -48,6 +54,8 @@ pub use audio::{
 #[cfg(feature = "std")]
 pub use chapter::{Chapter, ChapterError};
 pub use curation::{SceneAnnotation, UserTag};
+#[cfg(feature = "std")]
+pub use data::{Data, DataError, DataTrack, DataTrackError};
 pub use media::Media;
 pub use media_file::MediaFile;
 pub use person::{Person, PersonConfidence, PersonError};

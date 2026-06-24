@@ -42,10 +42,12 @@
 //! a complete record; partial-medium consumers use the flat aggregates.
 
 mod audio;
+mod data;
 mod subtitle;
 mod video;
 
 pub use audio::{Audio, AudioSegment, AudioTrack, SoundEvent, Speaker};
+pub use data::{Data, DataTrack};
 pub use subtitle::{Subtitle, SubtitleCue, SubtitleTrack};
 pub use video::{Keyframe, Scene, Video, VideoTrack};
 
@@ -98,6 +100,10 @@ pub enum NodeKind {
   SubtitleTrack,
   /// [`SubtitleCue`] under [`SubtitleTrack`].
   SubtitleCue,
+  /// [`Data`] facet under [`Media`].
+  DataFacet,
+  /// [`DataTrack`] under [`Data`].
+  DataTrack,
 }
 
 impl NodeKind {
@@ -119,6 +125,8 @@ impl NodeKind {
       Self::SubtitleFacet => "subtitle_facet",
       Self::SubtitleTrack => "subtitle_track",
       Self::SubtitleCue => "subtitle_cue",
+      Self::DataFacet => "data_facet",
+      Self::DataTrack => "data_track",
     }
   }
 }

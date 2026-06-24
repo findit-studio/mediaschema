@@ -38,6 +38,8 @@ pub mod __buffa {
         #[cfg(feature = "json")] reg.register_json_any(super::__SUBTITLE_JSON_ANY);
         #[cfg(feature = "json")] reg.register_json_any(super::__SUBTITLE_TRACK_JSON_ANY);
         #[cfg(feature = "json")] reg.register_json_any(super::__SUBTITLE_CUE_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__DATA_JSON_ANY);
+        #[cfg(feature = "json")] reg.register_json_any(super::__DATA_TRACK_JSON_ANY);
     }
 }
 #[cfg(feature = "json")]

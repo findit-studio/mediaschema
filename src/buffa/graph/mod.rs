@@ -67,6 +67,7 @@ use crate::{
 };
 
 pub mod audio;
+pub mod data;
 pub mod media;
 pub mod subtitle;
 pub mod video;

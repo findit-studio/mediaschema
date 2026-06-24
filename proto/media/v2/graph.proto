@@ -308,3 +308,31 @@ message SubtitleCue {
     media.v1.EbuStlData ebu_stl = 17;
   }
 }
+
+// Data facet (graph::Data) — container-level timed-metadata streams
+// (`codec_type=data`: Sony rtmd / GoPro GPMF / MISB KLV / timecode).
+// Presence + metadata only; no sample payloads.
+message Data {
+  bytes id = 1;
+  IndexProgress track_progress = 2;
+  repeated DataTrack tracks = 3;
+}
+
+// One timed-metadata track (graph::DataTrack). The graph shape drops the
+// `data_id` FK (implied by nesting). `codec` / `codec_tag` are plain slugs
+// (`""` = unknown/absent) — mediaframe ships no DataCodec wire type.
+message DataTrack {
+  bytes id = 1;
+  optional uint32 stream_index = 2;
+  optional uint64 container_track_id = 3;
+  string codec = 4;            // slug; "" = unknown
+  string codec_tag = 5;        // "" = absent
+  mediatime.v1.Timestamp start_pts = 6;
+  mediatime.v1.Timestamp duration = 7;
+  optional uint64 nb_packets = 8;
+  uint64 byte_size = 9;
+  mediaframe.v1.TrackDisposition disposition = 10;
+  repeated media.v1.KeyValue metadata = 11;
+  uint32 index_status = 12;    // DataIndexStatus raw bits
+  repeated media.v1.ErrorInfo index_errors = 13;
+}

@@ -22,7 +22,10 @@ pub mod primitives;
 pub mod vo;
 
 // Always available (pure no-std no-alloc):
-pub use bitflags::{AudioIndexStatus, MediaErrorFlags, SubtitleIndexStatus, VideoIndexStatus};
+pub use bitflags::{
+  AttachmentIndexStatus, AudioIndexStatus, DataIndexStatus, MediaErrorFlags, SubtitleIndexStatus,
+  VideoIndexStatus,
+};
 pub use enums::{
   AudioContentKind, AudioIndexStage, KeyframeExtractor, MediaKind, ScanStatus, SceneDetector,
   SubtitleIndexStage, SubtitleKind, ThumbnailKind, ThumbnailKindParseError, VideoIndexStage,
@@ -54,6 +57,9 @@ pub use aggregates::{Subtitle, SubtitleCue, SubtitleTrack};
 // every IndexMap-bearing aggregate.
 #[cfg(feature = "std")]
 pub use aggregates::{Chapter, ChapterError};
+// `Data` / `DataTrack` are likewise container-level + std-gated.
+#[cfg(feature = "std")]
+pub use aggregates::{Data, DataError, DataTrack, DataTrackError};
 #[cfg(any(feature = "std", feature = "alloc"))]
 pub use primitives::{ErrorInfo, Location};
 #[cfg(any(feature = "std", feature = "alloc"))]

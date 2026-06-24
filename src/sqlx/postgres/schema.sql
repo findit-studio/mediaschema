@@ -298,6 +298,57 @@ CREATE TABLE IF NOT EXISTS audio_segment_word (
 );
 CREATE INDEX IF NOT EXISTS idx_asw_audio_segment_id ON audio_segment_word(audio_segment_id);
 
+-- Data-cluster: the `Data` facet + `DataTrack` (+ the metadata / index_error
+-- child tables). Timed-metadata streams (codec_type=data: Sony rtmd / GoPro
+-- GPMF / MISB KLV / timecode); presence + descriptor + metadata only — no
+-- sample payloads. `codec` / `codec_tag` are plain slugs.
+
+CREATE TABLE IF NOT EXISTS data (
+    id                     uuid    NOT NULL PRIMARY KEY,
+    media_id               uuid    NOT NULL UNIQUE,
+    track_progress_total   bigint  NOT NULL DEFAULT 0,
+    track_progress_indexed bigint  NOT NULL DEFAULT 0,
+    track_progress_failed  bigint  NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS data_track (
+    id                 uuid    NOT NULL PRIMARY KEY,
+    data_id            uuid    NOT NULL,
+    stream_index       bigint,
+    container_track_id bigint,
+    codec              text    NOT NULL,
+    codec_tag          text    NOT NULL,
+    start_pts          bigint,
+    start_pts_tb_num   bigint,
+    start_pts_tb_den   bigint,
+    duration_pts       bigint,
+    duration_tb_num    bigint,
+    duration_tb_den    bigint,
+    nb_packets         bigint,
+    byte_size          bigint  NOT NULL DEFAULT 0,
+    disposition        bigint  NOT NULL DEFAULT 0,
+    index_status       bigint  NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_data_track_data_id ON data_track(data_id);
+
+CREATE TABLE IF NOT EXISTS data_track_metadata (
+    data_track_id uuid    NOT NULL,
+    ordinal       integer NOT NULL,
+    key           text    NOT NULL,
+    value         text    NOT NULL,
+    PRIMARY KEY (data_track_id, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_data_track_metadata_data_track_id ON data_track_metadata(data_track_id);
+
+CREATE TABLE IF NOT EXISTS data_track_index_error (
+    data_track_id uuid    NOT NULL,
+    ordinal       integer NOT NULL,
+    code          integer NOT NULL,
+    message       text    NOT NULL,
+    PRIMARY KEY (data_track_id, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_dtie_data_track_id ON data_track_index_error(data_track_id);
+
 -- Video-cluster: the `Video` facet + `VideoTrack` + `Scene` + `Keyframe`
 -- (+ per-detection child tables). Nested mediaframe descriptor VOs are
 -- flattened into real columns; collections ride in child tables with an

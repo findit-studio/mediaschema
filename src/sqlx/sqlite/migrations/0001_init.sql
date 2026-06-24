@@ -295,6 +295,59 @@ CREATE TABLE IF NOT EXISTS audio_segment_word (
 );
 CREATE INDEX IF NOT EXISTS idx_asw_audio_segment_id ON audio_segment_word(audio_segment_id);
 
+-- Data-cluster: the `Data` facet + `DataTrack` (+ the metadata / index_error
+-- child tables). Timed-metadata streams (codec_type=data: Sony rtmd / GoPro
+-- GPMF / MISB KLV / timecode); presence + descriptor + metadata only — no
+-- sample payloads. `codec` / `codec_tag` are plain slugs.
+
+CREATE TABLE IF NOT EXISTS data (
+    id                     BLOB    NOT NULL PRIMARY KEY,
+    media_id               BLOB    NOT NULL UNIQUE,
+    track_progress_total   INTEGER NOT NULL DEFAULT 0,
+    track_progress_indexed INTEGER NOT NULL DEFAULT 0,
+    track_progress_failed  INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS data_track (
+    id                 BLOB    NOT NULL PRIMARY KEY,
+    data_id            BLOB    NOT NULL,   -- FK -> data.id
+    stream_index       INTEGER,
+    container_track_id INTEGER,
+    codec              TEXT    NOT NULL,
+    codec_tag          TEXT    NOT NULL,
+    start_pts          INTEGER,
+    start_pts_tb_num   INTEGER,
+    start_pts_tb_den   INTEGER,
+    duration_pts       INTEGER,
+    duration_tb_num    INTEGER,
+    duration_tb_den    INTEGER,
+    nb_packets         INTEGER,
+    byte_size          INTEGER NOT NULL DEFAULT 0,
+    disposition        INTEGER NOT NULL DEFAULT 0,
+    index_status       INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_data_track_data_id ON data_track(data_id);
+
+-- AVDictionary entries per data_track. `ordinal` preserves IndexMap
+-- insertion order; ORDER BY ordinal yields the original sequence.
+CREATE TABLE IF NOT EXISTS data_track_metadata (
+    data_track_id BLOB    NOT NULL,
+    ordinal       INTEGER NOT NULL,
+    key           TEXT    NOT NULL,
+    value         TEXT    NOT NULL,
+    PRIMARY KEY (data_track_id, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_data_track_metadata_data_track_id ON data_track_metadata(data_track_id);
+
+CREATE TABLE IF NOT EXISTS data_track_index_error (
+    data_track_id BLOB    NOT NULL,   -- FK -> data_track.id
+    ordinal       INTEGER NOT NULL,
+    code          INTEGER NOT NULL,
+    message       TEXT    NOT NULL,
+    PRIMARY KEY (data_track_id, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_dtie_data_track_id ON data_track_index_error(data_track_id);
+
 -- Video-cluster: the `Video` facet + `VideoTrack` + `Scene` + `Keyframe`
 -- (+ per-detection child tables). Booleans ride as 0/1 INTEGER.
 

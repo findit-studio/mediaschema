@@ -14,6 +14,8 @@
 #[cfg_attr(docsrs, doc(cfg(feature = "audio")))]
 pub mod audio;
 pub mod chapter;
+// `Data` is container-level (like `chapter` / `media`) — ungated.
+pub mod data;
 pub mod leaves;
 pub mod media;
 pub mod media_file;
@@ -32,6 +34,9 @@ pub use audio::{
   PgSoundEventRow,
 };
 pub use chapter::{chapter_from_rows, PgChapterMetadataRow, PgChapterRow};
+pub use data::{
+  data_track_from_rows, PgDataRow, PgDataTrackIndexErrorRow, PgDataTrackMetadataRow, PgDataTrackRow,
+};
 pub use leaves::{PgSceneAnnotationRow, PgSpeakerRow, PgUserTagRow, PgWatchedLocationRow};
 pub use media::PgMediaRow;
 pub use media_file::PgMediaFileRow;
@@ -60,3 +65,22 @@ pub const SCHEMA_SQL: &str = include_str!("schema.sql");
 
 /// Initial migration mirror of [`SCHEMA_SQL`].
 pub const MIGRATION_0001_INIT: &str = include_str!("migrations/0001_init.sql");
+
+#[cfg(test)]
+mod data_schema_tests {
+  use super::{MIGRATION_0001_INIT, SCHEMA_SQL};
+
+  #[test]
+  fn schema_has_data_cluster_tables() {
+    assert!(SCHEMA_SQL.contains("CREATE TABLE IF NOT EXISTS data ("));
+    assert!(SCHEMA_SQL.contains("CREATE TABLE IF NOT EXISTS data_track ("));
+    assert!(SCHEMA_SQL.contains("CREATE TABLE IF NOT EXISTS data_track_metadata ("));
+    assert!(SCHEMA_SQL.contains("CREATE TABLE IF NOT EXISTS data_track_index_error ("));
+    assert!(SCHEMA_SQL.contains("idx_data_track_data_id"));
+  }
+
+  #[test]
+  fn data_migration_mirror_matches_schema() {
+    assert_eq!(SCHEMA_SQL, MIGRATION_0001_INIT);
+  }
+}

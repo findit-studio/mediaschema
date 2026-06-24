@@ -9,6 +9,8 @@
 #[cfg_attr(docsrs, doc(cfg(feature = "audio")))]
 pub mod audio;
 pub mod chapter;
+// `Data` is container-level (like `chapter` / `media`) — ungated.
+pub mod data;
 pub mod leaves;
 pub mod media;
 pub mod media_file;
@@ -30,6 +32,10 @@ pub use audio::{
   SqliteAudioTrackRow, SqliteSoundEventRow,
 };
 pub use chapter::{chapter_from_rows, SqliteChapterMetadataRow, SqliteChapterRow};
+pub use data::{
+  data_track_from_rows, SqliteDataRow, SqliteDataTrackIndexErrorRow, SqliteDataTrackMetadataRow,
+  SqliteDataTrackRow,
+};
 pub use leaves::{
   SqliteSceneAnnotationRow, SqliteSpeakerRow, SqliteUserTagRow, SqliteWatchedLocationRow,
 };
@@ -96,6 +102,25 @@ mod schema_tests {
 
   #[test]
   fn migration_mirror_matches_schema() {
+    assert_eq!(SCHEMA_SQL, MIGRATION_0001_INIT);
+  }
+}
+
+#[cfg(test)]
+mod data_schema_tests {
+  use super::{MIGRATION_0001_INIT, SCHEMA_SQL};
+
+  #[test]
+  fn schema_has_data_cluster_tables() {
+    assert!(SCHEMA_SQL.contains("CREATE TABLE IF NOT EXISTS data ("));
+    assert!(SCHEMA_SQL.contains("CREATE TABLE IF NOT EXISTS data_track ("));
+    assert!(SCHEMA_SQL.contains("CREATE TABLE IF NOT EXISTS data_track_metadata ("));
+    assert!(SCHEMA_SQL.contains("CREATE TABLE IF NOT EXISTS data_track_index_error ("));
+    assert!(SCHEMA_SQL.contains("idx_data_track_data_id"));
+  }
+
+  #[test]
+  fn data_migration_mirror_matches_schema() {
     assert_eq!(SCHEMA_SQL, MIGRATION_0001_INIT);
   }
 }
