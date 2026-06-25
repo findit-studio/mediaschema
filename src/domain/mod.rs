@@ -71,5 +71,6 @@ pub use aggregates::{
 pub use primitives::{ErrorInfo, Location};
 #[cfg(any(feature = "std", feature = "alloc"))]
 pub use vo::{
-  Backend, IndexProgress, LocalizedText, Provenance, VoiceFingerprint, VoiceFingerprintError,
+  Backend, IndexProgress, LocalizedText, Platform, Provenance, VoiceFingerprint,
+  VoiceFingerprintError,
 };

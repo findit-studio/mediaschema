@@ -327,6 +327,130 @@ impl Backend {
 }
 
 // ---------------------------------------------------------------------------
+// Platform — host OS / arch / OS-version a model ran on
+// ---------------------------------------------------------------------------
+
+/// Host platform a model executed on — `os` / `arch` / `os_version`.
+///
+/// All three are version-bearing / open vocabularies, so `SmolStr` with
+/// `""`=absent (the same empty-means-absent rule as [`LocalizedText`] /
+/// [`Provenance`]); never `Option`. Sourced by producers from
+/// `std::env::consts::{OS, ARCH}` + an OS-version query.
+///
+/// **Default convention**: `Default::default()` calls [`Platform::new`],
+/// the all-empty record (the "platform not recorded" state).
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Platform {
+  os: SmolStr,
+  arch: SmolStr,
+  os_version: SmolStr,
+}
+
+impl Platform {
+  /// Canonical no-arg constructor — every field empty (`""`).
+  /// (Not `const fn` — `SmolStr::default()` is not `const` in `smol_str`
+  /// 0.3.)
+  #[inline]
+  pub fn new() -> Self {
+    Self {
+      os: SmolStr::default(),
+      arch: SmolStr::default(),
+      os_version: SmolStr::default(),
+    }
+  }
+
+  /// Construct from explicit os / arch / os_version.
+  #[inline]
+  pub fn from_parts(
+    os: impl Into<SmolStr>,
+    arch: impl Into<SmolStr>,
+    os_version: impl Into<SmolStr>,
+  ) -> Self {
+    Self {
+      os: os.into(),
+      arch: arch.into(),
+      os_version: os_version.into(),
+    }
+  }
+
+  /// Operating system (`std::env::consts::OS`, e.g. `"macos"`); `""` = absent.
+  #[inline]
+  pub fn os(&self) -> &str {
+    self.os.as_str()
+  }
+
+  /// CPU architecture (`std::env::consts::ARCH`, e.g. `"aarch64"`); `""` = absent.
+  #[inline]
+  pub fn arch(&self) -> &str {
+    self.arch.as_str()
+  }
+
+  /// OS version string (e.g. `"15.5"`); `""` = absent.
+  #[inline]
+  pub fn os_version(&self) -> &str {
+    self.os_version.as_str()
+  }
+
+  /// Are all three fields absent (`""`)?
+  #[inline]
+  pub fn is_empty(&self) -> bool {
+    self.os.is_empty() && self.arch.is_empty() && self.os_version.is_empty()
+  }
+
+  /// Builder: replace `os`.
+  #[must_use]
+  #[inline]
+  pub fn with_os(mut self, v: impl Into<SmolStr>) -> Self {
+    self.os = v.into();
+    self
+  }
+
+  /// Builder: replace `arch`.
+  #[must_use]
+  #[inline]
+  pub fn with_arch(mut self, v: impl Into<SmolStr>) -> Self {
+    self.arch = v.into();
+    self
+  }
+
+  /// Builder: replace `os_version`.
+  #[must_use]
+  #[inline]
+  pub fn with_os_version(mut self, v: impl Into<SmolStr>) -> Self {
+    self.os_version = v.into();
+    self
+  }
+
+  /// In-place mutator for `os`.
+  #[inline]
+  pub fn set_os(&mut self, v: impl Into<SmolStr>) -> &mut Self {
+    self.os = v.into();
+    self
+  }
+
+  /// In-place mutator for `arch`.
+  #[inline]
+  pub fn set_arch(&mut self, v: impl Into<SmolStr>) -> &mut Self {
+    self.arch = v.into();
+    self
+  }
+
+  /// In-place mutator for `os_version`.
+  #[inline]
+  pub fn set_os_version(&mut self, v: impl Into<SmolStr>) -> &mut Self {
+    self.os_version = v.into();
+    self
+  }
+}
+
+impl Default for Platform {
+  #[inline]
+  fn default() -> Self {
+    Self::new()
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Provenance — analysis-run reproducibility
 // ---------------------------------------------------------------------------
 
@@ -338,19 +462,30 @@ impl Backend {
 /// `SubtitleTrack` — as a `provenance` field. Per-track on `AudioTrack`/
 /// `SubtitleTrack` (one value per run), not per `AudioSegment`/`SubtitleCue`.
 ///
-/// All four fields are `SmolStr` with `""`=absent. No `Option` — the locked
-/// rule reserves `Option` for structured/enum/numeric absence.
+/// The four model/prompt/indexer fields are `SmolStr` with `""`=absent. No
+/// `Option` — the locked rule reserves `Option` for structured/enum/numeric
+/// absence.
+///
+/// Two further fields record the *runtime* the producing model ran on:
+/// [`backend`](Self::backend) (a typed [`Backend`], `Unspecified` = not
+/// recorded) and [`platform`](Self::platform_ref) (a [`Platform`], all-empty
+/// = not recorded).
 ///
 /// **Default convention**: `Default::default()` calls [`Provenance::new`],
-/// which returns the all-empty record. Use [`Provenance::from_parts`] to
-/// supply all four fields in one call, or chain the `with_*` builders
-/// onto `Provenance::new()` to fill incrementally.
+/// which returns the all-empty record (`backend` = `Unspecified`, `platform`
+/// = all-empty). [`Provenance::from_parts`] stays the 4-arg
+/// model/prompt/indexer constructor and leaves `backend`/`platform` at their
+/// defaults; chain [`with_backend`](Self::with_backend) /
+/// [`with_platform`](Self::with_platform) (or the `with_*` string builders)
+/// to fill any field incrementally.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Provenance {
   model_name: SmolStr,
   model_version: SmolStr,
   prompt_version: SmolStr,
   indexer_version: SmolStr,
+  backend: Backend,
+  platform: Platform,
 }
 
 impl Provenance {
@@ -366,10 +501,15 @@ impl Provenance {
       model_version: SmolStr::default(),
       prompt_version: SmolStr::default(),
       indexer_version: SmolStr::default(),
+      backend: Backend::Unspecified,
+      platform: Platform::new(),
     }
   }
 
-  /// Construct a `Provenance` from its four fields.
+  /// Construct a `Provenance` from its four model/prompt/indexer fields.
+  /// `backend` defaults to [`Backend::Unspecified`] and `platform` to the
+  /// all-empty [`Platform`]; fill them via [`with_backend`](Self::with_backend)
+  /// / [`with_platform`](Self::with_platform).
   #[inline]
   pub fn from_parts(
     model_name: impl Into<SmolStr>,
@@ -382,6 +522,8 @@ impl Provenance {
       model_version: model_version.into(),
       prompt_version: prompt_version.into(),
       indexer_version: indexer_version.into(),
+      backend: Backend::Unspecified,
+      platform: Platform::new(),
     }
   }
 
@@ -407,6 +549,19 @@ impl Provenance {
   #[inline]
   pub fn indexer_version(&self) -> &str {
     self.indexer_version.as_str()
+  }
+
+  /// Inference backend the producing model ran on
+  /// (`Backend::Unspecified` = not recorded).
+  #[inline(always)]
+  pub const fn backend(&self) -> Backend {
+    self.backend
+  }
+
+  /// Host platform the producing model ran on (empty = not recorded).
+  #[inline(always)]
+  pub const fn platform_ref(&self) -> &Platform {
+    &self.platform
   }
 
   /// Builder: replace `model_name` and return `self`.
@@ -437,6 +592,22 @@ impl Provenance {
     self
   }
 
+  /// Builder: replace `backend` and return `self`.
+  #[must_use]
+  #[inline(always)]
+  pub const fn with_backend(mut self, backend: Backend) -> Self {
+    self.backend = backend;
+    self
+  }
+
+  /// Builder: replace `platform` and return `self`.
+  #[must_use]
+  #[inline]
+  pub fn with_platform(mut self, platform: Platform) -> Self {
+    self.platform = platform;
+    self
+  }
+
   /// In-place mutator.
   #[inline]
   pub fn set_model_name(&mut self, v: impl Into<SmolStr>) {
@@ -461,14 +632,31 @@ impl Provenance {
     self.indexer_version = v.into();
   }
 
-  /// Is every field absent (`""`)? Useful when an analysis record exists
-  /// but its provenance has not been recorded yet.
+  /// In-place mutator for `backend`.
+  #[inline(always)]
+  pub const fn set_backend(&mut self, backend: Backend) -> &mut Self {
+    self.backend = backend;
+    self
+  }
+
+  /// In-place mutator for `platform`.
+  #[inline]
+  pub fn set_platform(&mut self, platform: Platform) -> &mut Self {
+    self.platform = platform;
+    self
+  }
+
+  /// Is every field absent (`""`), the backend `Unspecified`, and the
+  /// platform all-empty? Useful when an analysis record exists but its
+  /// provenance has not been recorded yet.
   #[inline]
   pub fn is_empty(&self) -> bool {
     self.model_name.is_empty()
       && self.model_version.is_empty()
       && self.prompt_version.is_empty()
       && self.indexer_version.is_empty()
+      && self.backend.is_unspecified()
+      && self.platform.is_empty()
   }
 }
 
@@ -1319,5 +1507,95 @@ mod tests {
     // Unknown name -> Unspecified (total).
     assert_eq!(Backend::from_str("totally-unknown"), Backend::Unspecified);
     assert_eq!(Backend::from_str(""), Backend::Unspecified);
+  }
+
+  // --- Platform ---------------------------------------------------------------
+
+  #[test]
+  fn platform_new_is_empty_and_default_delegates() {
+    let p = Platform::new();
+    assert!(p.is_empty());
+    assert_eq!(p.os(), "");
+    assert_eq!(p.arch(), "");
+    assert_eq!(p.os_version(), "");
+    assert_eq!(Platform::default(), p);
+  }
+
+  #[test]
+  fn platform_from_parts_and_emptiness() {
+    let p = Platform::from_parts("macos", "aarch64", "15.5");
+    assert!(!p.is_empty());
+    assert_eq!(p.os(), "macos");
+    assert_eq!(p.arch(), "aarch64");
+    assert_eq!(p.os_version(), "15.5");
+    // Even one non-empty field defeats is_empty.
+    assert!(!Platform::from_parts("", "", "15.5").is_empty());
+  }
+
+  #[test]
+  fn platform_builders_and_setters() {
+    let p = Platform::new()
+      .with_os("linux")
+      .with_arch("x86_64")
+      .with_os_version("6.8");
+    assert_eq!(p.os(), "linux");
+    assert_eq!(p.arch(), "x86_64");
+    assert_eq!(p.os_version(), "6.8");
+    let mut p = p;
+    p.set_os("macos").set_os_version("15.5");
+    assert_eq!(p.os(), "macos");
+    assert_eq!(p.os_version(), "15.5");
+  }
+
+  // --- Provenance backend + platform extension --------------------------------
+
+  #[test]
+  fn provenance_new_has_unspecified_backend_and_empty_platform() {
+    let p = Provenance::new();
+    assert!(p.is_empty());
+    assert_eq!(p.backend(), Backend::Unspecified);
+    assert!(p.platform_ref().is_empty());
+  }
+
+  #[test]
+  fn provenance_from_parts_defaults_backend_and_platform() {
+    // The 4-arg constructor is UNCHANGED — new fields take defaults.
+    let p = Provenance::from_parts("ecapa-tdnn", "v1", "", "idx-0.1");
+    assert_eq!(p.backend(), Backend::Unspecified);
+    assert!(p.platform_ref().is_empty());
+    // Has model fields, so not empty overall.
+    assert!(!p.is_empty());
+  }
+
+  #[test]
+  fn provenance_with_backend_and_platform_builders() {
+    let p = Provenance::from_parts("ecapa-tdnn", "v1", "", "idx-0.1")
+      .with_backend(Backend::Onnx)
+      .with_platform(Platform::from_parts("macos", "aarch64", "15.5"));
+    assert_eq!(p.backend(), Backend::Onnx);
+    assert_eq!(p.platform_ref().os(), "macos");
+    assert_eq!(p.platform_ref().arch(), "aarch64");
+    assert_eq!(p.platform_ref().os_version(), "15.5");
+  }
+
+  #[test]
+  fn provenance_set_backend_and_platform_in_place() {
+    let mut p = Provenance::new();
+    p.set_backend(Backend::Mlx)
+      .set_platform(Platform::from_parts("macos", "aarch64", "15.5"));
+    assert_eq!(p.backend(), Backend::Mlx);
+    assert_eq!(p.platform_ref().os(), "macos");
+  }
+
+  #[test]
+  fn provenance_is_empty_requires_backend_and_platform_empty_too() {
+    // model strings empty but backend set -> NOT empty.
+    let p = Provenance::new().with_backend(Backend::Onnx);
+    assert!(!p.is_empty());
+    // model strings empty but platform set -> NOT empty.
+    let p = Provenance::new().with_platform(Platform::from_parts("macos", "", ""));
+    assert!(!p.is_empty());
+    // truly all-empty -> empty.
+    assert!(Provenance::new().is_empty());
   }
 }
