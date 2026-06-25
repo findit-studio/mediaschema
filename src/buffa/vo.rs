@@ -83,6 +83,21 @@ impl From<&wire::LocalizedText> for LocalizedText {
   }
 }
 
+/// Encode a `LocalizedText` into a singular `MessageField<wire::LocalizedText>`
+/// slot. The all-empty `LocalizedText` (the "not yet emitted" state)
+/// encodes to `none`: the slot is presence-bearing and its decode maps an
+/// unset slot back to the empty `LocalizedText`, so emitting `some(<empty>)`
+/// would force a present empty message and make an absent text
+/// indistinguishable from a recorded-but-empty one (empty-as-absent
+/// invariant). Mirror of [`localized_text_from_wire`].
+pub(super) fn localized_text_to_wire(d: &LocalizedText) -> MessageField<wire::LocalizedText> {
+  if d.is_empty() {
+    MessageField::none()
+  } else {
+    MessageField::some(wire::LocalizedText::from(d))
+  }
+}
+
 /// Decode a singular `MessageField<wire::LocalizedText>` slot. An unset
 /// slot decodes to the all-empty `LocalizedText` (the "not yet emitted"
 /// state).
@@ -240,6 +255,26 @@ mod tests {
     let d2: LocalizedText = (&w).into();
     assert_eq!(d, d2);
     assert!(d2.is_empty());
+  }
+
+  /// Empty-as-absent: the `localized_text_to_wire` slot encoder maps an
+  /// empty `LocalizedText` to `none` (decode maps unset ⇒ empty), so an
+  /// absent text and a recorded-but-empty one stay distinguishable.
+  #[test]
+  fn localized_text_to_wire_empty_is_unset() {
+    let slot = localized_text_to_wire(&LocalizedText::new());
+    assert!(slot.is_unset(), "empty LocalizedText must encode to none");
+    // unset slot decodes back to the empty LocalizedText.
+    assert!(localized_text_from_wire(&slot).is_empty());
+  }
+
+  /// A non-empty `LocalizedText` slot encodes PRESENT and round-trips.
+  #[test]
+  fn localized_text_to_wire_non_empty_is_set() {
+    let d = LocalizedText::from_src("hola");
+    let slot = localized_text_to_wire(&d);
+    assert!(slot.is_set(), "non-empty LocalizedText must encode some");
+    assert_eq!(localized_text_from_wire(&slot), d);
   }
 
   // ---- Language --------------------------------------------------------------

@@ -52,13 +52,28 @@ use std::{
 
 impl From<&Provenance> for wire::Provenance {
   fn from(d: &Provenance) -> Self {
+    // `platform` is presence-bearing on the wire (`MessageField`), and the
+    // decode side maps an unset field-6 to the all-empty `Platform` (the
+    // "not recorded" state). An empty domain platform must therefore encode
+    // to `none` — `some(<empty>)` would force a *present* empty field-6,
+    // making an absent platform indistinguishable from a recorded-but-empty
+    // one (empty-as-absent invariant). Mirrors `language_to_wire`'s
+    // `Some -> some` / `None -> none` shape on the encode side.
+    let platform = if d.platform_ref().is_empty() {
+      ::buffa::MessageField::none()
+    } else {
+      ::buffa::MessageField::some(wire::Platform::from(d.platform_ref()))
+    };
     wire::Provenance {
       model_name: d.model_name().to_owned().into(),
       model_version: d.model_version().to_owned().into(),
       prompt_version: d.prompt_version().to_owned().into(),
       indexer_version: d.indexer_version().to_owned().into(),
+      // `backend` is an `EnumValue`; the generated encode gates on the
+      // integer (`to_i32() != 0`), so `Backend::Unspecified` (== 0) never
+      // produces a present field-5. No guard needed here.
       backend: d.backend().into(),
-      platform: ::buffa::MessageField::some(wire::Platform::from(d.platform_ref())),
+      platform,
       __buffa_unknown_fields: Default::default(),
     }
   }
@@ -83,12 +98,22 @@ impl From<&wire::Provenance> for Provenance {
 
 impl From<&VoiceFingerprint<Uuid7>> for wire::VoiceFingerprint {
   fn from(d: &VoiceFingerprint<Uuid7>) -> Self {
+    // Same empty-as-absent rule as `Provenance.platform`: `provenance` is a
+    // presence-bearing `MessageField` whose decode maps an unset field-5 to
+    // the all-empty `Provenance::new()` ("not yet recorded"). An empty
+    // provenance must encode to `none` so the absent and recorded-but-empty
+    // forms stay distinguishable across a domain round-trip.
+    let provenance = if d.provenance_ref().is_empty() {
+      ::buffa::MessageField::none()
+    } else {
+      ::buffa::MessageField::some(wire::Provenance::from(d.provenance_ref()))
+    };
     wire::VoiceFingerprint {
       vector_id: Bytes::copy_from_slice(d.vector_id_ref().as_bytes()),
       dimensions: d.dimensions(),
       extracted_at: d.extracted_at().as_millisecond(),
       confidence: d.confidence(),
-      provenance: ::buffa::MessageField::some(wire::Provenance::from(d.provenance_ref())),
+      provenance,
       __buffa_unknown_fields: Default::default(),
     }
   }
@@ -231,6 +256,115 @@ mod tests {
     assert_eq!(d, d2);
     assert_eq!(d2.backend(), Backend::Unspecified);
     assert!(d2.platform_ref().is_empty());
+  }
+
+  // --- empty-as-absent: presence-bearing `Provenance.platform` (field 6) ---
+
+  /// An empty domain `Platform` must NOT produce a present (empty) field-6
+  /// on the wire — it stays unset, so an absent platform and a
+  /// recorded-but-empty one remain distinguishable.
+  #[test]
+  fn provenance_empty_platform_encodes_unset() {
+    let d = Provenance::from_parts("m", "v", "p", "i"); // platform = all-empty
+    assert!(d.platform_ref().is_empty());
+    let w: wire::Provenance = (&d).into();
+    assert!(w.platform.is_unset(), "empty platform must encode to none");
+  }
+
+  /// A wire `Provenance` with no field-6 round-trips through the domain
+  /// without the re-encode introducing a present empty platform.
+  #[test]
+  fn provenance_unset_platform_wire_domain_wire_idempotent() {
+    let mut w0 = wire::Provenance::from(&Provenance::from_parts("m", "v", "p", "i"));
+    w0.platform = ::buffa::MessageField::none();
+    assert!(w0.platform.is_unset());
+    let d: Provenance = (&w0).into();
+    assert!(d.platform_ref().is_empty());
+    let w1: wire::Provenance = (&d).into();
+    assert!(
+      w1.platform.is_unset(),
+      "round-trip must keep platform unset"
+    );
+  }
+
+  /// A non-empty `Platform` round-trips PRESENT (encoded `some`, decoded
+  /// back equal).
+  #[test]
+  fn provenance_non_empty_platform_encodes_present() {
+    use crate::domain::vo::Platform;
+    let d = Provenance::from_parts("m", "v", "p", "i")
+      .with_platform(Platform::from_parts("macos", "aarch64", "15.5"));
+    let w: wire::Provenance = (&d).into();
+    assert!(
+      w.platform.is_set(),
+      "non-empty platform must encode to some"
+    );
+    let d2: Provenance = (&w).into();
+    assert_eq!(d, d2);
+    assert!(!d2.platform_ref().is_empty());
+  }
+
+  // --- empty-as-absent: `Provenance.backend` (EnumValue, field 5) ---
+
+  /// `Backend::Unspecified` (wire int 0) must serialize as absent: a
+  /// proto3 enum at its default value writes no field. Verified through
+  /// the binary encode (`Message::encode` ⇒ bytes ⇒ `decode`), which is
+  /// where `EnumValue`'s `to_i32() != 0` presence gate lives.
+  #[test]
+  fn provenance_unspecified_backend_is_absent_on_binary_wire() {
+    use crate::domain::vo::Backend;
+    use ::buffa::Message as _;
+
+    // All fields empty + Unspecified backend ⇒ the message encodes to
+    // ZERO bytes (every field is at its proto3 default / absent).
+    let empty = wire::Provenance::from(&Provenance::new());
+    assert_eq!(
+      empty.encode_to_vec().len(),
+      0,
+      "all-default Provenance (incl. Unspecified backend + empty platform) must encode to no bytes",
+    );
+
+    // A Provenance that differs ONLY by a concrete backend must add
+    // exactly field-5; decoding restores the backend cleanly.
+    let with_backend = wire::Provenance::from(&Provenance::new().with_backend(Backend::Onnx));
+    let bytes = with_backend.encode_to_vec();
+    assert!(!bytes.is_empty(), "a concrete backend must produce field-5");
+    let decoded = wire::Provenance::decode(&mut &bytes[..]).expect("decode");
+    assert_eq!(Backend::from(&decoded.backend), Backend::Onnx);
+  }
+
+  // --- empty-as-absent: `VoiceFingerprint.provenance` (field 5) ---
+
+  /// An empty domain `Provenance` on a `VoiceFingerprint` encodes to an
+  /// unset field-5 (same invariant as `Provenance.platform`).
+  #[test]
+  fn voice_fingerprint_empty_provenance_encodes_unset() {
+    let d = VoiceFingerprint::from_parts(Uuid7::new(), 128, ts(), None, Provenance::new());
+    assert!(d.provenance_ref().is_empty());
+    let w: wire::VoiceFingerprint = (&d).into();
+    assert!(
+      w.provenance.is_unset(),
+      "empty provenance must encode to none"
+    );
+    // wire ⇒ domain ⇒ wire idempotency: unset stays unset.
+    let d2 = VoiceFingerprint::try_from(&w).expect("roundtrip");
+    assert!(d2.provenance_ref().is_empty());
+    let w2: wire::VoiceFingerprint = (&d2).into();
+    assert!(w2.provenance.is_unset());
+  }
+
+  /// A non-empty provenance round-trips PRESENT on a `VoiceFingerprint`.
+  #[test]
+  fn voice_fingerprint_non_empty_provenance_encodes_present() {
+    let d = vfp(Some(0.5)); // provenance = ecapa-tdnn (non-empty)
+    assert!(!d.provenance_ref().is_empty());
+    let w: wire::VoiceFingerprint = (&d).into();
+    assert!(
+      w.provenance.is_set(),
+      "non-empty provenance must encode some"
+    );
+    let d2 = VoiceFingerprint::try_from(&w).expect("roundtrip");
+    assert_eq!(d, d2);
   }
 
   #[test]

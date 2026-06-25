@@ -65,7 +65,10 @@ use super::{
   metadata_to_wire, opt_msg, provenance_from_wire, provenance_to_wire, rejected, unknown_slug,
 };
 use crate::{
-  buffa::{error::BuffaError, vo::localized_text_from_wire},
+  buffa::{
+    error::BuffaError,
+    vo::{localized_text_from_wire, localized_text_to_wire},
+  },
   domain::{
     self,
     aggregates::subtitle::{
@@ -258,7 +261,9 @@ impl From<&graph::SubtitleCue<Uuid7>> for wire::SubtitleCue {
       id: id_to_wire(g.id_ref()),
       ordinal: g.ordinal(),
       span: MessageField::some(*g.span_ref()),
-      text: MessageField::some(wire1::LocalizedText::from(g.text_ref())),
+      // Empty-as-absent: an empty `LocalizedText` encodes to `none`
+      // (decode maps unset ⇒ empty). See `localized_text_to_wire`.
+      text: localized_text_to_wire(g.text_ref()),
       data: Some(data),
       __buffa_unknown_fields: Default::default(),
     }

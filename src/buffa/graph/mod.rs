@@ -194,9 +194,18 @@ fn errors_from_wire(w: &[wire1::ErrorInfo]) -> Vec<ErrorInfo> {
   w.iter().map(ErrorInfo::from).collect()
 }
 
-/// Encode a track's `provenance` into its wire slot.
+/// Encode a track's `provenance` into its wire slot. `provenance` is
+/// presence-bearing and decodes unset ⇒ empty (the "not yet recorded"
+/// form), so an empty domain `Provenance` encodes to `none` — emitting
+/// `some(<empty>)` would force a present empty message and make an absent
+/// provenance indistinguishable from a recorded-but-empty one
+/// (empty-as-absent invariant).
 fn provenance_to_wire(d: &Provenance) -> MessageField<wire1::Provenance> {
-  MessageField::some(wire1::Provenance::from(d))
+  if d.is_empty() {
+    MessageField::none()
+  } else {
+    MessageField::some(wire1::Provenance::from(d))
+  }
 }
 
 /// Decode a track's `provenance` slot. Unset ⇒ the all-empty

@@ -43,7 +43,7 @@ use ::buffa::bytes::Bytes;
 use crate::{
   buffa::{
     error::BuffaError,
-    vo::{language_from_wire, language_to_wire, localized_text_from_wire},
+    vo::{language_from_wire, language_to_wire, localized_text_from_wire, localized_text_to_wire},
     voice_fingerprint::{voice_fingerprint_from_wire, voice_fingerprint_to_wire},
   },
   domain::{
@@ -67,7 +67,11 @@ impl From<&AudioSegment<Uuid7>> for wire::AudioSegment {
       speaker_id: d
         .speaker_id_ref()
         .map(|id| Bytes::copy_from_slice(id.as_bytes())),
-      text: ::buffa::MessageField::some(wire::LocalizedText::from(d.text_ref())),
+      // `text` is presence-bearing and decodes unset ⇒ empty
+      // `LocalizedText` (via `localized_text_from_wire`), so an empty
+      // domain text encodes to `none` — `some(<empty>)` would force a
+      // present empty field and break the empty-as-absent invariant.
+      text: localized_text_to_wire(d.text_ref()),
       language: language_to_wire(d.language()),
       words: d.words_slice().iter().map(wire::Word::from).collect(),
       no_speech_prob: d.no_speech_prob(),
