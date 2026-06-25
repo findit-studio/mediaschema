@@ -225,12 +225,13 @@ Indexes: `audio_track_id`, unique `(audio_track_id, index)`, `speaker_id`.
 
 ### `video_facets`
 
-| field | type |
-| --- | --- |
-| `_id` | `Binary(uuid)` |
-| `media_id` | `Binary(uuid)` (`Media.id`, unique — 1:1) |
-| `total_scenes` | `Int64` |
-| `track_progress` | `{ total, indexed, failed }` (`Int64` fields) |
+| field | type | notes |
+| --- | --- | --- |
+| `_id` | `Binary(uuid)` | |
+| `media_id` | `Binary(uuid)` (`Media.id`, unique — 1:1) | |
+| `total_scenes` | `Int64` | |
+| `track_progress` | `{ total, indexed, failed }` (`Int64` fields) | |
+| `cover_keyframe_id` | `Binary(uuid)` or `Null` | FK → the video's cover/poster keyframe; `Null` = no cover yet |
 
 The `tracks` reverse-FK list is **not** stored — it is derived by
 querying `video_tracks` where `parent == video._id` (mirrors the sqlx
@@ -280,6 +281,12 @@ See `video.rs`'s detection-VO helpers (`detection_to_bson`,
 `body_poses`, `hand_poses`, `body_poses_3d`, `instance_masks`,
 `face_rectangles`, `face_landmarks`, `segmentation_masks`). All
 detection arrays are embedded sub-documents — no reverse-FK lists.
+
+The `role` discriminator (`Int32`: `0 = Scene`, `1 = Cover`)
+self-describes the keyframe: a `Scene` keyframe carries its `scene_id`
+FK (`Binary(uuid)`); a `Cover` keyframe (the video poster) has no scene
+parent, so `scene_id` is `Null`. The cover keyframe is referenced from
+`video_facets.cover_keyframe_id`.
 
 Indexes: `scene_id`.
 

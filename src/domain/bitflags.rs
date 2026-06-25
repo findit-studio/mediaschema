@@ -273,6 +273,75 @@ impl Default for SubtitleIndexStatus {
   }
 }
 
+// ---------------------------------------------------------------------------
+// DataIndexStatus — presence-only timed-metadata track
+// ---------------------------------------------------------------------------
+
+bitflags! {
+    /// Per-`DataTrack` indexing progress.
+    ///
+    /// Data tracks (Sony rtmd / GoPro GPMF / MISB KLV / timecode) are
+    /// **presence + metadata only** in v1 — no rtmd/GPMF sample parsing
+    /// pipeline. A single [`PROBED`](Self::PROBED) bit keeps the
+    /// `index_status: <Flags>` + `index_errors: Vec<ErrorInfo>` symmetry
+    /// every other track carries; future sample-extraction stages can add
+    /// bits here without a SemVer break.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub struct DataIndexStatus: u32 {
+        const PROBED = 0x01;
+    }
+}
+
+impl DataIndexStatus {
+  /// Canonical no-arg constructor — the empty flag set.
+  /// [`Default::default`] is `Self::new()`.
+  #[inline(always)]
+  pub const fn new() -> Self {
+    Self::empty()
+  }
+}
+
+impl Default for DataIndexStatus {
+  #[inline(always)]
+  fn default() -> Self {
+    Self::new()
+  }
+}
+
+// ---------------------------------------------------------------------------
+// AttachmentIndexStatus — presence-only attachment track
+// ---------------------------------------------------------------------------
+
+bitflags! {
+    /// Per-`AttachmentTrack` indexing progress.
+    ///
+    /// Attachment tracks (fonts / cover art / thumbnails) are **presence +
+    /// metadata only** in v1 — no attachment blob bytes are stored. A
+    /// single [`PROBED`](Self::PROBED) bit mirrors [`DataIndexStatus`] and
+    /// keeps the `index_status` + `index_errors` symmetry every other track
+    /// carries.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub struct AttachmentIndexStatus: u32 {
+        const PROBED = 0x01;
+    }
+}
+
+impl AttachmentIndexStatus {
+  /// Canonical no-arg constructor — the empty flag set.
+  /// [`Default::default`] is `Self::new()`.
+  #[inline(always)]
+  pub const fn new() -> Self {
+    Self::empty()
+  }
+}
+
+impl Default for AttachmentIndexStatus {
+  #[inline(always)]
+  fn default() -> Self {
+    Self::new()
+  }
+}
+
 // ===========================================================================
 // Tests
 // ===========================================================================
@@ -389,5 +458,18 @@ mod tests {
     assert_eq!(AudioIndexStatus::default(), AudioIndexStatus::empty());
     assert_eq!(SubtitleIndexStatus::default(), SubtitleIndexStatus::empty());
     assert_eq!(MediaErrorFlags::default(), MediaErrorFlags::empty());
+    assert_eq!(DataIndexStatus::default(), DataIndexStatus::empty());
+    assert_eq!(
+      AttachmentIndexStatus::default(),
+      AttachmentIndexStatus::empty()
+    );
+  }
+
+  #[test]
+  fn data_and_attachment_index_status_single_probed_bit() {
+    assert_eq!(DataIndexStatus::PROBED.bits(), 0x01);
+    assert_eq!(DataIndexStatus::all().bits(), 0x01);
+    assert_eq!(AttachmentIndexStatus::PROBED.bits(), 0x01);
+    assert_eq!(AttachmentIndexStatus::all().bits(), 0x01);
   }
 }

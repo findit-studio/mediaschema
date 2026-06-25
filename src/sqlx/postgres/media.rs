@@ -35,6 +35,8 @@ pub struct PgMediaRow {
   pub video_id: Option<Uuid>,
   pub audio_id: Option<Uuid>,
   pub subtitle_id: Option<Uuid>,
+  pub data_id: Option<Uuid>,
+  pub attachment_id: Option<Uuid>,
   pub error_flags: i32,
   /// `ErrorInfo.code` as the verified `u32` wire value; NULL = no probe
   /// error. Discriminates presence of the flattened `ErrorInfo` VO.
@@ -84,6 +86,8 @@ impl From<&Media<Uuid7>> for PgMediaRow {
       video_id: m.video_id_ref().map(|id| uuid7_to_uuid(*id)),
       audio_id: m.audio_id_ref().map(|id| uuid7_to_uuid(*id)),
       subtitle_id: m.subtitle_id_ref().map(|id| uuid7_to_uuid(*id)),
+      data_id: m.data_id_ref().map(|id| uuid7_to_uuid(*id)),
+      attachment_id: m.attachment_id_ref().map(|id| uuid7_to_uuid(*id)),
       error_flags: i32::from(m.error_flags().bits()),
       probe_error_code: probe_error.map(|e| e.code().as_u32() as i32),
       probe_error_message: probe_error.map(|e| e.message().to_owned()),
@@ -128,6 +132,12 @@ impl TryFrom<PgMediaRow> for Media<Uuid7> {
     }
     if let Some(v) = r.subtitle_id {
       m = m.with_subtitle_id(Some(uuid_to_uuid7(v)?));
+    }
+    if let Some(v) = r.data_id {
+      m = m.with_data_id(Some(uuid_to_uuid7(v)?));
+    }
+    if let Some(v) = r.attachment_id {
+      m = m.with_attachment_id(Some(uuid_to_uuid7(v)?));
     }
     let flag_bits = u16::try_from(r.error_flags)
       .map_err(|e| SqlxError::UnknownDiscriminant(format!("Media.error_flags: {e}")))?;
@@ -181,6 +191,8 @@ pub struct PgMediaRowRef<'r> {
   pub video_id: Option<Uuid>,
   pub audio_id: Option<Uuid>,
   pub subtitle_id: Option<Uuid>,
+  pub data_id: Option<Uuid>,
+  pub attachment_id: Option<Uuid>,
   pub error_flags: i32,
   pub probe_error_code: Option<i32>,
   pub probe_error_message: Option<&'r str>,
@@ -207,6 +219,8 @@ impl PgMediaRow {
       video_id: self.video_id,
       audio_id: self.audio_id,
       subtitle_id: self.subtitle_id,
+      data_id: self.data_id,
+      attachment_id: self.attachment_id,
       error_flags: self.error_flags,
       probe_error_code: self.probe_error_code,
       probe_error_message: self.probe_error_message.as_deref(),
@@ -250,6 +264,12 @@ impl<'r> TryFrom<PgMediaRowRef<'r>> for Media<Uuid7> {
     }
     if let Some(v) = r.subtitle_id {
       m = m.with_subtitle_id(Some(uuid_to_uuid7(v)?));
+    }
+    if let Some(v) = r.data_id {
+      m = m.with_data_id(Some(uuid_to_uuid7(v)?));
+    }
+    if let Some(v) = r.attachment_id {
+      m = m.with_attachment_id(Some(uuid_to_uuid7(v)?));
     }
     let flag_bits = u16::try_from(r.error_flags)
       .map_err(|e| SqlxError::UnknownDiscriminant(format!("Media.error_flags: {e}")))?;
@@ -336,6 +356,28 @@ mod tests {
   }
 
   #[test]
+  fn media_roundtrip_data_and_attachment_fks() {
+    let data_id = Uuid7::new();
+    let attachment_id = Uuid7::new();
+    let m = Media::try_new(
+      Uuid7::new(),
+      fake_checksum(),
+      Format::Mp4,
+      1,
+      MediaKind::Video,
+    )
+    .unwrap()
+    .with_data_id(Some(data_id))
+    .with_attachment_id(Some(attachment_id));
+    let row: PgMediaRow = (&m).into();
+    assert!(row.data_id.is_some());
+    assert!(row.attachment_id.is_some());
+    let m2: Media<Uuid7> = row.try_into().unwrap();
+    assert_eq!(m2.data_id_ref(), Some(&data_id));
+    assert_eq!(m2.attachment_id_ref(), Some(&attachment_id));
+  }
+
+  #[test]
   fn media_ref_roundtrip() {
     let m = Media::try_new(
       Uuid7::new(),
@@ -375,6 +417,8 @@ mod tests {
       video_id: None,
       audio_id: None,
       subtitle_id: None,
+      data_id: None,
+      attachment_id: None,
       error_flags: 0,
       probe_error_code: None,
       probe_error_message: None,

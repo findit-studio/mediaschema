@@ -53,8 +53,8 @@ use crate::{
       KeyframeError, SceneError, VideoError, VideoTrackError,
     },
     vo::{IndexProgress, LocalizedText, Provenance},
-    ErrorCode, ErrorInfo, Keyframe, KeyframeExtractor, Rgba, Scene, SceneDetector, Uuid7, Video,
-    VideoIndexStatus, VideoTrack,
+    ErrorCode, ErrorInfo, Keyframe, KeyframeExtractor, KeyframeRole, Rgba, Scene, SceneDetector,
+    Uuid7, Video, VideoIndexStatus, VideoTrack,
   },
   sqlx::{
     dto::{bytes_to_uuid7, timestamp_from_parts},
@@ -78,6 +78,8 @@ pub struct MySqlVideoRow {
   pub track_progress_total: i64,
   pub track_progress_indexed: i64,
   pub track_progress_failed: i64,
+  /// FK → `cover_keyframe.id` (the video poster); NULL = no cover yet.
+  pub cover_keyframe_id: Option<Vec<u8>>,
 }
 
 impl From<&Video<Uuid7>> for MySqlVideoRow {
@@ -90,6 +92,7 @@ impl From<&Video<Uuid7>> for MySqlVideoRow {
       track_progress_total: i64::from(p.total()),
       track_progress_indexed: i64::from(p.indexed()),
       track_progress_failed: i64::from(p.failed()),
+      cover_keyframe_id: v.cover_keyframe_id_ref().map(|id| id.as_bytes().to_vec()),
     }
   }
 }
@@ -106,11 +109,16 @@ impl TryFrom<MySqlVideoRow> for Video<Uuid7> {
       u32_from_i64(r.track_progress_indexed, "Video.track_progress_indexed")?,
       u32_from_i64(r.track_progress_failed, "Video.track_progress_failed")?,
     );
+    let cover_keyframe_id = match r.cover_keyframe_id {
+      Some(b) => Some(bytes_to_uuid7(&b)?),
+      None => None,
+    };
     let v = Video::try_new(id, media_id)
       .map_err(|e: VideoError| SqlxError::DomainConstructorRejected(e.to_string()))?;
     Ok(
       v.with_total_scenes(total_scenes)
-        .with_track_progress(progress),
+        .with_track_progress(progress)
+        .with_cover_keyframe_id(cover_keyframe_id),
     )
   }
 }
@@ -736,10 +744,14 @@ pub fn scene_from_row(
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeRow {
   pub id: Vec<u8>,
-  pub scene_id: Vec<u8>,
+  /// FK → `scene.id` for a scene keyframe; NULL for a cover keyframe.
+  pub scene_id: Option<Vec<u8>>,
+  /// `KeyframeRole` slug (`scene` / `cover`).
+  pub role: String,
   pub pts: i64,
-  pub data: Vec<u8>,
-  pub mime: String,
+  /// FK → `thumbnail.id` (16-byte BINARY). The image bytes + storage
+  /// backend live on the referenced `thumbnail` row.
+  pub thumbnail_id: Vec<u8>,
   pub width: i64,
   pub height: i64,
   pub extractor: String,
@@ -1062,10 +1074,10 @@ impl From<&Keyframe<Uuid7>> for MySqlKeyframeRows {
     let horizon = k.horizon_ref();
     let row = MySqlKeyframeRow {
       id: id.clone(),
-      scene_id: k.scene_id_ref().as_bytes().to_vec(),
+      scene_id: k.scene_id_ref().map(|s| s.as_bytes().to_vec()),
+      role: keyframe_role_to_slug(k.role()).to_owned(),
       pts: pts.pts(),
-      data: k.data().to_vec(),
-      mime: k.mime().to_owned(),
+      thumbnail_id: k.thumbnail_id_ref().as_bytes().to_vec(),
       width: i64::from(dims.width()),
       height: i64::from(dims.height()),
       extractor: keyframe_extractor_to_slug(k.extractor()).to_owned(),
@@ -1351,17 +1363,28 @@ pub fn keyframe_from_rows(
       .keyframe
       .ok_or_else(|| SqlxError::DomainConstructorRejected("Keyframe row is missing".to_owned()))?;
     let id = bytes_to_uuid7(&row.id)?;
-    let scene_id = bytes_to_uuid7(&row.scene_id)?;
+    let thumbnail_id = bytes_to_uuid7(&row.thumbnail_id)?;
     let pts = mediatime::Timestamp::new(row.pts, parent_timebase);
     let dimensions = Dimensions::new(
       u32_from_i64(row.width, "Keyframe.width")?,
       u32_from_i64(row.height, "Keyframe.height")?,
     );
     let extractor = parse_keyframe_extractor(&row.extractor)?;
-    let mut kf = Keyframe::try_new(id, scene_id, pts, dimensions, extractor)
-      .map_err(|e: KeyframeError| SqlxError::DomainConstructorRejected(e.to_string()))?
-      .with_mime(row.mime)
-      .with_data(Bytes::from(row.data))
+    // Branch on `role`: a scene keyframe requires its (non-NULL) `scene_id`;
+    // a cover keyframe has none (`scene_id` is NULL).
+    let kf = match parse_keyframe_role(&row.role)? {
+      KeyframeRole::Cover => Keyframe::try_new_cover(id, thumbnail_id, pts, dimensions, extractor),
+      KeyframeRole::Scene => {
+        let scene_id = bytes_to_uuid7(row.scene_id.as_deref().ok_or_else(|| {
+          SqlxError::DomainConstructorRejected(
+            "keyframe.scene_id is NULL but role is 'scene'".to_owned(),
+          )
+        })?)?;
+        Keyframe::try_new(id, scene_id, thumbnail_id, pts, dimensions, extractor)
+      }
+    }
+    .map_err(|e: KeyframeError| SqlxError::DomainConstructorRejected(e.to_string()))?;
+    let mut kf = kf
       .with_aesthetics(Aesthetics::new(
         row.aesthetics_overall_score,
         row.aesthetics_is_utility,
@@ -1537,6 +1560,170 @@ pub fn keyframe_from_rows(
   }
 }
 
+// ===========================================================================
+// CoverKeyframe — the video poster (mirrors keyframe, parented by video_id)
+// ===========================================================================
+
+/// MySQL `cover_keyframe` base row. Mirrors [`MySqlKeyframeRow`] but is
+/// parented by **`video_id`** (FK → `video.id`), not by a scene — a cover
+/// keyframe attaches at the video level. `role` is always `'cover'`.
+#[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
+pub struct MySqlCoverKeyframeRow {
+  pub id: Vec<u8>,
+  /// FK → `video.id` (the video this poster belongs to).
+  pub video_id: Vec<u8>,
+  pub pts: i64,
+  /// FK → `thumbnail.id` (16-byte BINARY).
+  pub thumbnail_id: Vec<u8>,
+  pub width: i64,
+  pub height: i64,
+  pub extractor: String,
+  pub role: String,
+  pub vlm_description_src: String,
+  pub vlm_description_translated: String,
+  pub vlm_shot_type: String,
+  pub horizon_angle: f32,
+  pub horizon_confidence: f32,
+  pub aesthetics_overall_score: f32,
+  pub aesthetics_is_utility: bool,
+}
+
+/// The cover keyframe's row bundle: the `cover_keyframe` base row plus the
+/// reused `keyframe_*` detection child rows (keyed by the cover keyframe's
+/// id — a cover keyframe id is a valid `keyframe_id`).
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct MySqlCoverKeyframeRows {
+  pub cover_keyframe: Option<MySqlCoverKeyframeRow>,
+  pub classifications: Vec<MySqlKeyframeClassificationRow>,
+  pub objects: Vec<MySqlKeyframeObjectRow>,
+  pub actions: Vec<MySqlKeyframeActionRow>,
+  pub text_detections: Vec<MySqlKeyframeTextDetectionRow>,
+  pub barcodes: Vec<MySqlKeyframeBarcodeRow>,
+  pub saliencies: Vec<MySqlKeyframeSaliencyRow>,
+  pub document_segments: Vec<MySqlKeyframeDocumentSegmentRow>,
+  pub colors: Vec<MySqlKeyframeColorRow>,
+  pub subjects: Vec<MySqlKeyframeSubjectRow>,
+  pub faces: Vec<MySqlKeyframeFaceRow>,
+  pub body_poses: Vec<MySqlKeyframeBodyPoseRow>,
+  pub body_pose_joints: Vec<MySqlKeyframeBodyPoseJointRow>,
+  pub hand_poses: Vec<MySqlKeyframeHandPoseRow>,
+  pub body_poses_3d: Vec<MySqlKeyframeBodyPose3DRow>,
+  pub body_pose_3d_joints: Vec<MySqlKeyframeBodyPose3DJointRow>,
+  pub masks: Vec<MySqlKeyframeMaskRow>,
+  pub face_landmarks: Vec<MySqlKeyframeFaceLandmarksRow>,
+  pub face_landmark_regions: Vec<MySqlKeyframeFaceLandmarkRegionRow>,
+  pub face_landmark_points: Vec<MySqlKeyframeFaceLandmarkPointRow>,
+  pub vlm_labels: Vec<MySqlKeyframeVlmLabelRow>,
+}
+
+/// Project the video's cover keyframe to its `cover_keyframe` row + reused
+/// detection child rows. `video_id` is the FK back to the parent video. The
+/// child rows are produced by the shared [`MySqlKeyframeRows`] mapping
+/// (keyed by the cover keyframe's id), so the cover analysis persists
+/// exactly like a scene keyframe's.
+pub fn cover_keyframe_rows_from(k: &Keyframe<Uuid7>, video_id: Uuid7) -> MySqlCoverKeyframeRows {
+  // Reuse the full keyframe-rows mapping for the base scalars + every
+  // detection child table.
+  let base = MySqlKeyframeRows::from(k);
+  let kr = base
+    .keyframe
+    .expect("MySqlKeyframeRows always sets the base row");
+  let cover = MySqlCoverKeyframeRow {
+    id: kr.id,
+    video_id: video_id.as_bytes().to_vec(),
+    pts: kr.pts,
+    thumbnail_id: kr.thumbnail_id,
+    width: kr.width,
+    height: kr.height,
+    extractor: kr.extractor,
+    role: keyframe_role_to_slug(KeyframeRole::Cover).to_owned(),
+    vlm_description_src: kr.vlm_description_src,
+    vlm_description_translated: kr.vlm_description_translated,
+    vlm_shot_type: kr.vlm_shot_type,
+    horizon_angle: kr.horizon_angle,
+    horizon_confidence: kr.horizon_confidence,
+    aesthetics_overall_score: kr.aesthetics_overall_score,
+    aesthetics_is_utility: kr.aesthetics_is_utility,
+  };
+  MySqlCoverKeyframeRows {
+    cover_keyframe: Some(cover),
+    classifications: base.classifications,
+    objects: base.objects,
+    actions: base.actions,
+    text_detections: base.text_detections,
+    barcodes: base.barcodes,
+    saliencies: base.saliencies,
+    document_segments: base.document_segments,
+    colors: base.colors,
+    subjects: base.subjects,
+    faces: base.faces,
+    body_poses: base.body_poses,
+    body_pose_joints: base.body_pose_joints,
+    hand_poses: base.hand_poses,
+    body_poses_3d: base.body_poses_3d,
+    body_pose_3d_joints: base.body_pose_3d_joints,
+    masks: base.masks,
+    face_landmarks: base.face_landmarks,
+    face_landmark_regions: base.face_landmark_regions,
+    face_landmark_points: base.face_landmark_points,
+    vlm_labels: base.vlm_labels,
+  }
+}
+
+/// Rebuild the cover [`Keyframe`] (role = [`KeyframeRole::Cover`], no scene
+/// FK) from its `cover_keyframe` rows. Reuses [`keyframe_from_rows`] by
+/// re-expressing the cover base row as a scene-less [`MySqlKeyframeRow`]
+/// (`scene_id = None`, `role = 'cover'`).
+pub fn cover_keyframe_from_rows(
+  rows: MySqlCoverKeyframeRows,
+  parent_timebase: mediatime::Timebase,
+) -> Result<Keyframe<Uuid7>, SqlxError> {
+  let cover = rows.cover_keyframe.ok_or_else(|| {
+    SqlxError::DomainConstructorRejected("CoverKeyframe row is missing".to_owned())
+  })?;
+  let kr = MySqlKeyframeRow {
+    id: cover.id,
+    scene_id: None,
+    role: cover.role,
+    pts: cover.pts,
+    thumbnail_id: cover.thumbnail_id,
+    width: cover.width,
+    height: cover.height,
+    extractor: cover.extractor,
+    vlm_description_src: cover.vlm_description_src,
+    vlm_description_translated: cover.vlm_description_translated,
+    vlm_shot_type: cover.vlm_shot_type,
+    horizon_angle: cover.horizon_angle,
+    horizon_confidence: cover.horizon_confidence,
+    aesthetics_overall_score: cover.aesthetics_overall_score,
+    aesthetics_is_utility: cover.aesthetics_is_utility,
+  };
+  let keyframe_rows = MySqlKeyframeRows {
+    keyframe: Some(kr),
+    classifications: rows.classifications,
+    objects: rows.objects,
+    actions: rows.actions,
+    text_detections: rows.text_detections,
+    barcodes: rows.barcodes,
+    saliencies: rows.saliencies,
+    document_segments: rows.document_segments,
+    colors: rows.colors,
+    subjects: rows.subjects,
+    faces: rows.faces,
+    body_poses: rows.body_poses,
+    body_pose_joints: rows.body_pose_joints,
+    hand_poses: rows.hand_poses,
+    body_poses_3d: rows.body_poses_3d,
+    body_pose_3d_joints: rows.body_pose_3d_joints,
+    masks: rows.masks,
+    face_landmarks: rows.face_landmarks,
+    face_landmark_regions: rows.face_landmark_regions,
+    face_landmark_points: rows.face_landmark_points,
+    vlm_labels: rows.vlm_labels,
+  };
+  keyframe_from_rows(keyframe_rows, parent_timebase)
+}
+
 // ---------------------------------------------------------------------------
 // Helpers — slug ↔ enum, ordinal sorting, group-by, primitive narrowing
 // ---------------------------------------------------------------------------
@@ -1571,6 +1758,15 @@ fn parse_scene_detector(s: &str) -> Result<SceneDetector, SqlxError> {
       )))
     }
   })
+}
+
+fn keyframe_role_to_slug(r: KeyframeRole) -> &'static str {
+  r.as_str()
+}
+
+fn parse_keyframe_role(s: &str) -> Result<KeyframeRole, SqlxError> {
+  KeyframeRole::from_str(s)
+    .ok_or_else(|| SqlxError::UnknownDiscriminant(format!("KeyframeRole slug: {s}")))
 }
 
 fn keyframe_extractor_to_slug(e: KeyframeExtractor) -> &'static str {
@@ -2144,6 +2340,7 @@ pub struct MySqlVideoRowRef<'r> {
   pub track_progress_total: i64,
   pub track_progress_indexed: i64,
   pub track_progress_failed: i64,
+  pub cover_keyframe_id: Option<&'r [u8]>,
 }
 
 impl MySqlVideoRow {
@@ -2156,6 +2353,7 @@ impl MySqlVideoRow {
       track_progress_total: self.track_progress_total,
       track_progress_indexed: self.track_progress_indexed,
       track_progress_failed: self.track_progress_failed,
+      cover_keyframe_id: self.cover_keyframe_id.as_deref(),
     }
   }
 }
@@ -2172,11 +2370,16 @@ impl<'r> TryFrom<MySqlVideoRowRef<'r>> for Video<Uuid7> {
       u32_from_i64(r.track_progress_indexed, "Video.track_progress_indexed")?,
       u32_from_i64(r.track_progress_failed, "Video.track_progress_failed")?,
     );
+    let cover_keyframe_id = match r.cover_keyframe_id {
+      Some(b) => Some(bytes_to_uuid7(b)?),
+      None => None,
+    };
     let v = Video::try_new(id, media_id)
       .map_err(|e: VideoError| SqlxError::DomainConstructorRejected(e.to_string()))?;
     Ok(
       v.with_total_scenes(total_scenes)
-        .with_track_progress(progress),
+        .with_track_progress(progress)
+        .with_cover_keyframe_id(cover_keyframe_id),
     )
   }
 }
@@ -2700,10 +2903,13 @@ pub fn scene_from_row_ref<'r>(
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MySqlKeyframeRowRef<'r> {
   pub id: &'r [u8],
-  pub scene_id: &'r [u8],
+  /// FK → `scene.id` for a scene keyframe; NULL for a cover keyframe.
+  pub scene_id: Option<&'r [u8]>,
+  /// `KeyframeRole` slug (`scene` / `cover`).
+  pub role: &'r str,
   pub pts: i64,
-  pub data: &'r [u8],
-  pub mime: &'r str,
+  /// FK → `thumbnail.id` (16-byte BINARY).
+  pub thumbnail_id: &'r [u8],
   pub width: i64,
   pub height: i64,
   pub extractor: &'r str,
@@ -2973,10 +3179,10 @@ impl MySqlKeyframeRow {
   pub fn as_ref(&self) -> MySqlKeyframeRowRef<'_> {
     MySqlKeyframeRowRef {
       id: &self.id,
-      scene_id: &self.scene_id,
+      scene_id: self.scene_id.as_deref(),
+      role: &self.role,
       pts: self.pts,
-      data: &self.data,
-      mime: &self.mime,
+      thumbnail_id: &self.thumbnail_id,
       width: self.width,
       height: self.height,
       extractor: &self.extractor,
@@ -3450,17 +3656,26 @@ pub fn keyframe_from_rows_ref<'r>(
       .keyframe
       .ok_or_else(|| SqlxError::DomainConstructorRejected("Keyframe row is missing".to_owned()))?;
     let id = bytes_to_uuid7(row.id)?;
-    let scene_id = bytes_to_uuid7(row.scene_id)?;
+    let thumbnail_id = bytes_to_uuid7(row.thumbnail_id)?;
     let pts = mediatime::Timestamp::new(row.pts, parent_timebase);
     let dimensions = Dimensions::new(
       u32_from_i64(row.width, "Keyframe.width")?,
       u32_from_i64(row.height, "Keyframe.height")?,
     );
     let extractor = parse_keyframe_extractor(row.extractor)?;
-    let mut kf = Keyframe::try_new(id, scene_id, pts, dimensions, extractor)
-      .map_err(|e: KeyframeError| SqlxError::DomainConstructorRejected(e.to_string()))?
-      .with_mime(row.mime)
-      .with_data(Bytes::copy_from_slice(row.data))
+    let kf = match parse_keyframe_role(row.role)? {
+      KeyframeRole::Cover => Keyframe::try_new_cover(id, thumbnail_id, pts, dimensions, extractor),
+      KeyframeRole::Scene => {
+        let scene_id = bytes_to_uuid7(row.scene_id.ok_or_else(|| {
+          SqlxError::DomainConstructorRejected(
+            "keyframe.scene_id is NULL but role is 'scene'".to_owned(),
+          )
+        })?)?;
+        Keyframe::try_new(id, scene_id, thumbnail_id, pts, dimensions, extractor)
+      }
+    }
+    .map_err(|e: KeyframeError| SqlxError::DomainConstructorRejected(e.to_string()))?;
+    let mut kf = kf
       .with_aesthetics(Aesthetics::new(
         row.aesthetics_overall_score,
         row.aesthetics_is_utility,
@@ -3972,6 +4187,43 @@ mod tests {
     assert_eq!(v.id_ref(), v2.id_ref());
     assert_eq!(v2.total_scenes(), 7);
     assert_eq!(v2.track_progress_ref().total(), 2);
+    assert!(v2.cover_keyframe_id_ref().is_none());
+  }
+
+  #[test]
+  fn video_facet_cover_keyframe_id_roundtrip() {
+    let cover = Uuid7::new();
+    let v = Video::try_new(Uuid7::new(), Uuid7::new())
+      .unwrap()
+      .with_cover_keyframe_id(Some(cover));
+    let row: MySqlVideoRow = (&v).into();
+    assert!(row.cover_keyframe_id.is_some());
+    let v2: Video<Uuid7> = row.try_into().unwrap();
+    assert_eq!(v2.cover_keyframe_id_ref(), Some(&cover));
+  }
+
+  #[test]
+  fn cover_keyframe_roundtrip_preserves_cover_role() {
+    let video_id = Uuid7::new();
+    let kf = Keyframe::try_new_cover(
+      Uuid7::new(),
+      Uuid7::new(),
+      Timestamp::new(7000, tb()),
+      Dimensions::new(640, 360),
+      KeyframeExtractor::CompositeQuality,
+    )
+    .unwrap()
+    .with_classifications(std::vec![Detection::try_new("dog", 0.9).unwrap()]);
+    let rows = cover_keyframe_rows_from(&kf, video_id);
+    // The cover base row records video_id + role='cover'.
+    let base = rows.cover_keyframe.as_ref().expect("cover base row");
+    assert_eq!(base.video_id, video_id.as_bytes().to_vec());
+    assert_eq!(base.role, "cover");
+    let kf2 = cover_keyframe_from_rows(rows, tb()).unwrap();
+    assert_eq!(kf, kf2);
+    assert!(kf2.role().is_cover());
+    assert!(kf2.scene_id_ref().is_none());
+    assert_eq!(kf2.classifications_slice().len(), 1);
   }
 
   #[test]
@@ -4077,6 +4329,7 @@ mod tests {
     let kf = Keyframe::try_new(
       Uuid7::new(),
       Uuid7::new(),
+      Uuid7::new(),
       Timestamp::new(0, tb()),
       Dimensions::new(320, 180),
       KeyframeExtractor::CompositeQuality,
@@ -4093,13 +4346,12 @@ mod tests {
     let mut kf = Keyframe::try_new(
       Uuid7::new(),
       Uuid7::new(),
+      Uuid7::new(),
       Timestamp::new(7000, tb()),
       Dimensions::new(1920, 1080),
       KeyframeExtractor::IFrame,
     )
     .unwrap()
-    .with_mime("image/jpeg")
-    .with_data(std::vec![0xff_u8, 0xd8, 0xff])
     .with_classifications(std::vec![Detection::try_new("dog", 0.97).unwrap()])
     .with_objects(std::vec![
       ObjectDetection::new(Detection::try_new("ball", 0.6).unwrap(), Some(bb)),
@@ -4343,6 +4595,7 @@ mod tests {
     let kf = Keyframe::try_new(
       Uuid7::new(),
       Uuid7::new(),
+      Uuid7::new(),
       Timestamp::new(0, tb()),
       Dimensions::new(320, 180),
       KeyframeExtractor::CompositeQuality,
@@ -4359,13 +4612,12 @@ mod tests {
     let kf = Keyframe::try_new(
       Uuid7::new(),
       Uuid7::new(),
+      Uuid7::new(),
       Timestamp::new(7000, tb()),
       Dimensions::new(1920, 1080),
       KeyframeExtractor::IFrame,
     )
     .unwrap()
-    .with_mime("image/jpeg")
-    .with_data(std::vec![0xff_u8, 0xd8, 0xff])
     .with_classifications(std::vec![Detection::try_new("dog", 0.97).unwrap()])
     .with_objects(std::vec![ObjectDetection::new(
       Detection::try_new("ball", 0.6).unwrap(),

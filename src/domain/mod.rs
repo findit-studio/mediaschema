@@ -22,10 +22,14 @@ pub mod primitives;
 pub mod vo;
 
 // Always available (pure no-std no-alloc):
-pub use bitflags::{AudioIndexStatus, MediaErrorFlags, SubtitleIndexStatus, VideoIndexStatus};
+pub use bitflags::{
+  AttachmentIndexStatus, AudioIndexStatus, DataIndexStatus, MediaErrorFlags, SubtitleIndexStatus,
+  VideoIndexStatus,
+};
 pub use enums::{
-  AudioContentKind, AudioIndexStage, KeyframeExtractor, MediaKind, ScanStatus, SceneDetector,
-  SubtitleIndexStage, SubtitleKind, VideoIndexStage,
+  AudioContentKind, AudioIndexStage, KeyframeExtractor, KeyframeRole, MediaKind, ScanStatus,
+  SceneDetector, SubtitleIndexStage, SubtitleKind, ThumbnailKind, ThumbnailKindParseError,
+  VideoIndexStage,
 };
 pub use identified::Identified;
 pub use primitives::{ErrorCode, FileChecksum, Rgba, Uuid7};
@@ -47,13 +51,22 @@ pub use aggregates::{
   SpeechSegmentParts, Word,
 };
 #[cfg(all(feature = "std", feature = "video"))]
-pub use aggregates::{Keyframe, Scene, Video, VideoTrack};
+pub use aggregates::{Keyframe, Scene, Thumbnail, ThumbnailError, Video, VideoTrack};
 #[cfg(all(feature = "std", feature = "subtitle"))]
 pub use aggregates::{Subtitle, SubtitleCue, SubtitleTrack};
 // `Chapter` is medium-independent (container-level) but std-gated like
 // every IndexMap-bearing aggregate.
 #[cfg(feature = "std")]
 pub use aggregates::{Chapter, ChapterError};
+// `Data` / `DataTrack` are likewise container-level + std-gated.
+#[cfg(feature = "std")]
+pub use aggregates::{Data, DataError, DataTrack, DataTrackError};
+// `Attachment` / `AttachmentTrack` (+ the reserved `BlobRef`) are likewise
+// container-level + std-gated.
+#[cfg(feature = "std")]
+pub use aggregates::{
+  Attachment, AttachmentError, AttachmentTrack, AttachmentTrackError, BlobRef, BlobRefError,
+};
 #[cfg(any(feature = "std", feature = "alloc"))]
 pub use primitives::{ErrorInfo, Location};
 #[cfg(any(feature = "std", feature = "alloc"))]

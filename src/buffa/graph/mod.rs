@@ -66,7 +66,9 @@ use crate::{
   graph::GraphError,
 };
 
+pub mod attachment;
 pub mod audio;
+pub mod data;
 pub mod media;
 pub mod subtitle;
 pub mod video;

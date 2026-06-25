@@ -19,6 +19,8 @@ CREATE TABLE IF NOT EXISTS media (
     video               BINARY(16),
     audio               BINARY(16),
     subtitle            BINARY(16),
+    data                BINARY(16),
+    attachment          BINARY(16),
     error_flags         SMALLINT UNSIGNED NOT NULL DEFAULT 0,
     probe_error_code    INT,
     probe_error_message TEXT,
@@ -32,7 +34,9 @@ CREATE TABLE IF NOT EXISTS media (
     UNIQUE KEY idx_media_checksum (checksum),
     KEY idx_media_video (video),
     KEY idx_media_audio (audio),
-    KEY idx_media_subtitle (subtitle)
+    KEY idx_media_subtitle (subtitle),
+    KEY idx_media_data (data),
+    KEY idx_media_attachment (attachment)
 );
 
 -- Container-level chapters (AVFormatContext.chapters[i]). See
@@ -315,6 +319,111 @@ CREATE TABLE IF NOT EXISTS audio_segment_word (
     KEY idx_asw_audio_segment_id (audio_segment_id)
 );
 
+-- Data-cluster: the `Data` facet + `DataTrack` (+ the metadata / index_error
+-- child tables). Timed-metadata streams (codec_type=data: Sony rtmd / GoPro
+-- GPMF / MISB KLV / timecode); presence + descriptor + metadata only — no
+-- sample payloads. `codec` / `codec_tag` are plain slugs.
+
+CREATE TABLE IF NOT EXISTS data (
+    id                     BINARY(16) NOT NULL,
+    media_id               BINARY(16) NOT NULL,
+    track_progress_total   BIGINT     NOT NULL DEFAULT 0,
+    track_progress_indexed BIGINT     NOT NULL DEFAULT 0,
+    track_progress_failed  BIGINT     NOT NULL DEFAULT 0,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_data_media_id (media_id)
+);
+
+CREATE TABLE IF NOT EXISTS data_track (
+    id                 BINARY(16)  NOT NULL,
+    data_id            BINARY(16)  NOT NULL,
+    stream_index       BIGINT,
+    container_track_id BIGINT,
+    codec              VARCHAR(64) NOT NULL,
+    codec_tag          VARCHAR(64) NOT NULL,
+    start_pts          BIGINT,
+    start_pts_tb_num   BIGINT,
+    start_pts_tb_den   BIGINT,
+    duration_pts       BIGINT,
+    duration_tb_num    BIGINT,
+    duration_tb_den    BIGINT,
+    nb_packets         BIGINT,
+    byte_size          BIGINT      NOT NULL DEFAULT 0,
+    disposition        BIGINT      NOT NULL DEFAULT 0,
+    index_status       BIGINT      NOT NULL DEFAULT 0,
+    PRIMARY KEY (id),
+    KEY idx_data_track_data_id (data_id)
+);
+
+CREATE TABLE IF NOT EXISTS data_track_metadata (
+    data_track_id BINARY(16)   NOT NULL,
+    ordinal       INT          NOT NULL,
+    `key`         VARCHAR(255) NOT NULL,
+    value         TEXT         NOT NULL,
+    PRIMARY KEY (data_track_id, ordinal),
+    KEY idx_data_track_metadata_data_track_id (data_track_id)
+);
+
+CREATE TABLE IF NOT EXISTS data_track_index_error (
+    data_track_id BINARY(16) NOT NULL,
+    ordinal       INT        NOT NULL,
+    code          INT        NOT NULL,
+    message       TEXT       NOT NULL,
+    PRIMARY KEY (data_track_id, ordinal),
+    KEY idx_dtie_data_track_id (data_track_id)
+);
+
+-- Attachment-cluster: the `Attachment` facet + `AttachmentTrack` (+ the
+-- metadata / index_error child tables). Attachment streams
+-- (codec_type=attachment: fonts / cover art / thumbnails); presence +
+-- descriptor + metadata only — NO attachment bytes are stored. The
+-- `blob_*` columns are RESERVED and always NULL in v1.
+
+CREATE TABLE IF NOT EXISTS attachment (
+    id                     BINARY(16) NOT NULL,
+    media_id               BINARY(16) NOT NULL,
+    track_progress_total   BIGINT     NOT NULL DEFAULT 0,
+    track_progress_indexed BIGINT     NOT NULL DEFAULT 0,
+    track_progress_failed  BIGINT     NOT NULL DEFAULT 0,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_attachment_media_id (media_id)
+);
+
+CREATE TABLE IF NOT EXISTS attachment_track (
+    id                 BINARY(16)   NOT NULL,
+    attachment_id      BINARY(16)   NOT NULL,
+    stream_index       BIGINT,
+    codec              VARCHAR(64)  NOT NULL,
+    filename           VARCHAR(1024) NOT NULL,
+    mimetype           VARCHAR(255) NOT NULL,
+    byte_size          BIGINT       NOT NULL DEFAULT 0,
+    disposition        BIGINT       NOT NULL DEFAULT 0,
+    index_status       BIGINT       NOT NULL DEFAULT 0,
+    blob_uri           VARCHAR(2048),
+    blob_byte_size     BIGINT,
+    blob_content_type  VARCHAR(255),
+    PRIMARY KEY (id),
+    KEY idx_attachment_track_attachment_id (attachment_id)
+);
+
+CREATE TABLE IF NOT EXISTS attachment_track_metadata (
+    attachment_track_id BINARY(16)   NOT NULL,
+    ordinal             INT          NOT NULL,
+    `key`               VARCHAR(255) NOT NULL,
+    value               TEXT         NOT NULL,
+    PRIMARY KEY (attachment_track_id, ordinal),
+    KEY idx_attachment_track_metadata_attachment_track_id (attachment_track_id)
+);
+
+CREATE TABLE IF NOT EXISTS attachment_track_index_error (
+    attachment_track_id BINARY(16) NOT NULL,
+    ordinal             INT        NOT NULL,
+    code                INT        NOT NULL,
+    message             TEXT       NOT NULL,
+    PRIMARY KEY (attachment_track_id, ordinal),
+    KEY idx_attie_attachment_track_id (attachment_track_id)
+);
+
 -- Video-cluster: the `Video` facet + `VideoTrack` + `Scene` + `Keyframe`
 -- (+ per-detection child tables).
 
@@ -325,6 +434,8 @@ CREATE TABLE IF NOT EXISTS video (
     track_progress_total   BIGINT     NOT NULL DEFAULT 0,
     track_progress_indexed BIGINT     NOT NULL DEFAULT 0,
     track_progress_failed  BIGINT     NOT NULL DEFAULT 0,
+    -- FK -> cover_keyframe.id (the video's poster); NULL = no cover yet.
+    cover_keyframe_id      BINARY(16),
     PRIMARY KEY (id),
     UNIQUE KEY uq_video_media_id (media_id)
 );
@@ -442,12 +553,32 @@ CREATE TABLE IF NOT EXISTS scene (
     UNIQUE KEY idx_scene_video_track_id_index (video_track_id, `index`)
 );
 
+-- Thumbnail image + storage descriptor. FK target of keyframe.thumbnail_id,
+-- so it is declared BEFORE keyframe. `kind` is a ThumbnailKind slug
+-- (`filesystem`/`database`/`remote`); exactly one payload slot is
+-- populated per kind: `data` (LONGBLOB) for `database`, `location` (TEXT)
+-- for `filesystem`/`remote` — the other is NULL.
+CREATE TABLE IF NOT EXISTS thumbnail (
+    id        BINARY(16)   NOT NULL,
+    kind      VARCHAR(32)  NOT NULL,
+    data      LONGBLOB,
+    location  TEXT,
+    mime      VARCHAR(255) NOT NULL,
+    width     BIGINT       NOT NULL,
+    height    BIGINT       NOT NULL,
+    PRIMARY KEY (id),
+    KEY idx_thumbnail_kind (kind)
+);
+
 CREATE TABLE IF NOT EXISTS keyframe (
     id                         BINARY(16)   NOT NULL,
-    scene_id                     BINARY(16)   NOT NULL,
+    -- Nullable: a scene keyframe carries its `Scene` FK; a cover keyframe
+    -- (role = 'cover') has no scene parent (it is stored in cover_keyframe,
+    -- keyed by video_id). `role` self-describes which case a row is.
+    scene_id                     BINARY(16),
+    role                       VARCHAR(64)  NOT NULL DEFAULT 'scene',
     pts                        BIGINT       NOT NULL,
-    data                       LONGBLOB     NOT NULL,
-    mime                       VARCHAR(255) NOT NULL,
+    thumbnail_id               BINARY(16)   NOT NULL,
     width                      BIGINT       NOT NULL,
     height                     BIGINT       NOT NULL,
     extractor                  VARCHAR(64)  NOT NULL,
@@ -459,7 +590,34 @@ CREATE TABLE IF NOT EXISTS keyframe (
     aesthetics_overall_score   FLOAT        NOT NULL,
     aesthetics_is_utility      TINYINT      NOT NULL DEFAULT 0,
     PRIMARY KEY (id),
-    KEY idx_keyframe_scene_id (scene_id)
+    KEY idx_keyframe_scene_id (scene_id),
+    KEY idx_keyframe_thumbnail_id (thumbnail_id)
+);
+
+-- The video's cover/poster keyframe. Mirrors `keyframe` but parented by
+-- `video_id` (FK -> video.id), NOT by a scene — a cover keyframe attaches
+-- at the video level. It reuses the existing `Thumbnail` entity
+-- (thumbnail_id) and the existing `keyframe_*` detection child tables,
+-- keyed by this row's `id` (a cover keyframe id is a valid keyframe_id).
+CREATE TABLE IF NOT EXISTS cover_keyframe (
+    id                         BINARY(16)   NOT NULL,
+    video_id                   BINARY(16)   NOT NULL,
+    pts                        BIGINT       NOT NULL,
+    thumbnail_id               BINARY(16)   NOT NULL,
+    width                      BIGINT       NOT NULL,
+    height                     BIGINT       NOT NULL,
+    extractor                  VARCHAR(64)  NOT NULL,
+    role                       VARCHAR(64)  NOT NULL DEFAULT 'cover',
+    vlm_description_src        TEXT         NOT NULL,
+    vlm_description_translated TEXT         NOT NULL,
+    vlm_shot_type              VARCHAR(64)  NOT NULL,
+    horizon_angle              FLOAT        NOT NULL,
+    horizon_confidence         FLOAT        NOT NULL,
+    aesthetics_overall_score   FLOAT        NOT NULL,
+    aesthetics_is_utility      TINYINT      NOT NULL DEFAULT 0,
+    PRIMARY KEY (id),
+    KEY idx_cover_keyframe_video_id (video_id),
+    KEY idx_cover_keyframe_thumbnail_id (thumbnail_id)
 );
 
 CREATE TABLE IF NOT EXISTS keyframe_classification (

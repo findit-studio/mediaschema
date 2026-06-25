@@ -172,9 +172,8 @@ impl TryFrom<&wire::Word> for Word {
     // The wire bytes were produced by a previously-validated `Word`, so
     // the score is already finite-`[0,1]`. `try_from_parts` re-validates
     // cheaply (one float check) and is the public reconstruction door.
-    Word::try_from_parts(SmolStr::from(w.text.as_str()), span, w.score, language).map_err(|e| {
-      BuffaError::DomainConstructorRejected(SmolStr::from(e.to_string()))
-    })
+    Word::try_from_parts(SmolStr::from(w.text.as_str()), span, w.score, language)
+      .map_err(|e| BuffaError::DomainConstructorRejected(SmolStr::from(e.to_string())))
   }
 }
 

@@ -19,6 +19,8 @@ CREATE TABLE IF NOT EXISTS media (
     video               BLOB,
     audio               BLOB,
     subtitle            BLOB,
+    data                BLOB,
+    attachment          BLOB,
     error_flags         INTEGER NOT NULL DEFAULT 0,
     probe_error_code    INTEGER,
     probe_error_message TEXT,
@@ -62,6 +64,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_media_checksum ON media(checksum);
 CREATE INDEX        IF NOT EXISTS idx_media_video    ON media(video);
 CREATE INDEX        IF NOT EXISTS idx_media_audio    ON media(audio);
 CREATE INDEX        IF NOT EXISTS idx_media_subtitle ON media(subtitle);
+CREATE INDEX        IF NOT EXISTS idx_media_data     ON media(data);
+CREATE INDEX        IF NOT EXISTS idx_media_attachment ON media(attachment);
 
 CREATE TABLE IF NOT EXISTS watched_location (
     id                    BLOB    NOT NULL PRIMARY KEY,
@@ -295,6 +299,110 @@ CREATE TABLE IF NOT EXISTS audio_segment_word (
 );
 CREATE INDEX IF NOT EXISTS idx_asw_audio_segment_id ON audio_segment_word(audio_segment_id);
 
+-- Data-cluster: the `Data` facet + `DataTrack` (+ the metadata / index_error
+-- child tables). Timed-metadata streams (codec_type=data: Sony rtmd / GoPro
+-- GPMF / MISB KLV / timecode); presence + descriptor + metadata only — no
+-- sample payloads. `codec` / `codec_tag` are plain slugs.
+
+CREATE TABLE IF NOT EXISTS data (
+    id                     BLOB    NOT NULL PRIMARY KEY,
+    media_id               BLOB    NOT NULL UNIQUE,
+    track_progress_total   INTEGER NOT NULL DEFAULT 0,
+    track_progress_indexed INTEGER NOT NULL DEFAULT 0,
+    track_progress_failed  INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS data_track (
+    id                 BLOB    NOT NULL PRIMARY KEY,
+    data_id            BLOB    NOT NULL,   -- FK -> data.id
+    stream_index       INTEGER,
+    container_track_id INTEGER,
+    codec              TEXT    NOT NULL,
+    codec_tag          TEXT    NOT NULL,
+    start_pts          INTEGER,
+    start_pts_tb_num   INTEGER,
+    start_pts_tb_den   INTEGER,
+    duration_pts       INTEGER,
+    duration_tb_num    INTEGER,
+    duration_tb_den    INTEGER,
+    nb_packets         INTEGER,
+    byte_size          INTEGER NOT NULL DEFAULT 0,
+    disposition        INTEGER NOT NULL DEFAULT 0,
+    index_status       INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_data_track_data_id ON data_track(data_id);
+
+-- AVDictionary entries per data_track. `ordinal` preserves IndexMap
+-- insertion order; ORDER BY ordinal yields the original sequence.
+CREATE TABLE IF NOT EXISTS data_track_metadata (
+    data_track_id BLOB    NOT NULL,
+    ordinal       INTEGER NOT NULL,
+    key           TEXT    NOT NULL,
+    value         TEXT    NOT NULL,
+    PRIMARY KEY (data_track_id, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_data_track_metadata_data_track_id ON data_track_metadata(data_track_id);
+
+CREATE TABLE IF NOT EXISTS data_track_index_error (
+    data_track_id BLOB    NOT NULL,   -- FK -> data_track.id
+    ordinal       INTEGER NOT NULL,
+    code          INTEGER NOT NULL,
+    message       TEXT    NOT NULL,
+    PRIMARY KEY (data_track_id, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_dtie_data_track_id ON data_track_index_error(data_track_id);
+
+-- Attachment-cluster: the `Attachment` facet + `AttachmentTrack` (+ the
+-- metadata / index_error child tables). Attachment streams
+-- (codec_type=attachment: fonts / cover art / thumbnails); presence +
+-- descriptor + metadata only — NO attachment bytes are stored. The
+-- `blob_*` columns are RESERVED and always NULL in v1.
+
+CREATE TABLE IF NOT EXISTS attachment (
+    id                     BLOB    NOT NULL PRIMARY KEY,
+    media_id               BLOB    NOT NULL UNIQUE,
+    track_progress_total   INTEGER NOT NULL DEFAULT 0,
+    track_progress_indexed INTEGER NOT NULL DEFAULT 0,
+    track_progress_failed  INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS attachment_track (
+    id                 BLOB    NOT NULL PRIMARY KEY,
+    attachment_id      BLOB    NOT NULL,   -- FK -> attachment.id
+    stream_index       INTEGER,
+    codec              TEXT    NOT NULL,
+    filename           TEXT    NOT NULL,
+    mimetype           TEXT    NOT NULL,
+    byte_size          INTEGER NOT NULL DEFAULT 0,
+    disposition        INTEGER NOT NULL DEFAULT 0,
+    index_status       INTEGER NOT NULL DEFAULT 0,
+    -- Reserved BlobRef externalization handle; always NULL in v1.
+    blob_uri           TEXT,
+    blob_byte_size     INTEGER,
+    blob_content_type  TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_attachment_track_attachment_id ON attachment_track(attachment_id);
+
+-- AVDictionary entries per attachment_track. `ordinal` preserves IndexMap
+-- insertion order; ORDER BY ordinal yields the original sequence.
+CREATE TABLE IF NOT EXISTS attachment_track_metadata (
+    attachment_track_id BLOB    NOT NULL,
+    ordinal             INTEGER NOT NULL,
+    key                 TEXT    NOT NULL,
+    value               TEXT    NOT NULL,
+    PRIMARY KEY (attachment_track_id, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_attachment_track_metadata_attachment_track_id ON attachment_track_metadata(attachment_track_id);
+
+CREATE TABLE IF NOT EXISTS attachment_track_index_error (
+    attachment_track_id BLOB    NOT NULL,   -- FK -> attachment_track.id
+    ordinal             INTEGER NOT NULL,
+    code                INTEGER NOT NULL,
+    message             TEXT    NOT NULL,
+    PRIMARY KEY (attachment_track_id, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_attie_attachment_track_id ON attachment_track_index_error(attachment_track_id);
+
 -- Video-cluster: the `Video` facet + `VideoTrack` + `Scene` + `Keyframe`
 -- (+ per-detection child tables). Booleans ride as 0/1 INTEGER.
 
@@ -304,7 +412,9 @@ CREATE TABLE IF NOT EXISTS video (
     total_scenes           INTEGER NOT NULL DEFAULT 0,
     track_progress_total   INTEGER NOT NULL DEFAULT 0,
     track_progress_indexed INTEGER NOT NULL DEFAULT 0,
-    track_progress_failed  INTEGER NOT NULL DEFAULT 0
+    track_progress_failed  INTEGER NOT NULL DEFAULT 0,
+    -- FK -> cover_keyframe.id (the video's poster); NULL = no cover yet.
+    cover_keyframe_id      BLOB
 );
 
 CREATE TABLE IF NOT EXISTS video_track (
@@ -418,12 +528,31 @@ CREATE INDEX        IF NOT EXISTS idx_scene_video_track_id   ON scene(video_trac
 CREATE INDEX        IF NOT EXISTS idx_scene_detector ON scene(detector);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_scene_video_track_id_index ON scene(video_track_id, "index");
 
+-- Thumbnail image + storage descriptor. FK target of keyframe.thumbnail_id,
+-- so it is declared BEFORE keyframe. `kind` is a ThumbnailKind slug
+-- (`filesystem`/`database`/`remote`); exactly one payload slot is
+-- populated per kind: `data` (BLOB) for `database`, `location` (TEXT) for
+-- `filesystem`/`remote` — the other is NULL.
+CREATE TABLE IF NOT EXISTS thumbnail (
+    id        BLOB    NOT NULL PRIMARY KEY,
+    kind      TEXT    NOT NULL,
+    data      BLOB,
+    location  TEXT,
+    mime      TEXT    NOT NULL,
+    width     INTEGER NOT NULL,
+    height    INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_thumbnail_kind ON thumbnail(kind);
+
 CREATE TABLE IF NOT EXISTS keyframe (
     id                         BLOB    NOT NULL PRIMARY KEY,
-    scene_id                     BLOB    NOT NULL,
+    -- Nullable: a scene keyframe carries its `Scene` FK; a cover keyframe
+    -- (role = 'cover') has no scene parent (it is stored in cover_keyframe,
+    -- keyed by video_id). `role` self-describes which case a row is.
+    scene_id                   BLOB,
+    role                       TEXT    NOT NULL DEFAULT 'scene',
     pts                        INTEGER NOT NULL,
-    data                       BLOB    NOT NULL,
-    mime                       TEXT    NOT NULL,
+    thumbnail_id               BLOB    NOT NULL,
     width                      INTEGER NOT NULL,
     height                     INTEGER NOT NULL,
     extractor                  TEXT    NOT NULL,
@@ -435,7 +564,35 @@ CREATE TABLE IF NOT EXISTS keyframe (
     aesthetics_overall_score   REAL    NOT NULL,
     aesthetics_is_utility      INTEGER NOT NULL DEFAULT 0
 );
+-- A partial index would also work; SQLite indexes NULL keys, so a plain
+-- index over a nullable column is fine (scene keyframes have a non-NULL key).
 CREATE INDEX IF NOT EXISTS idx_keyframe_scene_id ON keyframe(scene_id);
+CREATE INDEX IF NOT EXISTS idx_keyframe_thumbnail_id ON keyframe(thumbnail_id);
+
+-- The video's cover/poster keyframe. Mirrors `keyframe` but parented by
+-- `video_id` (FK -> video.id), NOT by a scene — a cover keyframe attaches
+-- at the video level. It reuses the existing `Thumbnail` entity
+-- (thumbnail_id) and the existing `keyframe_*` detection child tables,
+-- keyed by this row's `id` (a cover keyframe id is a valid keyframe_id).
+CREATE TABLE IF NOT EXISTS cover_keyframe (
+    id                         BLOB    NOT NULL PRIMARY KEY,
+    video_id                   BLOB    NOT NULL,        -- FK -> video.id (NOT scene)
+    pts                        INTEGER NOT NULL,
+    thumbnail_id               BLOB    NOT NULL,        -- FK -> thumbnail.id
+    width                      INTEGER NOT NULL,
+    height                     INTEGER NOT NULL,
+    extractor                  TEXT    NOT NULL,
+    role                       TEXT    NOT NULL DEFAULT 'cover',
+    vlm_description_src        TEXT    NOT NULL,
+    vlm_description_translated TEXT    NOT NULL,
+    vlm_shot_type              TEXT    NOT NULL,
+    horizon_angle              REAL    NOT NULL,
+    horizon_confidence         REAL    NOT NULL,
+    aesthetics_overall_score   REAL    NOT NULL,
+    aesthetics_is_utility      INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_cover_keyframe_video_id ON cover_keyframe(video_id);
+CREATE INDEX IF NOT EXISTS idx_cover_keyframe_thumbnail_id ON cover_keyframe(thumbnail_id);
 
 CREATE TABLE IF NOT EXISTS keyframe_classification (
     keyframe_id   BLOB    NOT NULL,

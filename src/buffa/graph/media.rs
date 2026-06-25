@@ -17,6 +17,7 @@
 //! | `files: repeated MediaFile`      | `files: Vec<MediaFile>`      | children embedded                              |
 //! | `chapters: repeated Chapter`     | `chapters: Vec<Chapter>`     | children embedded                              |
 //! | `video` / `audio` / `subtitle`   | `Option<Video/Audio/Subtitle>` | facet subtrees; flat facet links re-derived on decode |
+//! | `data` / `attachment`            | `Option<Data/Attachment>`    | presence-only facet subtrees; flat facet links re-derived on decode |
 //! | `error_flags: uint32`            | `error_flags: MediaErrorFlags` | raw bits (`u16` widened); overflow ⇒ `Unsupported` |
 //! | `probe_error: ErrorInfo`         | `probe_error: Option<_>`     | presence = `Some`                              |
 //! | `capture_date_ms: optional int64`| `capture_date: Option<jiff::Timestamp>` | epoch millis                        |
@@ -91,6 +92,8 @@ impl TryFrom<&graph::Media<Uuid7>> for wire::Media {
       video,
       audio: opt_msg(g.audio_ref().map(wire::Audio::from)),
       subtitle: opt_msg(g.subtitle_ref().map(wire::Subtitle::from)),
+      data: opt_msg(g.data_ref().map(wire::Data::from)),
+      attachment: opt_msg(g.attachment_ref().map(wire::Attachment::from)),
       error_flags: u32::from(g.error_flags().bits()),
       probe_error: opt_msg(g.probe_error_ref().map(wire1::ErrorInfo::from)),
       capture_date_ms: g.capture_date_ref().map(|t| t.as_millisecond()),
@@ -132,6 +135,12 @@ impl TryFrom<&wire::Media> for graph::Media<Uuid7> {
       .as_option()
       .map(graph::Subtitle::try_from)
       .transpose()?;
+    let data = w.data.as_option().map(graph::Data::try_from).transpose()?;
+    let attachment = w
+      .attachment
+      .as_option()
+      .map(graph::Attachment::try_from)
+      .transpose()?;
     let files = w
       .files
       .iter()
@@ -152,13 +161,18 @@ impl TryFrom<&wire::Media> for graph::Media<Uuid7> {
       .with_video_id(video.as_ref().map(|v| *v.id_ref()))
       .with_audio_id(audio.as_ref().map(|a| *a.id_ref()))
       .with_subtitle_id(subtitle.as_ref().map(|s| *s.id_ref()))
+      .with_data_id(data.as_ref().map(|d| *d.id_ref()))
+      .with_attachment_id(attachment.as_ref().map(|a| *a.id_ref()))
       .with_error_flags(error_flags)
       .with_probe_error(w.probe_error.as_option().map(ErrorInfo::from))
       .with_capture_date(capture_date)
       .with_device(w.device.as_option().cloned())
       .with_gps(w.gps.as_option().copied());
 
-    graph::Media::try_from_flat(flat, files, chapters, video, audio, subtitle).map_err(graph_err)
+    graph::Media::try_from_flat(
+      flat, files, chapters, video, audio, subtitle, data, attachment,
+    )
+    .map_err(graph_err)
   }
 }
 
@@ -280,8 +294,9 @@ mod tests {
   use super::*;
   use crate::domain::{
     aggregates::subtitle::{SrtData, SubtitleCueDetails},
-    AudioContentKind, AudioIndexStatus, ErrorCode, FileChecksum, IndexProgress, LocalizedText,
-    Provenance, SubtitleKind, VideoIndexStatus, VoiceFingerprint, WatchedLocation, Word,
+    AttachmentIndexStatus, AudioContentKind, AudioIndexStatus, DataIndexStatus, ErrorCode,
+    FileChecksum, IndexProgress, LocalizedText, Provenance, SubtitleKind, VideoIndexStatus,
+    VoiceFingerprint, WatchedLocation, Word,
   };
 
   fn tb() -> Timebase {
@@ -387,8 +402,9 @@ mod tests {
   #[test]
   fn media_minimal_round_trips() {
     let id = Uuid7::new();
-    let g = graph::Media::try_from_flat(flat_media(id), vec![], vec![], None, None, None)
-      .expect("coherent");
+    let g =
+      graph::Media::try_from_flat(flat_media(id), vec![], vec![], None, None, None, None, None)
+        .expect("coherent");
     let w = wire::Media::try_from(&g).expect("encodes");
     assert!(w.video.is_unset());
     assert!(w.capture_date_ms.is_none());
@@ -399,8 +415,9 @@ mod tests {
   #[test]
   fn media_error_flags_overflow_errors() {
     let id = Uuid7::new();
-    let g = graph::Media::try_from_flat(flat_media(id), vec![], vec![], None, None, None)
-      .expect("coherent");
+    let g =
+      graph::Media::try_from_flat(flat_media(id), vec![], vec![], None, None, None, None, None)
+        .expect("coherent");
     let mut w = wire::Media::try_from(&g).expect("encodes");
     w.error_flags = 0x1_0000;
     let err = graph::Media::try_from(&w).unwrap_err();
@@ -452,7 +469,8 @@ mod tests {
       .with_index_errors(vec![ErrorInfo::new(ErrorCode::ProbeCorrupt, "glitch")])
       .with_provenance(Provenance::from_parts("ffprobe", "7.0", "", "indexer-0.1"));
     let g_vtrack = graph::VideoTrack::try_from_flat(&vfacet_id, vtrack, vec![]).expect("coherent");
-    let g_video = graph::Video::try_from_flat(&media_id, vfacet, vec![g_vtrack]).expect("coherent");
+    let g_video =
+      graph::Video::try_from_flat(&media_id, vfacet, vec![g_vtrack], None).expect("coherent");
 
     // Audio facet + one track with a segment and a speaker.
     let afacet = domain::Audio::try_new(Uuid7::new(), media_id)
@@ -548,6 +566,49 @@ mod tests {
     let g_subtitle =
       graph::Subtitle::try_from_flat(&media_id, sfacet, vec![g_strack]).expect("coherent");
 
+    // Data facet + one timed-metadata track (presence-only).
+    let dfacet = domain::Data::try_new(Uuid7::new(), media_id)
+      .expect("valid facet")
+      .with_track_progress(IndexProgress::try_new(1, 1, 0).expect("valid rollup"));
+    let dfacet_id = *dfacet.id_ref();
+    let dtrack = domain::DataTrack::try_new(Uuid7::new(), dfacet_id)
+      .expect("valid track")
+      .with_stream_index(Some(3))
+      .with_container_track_id(Some(4))
+      .with_codec("rtmd")
+      .with_codec_tag("rtmd")
+      .with_start_pts(Some(Timestamp::new(0, tb())))
+      .try_with_duration(Some(Timestamp::new(90_000, tb())))
+      .expect("valid duration")
+      .with_nb_packets(Some(2_700))
+      .with_byte_size(1_024)
+      .with_index_status(DataIndexStatus::PROBED)
+      .with_metadata({
+        let mut bag = indexmap::IndexMap::new();
+        bag.insert(SmolStr::from("handler_name"), SmolStr::from("rtmd"));
+        bag
+      });
+    let g_dtrack = graph::DataTrack::try_from_flat(&dfacet_id, dtrack).expect("coherent");
+    let g_data = graph::Data::try_from_flat(&media_id, dfacet, vec![g_dtrack]).expect("coherent");
+
+    // Attachment facet + one attachment track (`blob = None`, the v1 contract).
+    let atfacet = domain::Attachment::try_new(Uuid7::new(), media_id)
+      .expect("valid facet")
+      .with_track_progress(IndexProgress::try_new(1, 1, 0).expect("valid rollup"));
+    let atfacet_id = *atfacet.id_ref();
+    let attrack = domain::AttachmentTrack::try_new(Uuid7::new(), atfacet_id)
+      .expect("valid track")
+      .with_stream_index(Some(4))
+      .with_codec("ttf")
+      .with_filename("font.ttf")
+      .with_mimetype("font/ttf")
+      .with_byte_size(4_096)
+      .with_index_status(AttachmentIndexStatus::PROBED);
+    let g_attrack = graph::AttachmentTrack::try_from_flat(&atfacet_id, attrack).expect("coherent");
+    assert!(g_attrack.blob_ref().is_none());
+    let g_attachment =
+      graph::Attachment::try_from_flat(&media_id, atfacet, vec![g_attrack]).expect("coherent");
+
     // Root with every optional field populated + the facet links set.
     let mut root = flat_media(media_id)
       .try_with_duration(Some(Timestamp::new(90_000, tb())))
@@ -564,6 +625,8 @@ mod tests {
     root.set_video_id(Some(vfacet_id));
     root.set_audio_id(Some(afacet_id));
     root.set_subtitle_id(Some(sfacet_id));
+    root.set_data_id(Some(dfacet_id));
+    root.set_attachment_id(Some(atfacet_id));
 
     let g = graph::Media::try_from_flat(
       root,
@@ -572,8 +635,16 @@ mod tests {
       Some(g_video),
       Some(g_audio),
       Some(g_subtitle),
+      Some(g_data),
+      Some(g_attachment),
     )
     .expect("coherent tree");
+
+    assert_eq!(g.data_ref().expect("data").tracks_slice().len(), 1);
+    assert_eq!(
+      g.attachment_ref().expect("attachment").tracks_slice().len(),
+      1
+    );
 
     let w = wire::Media::try_from(&g).expect("encodes");
     let g2 = graph::Media::try_from(&w).expect("decodes");

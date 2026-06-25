@@ -51,6 +51,11 @@ pub struct Video<Id = Uuid7> {
   total_scenes: u32,
   tracks: Vec<Id>,
   track_progress: IndexProgress,
+  /// FK → the video's cover/poster [`Keyframe`](super::keyframe::Keyframe)
+  /// (`None` = no cover extracted yet). Re-derived from the embedded cover
+  /// on the graph→domain projection; the cover keyframe itself is parented
+  /// by this video, not by a scene.
+  cover_keyframe_id: Option<Id>,
 }
 
 impl Video<Uuid7> {
@@ -76,6 +81,7 @@ impl Video<Uuid7> {
       total_scenes: 0,
       tracks: Vec::new(),
       track_progress: IndexProgress::new(),
+      cover_keyframe_id: None,
     })
   }
 }
@@ -114,6 +120,13 @@ impl<Id> Video<Id> {
     &self.track_progress
   }
 
+  /// FK → the video's cover/poster
+  /// [`Keyframe`](super::keyframe::Keyframe) (`None` = no cover yet).
+  #[inline(always)]
+  pub const fn cover_keyframe_id_ref(&self) -> Option<&Id> {
+    self.cover_keyframe_id.as_ref()
+  }
+
   /// Builder: replace the `tracks` id-list.
   #[must_use]
   #[inline(always)]
@@ -138,6 +151,14 @@ impl<Id> Video<Id> {
     self
   }
 
+  /// Builder: replace the cover-keyframe FK.
+  #[must_use]
+  #[inline(always)]
+  pub fn with_cover_keyframe_id(mut self, v: Option<Id>) -> Self {
+    self.cover_keyframe_id = v;
+    self
+  }
+
   /// In-place mutator for `tracks`.
   #[inline(always)]
   pub fn set_tracks(&mut self, tracks: impl Into<Vec<Id>>) -> &mut Self {
@@ -156,6 +177,13 @@ impl<Id> Video<Id> {
   #[inline(always)]
   pub const fn set_track_progress(&mut self, p: IndexProgress) -> &mut Self {
     self.track_progress = p;
+    self
+  }
+
+  /// In-place mutator for the cover-keyframe FK.
+  #[inline(always)]
+  pub fn set_cover_keyframe_id(&mut self, v: Option<Id>) -> &mut Self {
+    self.cover_keyframe_id = v;
     self
   }
 }
@@ -193,6 +221,23 @@ mod tests {
     assert_eq!(v.total_scenes(), 0);
     assert!(v.tracks_slice().is_empty());
     assert_eq!(v.track_progress_ref(), &IndexProgress::new());
+    assert!(v.cover_keyframe_id_ref().is_none(), "no cover by default");
+  }
+
+  #[test]
+  fn cover_keyframe_id_builds_and_round_trips() {
+    let cover = Uuid7::new();
+    let v = Video::try_new(Uuid7::new(), Uuid7::new())
+      .unwrap()
+      .with_cover_keyframe_id(Some(cover));
+    assert_eq!(v.cover_keyframe_id_ref(), Some(&cover));
+    let v2 = Video::rehydrate(v.clone().into_parts());
+    assert_eq!(v, v2);
+    assert_eq!(v2.cover_keyframe_id_ref(), Some(&cover));
+
+    let mut v = v;
+    v.set_cover_keyframe_id(None);
+    assert!(v.cover_keyframe_id_ref().is_none());
   }
 
   #[test]
@@ -306,6 +351,7 @@ pub struct VideoParts<Id = Uuid7> {
   pub total_scenes: u32,
   pub tracks: Vec<Id>,
   pub track_progress: IndexProgress,
+  pub cover_keyframe_id: Option<Id>,
 }
 
 impl<Id> Video<Id> {
@@ -318,6 +364,7 @@ impl<Id> Video<Id> {
       total_scenes,
       tracks,
       track_progress,
+      cover_keyframe_id,
     } = self;
     VideoParts {
       id,
@@ -325,6 +372,7 @@ impl<Id> Video<Id> {
       total_scenes,
       tracks,
       track_progress,
+      cover_keyframe_id,
     }
   }
 }
@@ -347,6 +395,7 @@ impl<Id> Video<Id> {
       total_scenes,
       tracks,
       track_progress,
+      cover_keyframe_id,
     } = parts;
     Self {
       id,
@@ -354,6 +403,7 @@ impl<Id> Video<Id> {
       total_scenes,
       tracks,
       track_progress,
+      cover_keyframe_id,
     }
   }
 }

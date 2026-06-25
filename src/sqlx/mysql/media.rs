@@ -32,6 +32,8 @@ pub struct MySqlMediaRow {
   pub video_id: Option<Vec<u8>>,
   pub audio_id: Option<Vec<u8>>,
   pub subtitle_id: Option<Vec<u8>>,
+  pub data_id: Option<Vec<u8>>,
+  pub attachment_id: Option<Vec<u8>>,
   pub error_flags: u16,
   /// `ErrorInfo.code` as the verified `u32` wire value; NULL = no probe
   /// error. Discriminates presence of the flattened `ErrorInfo` VO.
@@ -81,6 +83,8 @@ impl From<&Media<Uuid7>> for MySqlMediaRow {
       video_id: m.video_id_ref().map(|id| id.as_bytes().to_vec()),
       audio_id: m.audio_id_ref().map(|id| id.as_bytes().to_vec()),
       subtitle_id: m.subtitle_id_ref().map(|id| id.as_bytes().to_vec()),
+      data_id: m.data_id_ref().map(|id| id.as_bytes().to_vec()),
+      attachment_id: m.attachment_id_ref().map(|id| id.as_bytes().to_vec()),
       error_flags: m.error_flags().bits(),
       probe_error_code: probe_error.map(|e| e.code().as_u32() as i32),
       probe_error_message: probe_error.map(|e| e.message().to_owned()),
@@ -122,6 +126,12 @@ impl TryFrom<MySqlMediaRow> for Media<Uuid7> {
     }
     if let Some(v) = r.subtitle_id {
       m = m.with_subtitle_id(Some(bytes_to_uuid7(&v)?));
+    }
+    if let Some(v) = r.data_id {
+      m = m.with_data_id(Some(bytes_to_uuid7(&v)?));
+    }
+    if let Some(v) = r.attachment_id {
+      m = m.with_attachment_id(Some(bytes_to_uuid7(&v)?));
     }
     m = m.with_error_flags(MediaErrorFlags::from_bits_truncate(r.error_flags));
     if let Some(code) = r.probe_error_code {
@@ -173,6 +183,8 @@ pub struct MySqlMediaRowRef<'r> {
   pub video_id: Option<&'r [u8]>,
   pub audio_id: Option<&'r [u8]>,
   pub subtitle_id: Option<&'r [u8]>,
+  pub data_id: Option<&'r [u8]>,
+  pub attachment_id: Option<&'r [u8]>,
   pub error_flags: u16,
   pub probe_error_code: Option<i32>,
   pub probe_error_message: Option<&'r str>,
@@ -199,6 +211,8 @@ impl MySqlMediaRow {
       video_id: self.video_id.as_deref(),
       audio_id: self.audio_id.as_deref(),
       subtitle_id: self.subtitle_id.as_deref(),
+      data_id: self.data_id.as_deref(),
+      attachment_id: self.attachment_id.as_deref(),
       error_flags: self.error_flags,
       probe_error_code: self.probe_error_code,
       probe_error_message: self.probe_error_message.as_deref(),
@@ -239,6 +253,12 @@ impl<'r> TryFrom<MySqlMediaRowRef<'r>> for Media<Uuid7> {
     }
     if let Some(v) = r.subtitle_id {
       m = m.with_subtitle_id(Some(bytes_to_uuid7(v)?));
+    }
+    if let Some(v) = r.data_id {
+      m = m.with_data_id(Some(bytes_to_uuid7(v)?));
+    }
+    if let Some(v) = r.attachment_id {
+      m = m.with_attachment_id(Some(bytes_to_uuid7(v)?));
     }
     m = m.with_error_flags(MediaErrorFlags::from_bits_truncate(r.error_flags));
     if let Some(code) = r.probe_error_code {
@@ -333,6 +353,28 @@ mod tests {
   }
 
   #[test]
+  fn media_roundtrip_data_and_attachment_fks() {
+    let data_id = Uuid7::new();
+    let attachment_id = Uuid7::new();
+    let m = Media::try_new(
+      Uuid7::new(),
+      fake_checksum(),
+      Format::Mp4,
+      1,
+      MediaKind::Video,
+    )
+    .unwrap()
+    .with_data_id(Some(data_id))
+    .with_attachment_id(Some(attachment_id));
+    let row: MySqlMediaRow = (&m).into();
+    assert!(row.data_id.is_some());
+    assert!(row.attachment_id.is_some());
+    let m2: Media<Uuid7> = row.try_into().unwrap();
+    assert_eq!(m2.data_id_ref(), Some(&data_id));
+    assert_eq!(m2.attachment_id_ref(), Some(&attachment_id));
+  }
+
+  #[test]
   fn media_row_rejects_zero_checksum() {
     let row = MySqlMediaRow {
       id: Uuid7::new().as_bytes().to_vec(),
@@ -346,6 +388,8 @@ mod tests {
       video_id: None,
       audio_id: None,
       subtitle_id: None,
+      data_id: None,
+      attachment_id: None,
       error_flags: 0,
       probe_error_code: None,
       probe_error_message: None,

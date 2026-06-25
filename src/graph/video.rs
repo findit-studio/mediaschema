@@ -1,7 +1,6 @@
 //! Video subtree: facet → tracks → scenes → keyframes. Standalone field
 //! owners — no embedded flat aggregates, no parent FKs, no id-vecs.
 
-use bytes::Bytes;
 use indexmap::IndexMap;
 use mediaframe::{
   codec::VideoCodec,
@@ -13,7 +12,7 @@ use mediaframe::{
 use mediatime::{TimeRange, Timestamp};
 use smol_str::SmolStr;
 
-use super::{parent_check, GraphError, NodeKind};
+use super::{facet_link_check, parent_check, GraphError, NodeKind};
 use crate::domain::{
   self,
   aggregates::video::{
@@ -22,25 +21,35 @@ use crate::domain::{
     DominantColor, HorizonInfo, HumanAnalysis, ObjectDetection, SaliencyRegion, TextDetection,
     VlmAnalysis,
   },
-  ErrorInfo, IndexProgress, KeyframeExtractor, Provenance, SceneDetector, Uuid7, VideoIndexStatus,
+  ErrorInfo, IndexProgress, KeyframeExtractor, KeyframeRole, Provenance, SceneDetector, Uuid7,
+  VideoIndexStatus,
 };
 
-/// The video facet with its complete track subtrees.
+/// The video facet with its complete track subtrees + the video's
+/// cover/poster keyframe.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Video<Id = Uuid7> {
   id: Id,
   total_scenes: u32,
   track_progress: IndexProgress,
   tracks: Vec<VideoTrack<Id>>,
+  /// The video poster / cover keyframe (`None` = no cover extracted yet).
+  /// It attaches at the video level (no scene parent) and is a real,
+  /// analyzable [`Keyframe`].
+  cover: Option<Keyframe<Id>>,
 }
 
 impl Video<Uuid7> {
   /// Lift the flat facet; validates `media_id == expected_media`. Tracks
-  /// arrive pre-lifted (their `video_id` was consumed by their lift).
+  /// arrive pre-lifted (their `video_id` was consumed by their lift). The
+  /// optional `cover` keyframe is lifted at the **video** level via
+  /// [`Keyframe::lift_cover`] (no scene parent); its coherence with the
+  /// facet's stored `cover_keyframe_id` is checked here.
   pub fn try_from_flat(
     expected_media: &Uuid7,
     facet: domain::Video<Uuid7>,
     tracks: Vec<VideoTrack<Uuid7>>,
+    cover: Option<domain::Keyframe<Uuid7>>,
   ) -> Result<Self, GraphError> {
     let VideoParts {
       id,
@@ -48,13 +57,25 @@ impl Video<Uuid7> {
       total_scenes,
       tracks: _,
       track_progress,
+      cover_keyframe_id,
     } = facet.into_parts();
     parent_check(NodeKind::VideoFacet, id, &media_id, expected_media)?;
+    let cover = cover.map(Keyframe::lift_cover).transpose()?;
+    // The facet's stored cover FK must agree with the embedded cover
+    // keyframe (present with the same id, or both absent), mirroring how
+    // `Media` checks its facet links.
+    facet_link_check(
+      NodeKind::CoverKeyframe,
+      id,
+      cover_keyframe_id.as_ref(),
+      cover.as_ref().map(|k| k.id_ref()),
+    )?;
     Ok(Self {
       id,
       total_scenes,
       track_progress,
       tracks,
+      cover,
     })
   }
 }
@@ -79,6 +100,12 @@ impl<Id> Video<Id> {
   #[inline(always)]
   pub const fn tracks_slice(&self) -> &[VideoTrack<Id>] {
     self.tracks.as_slice()
+  }
+
+  /// The video's cover/poster keyframe (`None` = no cover extracted yet).
+  #[inline(always)]
+  pub const fn cover_ref(&self) -> Option<&Keyframe<Id>> {
+    self.cover.as_ref()
   }
 }
 
@@ -462,13 +489,20 @@ impl<Id> Scene<Id> {
 }
 
 /// One keyframe — every field of the flat `Keyframe` except `scene_id`
-/// (implied by nesting).
+/// (implied by nesting for a scene keyframe; absent for a cover keyframe).
+///
+/// The `role` discriminant is retained so a keyframe read back from the
+/// graph knows whether it is a scene-representative frame or the video
+/// poster (the cover, which attaches at the video level via
+/// [`Video::cover_ref`]).
 #[derive(Debug, Clone, PartialEq)]
 pub struct Keyframe<Id = Uuid7> {
   id: Id,
+  role: KeyframeRole,
   pts: Timestamp,
-  data: Bytes,
-  mime: SmolStr,
+  /// FK → [`Thumbnail`](crate::domain::Thumbnail)`.id` — the image bytes
+  /// + storage backend live on the referenced thumbnail, not inline.
+  thumbnail_id: Id,
   dimensions: Dimensions,
   extractor: KeyframeExtractor,
   classifications: Vec<Detection>,
@@ -488,17 +522,59 @@ pub struct Keyframe<Id = Uuid7> {
 }
 
 impl Keyframe<Uuid7> {
-  /// Lift the flat keyframe; validates `scene_id == expected_scene`.
+  /// Lift a flat **scene** keyframe; validates `scene_id == expected_scene`
+  /// (the cross-tree containment edge) and that the `role` is
+  /// [`KeyframeRole::Scene`] (a cover keyframe never rides the scene chain).
   pub fn try_from_flat(
     expected_scene: &Uuid7,
     keyframe: domain::Keyframe<Uuid7>,
   ) -> Result<Self, GraphError> {
+    let (parts, scene_id) = Self::split(keyframe.into_parts());
+    if !parts.role.is_scene() {
+      return Err(GraphError::RoleMismatch {
+        kind: NodeKind::Keyframe,
+        node: parts.id,
+      });
+    }
+    // A scene keyframe always carries a `Some` scene_id (its constructor
+    // requires a non-nil one); a missing scene_id here is an incoherent
+    // tree.
+    let scene_id = scene_id.ok_or(GraphError::ParentMismatch {
+      kind: NodeKind::Keyframe,
+      child: parts.id,
+      referenced: Uuid7::nil(),
+      expected: *expected_scene,
+    })?;
+    parent_check(NodeKind::Keyframe, parts.id, &scene_id, expected_scene)?;
+    Ok(parts)
+  }
+
+  /// Lift the video's **cover** keyframe. A cover keyframe attaches at the
+  /// video level — it has **no scene parent**, so its `scene_id` (which is
+  /// `None` on the flat side) is not parent-checked. Validates that the
+  /// `role` is [`KeyframeRole::Cover`].
+  pub fn lift_cover(keyframe: domain::Keyframe<Uuid7>) -> Result<Self, GraphError> {
+    let (parts, _scene_id) = Self::split(keyframe.into_parts());
+    if !parts.role.is_cover() {
+      return Err(GraphError::RoleMismatch {
+        kind: NodeKind::CoverKeyframe,
+        node: parts.id,
+      });
+    }
+    Ok(parts)
+  }
+
+  /// Exhaustively destructure [`KeyframeParts`] into the graph shape,
+  /// returning the (graph keyframe, flat `scene_id`) pair so each lift can
+  /// apply its own parent/role policy. The `scene_id` is consumed here and
+  /// not stored on the graph keyframe.
+  fn split(parts: KeyframeParts<Uuid7>) -> (Self, Option<Uuid7>) {
     let KeyframeParts {
       id,
       scene_id,
+      role,
       pts,
-      data,
-      mime,
+      thumbnail_id,
       dimensions,
       extractor,
       classifications,
@@ -515,13 +591,12 @@ impl Keyframe<Uuid7> {
       aesthetics,
       colors,
       vlm,
-    } = keyframe.into_parts();
-    parent_check(NodeKind::Keyframe, id, &scene_id, expected_scene)?;
-    Ok(Self {
+    } = parts;
+    let kf = Self {
       id,
+      role,
       pts,
-      data,
-      mime,
+      thumbnail_id,
       dimensions,
       extractor,
       classifications,
@@ -538,7 +613,8 @@ impl Keyframe<Uuid7> {
       aesthetics,
       colors,
       vlm,
-    })
+    };
+    (kf, scene_id)
   }
 }
 
@@ -548,33 +624,23 @@ impl<Id> Keyframe<Id> {
     &self.id
   }
 
+  /// Scene-representative frame ([`KeyframeRole::Scene`]) vs the video
+  /// poster ([`KeyframeRole::Cover`]).
+  #[inline(always)]
+  pub const fn role(&self) -> KeyframeRole {
+    self.role
+  }
+
   #[inline(always)]
   pub const fn pts_ref(&self) -> &Timestamp {
     &self.pts
   }
 
-  /// Thumbnail image bytes (inline).
+  /// FK → [`Thumbnail`](crate::domain::Thumbnail)`.id` — the image bytes
+  /// + storage backend live on the referenced thumbnail.
   #[inline(always)]
-  pub fn data(&self) -> &[u8] {
-    &self.data
-  }
-
-  /// Owned handle to the image bytes — O(1) refcount clone, no copy.
-  #[inline(always)]
-  pub fn data_bytes(&self) -> Bytes {
-    self.data.clone()
-  }
-
-  /// MIME type (`""` = absent).
-  #[inline(always)]
-  pub fn mime(&self) -> &str {
-    self.mime.as_str()
-  }
-
-  /// Byte size of `data` — derived from `data.len()`.
-  #[inline(always)]
-  pub fn size(&self) -> u64 {
-    self.data.len() as u64
+  pub const fn thumbnail_id_ref(&self) -> &Id {
+    &self.thumbnail_id
   }
 
   #[inline(always)]
@@ -706,6 +772,7 @@ mod tests {
     let keyframe = domain::Keyframe::try_new(
       Uuid7::new(),
       Uuid7::new(),
+      Uuid7::new(),
       span().start(),
       Dimensions::new(320, 240),
       KeyframeExtractor::IFrame,
@@ -724,9 +791,11 @@ mod tests {
   #[test]
   fn lifted_keyframe_keeps_artifact_fields() {
     let scene_id = Uuid7::new();
+    let thumbnail_id = Uuid7::new();
     let keyframe = domain::Keyframe::try_new(
       Uuid7::new(),
       scene_id,
+      thumbnail_id,
       span().start(),
       Dimensions::new(320, 240),
       KeyframeExtractor::IFrame,
@@ -735,27 +804,108 @@ mod tests {
     let g = Keyframe::try_from_flat(&scene_id, keyframe).expect("coherent");
     assert_eq!(g.dimensions(), Dimensions::new(320, 240));
     assert_eq!(g.extractor(), KeyframeExtractor::IFrame);
-    assert!(g.data().is_empty());
+    assert_eq!(g.thumbnail_id_ref(), &thumbnail_id);
+    assert!(g.role().is_scene());
+  }
+
+  fn cover_keyframe() -> domain::Keyframe<Uuid7> {
+    domain::Keyframe::try_new_cover(
+      Uuid7::new(),
+      Uuid7::new(),
+      span().start(),
+      Dimensions::new(640, 360),
+      KeyframeExtractor::CompositeQuality,
+    )
+    .expect("valid cover keyframe")
+  }
+
+  #[test]
+  fn cover_lifts_at_video_level_and_sets_facet_fk() {
+    let media_id = Uuid7::new();
+    let facet = domain::Video::try_new(Uuid7::new(), media_id).expect("valid facet");
+    let cover = cover_keyframe();
+    let cover_id = *cover.id_ref();
+    // The facet must record the cover FK for the coherence check to pass.
+    let facet = facet.with_cover_keyframe_id(Some(cover_id));
+    let g = Video::try_from_flat(&media_id, facet, vec![], Some(cover)).expect("coherent");
+    let lifted = g.cover_ref().expect("cover present");
+    assert!(lifted.role().is_cover());
+    assert_eq!(lifted.id_ref(), &cover_id);
+    // The facet→domain projection re-derives `cover_keyframe_id`.
+    let back: domain::Video<Uuid7> = (media_id, g).into();
+    assert_eq!(back.cover_keyframe_id_ref(), Some(&cover_id));
+  }
+
+  #[test]
+  fn cover_facet_link_mismatch_is_rejected() {
+    let media_id = Uuid7::new();
+    // Embedded cover present, but the facet's stored cover FK is absent.
+    let facet = domain::Video::try_new(Uuid7::new(), media_id).expect("valid facet");
+    let err = Video::try_from_flat(&media_id, facet, vec![], Some(cover_keyframe()))
+      .expect_err("dangling cover link");
+    assert!(matches!(
+      err,
+      GraphError::FacetLinkMismatch {
+        kind: NodeKind::CoverKeyframe,
+        ..
+      }
+    ));
+  }
+
+  #[test]
+  fn scene_keyframe_handed_to_cover_lift_is_rejected() {
+    let scene_id = Uuid7::new();
+    let scene_kf = domain::Keyframe::try_new(
+      Uuid7::new(),
+      scene_id,
+      Uuid7::new(),
+      span().start(),
+      Dimensions::new(320, 240),
+      KeyframeExtractor::IFrame,
+    )
+    .expect("valid scene keyframe");
+    let err = Keyframe::lift_cover(scene_kf).expect_err("wrong role");
+    assert!(matches!(
+      err,
+      GraphError::RoleMismatch {
+        kind: NodeKind::CoverKeyframe,
+        ..
+      }
+    ));
   }
 }
 
 // --- conversion traits: flat ⇄ graph ---------------------------------------
 
-/// Trait form of [`Video::try_from_flat`] — `(expected_media, facet, tracks)`.
-impl TryFrom<(Uuid7, domain::Video<Uuid7>, Vec<VideoTrack<Uuid7>>)> for Video<Uuid7> {
+/// Trait form of [`Video::try_from_flat`] —
+/// `(expected_media, facet, tracks, cover)`.
+impl
+  TryFrom<(
+    Uuid7,
+    domain::Video<Uuid7>,
+    Vec<VideoTrack<Uuid7>>,
+    Option<domain::Keyframe<Uuid7>>,
+  )> for Video<Uuid7>
+{
   type Error = GraphError;
 
   #[inline(always)]
   fn try_from(
-    (expected_media, facet, tracks): (Uuid7, domain::Video<Uuid7>, Vec<VideoTrack<Uuid7>>),
+    (expected_media, facet, tracks, cover): (
+      Uuid7,
+      domain::Video<Uuid7>,
+      Vec<VideoTrack<Uuid7>>,
+      Option<domain::Keyframe<Uuid7>>,
+    ),
   ) -> Result<Self, Self::Error> {
-    Self::try_from_flat(&expected_media, facet, tracks)
+    Self::try_from_flat(&expected_media, facet, tracks, cover)
   }
 }
 
 /// Re-attach to `media_id` and rebuild the flat facet; the track-id vec
-/// is re-derived from the embedded tracks, which are then dropped —
-/// convert them first when persisting the tree.
+/// is re-derived from the embedded tracks, and `cover_keyframe_id` from the
+/// embedded cover — both then dropped (convert the children first when
+/// persisting the tree).
 impl From<(Uuid7, Video<Uuid7>)> for domain::Video<Uuid7> {
   fn from((media_id, g): (Uuid7, Video<Uuid7>)) -> Self {
     let Video {
@@ -763,6 +913,7 @@ impl From<(Uuid7, Video<Uuid7>)> for domain::Video<Uuid7> {
       total_scenes,
       track_progress,
       tracks,
+      cover,
     } = g;
     domain::Video::rehydrate(VideoParts {
       id,
@@ -770,6 +921,7 @@ impl From<(Uuid7, Video<Uuid7>)> for domain::Video<Uuid7> {
       total_scenes,
       tracks: tracks.iter().map(|t| *t.id_ref()).collect(),
       track_progress,
+      cover_keyframe_id: cover.as_ref().map(|k| *k.id_ref()),
     })
   }
 }
@@ -916,55 +1068,73 @@ impl TryFrom<(Uuid7, domain::Keyframe<Uuid7>)> for Keyframe<Uuid7> {
   }
 }
 
-/// Re-attach to `scene_id` and rebuild the flat keyframe.
+/// Re-attach a **scene** keyframe to `scene_id` and rebuild the flat
+/// aggregate. The supplied `scene_id` becomes the keyframe's `Some`
+/// scene FK; the graph `role` is preserved (it is `Scene` for any keyframe
+/// that rode the scene chain). For the cover keyframe use
+/// [`cover_into_flat`].
 impl From<(Uuid7, Keyframe<Uuid7>)> for domain::Keyframe<Uuid7> {
   fn from((scene_id, g): (Uuid7, Keyframe<Uuid7>)) -> Self {
-    let Keyframe {
-      id,
-      pts,
-      data,
-      mime,
-      dimensions,
-      extractor,
-      classifications,
-      objects,
-      humans,
-      animals,
-      actions,
-      text_detections,
-      barcodes,
-      attention_saliency,
-      objectness_saliency,
-      horizon,
-      document_segments,
-      aesthetics,
-      colors,
-      vlm,
-    } = g;
-    domain::Keyframe::rehydrate(KeyframeParts {
-      id,
-      scene_id,
-      pts,
-      data,
-      mime,
-      dimensions,
-      extractor,
-      classifications,
-      objects,
-      humans,
-      animals,
-      actions,
-      text_detections,
-      barcodes,
-      attention_saliency,
-      objectness_saliency,
-      horizon,
-      document_segments,
-      aesthetics,
-      colors,
-      vlm,
-    })
+    keyframe_into_flat(Some(scene_id), g)
   }
+}
+
+/// Rebuild the flat **cover** keyframe from the graph shape — no scene FK
+/// (`scene_id = None`), the graph `role` (`Cover`) preserved. This is the
+/// cover analog of the scene-attach [`From<(Uuid7, Keyframe)>`] impl above;
+/// the cover is addressed by its video, not by a scene.
+pub fn cover_into_flat(g: Keyframe<Uuid7>) -> domain::Keyframe<Uuid7> {
+  keyframe_into_flat(None, g)
+}
+
+/// Shared graph→flat keyframe rebuild. `scene_id` is `Some(_)` for a scene
+/// keyframe (the re-attached parent FK) and `None` for the cover.
+fn keyframe_into_flat(scene_id: Option<Uuid7>, g: Keyframe<Uuid7>) -> domain::Keyframe<Uuid7> {
+  let Keyframe {
+    id,
+    role,
+    pts,
+    thumbnail_id,
+    dimensions,
+    extractor,
+    classifications,
+    objects,
+    humans,
+    animals,
+    actions,
+    text_detections,
+    barcodes,
+    attention_saliency,
+    objectness_saliency,
+    horizon,
+    document_segments,
+    aesthetics,
+    colors,
+    vlm,
+  } = g;
+  domain::Keyframe::rehydrate(KeyframeParts {
+    id,
+    scene_id,
+    role,
+    pts,
+    thumbnail_id,
+    dimensions,
+    extractor,
+    classifications,
+    objects,
+    humans,
+    animals,
+    actions,
+    text_detections,
+    barcodes,
+    attention_saliency,
+    objectness_saliency,
+    horizon,
+    document_segments,
+    aesthetics,
+    colors,
+    vlm,
+  })
 }
 
 #[cfg(test)]
@@ -992,5 +1162,25 @@ mod conv_tests {
       .expect("coherent");
     let back: domain::Scene<Uuid7> = (track_id, lifted).into();
     assert_eq!(back, flat);
+  }
+
+  #[test]
+  fn cover_keyframe_round_trips_through_graph() {
+    use mediaframe::frame::Dimensions;
+    let tb = Timebase::new(1, NonZeroU32::new(1000).unwrap());
+    let flat = domain::Keyframe::try_new_cover(
+      Uuid7::new(),
+      Uuid7::new(),
+      mediatime::Timestamp::new(0, tb),
+      Dimensions::new(640, 360),
+      KeyframeExtractor::CompositeQuality,
+    )
+    .expect("valid cover keyframe");
+    let lifted = Keyframe::lift_cover(flat.clone()).expect("coherent");
+    // The cover graph→flat door drops no fields and keeps role/scene_id.
+    let back = cover_into_flat(lifted);
+    assert_eq!(back, flat);
+    assert!(back.role().is_cover());
+    assert!(back.scene_id_ref().is_none());
   }
 }

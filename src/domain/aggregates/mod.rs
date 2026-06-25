@@ -19,6 +19,12 @@
 #[cfg(all(feature = "std", feature = "audio"))]
 #[cfg_attr(docsrs, doc(cfg(all(feature = "std", feature = "audio"))))]
 pub mod audio;
+// `Attachment`/`AttachmentTrack` are container-level (not
+// video/audio/subtitle). Like `Chapter` / `Data` they reach
+// `IndexMap<SmolStr, SmolStr>` (std-only default hasher), so gate on `std`.
+#[cfg(feature = "std")]
+#[cfg_attr(docsrs, doc(cfg(feature = "std")))]
+pub mod attachment;
 // `Chapter::metadata` is `indexmap::IndexMap<SmolStr, SmolStr>`, and
 // `IndexMap`'s default hasher generic is `std::hash::RandomState`
 // (std-only). Gating on `std` (rather than `any(std, alloc)`) keeps
@@ -28,6 +34,12 @@ pub mod audio;
 #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
 pub mod chapter;
 pub mod curation;
+// `Data`/`DataTrack` are container-level (not video/audio/subtitle). Like
+// `Chapter`, they reach `IndexMap<SmolStr, SmolStr>` (std-only default
+// hasher), so gate on `std` (rather than `any(std, alloc)`).
+#[cfg(feature = "std")]
+#[cfg_attr(docsrs, doc(cfg(feature = "std")))]
+pub mod data;
 pub mod media;
 pub mod media_file;
 pub mod person;
@@ -40,6 +52,10 @@ pub mod subtitle;
 pub mod video;
 pub mod watched_location;
 
+#[cfg(feature = "std")]
+pub use attachment::{
+  Attachment, AttachmentError, AttachmentTrack, AttachmentTrackError, BlobRef, BlobRefError,
+};
 #[cfg(all(feature = "std", feature = "audio"))]
 pub use audio::{
   Audio, AudioError, AudioSegment, AudioSegmentError, AudioTrack, AudioTrackError, SoundEvent,
@@ -48,6 +64,8 @@ pub use audio::{
 #[cfg(feature = "std")]
 pub use chapter::{Chapter, ChapterError};
 pub use curation::{SceneAnnotation, UserTag};
+#[cfg(feature = "std")]
+pub use data::{Data, DataError, DataTrack, DataTrackError};
 pub use media::Media;
 pub use media_file::MediaFile;
 pub use person::{Person, PersonConfidence, PersonError};
@@ -58,5 +76,5 @@ pub use subtitle::{
   SubtitleCue, SubtitleCueKind, SubtitleTrack, VttCue, VttData, VttRegion, VttStyleBlock,
 };
 #[cfg(all(feature = "std", feature = "video"))]
-pub use video::{Keyframe, Scene, Video, VideoTrack};
+pub use video::{Keyframe, Scene, Thumbnail, ThumbnailError, Video, VideoTrack};
 pub use watched_location::WatchedLocation;
