@@ -114,6 +114,39 @@ message Tag { string name = 1; fixed32 color = 2; }
 // A structured error: numeric code + message.
 message ErrorInfo { uint32 code = 1; string message = 2; }
 
+// Inference backend that produced an analysis record — the runtime /
+// framework the loaded model executed on. Top-level enum (codegen strips
+// the prefix -> `Backend::Onnx`). Matches the `VIDEO_FORMAT_*` convention.
+// `BACKEND_UNSPECIFIED` (0) is the proto3 default = "not recorded".
+enum Backend {
+  BACKEND_UNSPECIFIED = 0;
+  BACKEND_CPU = 1;
+  BACKEND_ONNX = 2;
+  BACKEND_GGML = 3;
+  BACKEND_MLX = 4;
+  BACKEND_APPLEVISION = 5;
+  BACKEND_COREML = 6;
+  BACKEND_CANDLE = 7;
+  BACKEND_BURN = 8;
+  BACKEND_TRACT = 9;
+  BACKEND_TORCH = 10;
+  BACKEND_TENSORRT = 11;
+  BACKEND_OPENVINO = 12;
+  BACKEND_TFLITE = 13;
+  BACKEND_EXECUTORCH = 14;
+}
+
+// Host platform a model ran on — OS, CPU architecture, OS version. All
+// three are version-bearing / open vocabularies, so strings (sourced from
+// `std::env::consts::{OS,ARCH}` + an OS-version query). "" = absent (the
+// empty-string sentinel, matching the SmolStr empty-means-absent domain
+// convention); never null.
+message Platform {
+  string os = 1;
+  string arch = 2;
+  string os_version = 3;
+}
+
 // Analysis-run reproducibility — which model / prompt / indexer produced
 // this analysis record, so a re-run on upgrade is deterministic. Locked
 // shared cross-cutting VO (see `schema/README.md`). Carried by every
