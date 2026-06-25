@@ -53,7 +53,10 @@ pub struct SqliteSpeakerRow {
   pub voiceprint_provenance_prompt_version: Option<String>,
   pub voiceprint_provenance_indexer_version: Option<String>,
   /// `Backend::to_i32()` of the voiceprint model's backend; NULL =
-  /// not recorded (decodes to `Backend::Unspecified`).
+  /// not recorded (decodes to `Backend::Unspecified`). A recorded
+  /// `Backend::Unknown(i)` (a forward-compatible code from a newer
+  /// producer) persists as `Some(i)` — non-NULL — and decodes back to
+  /// `Backend::Unknown(i)`, so version-skew never erases it.
   pub voiceprint_provenance_backend: Option<i32>,
   pub voiceprint_provenance_platform_os: Option<String>,
   pub voiceprint_provenance_platform_arch: Option<String>,
@@ -92,6 +95,13 @@ impl From<&Speaker<Uuid7>> for SqliteSpeakerRow {
       // -> NULL on all three platform columns. A recorded platform writes
       // every sub-field verbatim (even a sub-field that is individually "",
       // matching the empty-string convention of the other provenance columns).
+      //
+      // The gate is `is_unspecified()`, NOT equality to a single variant, so a
+      // recorded `Backend::Unknown(i)` (a forward-compatible code) is non-NULL:
+      // `to_i32()` hands back `i`, the column stores `Some(i)`, and decode's
+      // `Backend::from_i32(i)` restores `Unknown(i)`. That preserves an unknown
+      // backend across a read-modify-write through this binary instead of
+      // erasing it to NULL (the version-skew data-loss path).
       voiceprint_provenance_backend: prov.and_then(|p| {
         let b = p.backend();
         (!b.is_unspecified()).then(|| b.to_i32())
@@ -825,6 +835,51 @@ mod tests {
     );
     let s2: Speaker<Uuid7> = row.try_into().unwrap();
     assert_eq!(s2.voiceprint_ref().unwrap().provenance_ref(), &provenance);
+  }
+
+  #[test]
+  fn speaker_voiceprint_unknown_backend_persists_non_null_and_round_trips() {
+    // THE version-skew data-loss scenario, proven fixed: a row whose backend
+    // is a forward-compatible code this build doesn't recognize
+    // (`Backend::Unknown(15)`, e.g. written by a NEWER producer) must persist
+    // NON-NULL as `Some(15)` and decode back to `Backend::Unknown(15)`.
+    // Previously the decode collapsed 15 -> `Unspecified`, and a
+    // read-modify-write through an OLDER binary then re-encoded that as NULL,
+    // ERASING the recorded backend. With the lossless `Unknown(i32)` arm the
+    // code survives the SQLite round-trip untouched.
+    let provenance = Provenance::from_parts("future-rt", "v9.9", "", "idx-9")
+      .with_backend(crate::domain::Backend::from_i32(15));
+    assert_eq!(
+      provenance.backend(),
+      crate::domain::Backend::Unknown(15),
+      "from_i32(15) must decode to the lossless Unknown arm"
+    );
+    let voiceprint = VoiceFingerprint::try_new(Uuid7::new(), 192, ts(), None, provenance).unwrap();
+    let s = Speaker::try_new(Uuid7::new(), Uuid7::new(), 7, "Nova")
+      .unwrap()
+      .with_voiceprint(voiceprint);
+
+    // Encode: the backend column is NON-NULL and holds the raw integer 15
+    // (NOT NULL, NOT 0) — the unknown code is preserved on write.
+    let row: SqliteSpeakerRow = (&s).into();
+    assert_eq!(
+      row.voiceprint_provenance_backend,
+      Some(15),
+      "Unknown(15) must persist as Some(15), never NULL"
+    );
+
+    // Owned decode round-trips the unknown backend verbatim.
+    let s2: Speaker<Uuid7> = row.clone().try_into().unwrap();
+    assert_eq!(
+      s2.voiceprint_ref().unwrap().provenance_ref().backend(),
+      crate::domain::Backend::Unknown(15),
+    );
+    // Borrowed decode is symmetric.
+    let s3: Speaker<Uuid7> = row.as_ref().try_into().unwrap();
+    assert_eq!(
+      s3.voiceprint_ref().unwrap().provenance_ref().backend(),
+      crate::domain::Backend::Unknown(15),
+    );
   }
 
   #[test]

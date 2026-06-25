@@ -81,14 +81,19 @@ impl From<MediaKind> for ::buffa::EnumValue<wire::DbMediaKind> {
 }
 
 // ---------------------------------------------------------------------------
-// Backend ⇄ wire::Backend  (infallible both ways — Backend has an
-// Unspecified / unknown arm, so no UnknownEnumValue error)
+// Backend ⇄ wire::Backend / EnumValue<wire::Backend>  (infallible both ways —
+// Backend has an Unspecified default + a lossless `Unknown(i32)` arm, so no
+// UnknownEnumValue error)
 // ---------------------------------------------------------------------------
 
 impl From<Backend> for wire::Backend {
+  /// Lossy on `Backend::Unknown(i)`: the generated `wire::Backend` is a
+  /// **closed** enum with no `Unknown` arm, so a forward-compatible code it
+  /// can't name falls back to `BACKEND_UNSPECIFIED`. Unknown backends are
+  /// preserved on the wire through `EnumValue<wire::Backend>` instead (the
+  /// `From<Backend> for EnumValue<wire::Backend>` impl below) — that, not this
+  /// bare-enum projection, is the type `Provenance.backend` actually carries.
   fn from(d: Backend) -> Self {
-    // Map through the pinned wire integer; codegen's `from_i32` is total
-    // over the known range, and `Backend::to_i32` only emits known values.
     <wire::Backend as ::buffa::Enumeration>::from_i32(d.to_i32())
       .unwrap_or(wire::Backend::BACKEND_UNSPECIFIED)
   }
@@ -101,17 +106,30 @@ impl From<wire::Backend> for Backend {
 }
 
 impl From<Backend> for ::buffa::EnumValue<wire::Backend> {
+  /// Lossless. A known `Backend` rides as `EnumValue::Known`; a
+  /// `Backend::Unknown(i)` (a forward-compatible code) rides as
+  /// `EnumValue::Unknown(i)` — buffa's open-enum wrapper carries the raw
+  /// integer verbatim on the wire, so an unrecognized backend survives a
+  /// domain→wire→domain round-trip instead of being flattened to
+  /// `Unspecified`.
   fn from(d: Backend) -> Self {
-    ::buffa::EnumValue::Known(wire::Backend::from(d))
+    match d {
+      Backend::Unknown(i) => ::buffa::EnumValue::Unknown(i),
+      known => ::buffa::EnumValue::Known(wire::Backend::from(known)),
+    }
   }
 }
 
 impl From<&::buffa::EnumValue<wire::Backend>> for Backend {
+  /// Lossless inverse. `Known` decodes verbatim; an `Unknown(i)` wire integer
+  /// routes through [`Backend::from_i32`], which preserves it as
+  /// `Backend::Unknown(i)` (rather than collapsing every unknown to
+  /// `Unspecified`). `from_i32` also re-promotes a known number that somehow
+  /// arrived in the `Unknown` arm back to its named variant.
   fn from(w: &::buffa::EnumValue<wire::Backend>) -> Self {
     match w {
       ::buffa::EnumValue::Known(k) => Backend::from(*k),
-      // Forward-compatible unknown int -> Unspecified (total).
-      ::buffa::EnumValue::Unknown(_) => Backend::Unspecified,
+      ::buffa::EnumValue::Unknown(i) => Backend::from_i32(*i),
     }
   }
 }
@@ -192,12 +210,37 @@ mod tests {
   }
 
   #[test]
-  fn backend_unknown_wire_int_is_unspecified() {
+  fn backend_unknown_wire_int_is_preserved() {
     use crate::domain::Backend;
-    // The open-enum container can hold an unknown int; it decodes to
-    // Unspecified (total, forward-compatible).
+    // buffa's open-enum wrapper carries an unknown int verbatim, and the
+    // bridge now preserves it as `Backend::Unknown(i)` rather than collapsing
+    // to `Unspecified` — so the WIRE layer round-trips unknown backends, not
+    // just SQL.
     let ev: ::buffa::EnumValue<wire::Backend> = ::buffa::EnumValue::Unknown(99);
     let b: Backend = (&ev).into();
-    assert_eq!(b, Backend::Unspecified);
+    assert_eq!(b, Backend::Unknown(99));
+
+    // domain Unknown -> wire EnumValue -> domain is lossless.
+    let back: ::buffa::EnumValue<wire::Backend> = Backend::Unknown(99).into();
+    assert!(back.is_unknown());
+    assert_eq!(back.to_i32(), 99);
+    let b2: Backend = (&back).into();
+    assert_eq!(b2, Backend::Unknown(99));
+  }
+
+  #[test]
+  fn backend_unknown_round_trips_through_binary_wire() {
+    use crate::domain::vo::Provenance;
+    use ::buffa::Message as _;
+
+    // End-to-end: a Provenance carrying an unknown backend, encoded to bytes
+    // and decoded back, preserves `Backend::Unknown(i)`. This proves the wire
+    // (not just the in-memory bridge) keeps the forward-compatible code.
+    let d = Provenance::new().with_backend(Backend::from_i32(15));
+    assert_eq!(d.backend(), Backend::Unknown(15));
+    let w = wire::Provenance::from(&d);
+    let bytes = w.encode_to_vec();
+    let decoded = wire::Provenance::decode(&mut &bytes[..]).expect("decode");
+    assert_eq!(Backend::from(&decoded.backend), Backend::Unknown(15));
   }
 }

@@ -186,19 +186,24 @@ pub enum IndexProgressError {
 /// runtime identity stamped into [`Provenance`].
 ///
 /// `#[non_exhaustive]`: new backends arrive over time (the wire enum is
-/// forward-compatible). [`Backend::Unspecified`] is the default and the
-/// catch-all for an unknown wire integer (`from_i32`) or unrecognized name
-/// (`from_str`) — both are **total**, mirroring the proto3 zero-default
-/// convention shared with `VideoFormat`/`AudioFormat`.
+/// forward-compatible). [`Backend::Unspecified`] is the default — the
+/// proto3 zero, meaning "not recorded".
 ///
-/// The integer values are pinned 1:1 to the `media.v1.Backend` proto enum
-/// (`proto/media/v1/types.proto`); [`to_i32`](Self::to_i32) /
-/// [`from_i32`](Self::from_i32) round-trip every known variant.
+/// **Externally-numbered, lossless** (`rust-type-conventions` §2): the
+/// integer values are pinned 1:1 to the `media.v1.Backend` proto enum
+/// (`proto/media/v1/types.proto`), and a wire integer with no known
+/// variant is preserved verbatim in the data-carrying
+/// [`Backend::Unknown`] arm rather than collapsed to `Unspecified`. This
+/// closes a version-skew data-loss path: a row written by a NEWER producer
+/// (backend ≥ 15) survives a read-modify-write through an OLDER binary
+/// instead of being erased to NULL. [`to_i32`](Self::to_i32) /
+/// [`from_i32`](Self::from_i32) round-trip **every** `i32` — known, the
+/// `0` default, and arbitrary unknowns: `from_i32(x.to_i32()) == x`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, IsVariant, Display)]
 #[display("{}", self.as_str())]
 #[non_exhaustive]
 pub enum Backend {
-  /// Not recorded (proto3 zero default; unknown int / name lands here).
+  /// Not recorded (proto3 zero default).
   #[default]
   Unspecified,
   /// Plain CPU execution (no accelerator backend).
@@ -229,13 +234,24 @@ pub enum Backend {
   TfLite,
   /// PyTorch ExecuTorch.
   ExecuTorch,
+  /// A backend integer this build does not recognize — a forward-compatible
+  /// value written by a newer producer. Carried verbatim so it round-trips
+  /// losslessly through [`to_i32`](Self::to_i32) / [`from_i32`](Self::from_i32)
+  /// and is **preserved** (not erased) by a read-modify-write through this
+  /// binary. Never holds a known proto number or `0` — those decode to their
+  /// named variant / [`Self::Unspecified`].
+  Unknown(i32),
 }
 
 impl Backend {
   /// Stable snake_case slug — the canonical string form of every variant.
   /// Used for [`Display`], serde tags, log keys, schema-doc references.
-  #[inline(always)]
-  pub const fn as_str(&self) -> &'static str {
+  /// [`Self::Unknown`] (an unrecognized wire integer) renders as the static
+  /// `"unknown"`. Non-`const`, returning `-> &str`: the data-carrying
+  /// `Unknown` arm makes this the open-vocabulary form per
+  /// `rust-type-conventions` §2.
+  #[inline]
+  pub fn as_str(&self) -> &str {
     match self {
       Self::Unspecified => "unspecified",
       Self::Cpu => "cpu",
@@ -252,10 +268,13 @@ impl Backend {
       Self::OpenVino => "open_vino",
       Self::TfLite => "tf_lite",
       Self::ExecuTorch => "execu_torch",
+      Self::Unknown(_) => "unknown",
     }
   }
 
   /// Pinned wire integer (1:1 with the `media.v1.Backend` proto enum).
+  /// [`Self::Unknown`] hands back the integer it carries, so the round-trip
+  /// `from_i32(x.to_i32()) == x` holds for unknowns too.
   #[inline(always)]
   pub const fn to_i32(self) -> i32 {
     match self {
@@ -274,14 +293,19 @@ impl Backend {
       Self::OpenVino => 12,
       Self::TfLite => 13,
       Self::ExecuTorch => 14,
+      Self::Unknown(v) => v,
     }
   }
 
-  /// Inverse of [`to_i32`](Self::to_i32). **Total**: an unknown integer
-  /// (forward-compatible wire value) maps to [`Self::Unspecified`].
+  /// Inverse of [`to_i32`](Self::to_i32). **Total and lossless**: a known
+  /// proto number maps to its variant; `0` is [`Self::Unspecified`]; any
+  /// other (unrecognized) integer is preserved in [`Self::Unknown`] rather
+  /// than collapsed to `Unspecified` — so a forward-compatible backend code
+  /// survives a decode/encode round-trip.
   #[inline(always)]
   pub const fn from_i32(v: i32) -> Self {
     match v {
+      0 => Self::Unspecified,
       1 => Self::Cpu,
       2 => Self::Onnx,
       3 => Self::Ggml,
@@ -296,14 +320,18 @@ impl Backend {
       12 => Self::OpenVino,
       13 => Self::TfLite,
       14 => Self::ExecuTorch,
-      // 0 and every unknown integer -> Unspecified.
-      _ => Self::Unspecified,
+      // Every OTHER integer is an unknown wire value — preserved verbatim.
+      other => Self::Unknown(other),
     }
   }
 
-  /// Parse a slug (the inverse of [`as_str`](Self::as_str)). **Total**: an
-  /// unrecognized name maps to [`Self::Unspecified`] (this is a
-  /// producer-stamped value, not validated user input).
+  /// Parse a slug (the inverse of [`as_str`](Self::as_str) for the known
+  /// variants). **Total**: an unrecognized name maps to
+  /// [`Self::Unspecified`] (this is a producer-stamped value, not validated
+  /// user input). A *name* never mints a [`Self::Unknown`] wire tag — only a
+  /// wire integer ([`from_i32`](Self::from_i32)) can, so a bad string cannot
+  /// fabricate a forward-compatible backend code (`rust-type-conventions`
+  /// §2: no string should mint a wire tag).
   #[inline]
   pub fn from_str(s: &str) -> Self {
     match s {
@@ -1465,10 +1493,62 @@ mod tests {
   }
 
   #[test]
-  fn backend_unknown_int_is_unspecified() {
-    assert_eq!(Backend::from_i32(15), Backend::Unspecified);
-    assert_eq!(Backend::from_i32(-1), Backend::Unspecified);
-    assert_eq!(Backend::from_i32(i32::MAX), Backend::Unspecified);
+  fn backend_unknown_int_is_preserved_not_unspecified() {
+    // An unknown wire integer (a code from a NEWER producer) decodes to the
+    // lossless `Unknown(i)` arm — NOT collapsed to `Unspecified`. This is the
+    // version-skew data-loss fix: the recorded code survives.
+    assert_eq!(Backend::from_i32(15), Backend::Unknown(15));
+    assert_eq!(Backend::from_i32(-1), Backend::Unknown(-1));
+    assert_eq!(Backend::from_i32(i32::MAX), Backend::Unknown(i32::MAX));
+    // ...and it carries the integer back out verbatim.
+    assert_eq!(Backend::Unknown(15).to_i32(), 15);
+    assert_eq!(Backend::from_i32(15).to_i32(), 15);
+    // `Unknown` is NOT unspecified — it IS a recorded value.
+    assert!(!Backend::Unknown(15).is_unspecified());
+    assert!(Backend::Unknown(15).is_unknown());
+    assert!(Backend::Unspecified.is_unspecified());
+    assert!(!Backend::Unspecified.is_unknown());
+    // A known backend is neither unknown nor unspecified.
+    assert!(!Backend::Onnx.is_unknown());
+    assert!(!Backend::Onnx.is_unspecified());
+    // `as_str` (now non-const) renders the unknown arm as the static slug.
+    assert_eq!(Backend::Unknown(15).as_str(), "unknown");
+  }
+
+  #[test]
+  fn backend_int_round_trips_full_range_known_zero_and_unknown() {
+    // `from_i32(x.to_i32()) == x` for EVERY value: known variants, the `0`
+    // default, and arbitrary unknown integers across the i32 range.
+    let known = [
+      Backend::Unspecified,
+      Backend::Cpu,
+      Backend::Onnx,
+      Backend::Ggml,
+      Backend::Mlx,
+      Backend::AppleVision,
+      Backend::CoreMl,
+      Backend::Candle,
+      Backend::Burn,
+      Backend::Tract,
+      Backend::Torch,
+      Backend::TensorRt,
+      Backend::OpenVino,
+      Backend::TfLite,
+      Backend::ExecuTorch,
+    ];
+    for b in known {
+      assert_eq!(Backend::from_i32(b.to_i32()), b, "known round-trip {b}");
+    }
+    // 0 maps to Unspecified, not Unknown(0).
+    assert_eq!(Backend::from_i32(0), Backend::Unspecified);
+    // Sweep the unknown space (just above the last known number, negatives,
+    // and the i32 extremes) — every one round-trips through the value form.
+    for i in [15, 16, 100, 1_000_000, -1, -42, i32::MIN, i32::MAX] {
+      let b = Backend::from_i32(i);
+      assert_eq!(b, Backend::Unknown(i), "from_i32({i}) should be Unknown");
+      assert_eq!(b.to_i32(), i, "to_i32 must hand {i} back");
+      assert_eq!(Backend::from_i32(b.to_i32()), b, "round-trip Unknown({i})");
+    }
   }
 
   #[test]
