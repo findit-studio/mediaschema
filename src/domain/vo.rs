@@ -9,7 +9,7 @@
 //! Access goes through `field()` getters and `with_field(...)` const-where-
 //! possible setters; mutation uses `set_field(...)`.
 
-use derive_more::IsVariant;
+use derive_more::{Display, IsVariant};
 use jiff::Timestamp as JiffTimestamp;
 use smol_str::SmolStr;
 
@@ -176,6 +176,154 @@ pub enum IndexProgressError {
   /// `indexed + failed` overflows `u32` — definitely overcounts.
   #[error("IndexProgress: indexed + failed overflows u32")]
   SumOverflows,
+}
+
+// ---------------------------------------------------------------------------
+// Backend — inference runtime that produced an analysis record
+// ---------------------------------------------------------------------------
+
+/// Inference backend / framework a loaded model executed on — the typed
+/// runtime identity stamped into [`Provenance`].
+///
+/// `#[non_exhaustive]`: new backends arrive over time (the wire enum is
+/// forward-compatible). [`Backend::Unspecified`] is the default and the
+/// catch-all for an unknown wire integer (`from_i32`) or unrecognized name
+/// (`from_str`) — both are **total**, mirroring the proto3 zero-default
+/// convention shared with `VideoFormat`/`AudioFormat`.
+///
+/// The integer values are pinned 1:1 to the `media.v1.Backend` proto enum
+/// (`proto/media/v1/types.proto`); [`to_i32`](Self::to_i32) /
+/// [`from_i32`](Self::from_i32) round-trip every known variant.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, IsVariant, Display)]
+#[display("{}", self.as_str())]
+#[non_exhaustive]
+pub enum Backend {
+  /// Not recorded (proto3 zero default; unknown int / name lands here).
+  #[default]
+  Unspecified,
+  /// Plain CPU execution (no accelerator backend).
+  Cpu,
+  /// ONNX Runtime (`ort`).
+  Onnx,
+  /// GGML / llama.cpp family (e.g. whisper.cpp gguf).
+  Ggml,
+  /// Apple MLX.
+  Mlx,
+  /// Apple Vision framework (`VN*` requests).
+  AppleVision,
+  /// Apple Core ML.
+  CoreMl,
+  /// Hugging Face Candle.
+  Candle,
+  /// Burn.
+  Burn,
+  /// Tract.
+  Tract,
+  /// LibTorch / `tch`.
+  Torch,
+  /// NVIDIA TensorRT.
+  TensorRt,
+  /// Intel OpenVINO.
+  OpenVino,
+  /// TensorFlow Lite.
+  TfLite,
+  /// PyTorch ExecuTorch.
+  ExecuTorch,
+}
+
+impl Backend {
+  /// Stable snake_case slug — the canonical string form of every variant.
+  /// Used for [`Display`], serde tags, log keys, schema-doc references.
+  #[inline(always)]
+  pub const fn as_str(&self) -> &'static str {
+    match self {
+      Self::Unspecified => "unspecified",
+      Self::Cpu => "cpu",
+      Self::Onnx => "onnx",
+      Self::Ggml => "ggml",
+      Self::Mlx => "mlx",
+      Self::AppleVision => "apple_vision",
+      Self::CoreMl => "core_ml",
+      Self::Candle => "candle",
+      Self::Burn => "burn",
+      Self::Tract => "tract",
+      Self::Torch => "torch",
+      Self::TensorRt => "tensor_rt",
+      Self::OpenVino => "open_vino",
+      Self::TfLite => "tf_lite",
+      Self::ExecuTorch => "execu_torch",
+    }
+  }
+
+  /// Pinned wire integer (1:1 with the `media.v1.Backend` proto enum).
+  #[inline(always)]
+  pub const fn to_i32(self) -> i32 {
+    match self {
+      Self::Unspecified => 0,
+      Self::Cpu => 1,
+      Self::Onnx => 2,
+      Self::Ggml => 3,
+      Self::Mlx => 4,
+      Self::AppleVision => 5,
+      Self::CoreMl => 6,
+      Self::Candle => 7,
+      Self::Burn => 8,
+      Self::Tract => 9,
+      Self::Torch => 10,
+      Self::TensorRt => 11,
+      Self::OpenVino => 12,
+      Self::TfLite => 13,
+      Self::ExecuTorch => 14,
+    }
+  }
+
+  /// Inverse of [`to_i32`](Self::to_i32). **Total**: an unknown integer
+  /// (forward-compatible wire value) maps to [`Self::Unspecified`].
+  #[inline(always)]
+  pub const fn from_i32(v: i32) -> Self {
+    match v {
+      1 => Self::Cpu,
+      2 => Self::Onnx,
+      3 => Self::Ggml,
+      4 => Self::Mlx,
+      5 => Self::AppleVision,
+      6 => Self::CoreMl,
+      7 => Self::Candle,
+      8 => Self::Burn,
+      9 => Self::Tract,
+      10 => Self::Torch,
+      11 => Self::TensorRt,
+      12 => Self::OpenVino,
+      13 => Self::TfLite,
+      14 => Self::ExecuTorch,
+      // 0 and every unknown integer -> Unspecified.
+      _ => Self::Unspecified,
+    }
+  }
+
+  /// Parse a slug (the inverse of [`as_str`](Self::as_str)). **Total**: an
+  /// unrecognized name maps to [`Self::Unspecified`] (this is a
+  /// producer-stamped value, not validated user input).
+  #[inline]
+  pub fn from_str(s: &str) -> Self {
+    match s {
+      "cpu" => Self::Cpu,
+      "onnx" => Self::Onnx,
+      "ggml" => Self::Ggml,
+      "mlx" => Self::Mlx,
+      "apple_vision" => Self::AppleVision,
+      "core_ml" => Self::CoreMl,
+      "candle" => Self::Candle,
+      "burn" => Self::Burn,
+      "tract" => Self::Tract,
+      "torch" => Self::Torch,
+      "tensor_rt" => Self::TensorRt,
+      "open_vino" => Self::OpenVino,
+      "tf_lite" => Self::TfLite,
+      "execu_torch" => Self::ExecuTorch,
+      _ => Self::Unspecified,
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1089,5 +1237,87 @@ mod tests {
       Some(0.75),
       "rejected setter must not mutate"
     );
+  }
+
+  // --- Backend ----------------------------------------------------------------
+
+  #[test]
+  fn backend_default_is_unspecified() {
+    assert_eq!(Backend::default(), Backend::Unspecified);
+    assert!(Backend::default().is_unspecified());
+  }
+
+  #[test]
+  fn backend_int_round_trips_every_known_variant() {
+    // Every declared variant survives to_i32 -> from_i32.
+    let all = [
+      Backend::Unspecified,
+      Backend::Cpu,
+      Backend::Onnx,
+      Backend::Ggml,
+      Backend::Mlx,
+      Backend::AppleVision,
+      Backend::CoreMl,
+      Backend::Candle,
+      Backend::Burn,
+      Backend::Tract,
+      Backend::Torch,
+      Backend::TensorRt,
+      Backend::OpenVino,
+      Backend::TfLite,
+      Backend::ExecuTorch,
+    ];
+    for b in all {
+      assert_eq!(Backend::from_i32(b.to_i32()), b, "round-trip {b}");
+    }
+    // The wire numbering is pinned (matches the proto).
+    assert_eq!(Backend::Onnx.to_i32(), 2);
+    assert_eq!(Backend::ExecuTorch.to_i32(), 14);
+    assert_eq!(Backend::from_i32(5), Backend::AppleVision);
+  }
+
+  #[test]
+  fn backend_unknown_int_is_unspecified() {
+    assert_eq!(Backend::from_i32(15), Backend::Unspecified);
+    assert_eq!(Backend::from_i32(-1), Backend::Unspecified);
+    assert_eq!(Backend::from_i32(i32::MAX), Backend::Unspecified);
+  }
+
+  #[test]
+  fn backend_as_str_from_str_round_trip() {
+    let all = [
+      Backend::Unspecified,
+      Backend::Cpu,
+      Backend::Onnx,
+      Backend::Ggml,
+      Backend::Mlx,
+      Backend::AppleVision,
+      Backend::CoreMl,
+      Backend::Candle,
+      Backend::Burn,
+      Backend::Tract,
+      Backend::Torch,
+      Backend::TensorRt,
+      Backend::OpenVino,
+      Backend::TfLite,
+      Backend::ExecuTorch,
+    ];
+    for b in all {
+      assert_eq!(
+        Backend::from_str(b.as_str()),
+        b,
+        "round-trip {}",
+        b.as_str()
+      );
+    }
+    // Spot-check the slug spellings (the wire/log/serde contract).
+    assert_eq!(Backend::Onnx.as_str(), "onnx");
+    assert_eq!(Backend::AppleVision.as_str(), "apple_vision");
+    assert_eq!(Backend::TfLite.as_str(), "tf_lite");
+    // Display routes through as_str.
+    assert_eq!(std::format!("{}", Backend::Mlx), "mlx");
+    // Unknown name -> Unspecified (total).
+    assert_eq!(Backend::from_str("totally-unknown"), Backend::Unspecified);
+    assert_eq!(Backend::from_str(""), Backend::Unspecified);
   }
 }
