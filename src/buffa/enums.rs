@@ -81,25 +81,49 @@ impl From<MediaKind> for ::buffa::EnumValue<wire::DbMediaKind> {
 }
 
 // ---------------------------------------------------------------------------
-// Backend ⇄ wire::Backend / EnumValue<wire::Backend>  (infallible both ways —
-// Backend has an Unspecified default + a lossless `Unknown(i32)` arm, so no
-// UnknownEnumValue error)
+// Backend ⇄ wire::Backend / EnumValue<wire::Backend>
 // ---------------------------------------------------------------------------
+//
+// `EnumValue<wire::Backend>` is the ONLY infallible wire projection of a
+// `Backend`, and it's what `Provenance.backend` actually carries. There is
+// deliberately NO `From<Backend> for wire::Backend`: the bare generated
+// `wire::Backend` is a CLOSED enum with no `Unknown` arm, so it cannot
+// represent a forward-compatible `Backend::Unknown(i)` — an infallible
+// `Backend -> wire::Backend` could only do so by silently collapsing that
+// code to `BACKEND_UNSPECIFIED`, reintroducing the version-skew data-loss
+// class on the wire. The only `Backend -> bare wire` path is the explicitly
+// fallible [`Backend::to_known_wire`], which returns `None` for `Unknown`.
+//
+// The reverse `From<wire::Backend> for Backend` is lossless by construction:
+// a bare wire enum can only ever carry a value the schema names, so it always
+// maps to a known domain variant — it can never produce `Backend::Unknown`.
+// The Unknown-bearing decode is `From<&EnumValue<wire::Backend>> for Backend`.
 
-impl From<Backend> for wire::Backend {
-  /// Lossy on `Backend::Unknown(i)`: the generated `wire::Backend` is a
-  /// **closed** enum with no `Unknown` arm, so a forward-compatible code it
-  /// can't name falls back to `BACKEND_UNSPECIFIED`. Unknown backends are
-  /// preserved on the wire through `EnumValue<wire::Backend>` instead (the
-  /// `From<Backend> for EnumValue<wire::Backend>` impl below) — that, not this
-  /// bare-enum projection, is the type `Provenance.backend` actually carries.
-  fn from(d: Backend) -> Self {
-    <wire::Backend as ::buffa::Enumeration>::from_i32(d.to_i32())
-      .unwrap_or(wire::Backend::BACKEND_UNSPECIFIED)
+impl Backend {
+  /// Project to the bare generated `wire::Backend`, or `None` when this is a
+  /// [`Backend::Unknown`] code the closed wire enum cannot name.
+  ///
+  /// This is the **only** `Backend -> bare wire::Backend` conversion, and it
+  /// is deliberately fallible: an infallible one would have to collapse an
+  /// unknown code to `BACKEND_UNSPECIFIED`, silently dropping a
+  /// forward-compatible backend (the version-skew data-loss class). For an
+  /// infallible, lossless wire projection use
+  /// `EnumValue<wire::Backend>` (`Provenance.backend`'s type) instead.
+  ///
+  /// `Some` for every schema-named variant (the pinned integers `0..=14`);
+  /// `None` only for `Backend::Unknown(_)`.
+  #[inline]
+  #[must_use]
+  pub fn to_known_wire(self) -> Option<wire::Backend> {
+    <wire::Backend as ::buffa::Enumeration>::from_i32(self.to_i32())
   }
 }
 
 impl From<wire::Backend> for Backend {
+  /// Lossless by construction: the bare closed `wire::Backend` can only hold a
+  /// value the schema names, so it always decodes to a known domain variant
+  /// (never `Backend::Unknown`). The Unknown-bearing decode is the
+  /// `From<&EnumValue<wire::Backend>>` impl below.
   fn from(w: wire::Backend) -> Self {
     Backend::from_i32(<wire::Backend as ::buffa::Enumeration>::to_i32(&w))
   }
@@ -113,9 +137,12 @@ impl From<Backend> for ::buffa::EnumValue<wire::Backend> {
   /// domain→wire→domain round-trip instead of being flattened to
   /// `Unspecified`.
   fn from(d: Backend) -> Self {
-    match d {
-      Backend::Unknown(i) => ::buffa::EnumValue::Unknown(i),
-      known => ::buffa::EnumValue::Known(wire::Backend::from(known)),
+    match d.to_known_wire() {
+      Some(known) => ::buffa::EnumValue::Known(known),
+      // Unreachable for any non-`Unknown` variant (all are schema-named);
+      // `to_known_wire` returns `None` only for `Backend::Unknown(i)`, which
+      // the open-enum wrapper carries verbatim — never lossily.
+      None => ::buffa::EnumValue::Unknown(d.to_i32()),
     }
   }
 }
@@ -182,31 +209,69 @@ mod tests {
     assert_eq!(err.try_unwrap_unknown_enum_value_ref(), Ok(&42));
   }
 
+  const KNOWN_BACKENDS: [Backend; 15] = [
+    Backend::Unspecified,
+    Backend::Cpu,
+    Backend::Onnx,
+    Backend::Ggml,
+    Backend::Mlx,
+    Backend::AppleVision,
+    Backend::CoreMl,
+    Backend::Candle,
+    Backend::Burn,
+    Backend::Tract,
+    Backend::Torch,
+    Backend::TensorRt,
+    Backend::OpenVino,
+    Backend::TfLite,
+    Backend::ExecuTorch,
+  ];
+
   #[test]
   fn backend_roundtrip_every_variant() {
-    use crate::domain::Backend;
-    let all = [
-      Backend::Unspecified,
-      Backend::Cpu,
-      Backend::Onnx,
-      Backend::Ggml,
-      Backend::Mlx,
-      Backend::AppleVision,
-      Backend::CoreMl,
-      Backend::Candle,
-      Backend::Burn,
-      Backend::Tract,
-      Backend::Torch,
-      Backend::TensorRt,
-      Backend::OpenVino,
-      Backend::TfLite,
-      Backend::ExecuTorch,
-    ];
-    for b in all {
-      let w: wire::Backend = b.into();
+    // Every schema-named variant projects to a bare wire enum (`to_known_wire`
+    // is `Some`) and round-trips back losslessly.
+    for b in KNOWN_BACKENDS {
+      let w = b
+        .to_known_wire()
+        .expect("known variant has a bare wire enum");
       let b2: Backend = w.into();
       assert_eq!(b, b2, "roundtrip {b}");
     }
+  }
+
+  #[test]
+  fn backend_roundtrip_every_variant_via_enum_value() {
+    // The infallible projection `Provenance.backend` actually uses.
+    for b in KNOWN_BACKENDS {
+      let ev: ::buffa::EnumValue<wire::Backend> = b.into();
+      assert!(ev.is_known(), "known variant rides as Known: {b}");
+      let b2: Backend = (&ev).into();
+      assert_eq!(b, b2, "EnumValue roundtrip {b}");
+    }
+  }
+
+  #[test]
+  fn backend_unknown_has_no_bare_wire_projection() {
+    // REGRESSION: the bare closed `wire::Backend` cannot name an unknown code,
+    // so the only `Backend -> bare wire` path (`to_known_wire`) refuses it
+    // rather than silently collapsing to `BACKEND_UNSPECIFIED`. There is no
+    // infallible `From<Backend> for wire::Backend` to drop the code through.
+    assert_eq!(Backend::Unknown(15).to_known_wire(), None);
+    assert_eq!(Backend::Unknown(-1).to_known_wire(), None);
+    assert_eq!(Backend::Unknown(i32::MAX).to_known_wire(), None);
+    // And every KNOWN variant still has one (so the `EnumValue` Known arm is
+    // lossless by construction).
+    for b in KNOWN_BACKENDS {
+      assert!(b.to_known_wire().is_some(), "known variant projects: {b}");
+    }
+
+    // The lossless path remains the `EnumValue` wrapper: an unknown code rides
+    // verbatim as `EnumValue::Unknown(i)`, NOT as `BACKEND_UNSPECIFIED`.
+    let ev: ::buffa::EnumValue<wire::Backend> = Backend::Unknown(15).into();
+    assert!(ev.is_unknown());
+    assert_eq!(ev.to_i32(), 15);
+    assert_eq!(Backend::from(&ev), Backend::Unknown(15));
   }
 
   #[test]
