@@ -84,11 +84,30 @@ impl From<&Speaker<Uuid7>> for SqliteSpeakerRow {
       voiceprint_provenance_model_version: prov.map(|p| p.model_version().to_owned()),
       voiceprint_provenance_prompt_version: prov.map(|p| p.prompt_version().to_owned()),
       voiceprint_provenance_indexer_version: prov.map(|p| p.indexer_version().to_owned()),
-      voiceprint_provenance_backend: prov.map(|p| p.backend().to_i32()),
-      voiceprint_provenance_platform_os: prov.map(|p| p.platform_ref().os().to_owned()),
-      voiceprint_provenance_platform_arch: prov.map(|p| p.platform_ref().arch().to_owned()),
-      voiceprint_provenance_platform_os_version: prov
-        .map(|p| p.platform_ref().os_version().to_owned()),
+      // NULL = not-recorded is the schema's discriminator for these four
+      // columns (so `IS NULL` audits backfill candidates uniformly across
+      // pre-migration rows and freshly-written ones). Encode the not-recorded
+      // domain states as NULL rather than a "present-but-default" value:
+      // `Backend::Unspecified` -> NULL backend, and an all-empty `Platform`
+      // -> NULL on all three platform columns. A recorded platform writes
+      // every sub-field verbatim (even a sub-field that is individually "",
+      // matching the empty-string convention of the other provenance columns).
+      voiceprint_provenance_backend: prov.and_then(|p| {
+        let b = p.backend();
+        (!b.is_unspecified()).then(|| b.to_i32())
+      }),
+      voiceprint_provenance_platform_os: prov.and_then(|p| {
+        let plat = p.platform_ref();
+        (!plat.is_empty()).then(|| plat.os().to_owned())
+      }),
+      voiceprint_provenance_platform_arch: prov.and_then(|p| {
+        let plat = p.platform_ref();
+        (!plat.is_empty()).then(|| plat.arch().to_owned())
+      }),
+      voiceprint_provenance_platform_os_version: prov.and_then(|p| {
+        let plat = p.platform_ref();
+        (!plat.is_empty()).then(|| plat.os_version().to_owned())
+      }),
       person_id: s.person_id_ref().map(|p| p.as_bytes().to_vec()),
     }
   }
@@ -745,22 +764,84 @@ mod tests {
   }
 
   #[test]
-  fn speaker_voiceprint_null_backend_platform_decode_unspecified() {
-    // A pre-migration row: voiceprint present, new columns NULL.
+  fn speaker_voiceprint_unrecorded_backend_platform_encodes_null() {
+    // A voiceprint whose provenance leaves backend/platform at their
+    // not-recorded defaults (`Backend::Unspecified` + all-empty `Platform`)
+    // must persist those four columns as NULL — the schema's not-recorded
+    // discriminator — so `IS NULL` audits see the same shape as a row written
+    // before these columns existed. (Encode previously wrote Some(0) /
+    // Some("") here, making fresh rows look "recorded".)
     let voiceprint =
       VoiceFingerprint::try_new(Uuid7::new(), 192, ts(), None, Provenance::new()).unwrap();
-    let mut row: SqliteSpeakerRow = (&Speaker::try_new(Uuid7::new(), Uuid7::new(), 0, "X")
+    let row: SqliteSpeakerRow = (&Speaker::try_new(Uuid7::new(), Uuid7::new(), 0, "X")
       .unwrap()
       .with_voiceprint(voiceprint))
       .into();
-    row.voiceprint_provenance_backend = None;
-    row.voiceprint_provenance_platform_os = None;
-    row.voiceprint_provenance_platform_arch = None;
-    row.voiceprint_provenance_platform_os_version = None;
-    let s: Speaker<Uuid7> = row.try_into().unwrap();
+    // The voiceprint itself is present (its discriminator column is set)…
+    assert!(row.voiceprint_vector_id.is_some());
+    // …but the not-recorded backend/platform encode as NULL, not Some(0)/Some("").
+    assert_eq!(row.voiceprint_provenance_backend, None);
+    assert_eq!(row.voiceprint_provenance_platform_os, None);
+    assert_eq!(row.voiceprint_provenance_platform_arch, None);
+    assert_eq!(row.voiceprint_provenance_platform_os_version, None);
+
+    // And NULL decodes back to Unspecified / empty (symmetric for all four).
+    let s: Speaker<Uuid7> = row.clone().try_into().unwrap();
     let p = s.voiceprint_ref().unwrap().provenance_ref();
     assert_eq!(p.backend(), crate::domain::Backend::Unspecified);
     assert!(p.platform_ref().is_empty());
+    // Borrowed decode is symmetric too.
+    let s2: Speaker<Uuid7> = row.as_ref().try_into().unwrap();
+    let p2 = s2.voiceprint_ref().unwrap().provenance_ref();
+    assert_eq!(p2.backend(), crate::domain::Backend::Unspecified);
+    assert!(p2.platform_ref().is_empty());
+  }
+
+  #[test]
+  fn speaker_voiceprint_recorded_backend_platform_encodes_non_null() {
+    // The counterpart: a recorded backend and platform persist non-NULL on
+    // every column and round-trip verbatim.
+    let provenance = Provenance::from_parts("ecapa-tdnn", "v1.0.0", "", "idx-0.1")
+      .with_backend(crate::domain::Backend::CoreMl)
+      .with_platform(crate::domain::Platform::from_parts("ios", "arm64", "18.0"));
+    let voiceprint =
+      VoiceFingerprint::try_new(Uuid7::new(), 256, ts(), Some(0.91), provenance.clone()).unwrap();
+    let s = Speaker::try_new(Uuid7::new(), Uuid7::new(), 2, "Mei")
+      .unwrap()
+      .with_voiceprint(voiceprint);
+    let row: SqliteSpeakerRow = (&s).into();
+    assert_eq!(row.voiceprint_provenance_backend, Some(6)); // CoreMl == 6
+    assert_eq!(
+      row.voiceprint_provenance_platform_os.as_deref(),
+      Some("ios")
+    );
+    assert_eq!(
+      row.voiceprint_provenance_platform_arch.as_deref(),
+      Some("arm64")
+    );
+    assert_eq!(
+      row.voiceprint_provenance_platform_os_version.as_deref(),
+      Some("18.0")
+    );
+    let s2: Speaker<Uuid7> = row.try_into().unwrap();
+    assert_eq!(s2.voiceprint_ref().unwrap().provenance_ref(), &provenance);
+  }
+
+  #[test]
+  fn speaker_voiceprint_recorded_backend_only_keeps_platform_null() {
+    // A backend recorded but platform NOT recorded: backend is non-NULL while
+    // all three platform columns stay NULL (the two states are independent).
+    let provenance = Provenance::from_parts("ecapa-tdnn", "v1.0.0", "", "idx-0.1")
+      .with_backend(crate::domain::Backend::Onnx);
+    let voiceprint = VoiceFingerprint::try_new(Uuid7::new(), 192, ts(), None, provenance).unwrap();
+    let row: SqliteSpeakerRow = (&Speaker::try_new(Uuid7::new(), Uuid7::new(), 0, "Z")
+      .unwrap()
+      .with_voiceprint(voiceprint))
+      .into();
+    assert_eq!(row.voiceprint_provenance_backend, Some(2)); // Onnx
+    assert_eq!(row.voiceprint_provenance_platform_os, None);
+    assert_eq!(row.voiceprint_provenance_platform_arch, None);
+    assert_eq!(row.voiceprint_provenance_platform_os_version, None);
   }
 
   #[test]
