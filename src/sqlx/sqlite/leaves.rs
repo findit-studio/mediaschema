@@ -15,7 +15,7 @@ use crate::{
       speaker::SpeakerError,
       watched_location::WatchedLocationError,
     },
-    vo::{Provenance, VoiceFingerprint},
+    vo::{Backend, Platform, Provenance, VoiceFingerprint},
     ErrorCode, ErrorInfo, Rgba, ScanStatus, SceneAnnotation, Speaker, UserTag, Uuid7,
     WatchedLocation,
   },
@@ -52,6 +52,12 @@ pub struct SqliteSpeakerRow {
   pub voiceprint_provenance_model_version: Option<String>,
   pub voiceprint_provenance_prompt_version: Option<String>,
   pub voiceprint_provenance_indexer_version: Option<String>,
+  /// `Backend::to_i32()` of the voiceprint model's backend; NULL =
+  /// not recorded (decodes to `Backend::Unspecified`).
+  pub voiceprint_provenance_backend: Option<i32>,
+  pub voiceprint_provenance_platform_os: Option<String>,
+  pub voiceprint_provenance_platform_arch: Option<String>,
+  pub voiceprint_provenance_platform_os_version: Option<String>,
   /// Cross-track identity FK → `person.id`; NULL = not yet identified.
   pub person_id: Option<Vec<u8>>,
 }
@@ -78,6 +84,11 @@ impl From<&Speaker<Uuid7>> for SqliteSpeakerRow {
       voiceprint_provenance_model_version: prov.map(|p| p.model_version().to_owned()),
       voiceprint_provenance_prompt_version: prov.map(|p| p.prompt_version().to_owned()),
       voiceprint_provenance_indexer_version: prov.map(|p| p.indexer_version().to_owned()),
+      voiceprint_provenance_backend: prov.map(|p| p.backend().to_i32()),
+      voiceprint_provenance_platform_os: prov.map(|p| p.platform_ref().os().to_owned()),
+      voiceprint_provenance_platform_arch: prov.map(|p| p.platform_ref().arch().to_owned()),
+      voiceprint_provenance_platform_os_version: prov
+        .map(|p| p.platform_ref().os_version().to_owned()),
       person_id: s.person_id_ref().map(|p| p.as_bytes().to_vec()),
     }
   }
@@ -104,7 +115,16 @@ impl TryFrom<SqliteSpeakerRow> for Speaker<Uuid7> {
         r.voiceprint_provenance_model_version.unwrap_or_default(),
         r.voiceprint_provenance_prompt_version.unwrap_or_default(),
         r.voiceprint_provenance_indexer_version.unwrap_or_default(),
-      );
+      )
+      .with_backend(Backend::from_i32(
+        r.voiceprint_provenance_backend.unwrap_or(0),
+      ))
+      .with_platform(Platform::from_parts(
+        r.voiceprint_provenance_platform_os.unwrap_or_default(),
+        r.voiceprint_provenance_platform_arch.unwrap_or_default(),
+        r.voiceprint_provenance_platform_os_version
+          .unwrap_or_default(),
+      ));
       s = s.with_voiceprint(VoiceFingerprint::from_parts(
         vector_id,
         dimensions,
@@ -136,6 +156,10 @@ pub struct SqliteSpeakerRowRef<'r> {
   pub voiceprint_provenance_model_version: Option<&'r str>,
   pub voiceprint_provenance_prompt_version: Option<&'r str>,
   pub voiceprint_provenance_indexer_version: Option<&'r str>,
+  pub voiceprint_provenance_backend: Option<i32>,
+  pub voiceprint_provenance_platform_os: Option<&'r str>,
+  pub voiceprint_provenance_platform_arch: Option<&'r str>,
+  pub voiceprint_provenance_platform_os_version: Option<&'r str>,
   pub person_id: Option<&'r [u8]>,
 }
 
@@ -156,6 +180,12 @@ impl SqliteSpeakerRow {
       voiceprint_provenance_model_version: self.voiceprint_provenance_model_version.as_deref(),
       voiceprint_provenance_prompt_version: self.voiceprint_provenance_prompt_version.as_deref(),
       voiceprint_provenance_indexer_version: self.voiceprint_provenance_indexer_version.as_deref(),
+      voiceprint_provenance_backend: self.voiceprint_provenance_backend,
+      voiceprint_provenance_platform_os: self.voiceprint_provenance_platform_os.as_deref(),
+      voiceprint_provenance_platform_arch: self.voiceprint_provenance_platform_arch.as_deref(),
+      voiceprint_provenance_platform_os_version: self
+        .voiceprint_provenance_platform_os_version
+        .as_deref(),
       person_id: self.person_id.as_deref(),
     }
   }
@@ -182,7 +212,16 @@ impl<'r> TryFrom<SqliteSpeakerRowRef<'r>> for Speaker<Uuid7> {
         r.voiceprint_provenance_model_version.unwrap_or_default(),
         r.voiceprint_provenance_prompt_version.unwrap_or_default(),
         r.voiceprint_provenance_indexer_version.unwrap_or_default(),
-      );
+      )
+      .with_backend(Backend::from_i32(
+        r.voiceprint_provenance_backend.unwrap_or(0),
+      ))
+      .with_platform(Platform::from_parts(
+        r.voiceprint_provenance_platform_os.unwrap_or_default(),
+        r.voiceprint_provenance_platform_arch.unwrap_or_default(),
+        r.voiceprint_provenance_platform_os_version
+          .unwrap_or_default(),
+      ));
       s = s.with_voiceprint(VoiceFingerprint::from_parts(
         vector_id,
         dimensions,
@@ -665,6 +704,66 @@ mod tests {
   }
 
   #[test]
+  fn speaker_roundtrip_voiceprint_provenance_backend_platform() {
+    let provenance = Provenance::from_parts("ecapa-tdnn", "v1.0.0", "", "idx-0.1")
+      .with_backend(crate::domain::Backend::Onnx)
+      .with_platform(crate::domain::Platform::from_parts(
+        "macos", "aarch64", "15.5",
+      ));
+    let voiceprint =
+      VoiceFingerprint::try_new(Uuid7::new(), 192, ts(), Some(0.83), provenance).unwrap();
+    let s = Speaker::try_new(Uuid7::new(), Uuid7::new(), 1, "Jane")
+      .unwrap()
+      .with_voiceprint(voiceprint.clone());
+
+    // Encode populates the new columns.
+    let row: SqliteSpeakerRow = (&s).into();
+    assert_eq!(row.voiceprint_provenance_backend, Some(2)); // Backend::Onnx == 2
+    assert_eq!(
+      row.voiceprint_provenance_platform_os.as_deref(),
+      Some("macos")
+    );
+    assert_eq!(
+      row.voiceprint_provenance_platform_arch.as_deref(),
+      Some("aarch64")
+    );
+    assert_eq!(
+      row.voiceprint_provenance_platform_os_version.as_deref(),
+      Some("15.5")
+    );
+
+    // Owned decode round-trips backend + platform.
+    let s2: Speaker<Uuid7> = row.clone().try_into().unwrap();
+    let p2 = s2.voiceprint_ref().unwrap().provenance_ref();
+    assert_eq!(p2.backend(), crate::domain::Backend::Onnx);
+    assert_eq!(p2.platform_ref().os(), "macos");
+    assert_eq!(s2.voiceprint_ref(), Some(&voiceprint));
+
+    // Borrowed decode round-trips identically.
+    let s3: Speaker<Uuid7> = row.as_ref().try_into().unwrap();
+    assert_eq!(s3.voiceprint_ref(), Some(&voiceprint));
+  }
+
+  #[test]
+  fn speaker_voiceprint_null_backend_platform_decode_unspecified() {
+    // A pre-migration row: voiceprint present, new columns NULL.
+    let voiceprint =
+      VoiceFingerprint::try_new(Uuid7::new(), 192, ts(), None, Provenance::new()).unwrap();
+    let mut row: SqliteSpeakerRow = (&Speaker::try_new(Uuid7::new(), Uuid7::new(), 0, "X")
+      .unwrap()
+      .with_voiceprint(voiceprint))
+      .into();
+    row.voiceprint_provenance_backend = None;
+    row.voiceprint_provenance_platform_os = None;
+    row.voiceprint_provenance_platform_arch = None;
+    row.voiceprint_provenance_platform_os_version = None;
+    let s: Speaker<Uuid7> = row.try_into().unwrap();
+    let p = s.voiceprint_ref().unwrap().provenance_ref();
+    assert_eq!(p.backend(), crate::domain::Backend::Unspecified);
+    assert!(p.platform_ref().is_empty());
+  }
+
+  #[test]
   fn speaker_ref_roundtrip() {
     let s = Speaker::try_new(Uuid7::new(), Uuid7::new(), 2, "Bob").unwrap();
     let row: SqliteSpeakerRow = (&s).into();
@@ -737,6 +836,10 @@ mod tests {
       voiceprint_provenance_model_version: None,
       voiceprint_provenance_prompt_version: None,
       voiceprint_provenance_indexer_version: None,
+      voiceprint_provenance_backend: None,
+      voiceprint_provenance_platform_os: None,
+      voiceprint_provenance_platform_arch: None,
+      voiceprint_provenance_platform_os_version: None,
       person_id: None,
     };
     let err = Speaker::<Uuid7>::try_from(row).unwrap_err();

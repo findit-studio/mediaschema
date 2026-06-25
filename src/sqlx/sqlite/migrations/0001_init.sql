@@ -116,6 +116,13 @@ CREATE TABLE IF NOT EXISTS speaker (
     voiceprint_provenance_model_version   TEXT,
     voiceprint_provenance_prompt_version  TEXT,
     voiceprint_provenance_indexer_version TEXT,
+    -- Inference backend + host platform the voiceprint model ran on.
+    -- NULL = not recorded (decodes to Backend::Unspecified / empty Platform);
+    -- forward-compatible for rows written before these columns existed.
+    voiceprint_provenance_backend             INTEGER,
+    voiceprint_provenance_platform_os         TEXT,
+    voiceprint_provenance_platform_arch       TEXT,
+    voiceprint_provenance_platform_os_version TEXT,
     -- Cross-track identity FK -> person.id; NULL = not yet identified.
     person_id                             BLOB
 );
