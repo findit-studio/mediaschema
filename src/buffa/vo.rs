@@ -44,7 +44,11 @@ use smol_str::SmolStr;
 
 #[cfg(feature = "audio")]
 use crate::domain::aggregates::audio::segment::Word;
-use crate::{buffa::error::BuffaError, domain::vo::LocalizedText, generated::media::v1 as wire};
+use crate::{
+  buffa::error::BuffaError,
+  domain::vo::{LocalizedText, Platform},
+  generated::media::v1 as wire,
+};
 // Under `feature = "alloc"` (no std), `String` / `ToOwned` / `ToString`
 // aren't in the prelude — pull them in via the `extern crate alloc as std`
 // alias declared in `lib.rs`. Under `feature = "std"` these come from the
@@ -79,6 +83,21 @@ impl From<&wire::LocalizedText> for LocalizedText {
   }
 }
 
+/// Encode a `LocalizedText` into a singular `MessageField<wire::LocalizedText>`
+/// slot. The all-empty `LocalizedText` (the "not yet emitted" state)
+/// encodes to `none`: the slot is presence-bearing and its decode maps an
+/// unset slot back to the empty `LocalizedText`, so emitting `some(<empty>)`
+/// would force a present empty message and make an absent text
+/// indistinguishable from a recorded-but-empty one (empty-as-absent
+/// invariant). Mirror of [`localized_text_from_wire`].
+pub(super) fn localized_text_to_wire(d: &LocalizedText) -> MessageField<wire::LocalizedText> {
+  if d.is_empty() {
+    MessageField::none()
+  } else {
+    MessageField::some(wire::LocalizedText::from(d))
+  }
+}
+
 /// Decode a singular `MessageField<wire::LocalizedText>` slot. An unset
 /// slot decodes to the all-empty `LocalizedText` (the "not yet emitted"
 /// state).
@@ -86,6 +105,40 @@ pub(super) fn localized_text_from_wire(w: &MessageField<wire::LocalizedText>) ->
   match w.as_option() {
     Some(v) => LocalizedText::from(v),
     None => LocalizedText::new(),
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Platform ⇄ wire::Platform — 3 SmolStr <-> 3 SmolStr
+// ---------------------------------------------------------------------------
+
+impl From<&Platform> for wire::Platform {
+  fn from(d: &Platform) -> Self {
+    wire::Platform {
+      os: d.os().to_owned().into(),
+      arch: d.arch().to_owned().into(),
+      os_version: d.os_version().to_owned().into(),
+      __buffa_unknown_fields: Default::default(),
+    }
+  }
+}
+
+impl From<&wire::Platform> for Platform {
+  fn from(w: &wire::Platform) -> Self {
+    Platform::from_parts(
+      SmolStr::from(w.os.as_str()),
+      SmolStr::from(w.arch.as_str()),
+      SmolStr::from(w.os_version.as_str()),
+    )
+  }
+}
+
+/// Decode a singular `MessageField<wire::Platform>` slot. An unset slot
+/// decodes to the all-empty `Platform` (the "not recorded" state).
+pub(super) fn platform_from_wire(w: &MessageField<wire::Platform>) -> Platform {
+  match w.as_option() {
+    Some(v) => Platform::from(v),
+    None => Platform::new(),
   }
 }
 
@@ -204,6 +257,26 @@ mod tests {
     assert!(d2.is_empty());
   }
 
+  /// Empty-as-absent: the `localized_text_to_wire` slot encoder maps an
+  /// empty `LocalizedText` to `none` (decode maps unset ⇒ empty), so an
+  /// absent text and a recorded-but-empty one stay distinguishable.
+  #[test]
+  fn localized_text_to_wire_empty_is_unset() {
+    let slot = localized_text_to_wire(&LocalizedText::new());
+    assert!(slot.is_unset(), "empty LocalizedText must encode to none");
+    // unset slot decodes back to the empty LocalizedText.
+    assert!(localized_text_from_wire(&slot).is_empty());
+  }
+
+  /// A non-empty `LocalizedText` slot encodes PRESENT and round-trips.
+  #[test]
+  fn localized_text_to_wire_non_empty_is_set() {
+    let d = LocalizedText::from_src("hola");
+    let slot = localized_text_to_wire(&d);
+    assert!(slot.is_set(), "non-empty LocalizedText must encode some");
+    assert_eq!(localized_text_from_wire(&slot), d);
+  }
+
   // ---- Language --------------------------------------------------------------
 
   #[test]
@@ -242,6 +315,27 @@ mod tests {
     };
     let err = Language::try_from(&w).unwrap_err();
     assert!(matches!(err, BuffaError::LanguageMalformed(ref s) if s == "xx-yy-zz-bogus"));
+  }
+
+  // ---- Platform --------------------------------------------------------------
+
+  #[test]
+  fn platform_roundtrip_populated() {
+    use crate::domain::vo::Platform;
+    let d = Platform::from_parts("macos", "aarch64", "15.5");
+    let w: wire::Platform = (&d).into();
+    let d2: Platform = (&w).into();
+    assert_eq!(d, d2);
+  }
+
+  #[test]
+  fn platform_roundtrip_empty() {
+    use crate::domain::vo::Platform;
+    let d = Platform::new();
+    let w: wire::Platform = (&d).into();
+    let d2: Platform = (&w).into();
+    assert_eq!(d, d2);
+    assert!(d2.is_empty());
   }
 
   // ---- Word ------------------------------------------------------------------

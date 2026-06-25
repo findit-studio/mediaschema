@@ -9,7 +9,7 @@
 //! Access goes through `field()` getters and `with_field(...)` const-where-
 //! possible setters; mutation uses `set_field(...)`.
 
-use derive_more::IsVariant;
+use derive_more::{Display, IsVariant};
 use jiff::Timestamp as JiffTimestamp;
 use smol_str::SmolStr;
 
@@ -179,6 +179,314 @@ pub enum IndexProgressError {
 }
 
 // ---------------------------------------------------------------------------
+// Backend — inference runtime that produced an analysis record
+// ---------------------------------------------------------------------------
+
+/// Inference backend / framework a loaded model executed on — the typed
+/// runtime identity stamped into [`Provenance`].
+///
+/// `#[non_exhaustive]`: new backends arrive over time (the wire enum is
+/// forward-compatible). [`Backend::Unspecified`] is the default — the
+/// proto3 zero, meaning "not recorded".
+///
+/// **Externally-numbered, lossless** (`rust-type-conventions` §2): the
+/// integer values are pinned 1:1 to the `media.v1.Backend` proto enum
+/// (`proto/media/v1/types.proto`), and a wire integer with no known
+/// variant is preserved verbatim in the data-carrying
+/// [`Backend::Unknown`] arm rather than collapsed to `Unspecified`. This
+/// closes a version-skew data-loss path: a row written by a NEWER producer
+/// (backend ≥ 15) survives a read-modify-write through an OLDER binary
+/// instead of being erased to NULL. [`to_i32`](Self::to_i32) /
+/// [`from_i32`](Self::from_i32) round-trip **every** `i32` — known, the
+/// `0` default, and arbitrary unknowns: `from_i32(x.to_i32()) == x`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, IsVariant, Display)]
+#[display("{}", self.as_str())]
+#[non_exhaustive]
+pub enum Backend {
+  /// Not recorded (proto3 zero default).
+  #[default]
+  Unspecified,
+  /// Plain CPU execution (no accelerator backend).
+  Cpu,
+  /// ONNX Runtime (`ort`).
+  Onnx,
+  /// GGML / llama.cpp family (e.g. whisper.cpp gguf).
+  Ggml,
+  /// Apple MLX.
+  Mlx,
+  /// Apple Vision framework (`VN*` requests).
+  AppleVision,
+  /// Apple Core ML.
+  CoreMl,
+  /// Hugging Face Candle.
+  Candle,
+  /// Burn.
+  Burn,
+  /// Tract.
+  Tract,
+  /// LibTorch / `tch`.
+  Torch,
+  /// NVIDIA TensorRT.
+  TensorRt,
+  /// Intel OpenVINO.
+  OpenVino,
+  /// TensorFlow Lite.
+  TfLite,
+  /// PyTorch ExecuTorch.
+  ExecuTorch,
+  /// A backend integer this build does not recognize — a forward-compatible
+  /// value written by a newer producer. Carried verbatim so it round-trips
+  /// losslessly through [`to_i32`](Self::to_i32) / [`from_i32`](Self::from_i32)
+  /// and is **preserved** (not erased) by a read-modify-write through this
+  /// binary. Never holds a known proto number or `0` — those decode to their
+  /// named variant / [`Self::Unspecified`].
+  ///
+  /// **Construct only via [`from_i32`](Self::from_i32)** (the decode path).
+  /// Hand-constructing a *non-canonical* `Unknown(0)` or `Unknown(1..=14)` is
+  /// misuse: such a value reports [`is_unknown`](Self::is_unknown) but
+  /// canonicalizes back to its named variant / `Unspecified` on wire
+  /// (`EnumValue`) and SQLite projection. All canonical paths are lossless;
+  /// only this misuse is not. For a known backend, use the named variant.
+  /// Opaque-payload hardening tracked in findit-studio/mediaschema#105.
+  Unknown(i32),
+}
+
+impl Backend {
+  /// Stable snake_case slug — the canonical string form of every variant.
+  /// Used for [`Display`], serde tags, log keys, schema-doc references.
+  /// [`Self::Unknown`] (an unrecognized wire integer) renders as the static
+  /// `"unknown"`. Non-`const`, returning `-> &str`: the data-carrying
+  /// `Unknown` arm makes this the open-vocabulary form per
+  /// `rust-type-conventions` §2.
+  #[inline]
+  pub fn as_str(&self) -> &str {
+    match self {
+      Self::Unspecified => "unspecified",
+      Self::Cpu => "cpu",
+      Self::Onnx => "onnx",
+      Self::Ggml => "ggml",
+      Self::Mlx => "mlx",
+      Self::AppleVision => "apple_vision",
+      Self::CoreMl => "core_ml",
+      Self::Candle => "candle",
+      Self::Burn => "burn",
+      Self::Tract => "tract",
+      Self::Torch => "torch",
+      Self::TensorRt => "tensor_rt",
+      Self::OpenVino => "open_vino",
+      Self::TfLite => "tf_lite",
+      Self::ExecuTorch => "execu_torch",
+      Self::Unknown(_) => "unknown",
+    }
+  }
+
+  /// Pinned wire integer (1:1 with the `media.v1.Backend` proto enum).
+  /// [`Self::Unknown`] hands back the integer it carries, so the round-trip
+  /// `from_i32(x.to_i32()) == x` holds for unknowns too.
+  #[inline(always)]
+  pub const fn to_i32(self) -> i32 {
+    match self {
+      Self::Unspecified => 0,
+      Self::Cpu => 1,
+      Self::Onnx => 2,
+      Self::Ggml => 3,
+      Self::Mlx => 4,
+      Self::AppleVision => 5,
+      Self::CoreMl => 6,
+      Self::Candle => 7,
+      Self::Burn => 8,
+      Self::Tract => 9,
+      Self::Torch => 10,
+      Self::TensorRt => 11,
+      Self::OpenVino => 12,
+      Self::TfLite => 13,
+      Self::ExecuTorch => 14,
+      Self::Unknown(v) => v,
+    }
+  }
+
+  /// Inverse of [`to_i32`](Self::to_i32). **Total and lossless**: a known
+  /// proto number maps to its variant; `0` is [`Self::Unspecified`]; any
+  /// other (unrecognized) integer is preserved in [`Self::Unknown`] rather
+  /// than collapsed to `Unspecified` — so a forward-compatible backend code
+  /// survives a decode/encode round-trip.
+  #[inline(always)]
+  pub const fn from_i32(v: i32) -> Self {
+    match v {
+      0 => Self::Unspecified,
+      1 => Self::Cpu,
+      2 => Self::Onnx,
+      3 => Self::Ggml,
+      4 => Self::Mlx,
+      5 => Self::AppleVision,
+      6 => Self::CoreMl,
+      7 => Self::Candle,
+      8 => Self::Burn,
+      9 => Self::Tract,
+      10 => Self::Torch,
+      11 => Self::TensorRt,
+      12 => Self::OpenVino,
+      13 => Self::TfLite,
+      14 => Self::ExecuTorch,
+      // Every OTHER integer is an unknown wire value — preserved verbatim.
+      other => Self::Unknown(other),
+    }
+  }
+
+  /// Parse a slug (the inverse of [`as_str`](Self::as_str) for the known
+  /// variants). **Total**: an unrecognized name maps to
+  /// [`Self::Unspecified`] (this is a producer-stamped value, not validated
+  /// user input). A *name* never mints a [`Self::Unknown`] wire tag — only a
+  /// wire integer ([`from_i32`](Self::from_i32)) can, so a bad string cannot
+  /// fabricate a forward-compatible backend code (`rust-type-conventions`
+  /// §2: no string should mint a wire tag).
+  #[inline]
+  pub fn from_str(s: &str) -> Self {
+    match s {
+      "cpu" => Self::Cpu,
+      "onnx" => Self::Onnx,
+      "ggml" => Self::Ggml,
+      "mlx" => Self::Mlx,
+      "apple_vision" => Self::AppleVision,
+      "core_ml" => Self::CoreMl,
+      "candle" => Self::Candle,
+      "burn" => Self::Burn,
+      "tract" => Self::Tract,
+      "torch" => Self::Torch,
+      "tensor_rt" => Self::TensorRt,
+      "open_vino" => Self::OpenVino,
+      "tf_lite" => Self::TfLite,
+      "execu_torch" => Self::ExecuTorch,
+      _ => Self::Unspecified,
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Platform — host OS / arch / OS-version a model ran on
+// ---------------------------------------------------------------------------
+
+/// Host platform a model executed on — `os` / `arch` / `os_version`.
+///
+/// All three are version-bearing / open vocabularies, so `SmolStr` with
+/// `""`=absent (the same empty-means-absent rule as [`LocalizedText`] /
+/// [`Provenance`]); never `Option`. Sourced by producers from
+/// `std::env::consts::{OS, ARCH}` + an OS-version query.
+///
+/// **Default convention**: `Default::default()` calls [`Platform::new`],
+/// the all-empty record (the "platform not recorded" state).
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Platform {
+  os: SmolStr,
+  arch: SmolStr,
+  os_version: SmolStr,
+}
+
+impl Platform {
+  /// Canonical no-arg constructor — every field empty (`""`).
+  /// (Not `const fn` — `SmolStr::default()` is not `const` in `smol_str`
+  /// 0.3.)
+  #[inline]
+  pub fn new() -> Self {
+    Self {
+      os: SmolStr::default(),
+      arch: SmolStr::default(),
+      os_version: SmolStr::default(),
+    }
+  }
+
+  /// Construct from explicit os / arch / os_version.
+  #[inline]
+  pub fn from_parts(
+    os: impl Into<SmolStr>,
+    arch: impl Into<SmolStr>,
+    os_version: impl Into<SmolStr>,
+  ) -> Self {
+    Self {
+      os: os.into(),
+      arch: arch.into(),
+      os_version: os_version.into(),
+    }
+  }
+
+  /// Operating system (`std::env::consts::OS`, e.g. `"macos"`); `""` = absent.
+  #[inline]
+  pub fn os(&self) -> &str {
+    self.os.as_str()
+  }
+
+  /// CPU architecture (`std::env::consts::ARCH`, e.g. `"aarch64"`); `""` = absent.
+  #[inline]
+  pub fn arch(&self) -> &str {
+    self.arch.as_str()
+  }
+
+  /// OS version string (e.g. `"15.5"`); `""` = absent.
+  #[inline]
+  pub fn os_version(&self) -> &str {
+    self.os_version.as_str()
+  }
+
+  /// Are all three fields absent (`""`)?
+  #[inline]
+  pub fn is_empty(&self) -> bool {
+    self.os.is_empty() && self.arch.is_empty() && self.os_version.is_empty()
+  }
+
+  /// Builder: replace `os`.
+  #[must_use]
+  #[inline]
+  pub fn with_os(mut self, v: impl Into<SmolStr>) -> Self {
+    self.os = v.into();
+    self
+  }
+
+  /// Builder: replace `arch`.
+  #[must_use]
+  #[inline]
+  pub fn with_arch(mut self, v: impl Into<SmolStr>) -> Self {
+    self.arch = v.into();
+    self
+  }
+
+  /// Builder: replace `os_version`.
+  #[must_use]
+  #[inline]
+  pub fn with_os_version(mut self, v: impl Into<SmolStr>) -> Self {
+    self.os_version = v.into();
+    self
+  }
+
+  /// In-place mutator for `os`.
+  #[inline]
+  pub fn set_os(&mut self, v: impl Into<SmolStr>) -> &mut Self {
+    self.os = v.into();
+    self
+  }
+
+  /// In-place mutator for `arch`.
+  #[inline]
+  pub fn set_arch(&mut self, v: impl Into<SmolStr>) -> &mut Self {
+    self.arch = v.into();
+    self
+  }
+
+  /// In-place mutator for `os_version`.
+  #[inline]
+  pub fn set_os_version(&mut self, v: impl Into<SmolStr>) -> &mut Self {
+    self.os_version = v.into();
+    self
+  }
+}
+
+impl Default for Platform {
+  #[inline]
+  fn default() -> Self {
+    Self::new()
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Provenance — analysis-run reproducibility
 // ---------------------------------------------------------------------------
 
@@ -190,19 +498,30 @@ pub enum IndexProgressError {
 /// `SubtitleTrack` — as a `provenance` field. Per-track on `AudioTrack`/
 /// `SubtitleTrack` (one value per run), not per `AudioSegment`/`SubtitleCue`.
 ///
-/// All four fields are `SmolStr` with `""`=absent. No `Option` — the locked
-/// rule reserves `Option` for structured/enum/numeric absence.
+/// The four model/prompt/indexer fields are `SmolStr` with `""`=absent. No
+/// `Option` — the locked rule reserves `Option` for structured/enum/numeric
+/// absence.
+///
+/// Two further fields record the *runtime* the producing model ran on:
+/// [`backend`](Self::backend) (a typed [`Backend`], `Unspecified` = not
+/// recorded) and [`platform`](Self::platform_ref) (a [`Platform`], all-empty
+/// = not recorded).
 ///
 /// **Default convention**: `Default::default()` calls [`Provenance::new`],
-/// which returns the all-empty record. Use [`Provenance::from_parts`] to
-/// supply all four fields in one call, or chain the `with_*` builders
-/// onto `Provenance::new()` to fill incrementally.
+/// which returns the all-empty record (`backend` = `Unspecified`, `platform`
+/// = all-empty). [`Provenance::from_parts`] stays the 4-arg
+/// model/prompt/indexer constructor and leaves `backend`/`platform` at their
+/// defaults; chain [`with_backend`](Self::with_backend) /
+/// [`with_platform`](Self::with_platform) (or the `with_*` string builders)
+/// to fill any field incrementally.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Provenance {
   model_name: SmolStr,
   model_version: SmolStr,
   prompt_version: SmolStr,
   indexer_version: SmolStr,
+  backend: Backend,
+  platform: Platform,
 }
 
 impl Provenance {
@@ -218,10 +537,15 @@ impl Provenance {
       model_version: SmolStr::default(),
       prompt_version: SmolStr::default(),
       indexer_version: SmolStr::default(),
+      backend: Backend::Unspecified,
+      platform: Platform::new(),
     }
   }
 
-  /// Construct a `Provenance` from its four fields.
+  /// Construct a `Provenance` from its four model/prompt/indexer fields.
+  /// `backend` defaults to [`Backend::Unspecified`] and `platform` to the
+  /// all-empty [`Platform`]; fill them via [`with_backend`](Self::with_backend)
+  /// / [`with_platform`](Self::with_platform).
   #[inline]
   pub fn from_parts(
     model_name: impl Into<SmolStr>,
@@ -234,6 +558,8 @@ impl Provenance {
       model_version: model_version.into(),
       prompt_version: prompt_version.into(),
       indexer_version: indexer_version.into(),
+      backend: Backend::Unspecified,
+      platform: Platform::new(),
     }
   }
 
@@ -259,6 +585,19 @@ impl Provenance {
   #[inline]
   pub fn indexer_version(&self) -> &str {
     self.indexer_version.as_str()
+  }
+
+  /// Inference backend the producing model ran on
+  /// (`Backend::Unspecified` = not recorded).
+  #[inline(always)]
+  pub const fn backend(&self) -> Backend {
+    self.backend
+  }
+
+  /// Host platform the producing model ran on (empty = not recorded).
+  #[inline(always)]
+  pub const fn platform_ref(&self) -> &Platform {
+    &self.platform
   }
 
   /// Builder: replace `model_name` and return `self`.
@@ -289,6 +628,22 @@ impl Provenance {
     self
   }
 
+  /// Builder: replace `backend` and return `self`.
+  #[must_use]
+  #[inline(always)]
+  pub const fn with_backend(mut self, backend: Backend) -> Self {
+    self.backend = backend;
+    self
+  }
+
+  /// Builder: replace `platform` and return `self`.
+  #[must_use]
+  #[inline]
+  pub fn with_platform(mut self, platform: Platform) -> Self {
+    self.platform = platform;
+    self
+  }
+
   /// In-place mutator.
   #[inline]
   pub fn set_model_name(&mut self, v: impl Into<SmolStr>) {
@@ -313,14 +668,31 @@ impl Provenance {
     self.indexer_version = v.into();
   }
 
-  /// Is every field absent (`""`)? Useful when an analysis record exists
-  /// but its provenance has not been recorded yet.
+  /// In-place mutator for `backend`.
+  #[inline(always)]
+  pub const fn set_backend(&mut self, backend: Backend) -> &mut Self {
+    self.backend = backend;
+    self
+  }
+
+  /// In-place mutator for `platform`.
+  #[inline]
+  pub fn set_platform(&mut self, platform: Platform) -> &mut Self {
+    self.platform = platform;
+    self
+  }
+
+  /// Is every field absent (`""`), the backend `Unspecified`, and the
+  /// platform all-empty? Useful when an analysis record exists but its
+  /// provenance has not been recorded yet.
   #[inline]
   pub fn is_empty(&self) -> bool {
     self.model_name.is_empty()
       && self.model_version.is_empty()
       && self.prompt_version.is_empty()
       && self.indexer_version.is_empty()
+      && self.backend.is_unspecified()
+      && self.platform.is_empty()
   }
 }
 
@@ -1089,5 +1461,229 @@ mod tests {
       Some(0.75),
       "rejected setter must not mutate"
     );
+  }
+
+  // --- Backend ----------------------------------------------------------------
+
+  #[test]
+  fn backend_default_is_unspecified() {
+    assert_eq!(Backend::default(), Backend::Unspecified);
+    assert!(Backend::default().is_unspecified());
+  }
+
+  #[test]
+  fn backend_int_round_trips_every_known_variant() {
+    // Every declared variant survives to_i32 -> from_i32.
+    let all = [
+      Backend::Unspecified,
+      Backend::Cpu,
+      Backend::Onnx,
+      Backend::Ggml,
+      Backend::Mlx,
+      Backend::AppleVision,
+      Backend::CoreMl,
+      Backend::Candle,
+      Backend::Burn,
+      Backend::Tract,
+      Backend::Torch,
+      Backend::TensorRt,
+      Backend::OpenVino,
+      Backend::TfLite,
+      Backend::ExecuTorch,
+    ];
+    for b in all {
+      assert_eq!(Backend::from_i32(b.to_i32()), b, "round-trip {b}");
+    }
+    // The wire numbering is pinned (matches the proto).
+    assert_eq!(Backend::Onnx.to_i32(), 2);
+    assert_eq!(Backend::ExecuTorch.to_i32(), 14);
+    assert_eq!(Backend::from_i32(5), Backend::AppleVision);
+  }
+
+  #[test]
+  fn backend_unknown_int_is_preserved_not_unspecified() {
+    // An unknown wire integer (a code from a NEWER producer) decodes to the
+    // lossless `Unknown(i)` arm — NOT collapsed to `Unspecified`. This is the
+    // version-skew data-loss fix: the recorded code survives.
+    assert_eq!(Backend::from_i32(15), Backend::Unknown(15));
+    assert_eq!(Backend::from_i32(-1), Backend::Unknown(-1));
+    assert_eq!(Backend::from_i32(i32::MAX), Backend::Unknown(i32::MAX));
+    // ...and it carries the integer back out verbatim.
+    assert_eq!(Backend::Unknown(15).to_i32(), 15);
+    assert_eq!(Backend::from_i32(15).to_i32(), 15);
+    // `Unknown` is NOT unspecified — it IS a recorded value.
+    assert!(!Backend::Unknown(15).is_unspecified());
+    assert!(Backend::Unknown(15).is_unknown());
+    assert!(Backend::Unspecified.is_unspecified());
+    assert!(!Backend::Unspecified.is_unknown());
+    // A known backend is neither unknown nor unspecified.
+    assert!(!Backend::Onnx.is_unknown());
+    assert!(!Backend::Onnx.is_unspecified());
+    // `as_str` (now non-const) renders the unknown arm as the static slug.
+    assert_eq!(Backend::Unknown(15).as_str(), "unknown");
+  }
+
+  #[test]
+  fn backend_int_round_trips_full_range_known_zero_and_unknown() {
+    // `from_i32(x.to_i32()) == x` for EVERY value: known variants, the `0`
+    // default, and arbitrary unknown integers across the i32 range.
+    let known = [
+      Backend::Unspecified,
+      Backend::Cpu,
+      Backend::Onnx,
+      Backend::Ggml,
+      Backend::Mlx,
+      Backend::AppleVision,
+      Backend::CoreMl,
+      Backend::Candle,
+      Backend::Burn,
+      Backend::Tract,
+      Backend::Torch,
+      Backend::TensorRt,
+      Backend::OpenVino,
+      Backend::TfLite,
+      Backend::ExecuTorch,
+    ];
+    for b in known {
+      assert_eq!(Backend::from_i32(b.to_i32()), b, "known round-trip {b}");
+    }
+    // 0 maps to Unspecified, not Unknown(0).
+    assert_eq!(Backend::from_i32(0), Backend::Unspecified);
+    // Sweep the unknown space (just above the last known number, negatives,
+    // and the i32 extremes) — every one round-trips through the value form.
+    for i in [15, 16, 100, 1_000_000, -1, -42, i32::MIN, i32::MAX] {
+      let b = Backend::from_i32(i);
+      assert_eq!(b, Backend::Unknown(i), "from_i32({i}) should be Unknown");
+      assert_eq!(b.to_i32(), i, "to_i32 must hand {i} back");
+      assert_eq!(Backend::from_i32(b.to_i32()), b, "round-trip Unknown({i})");
+    }
+  }
+
+  #[test]
+  fn backend_as_str_from_str_round_trip() {
+    let all = [
+      Backend::Unspecified,
+      Backend::Cpu,
+      Backend::Onnx,
+      Backend::Ggml,
+      Backend::Mlx,
+      Backend::AppleVision,
+      Backend::CoreMl,
+      Backend::Candle,
+      Backend::Burn,
+      Backend::Tract,
+      Backend::Torch,
+      Backend::TensorRt,
+      Backend::OpenVino,
+      Backend::TfLite,
+      Backend::ExecuTorch,
+    ];
+    for b in all {
+      assert_eq!(
+        Backend::from_str(b.as_str()),
+        b,
+        "round-trip {}",
+        b.as_str()
+      );
+    }
+    // Spot-check the slug spellings (the wire/log/serde contract).
+    assert_eq!(Backend::Onnx.as_str(), "onnx");
+    assert_eq!(Backend::AppleVision.as_str(), "apple_vision");
+    assert_eq!(Backend::TfLite.as_str(), "tf_lite");
+    // Display routes through as_str.
+    assert_eq!(std::format!("{}", Backend::Mlx), "mlx");
+    // Unknown name -> Unspecified (total).
+    assert_eq!(Backend::from_str("totally-unknown"), Backend::Unspecified);
+    assert_eq!(Backend::from_str(""), Backend::Unspecified);
+  }
+
+  // --- Platform ---------------------------------------------------------------
+
+  #[test]
+  fn platform_new_is_empty_and_default_delegates() {
+    let p = Platform::new();
+    assert!(p.is_empty());
+    assert_eq!(p.os(), "");
+    assert_eq!(p.arch(), "");
+    assert_eq!(p.os_version(), "");
+    assert_eq!(Platform::default(), p);
+  }
+
+  #[test]
+  fn platform_from_parts_and_emptiness() {
+    let p = Platform::from_parts("macos", "aarch64", "15.5");
+    assert!(!p.is_empty());
+    assert_eq!(p.os(), "macos");
+    assert_eq!(p.arch(), "aarch64");
+    assert_eq!(p.os_version(), "15.5");
+    // Even one non-empty field defeats is_empty.
+    assert!(!Platform::from_parts("", "", "15.5").is_empty());
+  }
+
+  #[test]
+  fn platform_builders_and_setters() {
+    let p = Platform::new()
+      .with_os("linux")
+      .with_arch("x86_64")
+      .with_os_version("6.8");
+    assert_eq!(p.os(), "linux");
+    assert_eq!(p.arch(), "x86_64");
+    assert_eq!(p.os_version(), "6.8");
+    let mut p = p;
+    p.set_os("macos").set_os_version("15.5");
+    assert_eq!(p.os(), "macos");
+    assert_eq!(p.os_version(), "15.5");
+  }
+
+  // --- Provenance backend + platform extension --------------------------------
+
+  #[test]
+  fn provenance_new_has_unspecified_backend_and_empty_platform() {
+    let p = Provenance::new();
+    assert!(p.is_empty());
+    assert_eq!(p.backend(), Backend::Unspecified);
+    assert!(p.platform_ref().is_empty());
+  }
+
+  #[test]
+  fn provenance_from_parts_defaults_backend_and_platform() {
+    // The 4-arg constructor is UNCHANGED — new fields take defaults.
+    let p = Provenance::from_parts("ecapa-tdnn", "v1", "", "idx-0.1");
+    assert_eq!(p.backend(), Backend::Unspecified);
+    assert!(p.platform_ref().is_empty());
+    // Has model fields, so not empty overall.
+    assert!(!p.is_empty());
+  }
+
+  #[test]
+  fn provenance_with_backend_and_platform_builders() {
+    let p = Provenance::from_parts("ecapa-tdnn", "v1", "", "idx-0.1")
+      .with_backend(Backend::Onnx)
+      .with_platform(Platform::from_parts("macos", "aarch64", "15.5"));
+    assert_eq!(p.backend(), Backend::Onnx);
+    assert_eq!(p.platform_ref().os(), "macos");
+    assert_eq!(p.platform_ref().arch(), "aarch64");
+    assert_eq!(p.platform_ref().os_version(), "15.5");
+  }
+
+  #[test]
+  fn provenance_set_backend_and_platform_in_place() {
+    let mut p = Provenance::new();
+    p.set_backend(Backend::Mlx)
+      .set_platform(Platform::from_parts("macos", "aarch64", "15.5"));
+    assert_eq!(p.backend(), Backend::Mlx);
+    assert_eq!(p.platform_ref().os(), "macos");
+  }
+
+  #[test]
+  fn provenance_is_empty_requires_backend_and_platform_empty_too() {
+    // model strings empty but backend set -> NOT empty.
+    let p = Provenance::new().with_backend(Backend::Onnx);
+    assert!(!p.is_empty());
+    // model strings empty but platform set -> NOT empty.
+    let p = Provenance::new().with_platform(Platform::from_parts("macos", "", ""));
+    assert!(!p.is_empty());
+    // truly all-empty -> empty.
+    assert!(Provenance::new().is_empty());
   }
 }

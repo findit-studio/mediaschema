@@ -99,9 +99,18 @@ impl TryFrom<&wire::IndexProgress> for IndexProgress {
   }
 }
 
-/// Encode a facet's `track_progress` into its wire slot.
+/// Encode a facet's `track_progress` into its wire slot. The rollup is
+/// presence-bearing and decodes unset ⇒ the empty `{0, 0, 0}` rollup, so
+/// an all-zero `IndexProgress` encodes to `none` — emitting `some(<empty>)`
+/// would force a present empty message and make an absent `track_progress`
+/// indistinguishable from a recorded `{0, 0, 0}` one (empty-as-absent
+/// invariant; mirrors [`provenance_to_wire`]).
 fn index_progress_to_wire(d: &IndexProgress) -> MessageField<wire::IndexProgress> {
-  MessageField::some(wire::IndexProgress::from(d))
+  if d.total() == 0 && d.indexed() == 0 && d.failed() == 0 {
+    MessageField::none()
+  } else {
+    MessageField::some(wire::IndexProgress::from(d))
+  }
 }
 
 /// Decode a facet's `track_progress` slot. Unset ⇒ the empty rollup
@@ -194,9 +203,18 @@ fn errors_from_wire(w: &[wire1::ErrorInfo]) -> Vec<ErrorInfo> {
   w.iter().map(ErrorInfo::from).collect()
 }
 
-/// Encode a track's `provenance` into its wire slot.
+/// Encode a track's `provenance` into its wire slot. `provenance` is
+/// presence-bearing and decodes unset ⇒ empty (the "not yet recorded"
+/// form), so an empty domain `Provenance` encodes to `none` — emitting
+/// `some(<empty>)` would force a present empty message and make an absent
+/// provenance indistinguishable from a recorded-but-empty one
+/// (empty-as-absent invariant).
 fn provenance_to_wire(d: &Provenance) -> MessageField<wire1::Provenance> {
-  MessageField::some(wire1::Provenance::from(d))
+  if d.is_empty() {
+    MessageField::none()
+  } else {
+    MessageField::some(wire1::Provenance::from(d))
+  }
 }
 
 /// Decode a track's `provenance` slot. Unset ⇒ the all-empty
@@ -262,6 +280,20 @@ mod tests {
   fn index_progress_unset_slot_decodes_empty() {
     let d = index_progress_from_wire(&MessageField::none()).unwrap();
     assert_eq!(d, IndexProgress::new());
+  }
+
+  #[test]
+  fn empty_index_progress_encodes_none() {
+    // The empty `{0, 0, 0}` rollup must encode absent so it cannot be
+    // distinguished from an unrecorded one (empty-as-absent invariant).
+    let w = index_progress_to_wire(&IndexProgress::new());
+    assert!(w.is_unset(), "empty rollup must encode to none");
+    // …and a non-empty rollup is present.
+    let w2 = index_progress_to_wire(&IndexProgress::try_new(2, 1, 0).unwrap());
+    assert!(w2.is_set(), "non-empty rollup must encode some");
+    // wire ⇒ domain ⇒ wire idempotency through the shared helpers.
+    let back = index_progress_from_wire(&w).unwrap();
+    assert!(index_progress_to_wire(&back).is_unset());
   }
 
   #[test]

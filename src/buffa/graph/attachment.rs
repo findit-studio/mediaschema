@@ -236,4 +236,62 @@ mod tests {
     let g2 = graph::Attachment::try_from(&w).expect("decodes");
     assert_eq!(g2, g);
   }
+
+  /// An empty `{0, 0, 0}` `track_progress` rollup must encode to an unset
+  /// field — an absent rollup is indistinguishable from a recorded-empty
+  /// one (empty-as-absent invariant, mirrors the `provenance` slot).
+  /// Verified through the BINARY encode (`Message::encode` ⇒ bytes ⇒
+  /// `decode`) and wire ⇒ domain ⇒ wire idempotency: unset stays unset.
+  #[test]
+  fn attachment_facet_empty_progress_encodes_unset() {
+    use ::buffa::Message as _;
+
+    let media_id = Uuid7::new();
+    // Default facet ⇒ the empty `{0, 0, 0}` rollup (constructor default).
+    let facet = domain::Attachment::try_new(Uuid7::new(), media_id).expect("valid facet");
+    assert_eq!(facet.track_progress_ref(), &IndexProgress::new());
+    let g = graph::Attachment::try_from_flat(&media_id, facet, vec![]).expect("coherent");
+
+    let w = wire::Attachment::from(&g);
+    assert!(
+      w.track_progress.is_unset(),
+      "empty rollup must encode to none, not some({{0, 0, 0}})",
+    );
+
+    // Binary wire: the empty rollup contributes no field bytes, and a clean
+    // re-decode preserves the unset slot.
+    let bytes = w.encode_to_vec();
+    let decoded = wire::Attachment::decode(&mut &bytes[..]).expect("decode");
+    assert!(
+      decoded.track_progress.is_unset(),
+      "track_progress must survive a binary round-trip as unset",
+    );
+
+    // wire ⇒ domain ⇒ wire idempotency: decoded-from-absent re-encodes absent.
+    let g2 = graph::Attachment::try_from(&w).expect("decodes");
+    assert_eq!(g2.track_progress_ref(), &IndexProgress::new());
+    let w2 = wire::Attachment::from(&g2);
+    assert!(
+      w2.track_progress.is_unset(),
+      "re-encoding a decoded-from-absent rollup must stay unset (idempotent)",
+    );
+    assert_eq!(w.encode_to_vec(), w2.encode_to_vec());
+  }
+
+  /// A non-empty rollup round-trips PRESENT (the positive complement).
+  #[test]
+  fn attachment_facet_non_empty_progress_encodes_present() {
+    let media_id = Uuid7::new();
+    let facet = domain::Attachment::try_new(Uuid7::new(), media_id)
+      .expect("valid facet")
+      .with_track_progress(IndexProgress::try_new(3, 2, 1).expect("valid rollup"));
+    let g = graph::Attachment::try_from_flat(&media_id, facet, vec![]).expect("coherent");
+    let w = wire::Attachment::from(&g);
+    assert!(
+      w.track_progress.is_set(),
+      "non-empty rollup must encode some",
+    );
+    let g2 = graph::Attachment::try_from(&w).expect("decodes");
+    assert_eq!(g2, g);
+  }
 }

@@ -76,7 +76,7 @@ use super::{
 use crate::{
   buffa::{
     error::BuffaError,
-    vo::localized_text_from_wire,
+    vo::{localized_text_from_wire, localized_text_to_wire},
     voice_fingerprint::{voice_fingerprint_from_wire, voice_fingerprint_to_wire},
   },
   domain::{self, AudioContentKind, AudioIndexStatus, Uuid7, Word},
@@ -301,7 +301,9 @@ impl From<&graph::AudioSegment<Uuid7>> for wire::AudioSegment {
       index: g.index(),
       span: MessageField::some(*g.span_ref()),
       speaker_id: g.speaker_id_ref().map(id_to_wire),
-      text: MessageField::some(wire1::LocalizedText::from(g.text_ref())),
+      // Empty-as-absent: an empty `LocalizedText` encodes to `none`
+      // (decode maps unset ⇒ empty). See `localized_text_to_wire`.
+      text: localized_text_to_wire(g.text_ref()),
       language: opt_msg(g.language()),
       words: g.words_slice().iter().map(wire1::Word::from).collect(),
       no_speech_prob: g.no_speech_prob(),

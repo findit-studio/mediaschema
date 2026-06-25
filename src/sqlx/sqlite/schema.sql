@@ -117,7 +117,17 @@ CREATE TABLE IF NOT EXISTS speaker (
     voiceprint_provenance_prompt_version  TEXT,
     voiceprint_provenance_indexer_version TEXT,
     -- Cross-track identity FK -> person.id; NULL = not yet identified.
-    person_id                             BLOB
+    person_id                             BLOB,
+    -- Inference backend + host platform the voiceprint model ran on.
+    -- NULL = not recorded (decodes to Backend::Unspecified / empty Platform);
+    -- forward-compatible for rows written before these columns existed.
+    -- Appended AFTER person_id so a fresh create matches the column order
+    -- the additive 0002 `ALTER TABLE speaker ADD COLUMN` migration produces
+    -- (ADD COLUMN always appends after every pre-existing column).
+    voiceprint_provenance_backend             INTEGER,
+    voiceprint_provenance_platform_os         TEXT,
+    voiceprint_provenance_platform_arch       TEXT,
+    voiceprint_provenance_platform_os_version TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_speaker_audio_track_id ON speaker(audio_track_id);
 CREATE INDEX IF NOT EXISTS idx_speaker_person_id ON speaker(person_id);
