@@ -240,6 +240,14 @@ pub enum Backend {
   /// and is **preserved** (not erased) by a read-modify-write through this
   /// binary. Never holds a known proto number or `0` — those decode to their
   /// named variant / [`Self::Unspecified`].
+  ///
+  /// **Construct only via [`from_i32`](Self::from_i32)** (the decode path).
+  /// Hand-constructing a *non-canonical* `Unknown(0)` or `Unknown(1..=14)` is
+  /// misuse: such a value reports [`is_unknown`](Self::is_unknown) but
+  /// canonicalizes back to its named variant / `Unspecified` on wire
+  /// (`EnumValue`) and SQLite projection. All canonical paths are lossless;
+  /// only this misuse is not. For a known backend, use the named variant.
+  /// Opaque-payload hardening tracked in findit-studio/mediaschema#105.
   Unknown(i32),
 }
 
