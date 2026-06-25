@@ -435,6 +435,260 @@ impl ::buffa::Enumeration for AudioFormat {
         ]
     }
 }
+/// Inference backend that produced an analysis record — the runtime /
+/// framework the loaded model executed on. Top-level enum (codegen strips
+/// the prefix -\> `Backend::Onnx`). Matches the `VIDEO_FORMAT_*` convention.
+/// `BACKEND_UNSPECIFIED` (0) is the proto3 default = "not recorded".
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
+#[repr(i32)]
+pub enum Backend {
+    BACKEND_UNSPECIFIED = 0i32,
+    BACKEND_CPU = 1i32,
+    BACKEND_ONNX = 2i32,
+    BACKEND_GGML = 3i32,
+    BACKEND_MLX = 4i32,
+    BACKEND_APPLEVISION = 5i32,
+    BACKEND_COREML = 6i32,
+    BACKEND_CANDLE = 7i32,
+    BACKEND_BURN = 8i32,
+    BACKEND_TRACT = 9i32,
+    BACKEND_TORCH = 10i32,
+    BACKEND_TENSORRT = 11i32,
+    BACKEND_OPENVINO = 12i32,
+    BACKEND_TFLITE = 13i32,
+    BACKEND_EXECUTORCH = 14i32,
+}
+impl Backend {
+    ///Idiomatic alias for [`Self::BACKEND_UNSPECIFIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Unspecified: Self = Self::BACKEND_UNSPECIFIED;
+    ///Idiomatic alias for [`Self::BACKEND_CPU`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Cpu: Self = Self::BACKEND_CPU;
+    ///Idiomatic alias for [`Self::BACKEND_ONNX`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Onnx: Self = Self::BACKEND_ONNX;
+    ///Idiomatic alias for [`Self::BACKEND_GGML`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Ggml: Self = Self::BACKEND_GGML;
+    ///Idiomatic alias for [`Self::BACKEND_MLX`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Mlx: Self = Self::BACKEND_MLX;
+    ///Idiomatic alias for [`Self::BACKEND_APPLEVISION`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Applevision: Self = Self::BACKEND_APPLEVISION;
+    ///Idiomatic alias for [`Self::BACKEND_COREML`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Coreml: Self = Self::BACKEND_COREML;
+    ///Idiomatic alias for [`Self::BACKEND_CANDLE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Candle: Self = Self::BACKEND_CANDLE;
+    ///Idiomatic alias for [`Self::BACKEND_BURN`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Burn: Self = Self::BACKEND_BURN;
+    ///Idiomatic alias for [`Self::BACKEND_TRACT`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Tract: Self = Self::BACKEND_TRACT;
+    ///Idiomatic alias for [`Self::BACKEND_TORCH`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Torch: Self = Self::BACKEND_TORCH;
+    ///Idiomatic alias for [`Self::BACKEND_TENSORRT`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Tensorrt: Self = Self::BACKEND_TENSORRT;
+    ///Idiomatic alias for [`Self::BACKEND_OPENVINO`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Openvino: Self = Self::BACKEND_OPENVINO;
+    ///Idiomatic alias for [`Self::BACKEND_TFLITE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Tflite: Self = Self::BACKEND_TFLITE;
+    ///Idiomatic alias for [`Self::BACKEND_EXECUTORCH`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Executorch: Self = Self::BACKEND_EXECUTORCH;
+}
+impl ::core::default::Default for Backend {
+    fn default() -> Self {
+        Self::BACKEND_UNSPECIFIED
+    }
+}
+#[cfg(feature = "json")]
+const _: () = {
+    impl ::serde::Serialize for Backend {
+        fn serialize<S: ::serde::Serializer>(
+            &self,
+            s: S,
+        ) -> ::core::result::Result<S::Ok, S::Error> {
+            s.serialize_str(::buffa::Enumeration::proto_name(self))
+        }
+    }
+    impl<'de> ::serde::Deserialize<'de> for Backend {
+        fn deserialize<D: ::serde::Deserializer<'de>>(
+            d: D,
+        ) -> ::core::result::Result<Self, D::Error> {
+            struct _V;
+            impl ::serde::de::Visitor<'_> for _V {
+                type Value = Backend;
+                fn expecting(
+                    &self,
+                    f: &mut ::core::fmt::Formatter<'_>,
+                ) -> ::core::fmt::Result {
+                    f.write_str(
+                        concat!("a string, integer, or null for ", stringify!(Backend)),
+                    )
+                }
+                fn visit_str<E: ::serde::de::Error>(
+                    self,
+                    v: &str,
+                ) -> ::core::result::Result<Backend, E> {
+                    <Backend as ::buffa::Enumeration>::from_proto_name(v)
+                        .ok_or_else(|| { ::serde::de::Error::unknown_variant(v, &[]) })
+                }
+                fn visit_i64<E: ::serde::de::Error>(
+                    self,
+                    v: i64,
+                ) -> ::core::result::Result<Backend, E> {
+                    let v32 = i32::try_from(v)
+                        .map_err(|_| {
+                            ::serde::de::Error::custom(
+                                ::buffa::alloc::format!("enum value {v} out of i32 range"),
+                            )
+                        })?;
+                    <Backend as ::buffa::Enumeration>::from_i32(v32)
+                        .ok_or_else(|| {
+                            ::serde::de::Error::custom(
+                                ::buffa::alloc::format!("unknown enum value {v32}"),
+                            )
+                        })
+                }
+                fn visit_u64<E: ::serde::de::Error>(
+                    self,
+                    v: u64,
+                ) -> ::core::result::Result<Backend, E> {
+                    let v32 = i32::try_from(v)
+                        .map_err(|_| {
+                            ::serde::de::Error::custom(
+                                ::buffa::alloc::format!("enum value {v} out of i32 range"),
+                            )
+                        })?;
+                    <Backend as ::buffa::Enumeration>::from_i32(v32)
+                        .ok_or_else(|| {
+                            ::serde::de::Error::custom(
+                                ::buffa::alloc::format!("unknown enum value {v32}"),
+                            )
+                        })
+                }
+                fn visit_unit<E: ::serde::de::Error>(
+                    self,
+                ) -> ::core::result::Result<Backend, E> {
+                    ::core::result::Result::Ok(::core::default::Default::default())
+                }
+            }
+            d.deserialize_any(_V)
+        }
+    }
+    impl ::buffa::json_helpers::ProtoElemJson for Backend {
+        fn serialize_proto_json<S: ::serde::Serializer>(
+            v: &Self,
+            s: S,
+        ) -> ::core::result::Result<S::Ok, S::Error> {
+            ::serde::Serialize::serialize(v, s)
+        }
+        fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+            d: D,
+        ) -> ::core::result::Result<Self, D::Error> {
+            <Self as ::serde::Deserialize>::deserialize(d)
+        }
+    }
+};
+impl ::buffa::Enumeration for Backend {
+    fn from_i32(value: i32) -> ::core::option::Option<Self> {
+        match value {
+            0i32 => ::core::option::Option::Some(Self::BACKEND_UNSPECIFIED),
+            1i32 => ::core::option::Option::Some(Self::BACKEND_CPU),
+            2i32 => ::core::option::Option::Some(Self::BACKEND_ONNX),
+            3i32 => ::core::option::Option::Some(Self::BACKEND_GGML),
+            4i32 => ::core::option::Option::Some(Self::BACKEND_MLX),
+            5i32 => ::core::option::Option::Some(Self::BACKEND_APPLEVISION),
+            6i32 => ::core::option::Option::Some(Self::BACKEND_COREML),
+            7i32 => ::core::option::Option::Some(Self::BACKEND_CANDLE),
+            8i32 => ::core::option::Option::Some(Self::BACKEND_BURN),
+            9i32 => ::core::option::Option::Some(Self::BACKEND_TRACT),
+            10i32 => ::core::option::Option::Some(Self::BACKEND_TORCH),
+            11i32 => ::core::option::Option::Some(Self::BACKEND_TENSORRT),
+            12i32 => ::core::option::Option::Some(Self::BACKEND_OPENVINO),
+            13i32 => ::core::option::Option::Some(Self::BACKEND_TFLITE),
+            14i32 => ::core::option::Option::Some(Self::BACKEND_EXECUTORCH),
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn to_i32(&self) -> i32 {
+        *self as i32
+    }
+    fn proto_name(&self) -> &'static str {
+        match self {
+            Self::BACKEND_UNSPECIFIED => "BACKEND_UNSPECIFIED",
+            Self::BACKEND_CPU => "BACKEND_CPU",
+            Self::BACKEND_ONNX => "BACKEND_ONNX",
+            Self::BACKEND_GGML => "BACKEND_GGML",
+            Self::BACKEND_MLX => "BACKEND_MLX",
+            Self::BACKEND_APPLEVISION => "BACKEND_APPLEVISION",
+            Self::BACKEND_COREML => "BACKEND_COREML",
+            Self::BACKEND_CANDLE => "BACKEND_CANDLE",
+            Self::BACKEND_BURN => "BACKEND_BURN",
+            Self::BACKEND_TRACT => "BACKEND_TRACT",
+            Self::BACKEND_TORCH => "BACKEND_TORCH",
+            Self::BACKEND_TENSORRT => "BACKEND_TENSORRT",
+            Self::BACKEND_OPENVINO => "BACKEND_OPENVINO",
+            Self::BACKEND_TFLITE => "BACKEND_TFLITE",
+            Self::BACKEND_EXECUTORCH => "BACKEND_EXECUTORCH",
+        }
+    }
+    fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
+        match name {
+            "BACKEND_UNSPECIFIED" => {
+                ::core::option::Option::Some(Self::BACKEND_UNSPECIFIED)
+            }
+            "BACKEND_CPU" => ::core::option::Option::Some(Self::BACKEND_CPU),
+            "BACKEND_ONNX" => ::core::option::Option::Some(Self::BACKEND_ONNX),
+            "BACKEND_GGML" => ::core::option::Option::Some(Self::BACKEND_GGML),
+            "BACKEND_MLX" => ::core::option::Option::Some(Self::BACKEND_MLX),
+            "BACKEND_APPLEVISION" => {
+                ::core::option::Option::Some(Self::BACKEND_APPLEVISION)
+            }
+            "BACKEND_COREML" => ::core::option::Option::Some(Self::BACKEND_COREML),
+            "BACKEND_CANDLE" => ::core::option::Option::Some(Self::BACKEND_CANDLE),
+            "BACKEND_BURN" => ::core::option::Option::Some(Self::BACKEND_BURN),
+            "BACKEND_TRACT" => ::core::option::Option::Some(Self::BACKEND_TRACT),
+            "BACKEND_TORCH" => ::core::option::Option::Some(Self::BACKEND_TORCH),
+            "BACKEND_TENSORRT" => ::core::option::Option::Some(Self::BACKEND_TENSORRT),
+            "BACKEND_OPENVINO" => ::core::option::Option::Some(Self::BACKEND_OPENVINO),
+            "BACKEND_TFLITE" => ::core::option::Option::Some(Self::BACKEND_TFLITE),
+            "BACKEND_EXECUTORCH" => {
+                ::core::option::Option::Some(Self::BACKEND_EXECUTORCH)
+            }
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn values() -> &'static [Self] {
+        &[
+            Self::BACKEND_UNSPECIFIED,
+            Self::BACKEND_CPU,
+            Self::BACKEND_ONNX,
+            Self::BACKEND_GGML,
+            Self::BACKEND_MLX,
+            Self::BACKEND_APPLEVISION,
+            Self::BACKEND_COREML,
+            Self::BACKEND_CANDLE,
+            Self::BACKEND_BURN,
+            Self::BACKEND_TRACT,
+            Self::BACKEND_TORCH,
+            Self::BACKEND_TENSORRT,
+            Self::BACKEND_OPENVINO,
+            Self::BACKEND_TFLITE,
+            Self::BACKEND_EXECUTORCH,
+        ]
+    }
+}
 /// Whether a `Person`'s identification is user-confirmed or auto-matched.
 /// Mirrors the domain `PersonConfidence` enum (see `schema/person.md`).
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -8370,6 +8624,221 @@ pub const __ERROR_INFO_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa:
     from_json: ::buffa::type_registry::any_from_json::<ErrorInfo>,
     is_wkt: false,
 };
+/// Host platform a model ran on — OS, CPU architecture, OS version. All
+/// three are version-bearing / open vocabularies, so strings (sourced from
+/// `std::env::consts::{OS,ARCH}` + an OS-version query). "" = absent (the
+/// empty-string sentinel, matching the SmolStr empty-means-absent domain
+/// convention); never null.
+#[derive(Clone, PartialEq, Default)]
+#[cfg_attr(feature = "json", derive(::serde::Serialize, ::serde::Deserialize))]
+#[cfg_attr(feature = "json", serde(default))]
+#[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
+pub struct Platform {
+    /// Field 1: `os`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "os",
+            with = "::buffa::json_helpers::proto_string",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+        )
+    )]
+    pub os: ::buffa::smol_str::SmolStr,
+    /// Field 2: `arch`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "arch",
+            with = "::buffa::json_helpers::proto_string",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+        )
+    )]
+    pub arch: ::buffa::smol_str::SmolStr,
+    /// Field 3: `os_version`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "osVersion",
+            alias = "os_version",
+            with = "::buffa::json_helpers::proto_string",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+        )
+    )]
+    pub os_version: ::buffa::smol_str::SmolStr,
+    #[cfg_attr(feature = "json", serde(skip))]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for Platform {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("Platform")
+            .field("os", &self.os)
+            .field("arch", &self.arch)
+            .field("os_version", &self.os_version)
+            .finish()
+    }
+}
+impl Platform {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/media.v1.Platform";
+}
+impl ::buffa::DefaultInstance for Platform {
+    fn default_instance() -> &'static Self {
+        static VALUE: ::buffa::__private::OnceBox<Platform> = ::buffa::__private::OnceBox::new();
+        VALUE.get_or_init(|| ::buffa::alloc::boxed::Box::new(Self::default()))
+    }
+}
+impl ::buffa::MessageName for Platform {
+    const PACKAGE: &'static str = "media.v1";
+    const NAME: &'static str = "Platform";
+    const FULL_NAME: &'static str = "media.v1.Platform";
+    const TYPE_URL: &'static str = "type.googleapis.com/media.v1.Platform";
+}
+impl ::buffa::Message for Platform {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// The result is a `u32`; the protobuf specification requires all
+    /// messages to fit within 2 GiB (2,147,483,647 bytes), so a
+    /// compliant message will never overflow this type.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u32;
+        if !self.os.is_empty() {
+            size += 1u32 + ::buffa::types::string_encoded_len(&self.os) as u32;
+        }
+        if !self.arch.is_empty() {
+            size += 1u32 + ::buffa::types::string_encoded_len(&self.arch) as u32;
+        }
+        if !self.os_version.is_empty() {
+            size += 1u32 + ::buffa::types::string_encoded_len(&self.os_version) as u32;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u32;
+        size
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::bytes::BufMut,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.os.is_empty() {
+            ::buffa::encoding::Tag::new(
+                    1u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::types::encode_string(&self.os, buf);
+        }
+        if !self.arch.is_empty() {
+            ::buffa::encoding::Tag::new(
+                    2u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::types::encode_string(&self.arch, buf);
+        }
+        if !self.os_version.is_empty() {
+            ::buffa::encoding::Tag::new(
+                    3u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::types::encode_string(&self.os_version, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        depth: u32,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 1u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.os = ::buffa::types::decode_string_to(buf)?;
+            }
+            2u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 2u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.arch = ::buffa::types::decode_string_to(buf)?;
+            }
+            3u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 3u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.os_version = ::buffa::types::decode_string_to(buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, depth)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.os = ::core::default::Default::default();
+        self.arch = ::core::default::Default::default();
+        self.os_version = ::core::default::Default::default();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for Platform {
+    const PROTO_FQN: &'static str = "media.v1.Platform";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+#[cfg(feature = "json")]
+impl ::buffa::json_helpers::ProtoElemJson for Platform {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[cfg(feature = "json")]
+#[doc(hidden)]
+pub const __PLATFORM_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/media.v1.Platform",
+    to_json: ::buffa::type_registry::any_to_json::<Platform>,
+    from_json: ::buffa::type_registry::any_from_json::<Platform>,
+    is_wkt: false,
+};
 /// Analysis-run reproducibility — which model / prompt / indexer produced
 /// this analysis record, so a re-run on upgrade is deterministic. Locked
 /// shared cross-cutting VO (see `schema/README.md`). Carried by every
@@ -8424,6 +8893,25 @@ pub struct Provenance {
         )
     )]
     pub indexer_version: ::buffa::smol_str::SmolStr,
+    /// Field 5: `backend`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "backend",
+            with = "::buffa::json_helpers::proto_enum",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
+        )
+    )]
+    pub backend: ::buffa::EnumValue<Backend>,
+    /// Field 6: `platform`
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "platform",
+            skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+        )
+    )]
+    pub platform: ::buffa::MessageField<Platform>,
     #[cfg_attr(feature = "json", serde(skip))]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -8435,6 +8923,8 @@ impl ::core::fmt::Debug for Provenance {
             .field("model_version", &self.model_version)
             .field("prompt_version", &self.prompt_version)
             .field("indexer_version", &self.indexer_version)
+            .field("backend", &self.backend)
+            .field("platform", &self.platform)
             .finish()
     }
 }
@@ -8464,7 +8954,7 @@ impl ::buffa::Message for Provenance {
     /// messages to fit within 2 GiB (2,147,483,647 bytes), so a
     /// compliant message will never overflow this type.
     #[allow(clippy::let_and_return)]
-    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u32;
@@ -8485,12 +8975,26 @@ impl ::buffa::Message for Provenance {
                 += 1u32
                     + ::buffa::types::string_encoded_len(&self.indexer_version) as u32;
         }
+        {
+            let val = self.backend.to_i32();
+            if val != 0 {
+                size += 1u32 + ::buffa::types::int32_encoded_len(val) as u32;
+            }
+        }
+        if self.platform.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.platform.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u32 + ::buffa::encoding::varint_len(inner_size as u64) as u32
+                    + inner_size;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u32;
         size
     }
     fn write_to(
         &self,
-        _cache: &mut ::buffa::SizeCache,
+        __cache: &mut ::buffa::SizeCache,
         buf: &mut impl ::buffa::bytes::BufMut,
     ) {
         #[allow(unused_imports)]
@@ -8526,6 +9030,23 @@ impl ::buffa::Message for Provenance {
                 )
                 .encode(buf);
             ::buffa::types::encode_string(&self.indexer_version, buf);
+        }
+        {
+            let val = self.backend.to_i32();
+            if val != 0 {
+                ::buffa::encoding::Tag::new(5u32, ::buffa::encoding::WireType::Varint)
+                    .encode(buf);
+                ::buffa::types::encode_int32(val, buf);
+            }
+        }
+        if self.platform.is_set() {
+            ::buffa::encoding::Tag::new(
+                    6u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::encoding::encode_varint(__cache.consume_next() as u64, buf);
+            self.platform.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -8580,6 +9101,32 @@ impl ::buffa::Message for Provenance {
                 }
                 self.indexer_version = ::buffa::types::decode_string_to(buf)?;
             }
+            5u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::Varint {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 5u32,
+                        expected: 0u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.backend = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(buf)?,
+                );
+            }
+            6u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 6u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                ::buffa::Message::merge_length_delimited(
+                    self.platform.get_or_insert_default(),
+                    buf,
+                    depth,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, depth)?);
@@ -8592,6 +9139,8 @@ impl ::buffa::Message for Provenance {
         self.model_version = ::core::default::Default::default();
         self.prompt_version = ::core::default::Default::default();
         self.indexer_version = ::core::default::Default::default();
+        self.backend = ::buffa::EnumValue::from(0);
+        self.platform = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
 }

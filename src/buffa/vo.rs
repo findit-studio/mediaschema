@@ -44,7 +44,11 @@ use smol_str::SmolStr;
 
 #[cfg(feature = "audio")]
 use crate::domain::aggregates::audio::segment::Word;
-use crate::{buffa::error::BuffaError, domain::vo::LocalizedText, generated::media::v1 as wire};
+use crate::{
+  buffa::error::BuffaError,
+  domain::vo::{LocalizedText, Platform},
+  generated::media::v1 as wire,
+};
 // Under `feature = "alloc"` (no std), `String` / `ToOwned` / `ToString`
 // aren't in the prelude — pull them in via the `extern crate alloc as std`
 // alias declared in `lib.rs`. Under `feature = "std"` these come from the
@@ -86,6 +90,40 @@ pub(super) fn localized_text_from_wire(w: &MessageField<wire::LocalizedText>) ->
   match w.as_option() {
     Some(v) => LocalizedText::from(v),
     None => LocalizedText::new(),
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Platform ⇄ wire::Platform — 3 SmolStr <-> 3 SmolStr
+// ---------------------------------------------------------------------------
+
+impl From<&Platform> for wire::Platform {
+  fn from(d: &Platform) -> Self {
+    wire::Platform {
+      os: d.os().to_owned().into(),
+      arch: d.arch().to_owned().into(),
+      os_version: d.os_version().to_owned().into(),
+      __buffa_unknown_fields: Default::default(),
+    }
+  }
+}
+
+impl From<&wire::Platform> for Platform {
+  fn from(w: &wire::Platform) -> Self {
+    Platform::from_parts(
+      SmolStr::from(w.os.as_str()),
+      SmolStr::from(w.arch.as_str()),
+      SmolStr::from(w.os_version.as_str()),
+    )
+  }
+}
+
+/// Decode a singular `MessageField<wire::Platform>` slot. An unset slot
+/// decodes to the all-empty `Platform` (the "not recorded" state).
+pub(super) fn platform_from_wire(w: &MessageField<wire::Platform>) -> Platform {
+  match w.as_option() {
+    Some(v) => Platform::from(v),
+    None => Platform::new(),
   }
 }
 
@@ -242,6 +280,27 @@ mod tests {
     };
     let err = Language::try_from(&w).unwrap_err();
     assert!(matches!(err, BuffaError::LanguageMalformed(ref s) if s == "xx-yy-zz-bogus"));
+  }
+
+  // ---- Platform --------------------------------------------------------------
+
+  #[test]
+  fn platform_roundtrip_populated() {
+    use crate::domain::vo::Platform;
+    let d = Platform::from_parts("macos", "aarch64", "15.5");
+    let w: wire::Platform = (&d).into();
+    let d2: Platform = (&w).into();
+    assert_eq!(d, d2);
+  }
+
+  #[test]
+  fn platform_roundtrip_empty() {
+    use crate::domain::vo::Platform;
+    let d = Platform::new();
+    let w: wire::Platform = (&d).into();
+    let d2: Platform = (&w).into();
+    assert_eq!(d, d2);
+    assert!(d2.is_empty());
   }
 
   // ---- Word ------------------------------------------------------------------

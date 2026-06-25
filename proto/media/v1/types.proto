@@ -157,6 +157,8 @@ message Provenance {
   string model_version = 2;
   string prompt_version = 3;
   string indexer_version = 4;
+  Backend backend = 5;
+  Platform platform = 6;
 }
 
 // Voice-embedding metadata. The actual vector lives in an external

@@ -30,7 +30,7 @@ use smol_str::SmolStr;
 use crate::{
   buffa::error::BuffaError,
   domain::{
-    vo::{Provenance, VoiceFingerprint},
+    vo::{Backend, Provenance, VoiceFingerprint},
     Uuid7,
   },
   generated::media::v1 as wire,
@@ -57,6 +57,8 @@ impl From<&Provenance> for wire::Provenance {
       model_version: d.model_version().to_owned().into(),
       prompt_version: d.prompt_version().to_owned().into(),
       indexer_version: d.indexer_version().to_owned().into(),
+      backend: d.backend().into(),
+      platform: ::buffa::MessageField::some(wire::Platform::from(d.platform_ref())),
       __buffa_unknown_fields: Default::default(),
     }
   }
@@ -70,6 +72,8 @@ impl From<&wire::Provenance> for Provenance {
       SmolStr::from(w.prompt_version.as_str()),
       SmolStr::from(w.indexer_version.as_str()),
     )
+    .with_backend(Backend::from(&w.backend))
+    .with_platform(crate::buffa::vo::platform_from_wire(&w.platform))
   }
 }
 
@@ -203,6 +207,30 @@ mod tests {
     let d2: Provenance = (&w).into();
     assert_eq!(d, d2);
     assert!(d2.is_empty());
+  }
+
+  #[test]
+  fn provenance_roundtrip_carries_backend_and_platform() {
+    use crate::domain::vo::{Backend, Platform};
+    let d = Provenance::from_parts("ecapa-tdnn", "v1", "p", "idx")
+      .with_backend(Backend::Onnx)
+      .with_platform(Platform::from_parts("macos", "aarch64", "15.5"));
+    let w: wire::Provenance = (&d).into();
+    let d2: Provenance = (&w).into();
+    assert_eq!(d, d2);
+    assert_eq!(d2.backend(), Backend::Onnx);
+    assert_eq!(d2.platform_ref().os(), "macos");
+  }
+
+  #[test]
+  fn provenance_roundtrip_default_backend_platform() {
+    use crate::domain::vo::Backend;
+    let d = Provenance::from_parts("m", "v", "p", "i"); // Unspecified + empty
+    let w: wire::Provenance = (&d).into();
+    let d2: Provenance = (&w).into();
+    assert_eq!(d, d2);
+    assert_eq!(d2.backend(), Backend::Unspecified);
+    assert!(d2.platform_ref().is_empty());
   }
 
   #[test]

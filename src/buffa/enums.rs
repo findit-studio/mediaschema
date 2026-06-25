@@ -17,7 +17,11 @@
 //! unbridged; tracked as a follow-up if/when the wire layer is
 //! regenerated against the locked schema.
 
-use crate::{buffa::error::BuffaError, domain::MediaKind, generated::media::v1 as wire};
+use crate::{
+  buffa::error::BuffaError,
+  domain::{Backend, MediaKind},
+  generated::media::v1 as wire,
+};
 
 // ---------------------------------------------------------------------------
 // DbMediaKind ⇄ MediaKind
@@ -76,6 +80,42 @@ impl From<MediaKind> for ::buffa::EnumValue<wire::DbMediaKind> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Backend ⇄ wire::Backend  (infallible both ways — Backend has an
+// Unspecified / unknown arm, so no UnknownEnumValue error)
+// ---------------------------------------------------------------------------
+
+impl From<Backend> for wire::Backend {
+  fn from(d: Backend) -> Self {
+    // Map through the pinned wire integer; codegen's `from_i32` is total
+    // over the known range, and `Backend::to_i32` only emits known values.
+    <wire::Backend as ::buffa::Enumeration>::from_i32(d.to_i32())
+      .unwrap_or(wire::Backend::BACKEND_UNSPECIFIED)
+  }
+}
+
+impl From<wire::Backend> for Backend {
+  fn from(w: wire::Backend) -> Self {
+    Backend::from_i32(<wire::Backend as ::buffa::Enumeration>::to_i32(&w))
+  }
+}
+
+impl From<Backend> for ::buffa::EnumValue<wire::Backend> {
+  fn from(d: Backend) -> Self {
+    ::buffa::EnumValue::Known(wire::Backend::from(d))
+  }
+}
+
+impl From<&::buffa::EnumValue<wire::Backend>> for Backend {
+  fn from(w: &::buffa::EnumValue<wire::Backend>) -> Self {
+    match w {
+      ::buffa::EnumValue::Known(k) => Backend::from(*k),
+      // Forward-compatible unknown int -> Unspecified (total).
+      ::buffa::EnumValue::Unknown(_) => Backend::Unspecified,
+    }
+  }
+}
+
 // ===========================================================================
 // Tests
 // ===========================================================================
@@ -122,5 +162,42 @@ mod tests {
     let ev: ::buffa::EnumValue<wire::DbMediaKind> = ::buffa::EnumValue::Unknown(42);
     let err = MediaKind::try_from(&ev).unwrap_err();
     assert_eq!(err.try_unwrap_unknown_enum_value_ref(), Ok(&42));
+  }
+
+  #[test]
+  fn backend_roundtrip_every_variant() {
+    use crate::domain::Backend;
+    let all = [
+      Backend::Unspecified,
+      Backend::Cpu,
+      Backend::Onnx,
+      Backend::Ggml,
+      Backend::Mlx,
+      Backend::AppleVision,
+      Backend::CoreMl,
+      Backend::Candle,
+      Backend::Burn,
+      Backend::Tract,
+      Backend::Torch,
+      Backend::TensorRt,
+      Backend::OpenVino,
+      Backend::TfLite,
+      Backend::ExecuTorch,
+    ];
+    for b in all {
+      let w: wire::Backend = b.into();
+      let b2: Backend = w.into();
+      assert_eq!(b, b2, "roundtrip {b}");
+    }
+  }
+
+  #[test]
+  fn backend_unknown_wire_int_is_unspecified() {
+    use crate::domain::Backend;
+    // The open-enum container can hold an unknown int; it decodes to
+    // Unspecified (total, forward-compatible).
+    let ev: ::buffa::EnumValue<wire::Backend> = ::buffa::EnumValue::Unknown(99);
+    let b: Backend = (&ev).into();
+    assert_eq!(b, Backend::Unspecified);
   }
 }
