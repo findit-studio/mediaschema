@@ -91,10 +91,12 @@ impl From<&Speaker<Uuid7>> for SqliteSpeakerRow {
       // columns (so `IS NULL` audits backfill candidates uniformly across
       // pre-migration rows and freshly-written ones). Encode the not-recorded
       // domain states as NULL rather than a "present-but-default" value:
-      // `Backend::Unspecified` -> NULL backend, and an all-empty `Platform`
-      // -> NULL on all three platform columns. A recorded platform writes
-      // every sub-field verbatim (even a sub-field that is individually "",
-      // matching the empty-string convention of the other provenance columns).
+      // `Backend::Unspecified` -> NULL backend, and each empty `Platform`
+      // sub-field -> NULL on its own column. Empty-as-absent is applied at the
+      // FIELD level, mirroring the VO's per-field `""`=absent convention: a
+      // Platform with os/arch recorded but no os_version writes os/arch and
+      // leaves os_version NULL (not `Some("")`), and a fully-empty Platform
+      // still yields all-NULL.
       //
       // The gate is `is_unspecified()`, NOT equality to a single variant, so a
       // recorded `Backend::Unknown(i)` (a forward-compatible code) is non-NULL:
@@ -107,16 +109,16 @@ impl From<&Speaker<Uuid7>> for SqliteSpeakerRow {
         (!b.is_unspecified()).then(|| b.to_i32())
       }),
       voiceprint_provenance_platform_os: prov.and_then(|p| {
-        let plat = p.platform_ref();
-        (!plat.is_empty()).then(|| plat.os().to_owned())
+        let os = p.platform_ref().os();
+        (!os.is_empty()).then(|| os.to_owned())
       }),
       voiceprint_provenance_platform_arch: prov.and_then(|p| {
-        let plat = p.platform_ref();
-        (!plat.is_empty()).then(|| plat.arch().to_owned())
+        let arch = p.platform_ref().arch();
+        (!arch.is_empty()).then(|| arch.to_owned())
       }),
       voiceprint_provenance_platform_os_version: prov.and_then(|p| {
-        let plat = p.platform_ref();
-        (!plat.is_empty()).then(|| plat.os_version().to_owned())
+        let os_version = p.platform_ref().os_version();
+        (!os_version.is_empty()).then(|| os_version.to_owned())
       }),
       person_id: s.person_id_ref().map(|p| p.as_bytes().to_vec()),
     }
@@ -897,6 +899,85 @@ mod tests {
     assert_eq!(row.voiceprint_provenance_platform_os, None);
     assert_eq!(row.voiceprint_provenance_platform_arch, None);
     assert_eq!(row.voiceprint_provenance_platform_os_version, None);
+  }
+
+  #[test]
+  fn speaker_voiceprint_platform_gates_each_column_on_its_own_field() {
+    // Empty-as-absent is per-FIELD, not whole-Platform: a partially-recorded
+    // Platform (os + arch present, os_version absent) must persist os/arch as
+    // their values and os_version as NULL — NOT `Some("")`. Previously the gate
+    // keyed on whole-Platform emptiness, so any non-empty field forced the
+    // empty siblings to bind `""` instead of NULL.
+    let provenance = Provenance::from_parts("ecapa-tdnn", "v1.0.0", "", "idx-0.1")
+      .with_platform(crate::domain::Platform::from_parts("macos", "aarch64", ""));
+    let voiceprint = VoiceFingerprint::try_new(Uuid7::new(), 192, ts(), None, provenance).unwrap();
+    let s = Speaker::try_new(Uuid7::new(), Uuid7::new(), 0, "P")
+      .unwrap()
+      .with_voiceprint(voiceprint);
+    let row: SqliteSpeakerRow = (&s).into();
+    assert_eq!(
+      row.voiceprint_provenance_platform_os.as_deref(),
+      Some("macos")
+    );
+    assert_eq!(
+      row.voiceprint_provenance_platform_arch.as_deref(),
+      Some("aarch64")
+    );
+    // The bug case: an individually-empty os_version is NULL, not Some("").
+    assert_eq!(row.voiceprint_provenance_platform_os_version, None);
+
+    // Round-trip preserves field-level absence: NULL os_version decodes back to
+    // an empty os_version while os/arch survive verbatim.
+    let s2: Speaker<Uuid7> = row.clone().try_into().unwrap();
+    let plat2 = s2.voiceprint_ref().unwrap().provenance_ref().platform_ref();
+    assert_eq!(plat2.os(), "macos");
+    assert_eq!(plat2.arch(), "aarch64");
+    assert_eq!(plat2.os_version(), "");
+    // Borrowed decode is symmetric.
+    let s3: Speaker<Uuid7> = row.as_ref().try_into().unwrap();
+    let plat3 = s3.voiceprint_ref().unwrap().provenance_ref().platform_ref();
+    assert_eq!(plat3.os(), "macos");
+    assert_eq!(plat3.arch(), "aarch64");
+    assert_eq!(plat3.os_version(), "");
+  }
+
+  #[test]
+  fn speaker_voiceprint_platform_fully_empty_all_null_fully_populated_all_some() {
+    // A fully-empty Platform -> all three columns NULL.
+    let empty =
+      Provenance::from_parts("m", "v", "", "idx").with_platform(crate::domain::Platform::new());
+    let vp_empty = VoiceFingerprint::try_new(Uuid7::new(), 64, ts(), None, empty).unwrap();
+    let row_empty: SqliteSpeakerRow = (&Speaker::try_new(Uuid7::new(), Uuid7::new(), 0, "E")
+      .unwrap()
+      .with_voiceprint(vp_empty))
+      .into();
+    assert_eq!(row_empty.voiceprint_provenance_platform_os, None);
+    assert_eq!(row_empty.voiceprint_provenance_platform_arch, None);
+    assert_eq!(row_empty.voiceprint_provenance_platform_os_version, None);
+
+    // A fully-populated Platform -> all three columns Some(..).
+    let full = Provenance::from_parts("m", "v", "", "idx").with_platform(
+      crate::domain::Platform::from_parts("linux", "x86_64", "6.8"),
+    );
+    let vp_full = VoiceFingerprint::try_new(Uuid7::new(), 64, ts(), None, full).unwrap();
+    let row_full: SqliteSpeakerRow = (&Speaker::try_new(Uuid7::new(), Uuid7::new(), 0, "F")
+      .unwrap()
+      .with_voiceprint(vp_full))
+      .into();
+    assert_eq!(
+      row_full.voiceprint_provenance_platform_os.as_deref(),
+      Some("linux")
+    );
+    assert_eq!(
+      row_full.voiceprint_provenance_platform_arch.as_deref(),
+      Some("x86_64")
+    );
+    assert_eq!(
+      row_full
+        .voiceprint_provenance_platform_os_version
+        .as_deref(),
+      Some("6.8")
+    );
   }
 
   #[test]
