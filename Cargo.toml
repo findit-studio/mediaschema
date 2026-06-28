@@ -117,7 +117,7 @@ sqlx-sqlite   = ["std", "dep:sqlx", "sqlx/sqlite", "sqlx/uuid"]
 # (typically paired with `--features std` or `--features alloc` since
 # the codegen uses heap types).
 buffa = { version = "0.7", default-features = false, optional = true }
-buffa-types = { version = "0.7", default-features = false, optional = true }
+buffa-types = { version = "0.8", default-features = false, optional = true }
 mediatime = { version = "0.1", default-features = false, features = ["buffa"] }
 # Shared media-stream descriptor vocabulary (codec / pixel-format / colour /
 # frame / audio / subtitle / capture / language). Optional, pulled in by the
