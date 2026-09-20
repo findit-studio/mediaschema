@@ -129,7 +129,7 @@ mediatime = { version = "0.1", default-features = false, features = ["buffa"] }
 # wire extern. The per-family `frame` borrow-view features are NOT needed —
 # mediaschema uses the descriptor types (Dimensions, PixelFormat, color::Info,
 # codecs, …), not the zero-copy `*Frame` views.
-mediaframe = { version = "0.1", default-features = false, optional = true }
+mediaframe = { version = "0.111", default-features = false, optional = true }
 # `bytes::Bytes` for inline image / mask byte payloads — `Keyframe.data`,
 # the apple-vision segmentation masks, and `SubtitleCue.image` — mirroring
 # the wire layer's `::buffa::bytes::Bytes`. Optional, pulled in by the heap
